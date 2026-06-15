@@ -69,14 +69,20 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
       <ul className="flex flex-col gap-3">
         {sourceDocuments.map((doc) => (
           <li key={doc.id}>
-            <a
-              href="#"
-              onClick={(e) => e.preventDefault()}
+            <button
+              type="button"
+              onClick={() => {
+                window.open(
+                  `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
+                  `pdf-${doc.id}`,
+                  'popup,width=680,height=800'
+                )
+              }}
               className="group flex items-center gap-2 text-[13px] text-blue-700 hover:underline"
             >
               <ArrowUpRight size={15} className="shrink-0" />
               <span className="truncate">{doc.name}</span>
-            </a>
+            </button>
           </li>
         ))}
       </ul>
