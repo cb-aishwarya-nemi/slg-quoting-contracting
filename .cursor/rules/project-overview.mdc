@@ -1,0 +1,54 @@
+---
+description: Apex by Chargebee SLG prototype - project context and tech stack
+alwaysApply: true
+---
+
+# Apex by Chargebee - SLG Prototype
+
+Sales-Led Growth (SLG) prototype for Chargebee's Apex platform.
+
+## Tech Stack
+
+- **Framework**: React 18+ with TypeScript
+- **Build**: Vite
+- **Styling**: Tailwind CSS v4 (CSS-based config in `index.css`)
+- **Icons**: Lucide React
+- **Fonts**: Inter (body), Sora (headings) via @fontsource
+
+## Project Structure
+
+```
+src/
+  assets/         # Images, SVGs, static files
+  components/
+    layout/       # LeftNav, TopNav, AppLayout shell components
+    ui/           # Reusable UI primitives (TrapezoidalTabs, InlineEditField, etc.)
+    features/     # Feature-specific components
+      customer-link/  # Customer linking modal (CustomerLinkModal, ContractPreview, etc.)
+  context/        # React context providers (FileDropContext)
+  data/           # Mock data and type definitions
+  pages/          # Page components (WorkbenchPage, etc.)
+  lib/            # Utilities (cn helper, formatRelativeDate, etc.)
+  index.css       # Tailwind theme, custom properties
+```
+
+## Key Design Decisions
+
+1. **Rounded corners**: Default to `rounded-full` for tags/badges, `rounded-lg` for cards/buttons
+2. **AI elements**: Use animated gradient (#ff3300 → #8b5cf6) to convey intelligence
+3. **Navigation**: Fixed left nav (48px) + fixed top nav (40px)
+4. **Color**: Brand navy (#1c1b2e) as primary text, orange-500 for active states
+
+## Navigation Items
+
+| Icon | Label | Route |
+|------|-------|-------|
+| Home | Workbench | / |
+| MessageSquarePlus | New Chat | /chat |
+| History | History | /history |
+| Users | Customers | /customers |
+| FileText | Quotes | /quotes |
+| ScrollText | Contracts | /contracts |
+| ReceiptText | Invoices | /invoices |
+| WalletCards | Collections | /collections |
+| BarChart3 | Reports | /reports |

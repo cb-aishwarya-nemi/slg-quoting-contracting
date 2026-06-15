@@ -1,0 +1,166 @@
+---
+description: Apex by Chargebee design system - colors, typography, spacing, and UI conventions
+globs: "**/*.tsx"
+alwaysApply: false
+---
+
+# Apex by Chargebee Design System
+
+## Brand Colors
+
+| Token | Hex | Usage |
+|-------|-----|-------|
+| `brand-navy` | `#1c1b2e` | Primary text, icons, headers |
+| `brand-deep` | `#13121f` | Dark backgrounds |
+| `brand-soft` | `#2e2c4a` | Secondary dark surfaces |
+| `brand-mist` | `#9b99b4` | Muted text |
+| `brand-fog` | `#6b6885` | Placeholder text |
+
+## Accent Colors
+
+### Orange (Primary Actions, CTAs)
+- `orange-500`: `#ff3300` - Primary buttons, active states
+- `orange-100`: `#ffe5de` - Active nav item backgrounds
+- `orange-50`: `#fff5f2` - Subtle hover backgrounds
+
+### Violet (AI Surfaces)
+- `violet-500`: `#6d28d9` - AI-related elements
+- `violet-50`: `#f5f3ff` - AI surface backgrounds
+
+### AI Gradient
+- Direction: Top to bottom (`#ff3300` → `#8b5cf6`)
+- Use for AI-centric icons and elements
+- Animate with 3s pulse for "ephemeral" feel
+
+## Typography
+
+| Purpose | Font | Weights |
+|---------|------|---------|
+| Body text | Inter | 400, 500, 600 |
+| Headings | Sora | 400, 500, 600, 700 |
+
+## Corner Radius
+
+- **Default**: Use `rounded-full` for badges, tags, pills
+- **Buttons/Cards**: Use `rounded-lg` (8px)
+- **Small elements**: Use `rounded-md` (6px)
+- **Exception**: Only use smaller radius when explicitly specified
+
+## Layout Structure
+
+### Left Navigation
+- Width: `w-12` (48px)
+- Position: Fixed, full height
+- Padding: `pt-2 pb-3`
+- Icon size: 18px
+- Active state: `bg-orange-100 text-orange-500` with `h-7 w-7`
+
+### Top Navigation
+- Height: `h-10` (40px)
+- Position: Fixed, offset by left nav (`left-12`)
+- Z-index: `z-30` (below left nav's `z-40`)
+
+## Icon Guidelines
+
+- Library: Lucide React
+- Default size: 18px for nav, 16px for actions, 14px for inline
+- AI icons: Use animated gradient stroke (see GradientMessageSquarePlus pattern)
+
+## Semantic Colors
+
+| State | Background | Text |
+|-------|------------|------|
+| Success | `green-50` | `green-700` |
+| Warning | `amber-50` | `amber-700` |
+| Danger | `red-50` | `red-700` |
+| Info | `blue-50` | `blue-700` |
+| Live | `green-50` with `green-500` dot | `green-700` |
+
+## Interactive States
+
+```tsx
+// Hover states for buttons/clickable elements
+className="transition-colors hover:bg-neutral-100"
+
+// Active nav item
+className="bg-orange-100 text-orange-500"
+```
+
+## Workbench Page Patterns
+
+### Header Layout
+- Title: `text-[20px] font-semibold text-brand-navy` with `letter-spacing: -0.5px`
+- Title positioned left with `left-6 bottom-2.5`
+- Tabs absolutely centered on screen with `left-1/2 -translate-x-1/2`
+- Horizontal line spans from `left-6` to `right-4` (aligns with title and avatar)
+- Header height: 72px expanded, 56px compact (on scroll)
+
+### Content Area
+- Max width: `max-w-[1560px]` centered with `mx-auto`
+- Background: Pure white (`bg-white`)
+- Padding: `px-6 py-8`
+
+### Stats Section
+- Spread across width using `flex flex-1`
+- Vertical line separators: `h-12 w-px bg-neutral-200`
+- Value: `text-[32px] font-semibold text-brand-navy`
+- Label: `text-[13px] text-brand-fog`
+
+### Data Tables
+- Use native `<table>` with `overflow-x-auto` for horizontal scroll
+- Header: `text-[11px] font-normal uppercase tracking-wider text-brand-fog`
+- Body text: `text-[14px] text-brand-navy`
+- Row hover: `hover:bg-neutral-50`
+- Borders: `border-b border-neutral-100` for rows
+
+### Filter/Sort Tags (Notion-style)
+- Height: `h-6` (24px)
+- Border radius: `rounded-full`
+- Font: `text-[13px]`
+- Style: `border border-neutral-200 bg-white hover:bg-neutral-50`
+- Labels: `text-brand-fog` for prefix, `font-medium` for value
+
+### Severity Tags
+| Level | Background | Text |
+|-------|------------|------|
+| Critical | `bg-red-50` | `text-red-600` |
+| High | `bg-amber-50` | `text-amber-600` |
+| Medium | `bg-yellow-50` | `text-yellow-600` |
+| Low | `bg-green-50` | `text-green-600` |
+
+### Task Type Tags
+- Neutral styling for all: `bg-neutral-100 text-brand-navy border-neutral-200`
+- Compact: `px-2 py-0.5 text-[12px] rounded-full`
+
+## Full-Page Modal Patterns
+
+### Modal Shell
+- Outer padding: `p-4` (16px on all sides)
+- Corner radius: `rounded-[24px]`
+- Overlay: `bg-black/40`
+- Z-index: `z-50`
+- Body scroll lock when open
+
+### Modal Top Bar
+- Padding: `px-6 py-4`
+- Border: `border-b border-neutral-200`
+- Close button: `h-8 w-8` icon button, left-aligned
+- Title: `font-heading text-[18px] font-semibold text-brand-navy`
+- Primary CTA: `bg-violet-500`, Sora font, semibold, `rounded-lg`, trailing arrow icon
+
+### Modal Body
+- Two-column layout: `grid grid-cols-2 gap-4 p-4`
+- Left column: Contract preview (fixed height, scrollable if needed)
+- Right column: Interaction area (`overflow-y-auto`)
+
+### AI-Powered Interactions
+- Match count header: AI gradient icon + `ai-gradient-text`
+- Closest match badge: Full `ai-gradient` background, white text
+- Regular match badge: `bg-violet-100 text-violet-700`
+- Selected state: `bg-violet-50` row highlight
+
+### Form Fields (Inline Edit Style)
+- Label: `text-[13px] text-brand-fog`
+- Value display: `border border-neutral-200 rounded-lg px-3 py-2`
+- Edit mode: `bg-neutral-100` (light grey), autofocused
+- Section cards: `rounded-xl border border-neutral-200 bg-white p-5`
