@@ -28,13 +28,17 @@ src/
       contract-processing/  # Contract processing components (SectionHeader, LabelValueList, ProductsPricingTable, InvoicePreview, InPageNav, CommentsPanel, GradientSparkle)
   context/             # React context providers
     FileDropContext    # Drag-drop file upload, processing state, workbench items
-    NavigationContext  # App-level navigation (workbench ↔ customer360)
+    NavigationContext  # App-level navigation (workbench ↔ customer360 ↔ invoiceDetails ↔ allInvoices)
   data/                # Mock data and type definitions
     customerLinkMock   # Customer link matching mock data
     contractProcessingMock  # Contract processing/Customer360 mock data
+    invoiceMock        # Invoice details page mock data
+    invoiceListMock    # All invoices list mock data
   pages/               # Page components
     WorkbenchPage      # Main task dashboard with stats, table, filters
     Customer360Page    # Customer detail view with contract processing
+    InvoiceDetailsPage # Invoice details view after approval submission
+    AllInvoicesPage    # All invoices list for a customer
   lib/                 # Utilities (cn, formatRelativeDate)
   index.css            # Tailwind theme, custom properties
 ```
@@ -66,3 +70,5 @@ src/
 1. **Contract Upload Flow**: Drag-drop file → ProcessingBar in TopNav → New workbench item (Pioneer Systems)
 2. **Customer Link Flow**: Click workbench item → CustomerLinkModal → Match/create customer
 3. **Contract Processing Flow**: Process contract → Customer360Page with sections (Summary, Account, Addresses, Terms, Products, Invoice)
+4. **Invoice Approval Flow**: Send for approval → InvoiceDetailsPage with 3-grid layout (nav, details, comments)
+5. **All Invoices Flow**: Close from InvoiceDetails → AllInvoicesPage with stats and table (Workbench-style)

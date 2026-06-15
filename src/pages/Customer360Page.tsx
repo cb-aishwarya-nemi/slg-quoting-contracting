@@ -46,10 +46,11 @@ function StatusUnit({ status }: { status: string }) {
   )
 }
 
-function SendForApprovalButton() {
+function SendForApprovalButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
     >
       <Send size={16} />
@@ -59,7 +60,7 @@ function SendForApprovalButton() {
 }
 
 export function Customer360Page() {
-  const { goToWorkbench } = useNavigation()
+  const { goToWorkbench, goToInvoiceDetails } = useNavigation()
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('contracts')
   const [activeSection, setActiveSection] = useState('summary')
@@ -175,7 +176,7 @@ export function Customer360Page() {
 
           <div className="flex items-center gap-3">
             <StatusUnit status={data.processing.status} />
-            <SendForApprovalButton />
+            <SendForApprovalButton onClick={() => goToInvoiceDetails('INV-2026-9584')} />
           </div>
         </div>
 

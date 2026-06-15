@@ -476,13 +476,174 @@ import { NavigationProvider, useNavigation } from '@/context/NavigationContext'
 
 // Use in components
 function PageRouter() {
-  const { view, goToWorkbench, goToCustomer360 } = useNavigation()
+  const { view, goToWorkbench, goToCustomer360, goToInvoiceDetails, goToAllInvoices } = useNavigation()
   
-  if (view.name === 'customer360') {
-    return <Customer360Page />
-  }
+  if (view.name === 'customer360') return <Customer360Page />
+  if (view.name === 'invoiceDetails') return <InvoiceDetailsPage />
+  if (view.name === 'allInvoices') return <AllInvoicesPage />
   return <WorkbenchPage />
 }
+
+// View types
+type View =
+  | { name: 'workbench' }
+  | { name: 'customer360'; customerId: string }
+  | { name: 'invoiceDetails'; invoiceId: string }
+  | { name: 'allInvoices'; customerId: string }
+
+// Navigation flow
+// Workbench → Customer360 → InvoiceDetails → AllInvoices
+//     ↑_____________________________________________|
+```
+
+## Invoice Details Page Patterns
+
+### Section Header (with line + comment icon)
+
+```tsx
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="shrink-0 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+        {title}
+      </span>
+      <div className="h-px flex-1 bg-brand-navy" />
+      <button className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-blue-700 hover:bg-blue-50">
+        <MessageSquare size={15} />
+      </button>
+    </div>
+  )
+}
+```
+
+### Label/Value List (Vertical Treatment)
+
+```tsx
+// Vertical rows with line separators (non-editable version)
+{items.map((item) => (
+  <div className="flex items-center border-b border-neutral-200" style={{ height: 36 }}>
+    <span className="w-[210px] shrink-0 text-[12px] uppercase tracking-[-0.25px] text-brand-navy">
+      {item.label}
+    </span>
+    <span className="text-[14px] font-medium text-brand-navy">
+      {item.value}
+    </span>
+  </div>
+))}
+```
+
+### Line Items Table (ProductsPricingTable style)
+
+```tsx
+// Header with vertical separators (invisible in header)
+<div className="flex items-center border-b border-neutral-200 pb-2">
+  <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">Item</div>
+  <div className="mx-3 h-5 w-px shrink-0" />
+  <div className="w-[96px] shrink-0" /> {/* Frequency */}
+  <div className="mx-3 h-5 w-px shrink-0" />
+  <div className="w-[60px] shrink-0" /> {/* Qty */}
+  <div className="mx-3 h-5 w-px shrink-0" />
+  <div className="w-[110px] shrink-0 text-right ...">Unit price</div>
+  <div className="w-[124px] shrink-0 text-right ...">Total price</div>
+</div>
+
+// Rows with visible vertical separators
+<div className="flex items-center border-b border-neutral-100 py-1.5">
+  <div className="flex-1 text-[14px] font-medium text-brand-navy">{item.name}</div>
+  <div className="mx-3 h-5 w-px shrink-0 bg-neutral-200" />
+  <div className="w-[96px] shrink-0 text-[14px] text-brand-navy">{item.frequency}</div>
+  {/* ... more columns with separators */}
+</div>
+```
+
+### Metrics Row (no borders, vertical separators)
+
+```tsx
+function MetricsRow({ metrics }) {
+  return (
+    <div className="flex">
+      {metrics.map((metric, idx) => (
+        <div key={idx} className="flex flex-1 items-start">
+          <div className="flex-1 py-3">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-brand-fog">{metric.label}</div>
+            <div className="mt-1 text-[15px] font-semibold text-brand-navy">{metric.value}</div>
+          </div>
+          {idx < metrics.length - 1 && (
+            <div className="mx-4 h-12 w-px self-center bg-neutral-200" />
+          )}
+        </div>
+      ))}
+    </div>
+  )
+}
+```
+
+## All Invoices Page Patterns
+
+### Cascading Padding Layout
+
+```tsx
+// Secondary nav - first level padding
+<div className="mx-auto w-full max-w-[1560px] px-14">
+  {/* nav content */}
+  <div className="h-px bg-neutral-200" /> {/* separator line */}
+</div>
+
+// Content area - same first level padding
+<div className="flex-1 overflow-y-auto bg-white px-14 pt-4 pb-8">
+  {/* Inner content - additional padding for cascade effect */}
+  <div className="mx-auto max-w-[1560px] px-8">
+    {/* Stats and Table */}
+  </div>
+</div>
+```
+
+### Invoice List Data Types
+
+```tsx
+import { invoiceListData, STATUS_STYLES, type InvoiceListItem } from '@/data/invoiceListMock'
+
+interface InvoiceListItem {
+  id: string
+  invoiceId: string
+  status: 'Paid' | 'Pending' | 'Overdue' | 'Draft' | 'Cancelled'
+  type: 'Subscription' | 'One-time' | 'Usage'
+  amount: string
+  balance: string
+  invoiceDate: string
+  dueDate: string
+  paidDate?: string
+  contract: string
+}
+
+// Status color mapping
+const STATUS_STYLES = {
+  Paid: { bg: 'bg-green-50', text: 'text-green-700' },
+  Pending: { bg: 'bg-amber-50', text: 'text-amber-700' },
+  Overdue: { bg: 'bg-red-50', text: 'text-red-700' },
+  Draft: { bg: 'bg-neutral-100', text: 'text-brand-navy' },
+  Cancelled: { bg: 'bg-neutral-100', text: 'text-brand-fog' },
+}
+```
+
+### Invoice Table Row
+
+```tsx
+<tr className="border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer transition-colors">
+  <td className="py-2 pr-4 text-[14px] font-medium text-brand-navy">{invoice.invoiceId}</td>
+  <td className="py-2 pr-4">
+    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium', statusStyle.bg, statusStyle.text)}>
+      {invoice.status}
+    </span>
+  </td>
+  <td className="py-2 pr-4">
+    <span className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-[12px] font-medium text-brand-navy">
+      {invoice.type}
+    </span>
+  </td>
+  <td className="py-2 pr-4 text-right text-[14px] text-brand-navy">{invoice.amount}</td>
+  <td className="py-2 pr-4 text-[13px] text-brand-fog">{invoice.paidDate || '—'}</td>
+</tr>
 ```
 
 ## File Drop Context Pattern

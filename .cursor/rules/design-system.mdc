@@ -232,3 +232,114 @@ className="bg-orange-100 text-orange-500"
 - Human comments: Blue avatar
 - Linked section tag: `bg-neutral-100 text-brand-fog text-[11px]`
 - Action buttons: Primary uses `bg-orange-500`, secondary uses outline style
+
+## Invoice Details Page Patterns
+
+### Primary Nav
+- Back button + customer name on left (same as Customer360)
+- Tabs centered with "Invoices" active
+
+### Secondary Nav
+- X close button (navigates to All Invoices)
+- Invoice ID: `text-[13px] font-bold uppercase tracking-[-0.25px]`
+- Invoice value: `text-[12px] text-brand-fog`
+- Right CTAs: "Preview Invoice" (orange) + ellipsis dropdown menu
+
+### Metric Cards (2 rows of 4, no borders)
+- No card borders - uses vertical line separators
+- Separator: `h-12 w-px bg-neutral-200` with `mx-4`
+- Label: `text-[11px] font-medium uppercase tracking-wider text-brand-fog`
+- Value: `text-[15px] font-semibold text-brand-navy`
+- Status badge: `bg-amber-50 text-amber-700 rounded-full px-2.5 py-0.5`
+
+### In-Page Nav (Simplified)
+- Tight spacing: `gap-0.5` between items
+- Active: `bg-neutral-100 font-semibold text-brand-navy`
+- Inactive: `font-normal text-brand-fog hover:bg-neutral-50`
+- Button style: `-ml-2 px-2 py-1 rounded-md`
+
+### Section Header (with line + comment icon)
+- Title: `text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy`
+- Horizontal line: `h-px flex-1 bg-brand-navy`
+- Comment button: `h-6 w-6 text-blue-700 hover:bg-blue-50` with MessageSquare icon
+
+### Label/Value List (Vertical Treatment)
+- Row height: 36px with `border-b border-neutral-200`
+- Label: `w-[210px] text-[12px] uppercase tracking-[-0.25px] text-brand-navy`
+- Value: `text-[14px] font-medium text-brand-navy` (non-editable)
+- Warning values: `text-amber-600`
+
+### Line Items Table (ProductsPricingTable style)
+- Columns: Item, Frequency, Qty, Unit Price, Total Price
+- Vertical separators: `mx-3 h-5 w-px bg-neutral-200`
+- Column widths: flex-1, 96px, 60px, 110px, 124px
+- Header: `text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy`
+- Values: `text-[14px] font-medium text-brand-navy`
+- Total row: `text-[12px] font-semibold uppercase` label, `text-[16px] font-bold` value
+
+### Activity Timeline
+- Dot indicator: `h-2 w-2 rounded-full bg-brand-fog`
+- Action text: `text-[13px] font-medium text-brand-navy`
+- Metadata: `text-[12px] text-brand-fog`
+
+### Comments Panel (same as Contract Processing)
+- "Add note" link: `text-blue-700` with MessageCircleMore icon
+- AI avatar: bordered circle with GradientSparkle
+- AI name: `ai-gradient-text uppercase tracking-[0.02em]`
+- Body: `text-[12px] leading-[1.5] text-brand-navy`
+- Actions: text links with ArrowRight, primary `text-blue-700`
+
+## All Invoices Page Patterns
+
+### Primary Nav
+- Back button + customer name on left
+- Tabs centered with "Invoices" active
+
+### Secondary Nav
+- X close button + "All invoices" title (uppercase, bold)
+- Filter/Sort controls on right (same as Workbench)
+- Padding: `px-14` (56px)
+- Light grey line separator: `h-px bg-neutral-200`
+
+### Cascading Padding Layout
+- Secondary nav container: `px-14`
+- Content area: `px-14 pt-4 pb-8`
+- Inner content (stats + table): additional `px-8` (32px)
+
+### Stats Section (same as Workbench)
+- Spread across width: `flex flex-1`
+- Vertical separators: `h-12 w-px bg-neutral-200` with `mx-8`
+- Value: `text-[36px] font-bold text-brand-navy` with `letter-spacing: -1px`
+- Label: `text-[13px] text-brand-fog`
+- Bottom padding: `pb-10`
+
+### Invoices Table
+- Compact rows: `py-2` row padding
+- Header: `border-y border-neutral-200`
+- Rows: `border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer`
+
+### Invoice Status Tags (color-coded)
+| Status | Background | Text |
+|--------|------------|------|
+| Paid | `bg-green-50` | `text-green-700` |
+| Pending | `bg-amber-50` | `text-amber-700` |
+| Overdue | `bg-red-50` | `text-red-700` |
+| Draft | `bg-neutral-100` | `text-brand-navy` |
+| Cancelled | `bg-neutral-100` | `text-brand-fog` |
+
+### Grey Tags (Type, Contract)
+- Style: `bg-neutral-100 border border-neutral-200 text-brand-navy`
+- Size: `px-2 py-0.5 text-[12px] font-medium rounded-full`
+
+### Table Columns
+| Column | Width | Alignment | Style |
+|--------|-------|-----------|-------|
+| Invoice ID | 150px | left | `font-medium` |
+| Status | 100px | left | color tag |
+| Type | 120px | left | grey tag |
+| Amount | 130px | right | - |
+| Balance | 130px | right | - |
+| Issued | 120px | left | `text-brand-fog text-[13px]` |
+| Due | 120px | left | `text-brand-fog text-[13px]` |
+| Paid | 120px | left | `text-brand-fog text-[13px]` or "—" |
+| Contract | flex | left | grey tag |

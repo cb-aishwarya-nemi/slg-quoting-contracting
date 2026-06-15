@@ -134,7 +134,7 @@ export function WorkbenchPage() {
         className="flex-1 overflow-y-auto bg-white px-6 pt-4 pb-8"
       >
         {/* Tab Content - max width 1560px centered */}
-        <div className="mx-auto max-w-[1560px]">
+        <div className="mx-auto max-w-[1560px] px-8">
           {activeTab === "your-tasks" && (
             <div>
 {/* Stats Section - spread across width with vertical separators */}
