@@ -90,34 +90,36 @@ className="bg-orange-100 text-orange-500"
 
 ### Header Layout
 - Title: `text-[20px] font-semibold text-brand-navy` with `letter-spacing: -0.5px`
-- Title positioned left with `left-6 bottom-2.5`
+- Title positioned left with `left-6 bottom-1`
 - Tabs absolutely centered on screen with `left-1/2 -translate-x-1/2`
 - Horizontal line spans from `left-6` to `right-4` (aligns with title and avatar)
-- Header height: 72px expanded, 56px compact (on scroll)
+- Header height: 48px
 
 ### Content Area
 - Max width: `max-w-[1560px]` centered with `mx-auto`
 - Background: Pure white (`bg-white`)
-- Padding: `px-6 py-8`
+- Padding: `px-6 pt-4 pb-8`
 
 ### Stats Section
 - Spread across width using `flex flex-1`
-- Vertical line separators: `h-12 w-px bg-neutral-200`
-- Value: `text-[32px] font-semibold text-brand-navy`
+- Vertical line separators: `h-12 w-px bg-neutral-200` with `mx-8`
+- Value: `text-[36px] font-bold text-brand-navy` with `letter-spacing: -1px`
 - Label: `text-[13px] text-brand-fog`
+- Bottom padding: `pb-12`
 
 ### Data Tables
-- Use native `<table>` with `overflow-x-auto` for horizontal scroll
-- Header: `text-[11px] font-normal uppercase tracking-wider text-brand-fog`
+- Use native `<table>` with sticky header
+- Header: `text-[11px] font-normal uppercase tracking-wider text-brand-navy`
 - Body text: `text-[14px] text-brand-navy`
-- Row hover: `hover:bg-neutral-50`
+- Row hover: `hover:bg-neutral-50 cursor-pointer`
 - Borders: `border-b border-neutral-100` for rows
+- Sticky header shadow: `shadow-[0_1px_0_0_#e5e5e5,0_4px_6px_-1px_rgba(0,0,0,0.08)]`
 
 ### Filter/Sort Tags (Notion-style)
 - Height: `h-6` (24px)
-- Border radius: `rounded-full`
+- Border radius: `rounded-md`
 - Font: `text-[13px]`
-- Style: `border border-neutral-200 bg-white hover:bg-neutral-50`
+- Style: `hover:bg-neutral-100` (no border)
 - Labels: `text-brand-fog` for prefix, `font-medium` for value
 
 ### Severity Tags
@@ -131,6 +133,11 @@ className="bg-orange-100 text-orange-500"
 ### Task Type Tags
 - Neutral styling for all: `bg-neutral-100 text-brand-navy border-neutral-200`
 - Compact: `px-2 py-0.5 text-[12px] rounded-full`
+
+### New Item Animation
+- Row highlight: `animate-highlight-row bg-violet-50/50`
+- Sparkle icon: `text-violet-500 animate-pulse`
+- NEW badge: `bg-violet-100 text-violet-700 text-[10px]`
 
 ## Full-Page Modal Patterns
 
@@ -164,3 +171,64 @@ className="bg-orange-100 text-orange-500"
 - Value display: `border border-neutral-200 rounded-lg px-3 py-2`
 - Edit mode: `bg-neutral-100` (light grey), autofocused
 - Section cards: `rounded-xl border border-neutral-200 bg-white p-5`
+
+## Customer 360 Page Patterns
+
+### Header Layout
+- Back button: `h-7 w-7 rounded-lg` with ArrowLeft icon
+- Customer name: `text-[16px] font-semibold` with deal tag badge
+- Deal tag: `bg-green-50 text-green-700 text-[11px] uppercase tracking-[0.04em]`
+- Tabs centered with `justify-center`
+- Horizontal line: `h-px bg-brand-navy`
+
+### Secondary Nav (Contract Processing)
+- Close button: `h-7 w-7` left-aligned
+- Title: `text-[13px] font-bold uppercase tracking-[-0.25px]`
+- Progress text: `text-[12px] text-brand-navy`
+- Status button: `bg-blue-50 hover:bg-blue-100 text-blue-700`
+- Primary CTA: `bg-orange-500 hover:bg-orange-600 text-white`
+
+### 3-Grid Layout
+- Left sidebar (InPageNav): `width: 180px`
+- Center content: `max-w-[800px]` with sections capped at `max-w-[680px]`
+- Right sidebar (Comments): `width: 250px`
+- Both sidebars: `overflow-y-auto pb-20 pt-12`
+
+### In-Page Nav Sections
+| Status | Indicator |
+|--------|-----------|
+| AI | Gradient sparkle icon |
+| Ready | Green dot |
+| Attention | Orange dot |
+| Neutral | No indicator |
+
+### Section Header
+- Title: `text-[15px] font-semibold text-brand-navy`
+- Status badge: `text-[11px] rounded-full px-2 py-0.5`
+- Ready: `bg-green-50 text-green-700`
+- Attention: `bg-amber-50 text-amber-700`
+
+### Label/Value Lists
+- Wrapper: `rounded-xl border border-neutral-200 p-4`
+- Grid: `grid grid-cols-2 gap-x-6 gap-y-4`
+- Label: `text-[12px] text-brand-fog`
+- Value: `text-[13px] text-brand-navy`
+- Editable fields: `hover:bg-neutral-50 rounded cursor-pointer`
+
+### Products & Pricing Table
+- Full width (800px) while headers capped at 680px
+- Attention rows: `text-blue-600` with AlertCircle icon
+- Row hover: `hover:bg-neutral-50`
+- Fixed column widths for alignment
+
+### Invoice Preview
+- Paper style: `bg-neutral-50 border rounded-xl p-6`
+- Line items table with totals section
+- Notes section at bottom
+
+### Comments Panel
+- Comment card: `rounded-xl border border-neutral-200 p-4`
+- AI comments: Orange gradient avatar
+- Human comments: Blue avatar
+- Linked section tag: `bg-neutral-100 text-brand-fog text-[11px]`
+- Action buttons: Primary uses `bg-orange-500`, secondary uses outline style

@@ -10,9 +10,11 @@ alwaysApply: false
 
 ```
 src/components/
-  layout/          # Shell components (LeftNav, TopNav, etc.)
-  ui/              # Reusable primitives (Button, Input, etc.)
-  features/        # Feature-specific components
+  layout/            # Shell components (LeftNav, TopNav, AppLayout)
+  ui/                # Reusable primitives (TrapezoidalTabs, InlineEditField, FileDropOverlay)
+  features/
+    customer-link/         # CustomerLinkModal, ContractPreview, ExtractedMappedRow, CustomerLinkContent
+    contract-processing/   # SectionHeader, LabelValueList, ProductsPricingTable, InvoicePreview, InPageNav, CommentsPanel, GradientSparkle
 ```
 
 ## Imports Order
@@ -159,38 +161,66 @@ For status/type indicators in tables:
 </span>
 ```
 
-## Full-Page Modal Pattern
+## Full-Page Modal Pattern (CustomerLinkModal)
 
-Almost-full-page modals with 16px padding, 24px rounded corners, transparent black overlay:
+Full-screen modal without overlay, 35%/65% column split:
 
 ```tsx
-// Outer wrapper with overlay
-<div className="fixed inset-0 z-50 flex p-4">
-  {/* Backdrop - clickable to close */}
-  <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-  
-  {/* Modal panel */}
-  <div className="relative z-10 flex h-full w-full flex-col overflow-hidden rounded-[24px] bg-white">
-    {/* Top bar with close, title, CTA */}
-    <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-6 py-4">
-      <div className="flex items-center gap-4">
-        <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg text-brand-fog hover:bg-neutral-100">
-          <X size={20} />
+import { CustomerLinkModal } from '@/components/features/customer-link'
+import { type WorkbenchItem } from '@/context/FileDropContext'
+
+<CustomerLinkModal
+  task={workbenchItem}
+  onClose={() => setLinkTask(null)}
+/>
+
+// Internal structure:
+<div className="fixed inset-0 z-50 flex">
+  <div className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-white">
+    {/* Top bar */}
+    <div className="flex shrink-0 items-center justify-between px-3 py-2">
+      <div className="flex items-center gap-3">
+        <button className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-fog hover:bg-neutral-100">
+          <X size={18} />
         </button>
-        <h1 className="font-heading text-[18px] font-semibold text-brand-navy">Title</h1>
+        <h1 className="font-heading text-[16px] font-semibold text-brand-navy">Title</h1>
       </div>
-      <button className="flex items-center gap-2 rounded-lg bg-violet-500 px-5 py-2.5 font-heading text-[14px] font-semibold text-white">
-        CTA <ArrowRight size={16} />
+      <button className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white">
+        Process Contract <ArrowRight size={16} />
       </button>
     </div>
     
-    {/* Body - two column layout */}
-    <div className="grid min-h-0 flex-1 grid-cols-2 gap-4 p-4">
-      <div className="min-h-0 overflow-hidden">{/* Left content */}</div>
-      <div className="min-h-0 overflow-y-auto">{/* Right content */}</div>
+    {/* Body - 35/65 split */}
+    <div className="grid min-h-0 flex-1 grid-cols-[35%_65%] gap-4 px-4 pb-4">
+      <div className="min-h-0 overflow-hidden">{/* ContractPreview */}</div>
+      <div className="flex min-h-0 flex-col px-4">{/* ExtractedMappedRow + CustomerLinkContent */}</div>
     </div>
   </div>
 </div>
+```
+
+### Customer Link Data Types
+
+```tsx
+import { 
+  type CustomerMatch, 
+  type ExtractedCustomer,
+  customerMatches,
+  allCustomers,
+  extractedCustomer,
+} from '@/data/customerLinkMock'
+
+interface CustomerMatch {
+  id: string
+  name: string
+  initials: string
+  status: 'Active' | 'Inactive'
+  primaryContact: string
+  email: string
+  createdAt: string
+  matchLabel?: 'Closest match' | 'Match'  // AI match indicator
+  netPayment?: string
+}
 ```
 
 ## Inline Edit Field Pattern
@@ -332,4 +362,152 @@ Show source data mapped to target with arrow indicator:
     {/* Mapped customer content */}
   </div>
 </div>
+```
+
+## Contract Processing Components
+
+### SectionHeader Pattern
+
+Section title with optional status badge:
+
+```tsx
+import { SectionHeader } from '@/components/features/contract-processing'
+
+<SectionHeader 
+  title="Account" 
+  status="ready"        // 'ready' | 'attention' | undefined
+  statusLabel="Ready"   // Optional custom label
+/>
+```
+
+### LabelValueList Pattern
+
+Two-column grid of label/value pairs with inline editing:
+
+```tsx
+import { LabelValueList } from '@/components/features/contract-processing'
+
+const items: LabelValue[] = [
+  { label: 'Account', value: 'Pioneer Systems' },
+  { label: 'Currency', value: 'USD', options: ['USD', 'EUR', 'GBP'] }, // Dropdown
+]
+
+<LabelValueList items={items} />
+```
+
+### ProductsPricingTable Pattern
+
+Full-width product table with attention indicators:
+
+```tsx
+import { ProductsPricingTable, type ProductLineItem } from '@/components/features/contract-processing'
+
+<ProductsPricingTable items={products} />
+// Items with status: 'attention' render as blue links with AlertCircle
+```
+
+### InPageNav Pattern
+
+Vertical navigation with scroll spy and status indicators:
+
+```tsx
+import { InPageNav, type NavSection } from '@/components/features/contract-processing'
+
+const sections: NavSection[] = [
+  { id: 'summary', label: 'Summary', status: 'ai' },       // Gradient sparkle
+  { id: 'account', label: 'Account', status: 'ready' },   // Green dot
+  { id: 'products', label: 'Products', status: 'attention' }, // Orange dot
+]
+
+<InPageNav
+  sections={sections}
+  sourceDocuments={docs}
+  activeId={activeSection}
+  onNavigate={handleNavigate}
+/>
+```
+
+### CommentsPanel Pattern
+
+Thread of comments with AI and human authors:
+
+```tsx
+import { CommentsPanel, type Comment } from '@/components/features/contract-processing'
+
+const comments: Comment[] = [
+  {
+    id: 'c-1',
+    author: 'Adrian Brody',
+    initials: 'A',
+    timestamp: 'Just now',
+    body: 'Comment text...',
+    linkedSection: 'Account',      // Optional grey tag
+  },
+  {
+    id: 'c-2',
+    author: 'Apex AI',
+    initials: 'AI',
+    isAI: true,                    // Orange gradient avatar
+    timestamp: 'Just now',
+    body: 'AI suggestion...',
+    actions: [                     // Action buttons
+      { label: 'Map item', primary: true },
+      { label: 'Create new' },
+    ],
+  },
+]
+
+<CommentsPanel comments={comments} />
+```
+
+## Navigation Context Pattern
+
+App-level navigation without React Router:
+
+```tsx
+import { NavigationProvider, useNavigation } from '@/context/NavigationContext'
+
+// Wrap app
+<NavigationProvider>
+  <AppLayout>
+    <PageRouter />
+  </AppLayout>
+</NavigationProvider>
+
+// Use in components
+function PageRouter() {
+  const { view, goToWorkbench, goToCustomer360 } = useNavigation()
+  
+  if (view.name === 'customer360') {
+    return <Customer360Page />
+  }
+  return <WorkbenchPage />
+}
+```
+
+## File Drop Context Pattern
+
+Global drag-drop handling with processing state:
+
+```tsx
+import { FileDropProvider, useFileDrop, type WorkbenchItem } from '@/context/FileDropContext'
+
+// In component
+const {
+  isDragging,
+  setIsDragging,
+  processingFiles,
+  addProcessingFile,
+  workbenchItems,
+  hasNewItem,
+  clearNewItemFlag,
+} = useFileDrop()
+
+// ProcessingFile type
+interface ProcessingFile {
+  id: string
+  name: string
+  progress: number
+  status: 'uploading' | 'processing' | 'complete' | 'error'
+}
 ```

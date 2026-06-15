@@ -19,17 +19,24 @@ Sales-Led Growth (SLG) prototype for Chargebee's Apex platform.
 
 ```
 src/
-  assets/         # Images, SVGs, static files
+  assets/              # Images, SVGs (cb-logo-squircle.svg)
   components/
-    layout/       # LeftNav, TopNav, AppLayout shell components
-    ui/           # Reusable UI primitives (TrapezoidalTabs, InlineEditField, etc.)
-    features/     # Feature-specific components
-      customer-link/  # Customer linking modal (CustomerLinkModal, ContractPreview, etc.)
-  context/        # React context providers (FileDropContext)
-  data/           # Mock data and type definitions
-  pages/          # Page components (WorkbenchPage, etc.)
-  lib/            # Utilities (cn helper, formatRelativeDate, etc.)
-  index.css       # Tailwind theme, custom properties
+    layout/            # LeftNav, TopNav, AppLayout shell components
+    ui/                # Reusable UI primitives (TrapezoidalTabs, InlineEditField, FileDropOverlay)
+    features/
+      customer-link/        # Customer linking modal (CustomerLinkModal, ContractPreview, ExtractedMappedRow, CustomerLinkContent)
+      contract-processing/  # Contract processing components (SectionHeader, LabelValueList, ProductsPricingTable, InvoicePreview, InPageNav, CommentsPanel, GradientSparkle)
+  context/             # React context providers
+    FileDropContext    # Drag-drop file upload, processing state, workbench items
+    NavigationContext  # App-level navigation (workbench ↔ customer360)
+  data/                # Mock data and type definitions
+    customerLinkMock   # Customer link matching mock data
+    contractProcessingMock  # Contract processing/Customer360 mock data
+  pages/               # Page components
+    WorkbenchPage      # Main task dashboard with stats, table, filters
+    Customer360Page    # Customer detail view with contract processing
+  lib/                 # Utilities (cn, formatRelativeDate)
+  index.css            # Tailwind theme, custom properties
 ```
 
 ## Key Design Decisions
@@ -38,6 +45,7 @@ src/
 2. **AI elements**: Use animated gradient (#ff3300 → #8b5cf6) to convey intelligence
 3. **Navigation**: Fixed left nav (48px) + fixed top nav (40px)
 4. **Color**: Brand navy (#1c1b2e) as primary text, orange-500 for active states
+5. **App routing**: Context-based navigation (NavigationContext) instead of React Router
 
 ## Navigation Items
 
@@ -52,3 +60,9 @@ src/
 | ReceiptText | Invoices | /invoices |
 | WalletCards | Collections | /collections |
 | BarChart3 | Reports | /reports |
+
+## Main User Flows
+
+1. **Contract Upload Flow**: Drag-drop file → ProcessingBar in TopNav → New workbench item (Pioneer Systems)
+2. **Customer Link Flow**: Click workbench item → CustomerLinkModal → Match/create customer
+3. **Contract Processing Flow**: Process contract → Customer360Page with sections (Summary, Account, Addresses, Terms, Products, Invoice)
