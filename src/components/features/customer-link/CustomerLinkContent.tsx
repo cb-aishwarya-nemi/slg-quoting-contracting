@@ -1,7 +1,12 @@
-import { useState } from 'react'
-import { Search, Sparkles, ChevronDown, ChevronUp, Plus } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { Search, Sparkles, ChevronDown, ChevronUp, Plus, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { customerMatches, allCustomers, type CustomerMatch } from '@/data/customerLinkMock'
+import { 
+  allCustomers, 
+  type CustomerMatch,
+  type CustomerLinkVariant,
+  getCustomerMatchesByVariant,
+} from '@/data/customerLinkMock'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import {
   InlineEditField,
@@ -10,6 +15,7 @@ import {
   InlineEditRadioGroup,
 } from '@/components/ui/InlineEditField'
 import { createCustomerDefaults, type CreateCustomerDefaults } from '@/data/customerLinkMock'
+import { useUseCase } from '@/context/UseCaseContext'
 
 const TABS: TabItem[] = [
   { id: 'link', label: 'Link to existing' },
@@ -34,6 +40,30 @@ export function CustomerLinkContent({
   const [searchQuery, setSearchQuery] = useState('')
   const [showAllCustomers, setShowAllCustomers] = useState(false)
   const [formData, setFormData] = useState<CreateCustomerDefaults>(createCustomerDefaults)
+  
+  // Get current use case variant from context
+  const { activeVariant, activePage, getPage } = useUseCase()
+  const page = getPage('customer-link-modal')
+  const variant: CustomerLinkVariant = 
+    activePage === 'customer-link-modal' && activeVariant 
+      ? (activeVariant as CustomerLinkVariant) 
+      : (page?.defaultVariant as CustomerLinkVariant) || 'closest-matches'
+  
+  // Get customer matches based on current variant
+  const customerMatches = useMemo(() => {
+    return getCustomerMatchesByVariant(variant)
+  }, [variant])
+  
+  // Determine if we should show "no matches" state
+  const hasNoMatches = customerMatches.length === 0
+  const hasPerfectMatch = variant === 'perfect-match' && customerMatches.length === 1
+  
+  // Auto-switch to "Create New" tab when no matches found
+  useEffect(() => {
+    if (hasNoMatches && mode === 'link') {
+      // Small delay to allow user to see the empty state message
+    }
+  }, [hasNoMatches, mode])
 
   const displayedCustomers = showAllCustomers ? allCustomers : customerMatches
   
@@ -64,6 +94,31 @@ export function CustomerLinkContent({
     }))
   }
 
+  // Generate match count text based on variant
+  const getMatchCountText = () => {
+    if (hasNoMatches) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-amber-600">
+          <AlertCircle size={14} />
+          No matches found
+        </span>
+      )
+    }
+    if (hasPerfectMatch) {
+      return (
+        <span className="inline-flex items-center gap-1.5 text-[13px] font-medium text-green-700">
+          <Sparkles size={14} className="text-green-600" />
+          Perfect match found
+        </span>
+      )
+    }
+    return (
+      <span className="text-[13px] font-medium ai-gradient-text">
+        {customerMatches.length} matches
+      </span>
+    )
+  }
+
   return (
     <div className="flex h-full flex-col">
       {/* Header: Title + Tabs with horizontal line */}
@@ -73,11 +128,7 @@ export function CustomerLinkContent({
             <h3 className="text-[15px] font-semibold text-brand-navy">
               {mode === 'link' ? 'Choose a customer' : 'Create New Customer'}
             </h3>
-            {mode === 'link' && (
-              <span className="text-[13px] font-medium ai-gradient-text">
-                {customerMatches.length} matches
-              </span>
-            )}
+            {mode === 'link' && getMatchCountText()}
           </div>
           <TrapezoidalTabs
             tabs={TABS}
@@ -94,147 +145,207 @@ export function CustomerLinkContent({
       <div className="min-h-0 flex-1 overflow-y-auto">
         {mode === 'link' ? (
           <div className="flex flex-col">
-            {/* Search Bar - Always visible */}
-            <div className="mb-3 flex items-center justify-between">
-              <div className="relative flex-1 max-w-md">
-                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-navy" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search by name, domain, or ID"
-                  className="w-full cursor-pointer rounded-lg bg-white py-2 pl-9 pr-3 text-[13px] text-brand-navy outline-none transition-colors placeholder:text-brand-navy hover:bg-neutral-100 focus:bg-white"
-                />
+            {/* No Matches Empty State */}
+            {hasNoMatches && !showAllCustomers ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-50">
+                  <AlertCircle size={28} className="text-amber-500" />
+                </div>
+                <h4 className="mt-4 text-[15px] font-semibold text-brand-navy">
+                  No matching customers found
+                </h4>
+                <p className="mt-2 max-w-xs text-center text-[13px] text-brand-fog">
+                  We couldn't find any existing customers that match "Pioneer Systems" in your records.
+                </p>
+                <div className="mt-6 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCustomers(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+                  >
+                    <Search size={14} />
+                    Search all customers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onModeChange('create')}
+                    className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-orange-600"
+                  >
+                    <Plus size={14} />
+                    Create new customer
+                  </button>
+                </div>
               </div>
-              <span className="text-[13px] text-brand-fog">
-                {filteredCustomers.length} customers
-              </span>
-            </div>
+            ) : (
+              <>
+                {/* Search Bar - Always visible */}
+                <div className="mb-3 flex items-center justify-between">
+                  <div className="relative flex-1 max-w-md">
+                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brand-navy" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by name, domain, or ID"
+                      className="w-full cursor-pointer rounded-lg bg-white py-2 pl-9 pr-3 text-[13px] text-brand-navy outline-none transition-colors placeholder:text-brand-navy hover:bg-neutral-100 focus:bg-white"
+                    />
+                  </div>
+                  <span className="text-[13px] text-brand-fog">
+                    {filteredCustomers.length} customers
+                  </span>
+                </div>
 
-            {/* Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px]">
-                <thead className="bg-white">
-                  <tr className="border-t border-b border-neutral-200">
-                    <th className="w-10 py-2 pl-3" />
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
-                      Customer
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
-                      Status
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
-                      Name
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
-                      Email
-                    </th>
-                    <th className="py-2 pr-3 text-right text-[11px] font-normal uppercase tracking-wider text-brand-navy">
-                      Created At
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredCustomers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      onClick={() => onSelectCustomer(customer)}
-                      className={cn(
-                        'cursor-pointer border-b border-neutral-100 transition-colors last:border-b-0',
-                        selectedCustomerId === customer.id
-                          ? 'bg-neutral-100'
-                          : 'hover:bg-neutral-50'
-                      )}
-                    >
-                      <td className="py-1.5 pl-3">
-                        <input
-                          type="radio"
-                          name="customer-select"
-                          checked={selectedCustomerId === customer.id}
-                          onChange={() => onSelectCustomer(customer)}
-                          className="h-4 w-4 appearance-none rounded-full border border-neutral-300 bg-white checked:border-brand-navy checked:border-[5px] focus:outline-none focus:ring-2 focus:ring-neutral-200"
-                        />
-                      </td>
-                      <td className="py-1.5 pr-4">
-                        <div className="flex items-center gap-2">
-                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100">
-                            <span className="text-[10px] font-medium text-brand-navy">
-                              {customer.initials}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5">
-                            <span className="whitespace-nowrap text-[14px] font-medium text-brand-navy">
-                              {customer.name}
-                            </span>
-                            {customer.matchLabel && (
-                              <span
-                                title={customer.matchLabel}
-                                className={cn(
-                                  'inline-flex h-5 w-5 items-center justify-center rounded-full cursor-help',
-                                  customer.matchLabel === 'Closest match'
-                                    ? 'ai-gradient'
-                                    : 'bg-violet-100'
-                                )}
-                              >
-                                <Sparkles
-                                  size={10}
-                                  className={customer.matchLabel === 'Closest match' ? 'text-white' : 'text-violet-700'}
-                                />
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-1.5 pr-4">
-                        <span
+                {/* Perfect Match Banner */}
+                {hasPerfectMatch && !showAllCustomers && (
+                  <div className="mb-3 flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
+                      <Sparkles size={16} className="text-green-600" />
+                    </div>
+                    <div>
+                      <p className="text-[13px] font-medium text-green-800">
+                        Perfect match found!
+                      </p>
+                      <p className="text-[12px] text-green-700">
+                        The extracted customer exactly matches an existing record.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Table */}
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[700px]">
+                    <thead className="bg-white">
+                      <tr className="border-t border-b border-neutral-200">
+                        <th className="w-10 py-2 pl-3" />
+                        <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                          Customer
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                          Status
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                          Name
+                        </th>
+                        <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                          Email
+                        </th>
+                        <th className="py-2 pr-3 text-right text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                          Created At
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredCustomers.map((customer) => (
+                        <tr
+                          key={customer.id}
+                          onClick={() => onSelectCustomer(customer)}
                           className={cn(
-                            'inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-medium',
-                            customer.status === 'Active'
-                              ? 'bg-green-50 text-green-700'
-                              : 'bg-neutral-100 text-brand-fog'
+                            'cursor-pointer border-b border-neutral-100 transition-colors last:border-b-0',
+                            selectedCustomerId === customer.id
+                              ? 'bg-neutral-100'
+                              : hasPerfectMatch && customer.matchLabel === 'Perfect match'
+                                ? 'bg-green-50/50 hover:bg-green-50'
+                                : 'hover:bg-neutral-50'
                           )}
                         >
-                          {customer.status}
-                        </span>
-                      </td>
-                      <td className="py-1.5 pr-4 whitespace-nowrap text-[14px] text-brand-navy">
-                        {customer.primaryContact}
-                      </td>
-                      <td className="py-1.5 pr-4 whitespace-nowrap text-[13px] text-brand-fog">
-                        {customer.email}
-                      </td>
-                      <td className="py-1.5 pr-3 text-right whitespace-nowrap text-[13px] text-brand-fog">
-                        {customer.createdAt}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                          <td className="py-1.5 pl-3">
+                            <input
+                              type="radio"
+                              name="customer-select"
+                              checked={selectedCustomerId === customer.id}
+                              onChange={() => onSelectCustomer(customer)}
+                              className="h-4 w-4 appearance-none rounded-full border border-neutral-300 bg-white checked:border-brand-navy checked:border-[5px] focus:outline-none focus:ring-2 focus:ring-neutral-200"
+                            />
+                          </td>
+                          <td className="py-1.5 pr-4">
+                            <div className="flex items-center gap-2">
+                              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100">
+                                <span className="text-[10px] font-medium text-brand-navy">
+                                  {customer.initials}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="whitespace-nowrap text-[14px] font-medium text-brand-navy">
+                                  {customer.name}
+                                </span>
+                                {customer.matchLabel && (
+                                  <span
+                                    title={customer.matchLabel}
+                                    className={cn(
+                                      'inline-flex h-5 w-5 items-center justify-center rounded-full cursor-help',
+                                      customer.matchLabel === 'Perfect match'
+                                        ? 'bg-green-500'
+                                        : customer.matchLabel === 'Closest match'
+                                          ? 'ai-gradient'
+                                          : 'bg-violet-100'
+                                    )}
+                                  >
+                                    <Sparkles
+                                      size={10}
+                                      className={cn(
+                                        customer.matchLabel === 'Perfect match' || customer.matchLabel === 'Closest match'
+                                          ? 'text-white'
+                                          : 'text-violet-700'
+                                      )}
+                                    />
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-1.5 pr-4">
+                            <span
+                              className={cn(
+                                'inline-flex items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[12px] font-medium',
+                                customer.status === 'Active'
+                                  ? 'bg-green-50 text-green-700'
+                                  : 'bg-neutral-100 text-brand-fog'
+                              )}
+                            >
+                              {customer.status}
+                            </span>
+                          </td>
+                          <td className="py-1.5 pr-4 whitespace-nowrap text-[14px] text-brand-navy">
+                            {customer.primaryContact}
+                          </td>
+                          <td className="py-1.5 pr-4 whitespace-nowrap text-[13px] text-brand-fog">
+                            {customer.email}
+                          </td>
+                          <td className="py-1.5 pr-3 text-right whitespace-nowrap text-[13px] text-brand-fog">
+                            {customer.createdAt}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
 
-            {/* View all button */}
-            <div className="mt-4 flex justify-center">
-              {!showAllCustomers && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCustomers(true)}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
-                >
-                  View all customers
-                  <ChevronDown size={14} />
-                </button>
-              )}
-              {showAllCustomers && (
-                <button
-                  type="button"
-                  onClick={() => setShowAllCustomers(false)}
-                  className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
-                >
-                  Show matches only
-                  <ChevronUp size={14} />
-                </button>
-              )}
-            </div>
+                {/* View all button */}
+                <div className="mt-4 flex justify-center">
+                  {!showAllCustomers && !hasNoMatches && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCustomers(true)}
+                      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
+                    >
+                      View all customers
+                      <ChevronDown size={14} />
+                    </button>
+                  )}
+                  {showAllCustomers && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllCustomers(false)}
+                      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
+                    >
+                      {hasNoMatches ? 'Back to empty state' : 'Show matches only'}
+                      <ChevronUp size={14} />
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ) : (
           /* Create New Customer Form */

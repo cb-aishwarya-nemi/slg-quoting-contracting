@@ -33,12 +33,82 @@ export interface Comment {
   body: string
   /** section this comment is linked to (renders as a grey tag) */
   linkedSection?: string
+  /** in-page section id this comment maps to (drives scroll + active-section peek) */
+  linkedSectionId?: string
   actions?: { label: string; primary?: boolean }[]
 }
 
 export interface SourceDocument {
   id: string
   name: string
+}
+
+export interface SectionSource {
+  id: string
+  docName: string
+  pageLabel: string
+  highlightId: string
+  caption: string
+}
+
+export const sectionSources: Record<string, SectionSource[]> = {
+  account: [
+    {
+      id: 'src-acc-1',
+      docName: 'MSA_2026_PS_001.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-parties',
+      caption: 'Parties',
+    },
+    {
+      id: 'src-acc-2',
+      docName: 'MSA_2026_PS_001.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-contact',
+      caption: 'Contact info',
+    },
+  ],
+  addresses: [
+    {
+      id: 'src-addr-1',
+      docName: 'MSA_2026_PS_001.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-customer-address',
+      caption: 'Customer address',
+    },
+  ],
+  terms: [
+    {
+      id: 'src-term-1',
+      docName: 'MSA_2026_PS_001.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-payment-terms',
+      caption: 'Payment terms',
+    },
+    {
+      id: 'src-term-2',
+      docName: 'MSA_2026_PS_001.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-term-renewal',
+      caption: 'Term & renewal',
+    },
+    {
+      id: 'src-term-3',
+      docName: 'Schedule_a_pricing.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-billing-schedule',
+      caption: 'Billing schedule',
+    },
+  ],
+  products: [
+    {
+      id: 'src-prod-1',
+      docName: 'Schedule_a_pricing.pdf',
+      pageLabel: 'Page 1',
+      highlightId: 'sec-products',
+      caption: 'Products & pricing',
+    },
+  ],
 }
 
 export const contractProcessing = {
@@ -194,6 +264,7 @@ export const contractProcessing = {
       timestamp: 'Just now',
       body: 'I reviewed all 4 sections extracted from the three contract documents. Account, addresses and billing terms are consistent across the MSA and Schedule.',
       linkedSection: 'Account',
+      linkedSectionId: 'account',
     },
     {
       id: 'c-2',
@@ -214,6 +285,7 @@ export const contractProcessing = {
       timestamp: 'Just now',
       body: 'Flagging the contract summary for a second look — the headline value matches the schedule once both unresolved items are mapped.',
       linkedSection: 'Contract summary',
+      linkedSectionId: 'summary',
     },
     {
       id: 'c-4',
@@ -223,6 +295,7 @@ export const contractProcessing = {
       timestamp: 'Just now',
       body: '\u201CSandbox environments\u201D isn\u2019t in your catalog yet. Closest match is \u201CSandbox add-on\u201D (88% match).',
       linkedSection: 'Products and pricing',
+      linkedSectionId: 'products',
       actions: [
         { label: 'Map item', primary: true },
         { label: 'Create new' },
@@ -235,6 +308,7 @@ export const contractProcessing = {
       timestamp: 'Just now',
       body: 'Billing terms look good — Net 30, annual upfront. No changes needed before approval.',
       linkedSection: 'Terms and billing',
+      linkedSectionId: 'terms',
     },
   ] as Comment[],
 }

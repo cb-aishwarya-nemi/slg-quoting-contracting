@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X, Search, ArrowLeft } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
+import { useUseCase } from '@/context/UseCaseContext'
 import { invoiceListData, STATUS_STYLES } from '@/data/invoiceListMock'
 import { cn } from '@/lib/utils'
 
@@ -18,8 +19,14 @@ const INVOICE_TABS: TabItem[] = [
 
 export function AllInvoicesPage() {
   const { goToWorkbench, goToInvoiceDetails } = useNavigation()
+  const { setActivePage } = useUseCase()
   const data = invoiceListData
   const [activeTab, setActiveTab] = useState('invoices')
+  
+  // Register this page with use case context
+  useEffect(() => {
+    setActivePage('all-invoices')
+  }, [setActivePage])
 
   return (
     <div className="flex h-full flex-col">

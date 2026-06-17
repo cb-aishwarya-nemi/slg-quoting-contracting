@@ -257,6 +257,30 @@
       border-radius: 2px;
     }
 
+    .source-highlight {
+      outline: 2px solid #ff3300;
+      outline-offset: 8px;
+      background: rgba(255, 51, 0, 0.04);
+      border-radius: 4px;
+    }
+
+    body.thumb-mode .toolbar {
+      display: none;
+    }
+
+    body.thumb-mode {
+      background: white;
+    }
+
+    body.thumb-mode .content {
+      padding: 0;
+    }
+
+    body.thumb-mode .pdf-page {
+      box-shadow: none;
+      padding: 48px;
+    }
+
     .page-number {
       text-align: center;
       font-size: 11px;
@@ -310,7 +334,7 @@
           <h1 class="doc-title">Master Service Agreement</h1>
           <p class="doc-subtitle">Enterprise Software License and Services Agreement</p>
 
-          <div class="parties-grid">
+          <div id="sec-parties" class="parties-grid">
             <div class="party-box">
               <div class="party-label">Service Provider</div>
               <div class="party-name">Echocorp Inc.</div>
@@ -320,7 +344,7 @@
                 United States
               </div>
             </div>
-            <div class="party-box">
+            <div id="sec-customer-address" class="party-box">
               <div class="party-label">Customer</div>
               <div class="party-name">Pioneer Systems Corp.</div>
               <div class="party-details">
@@ -331,7 +355,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-overview" class="section">
             <h2 class="section-title">1. Agreement Overview</h2>
             <div class="section-content">
               <p>This Master Service Agreement ("Agreement") is entered into as of <span class="highlight">May 1, 2026</span> ("Effective Date") by and between Echocorp Inc., a Delaware corporation ("Provider"), and Pioneer Systems Corp., a California corporation ("Customer").</p>
@@ -339,7 +363,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-term-renewal" class="section">
             <h2 class="section-title">2. Term and Renewal</h2>
             <div class="section-content">
               <p>The initial term of this Agreement shall be <span class="highlight">twelve (12) months</span> commencing on the Effective Date and ending on April 30, 2027 ("Initial Term").</p>
@@ -347,7 +371,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-payment-terms" class="section">
             <h2 class="section-title">3. Payment Terms</h2>
             <div class="section-content">
               <p>Customer agrees to pay all fees as set forth in Schedule A. All fees are due and payable <span class="highlight">Net 30</span> from the invoice date. Fees are billed <span class="highlight">annually, upfront</span>.</p>
@@ -355,7 +379,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-contact" class="section">
             <h2 class="section-title">4. Contact Information</h2>
             <div class="section-content">
               <p><strong>Primary Contact:</strong> Alex Nguyen<br>
@@ -396,7 +420,7 @@
           <h1 class="doc-title">Schedule A: Pricing</h1>
           <p class="doc-subtitle">Attachment to Master Service Agreement MSA-2026-PS-001</p>
 
-          <div class="section">
+          <div id="sec-products" class="section">
             <h2 class="section-title">1. Licensed Products and Services</h2>
             <div class="section-content">
               <p>The following products and services are included under this Agreement for Pioneer Systems Corp.:</p>
@@ -458,7 +482,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-billing-schedule" class="section">
             <h2 class="section-title">2. Billing Schedule</h2>
             <div class="section-content">
               <p><strong>Billing Frequency:</strong> Annual, billed upfront</p>
@@ -468,7 +492,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-seat-pricing" class="section">
             <h2 class="section-title">3. Seat Pricing</h2>
             <div class="section-content">
               <p>The Apex Platform Growth Services tier includes <span class="highlight">50 licensed seats</span>. Additional seats may be added during the term at the per-seat rate of $2,400.00/year, prorated for the remaining term.</p>
@@ -505,7 +529,7 @@
           <h1 class="doc-title">Addendum: Additional Terms</h1>
           <p class="doc-subtitle">Attachment to Master Service Agreement MSA-2026-PS-001</p>
 
-          <div class="section">
+          <div id="sec-data-processing" class="section">
             <h2 class="section-title">1. Data Processing</h2>
             <div class="section-content">
               <p>Provider agrees to process Customer data in accordance with all applicable data protection laws, including but not limited to the California Consumer Privacy Act (CCPA) and the General Data Protection Regulation (GDPR) where applicable.</p>
@@ -513,7 +537,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-sla" class="section">
             <h2 class="section-title">2. Service Level Agreement</h2>
             <div class="section-content">
               <p>Provider guarantees the following service levels for the Apex Platform:</p>
@@ -553,7 +577,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-security" class="section">
             <h2 class="section-title">3. Security Requirements</h2>
             <div class="section-content">
               <p>Provider maintains the following security certifications and will provide evidence of compliance upon request:</p>
@@ -565,7 +589,7 @@
             </div>
           </div>
 
-          <div class="section">
+          <div id="sec-ip" class="section">
             <h2 class="section-title">4. Intellectual Property</h2>
             <div class="section-content">
               <p>Customer retains all rights, title, and interest in and to Customer Data. Provider retains all rights, title, and interest in and to the Apex Platform, including all modifications and improvements thereto.</p>
@@ -593,19 +617,39 @@
     const docTitleEl = document.getElementById('docTitle');
     const zoomLevelEl = document.getElementById('zoomLevel');
 
-    function getDocumentName() {
+    function getParams() {
       const params = new URLSearchParams(window.location.search);
-      return params.get('doc') || 'MSA_2026_PS_001.pdf';
+      return {
+        doc: params.get('doc') || 'MSA_2026_PS_001.pdf',
+        highlight: params.get('highlight'),
+        thumb: params.get('thumb') === '1'
+      };
     }
 
     function renderDocument() {
-      const docName = getDocumentName();
+      const { doc: docName, highlight, thumb } = getParams();
       const doc = documents[docName];
+
+      if (thumb) {
+        document.body.classList.add('thumb-mode');
+      }
 
       if (doc) {
         document.title = doc.title + ' - Document Viewer';
         docTitleEl.textContent = docName;
         pdfPage.innerHTML = doc.content;
+
+        if (highlight) {
+          const highlightEl = document.getElementById(highlight);
+          if (highlightEl) {
+            highlightEl.classList.add('source-highlight');
+            if (!thumb) {
+              setTimeout(() => {
+                highlightEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }, 100);
+            }
+          }
+        }
       } else {
         docTitleEl.textContent = docName;
         pdfPage.innerHTML = `

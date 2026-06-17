@@ -3,6 +3,7 @@ import { Search, Sparkles, MoreVertical } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { useFileDrop, type WorkbenchItem } from "@/context/FileDropContext";
+import { useUseCase } from "@/context/UseCaseContext";
 import { CustomerLinkModal } from "@/components/features/customer-link";
 
 const WORKBENCH_TABS: TabItem[] = [
@@ -29,6 +30,12 @@ export function WorkbenchPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const { workbenchItems, hasNewItem, clearNewItemFlag } = useFileDrop();
+  const { setActivePage } = useUseCase();
+
+  // Register this page with use case context
+  useEffect(() => {
+    setActivePage("workbench");
+  }, [setActivePage]);
 
   // Dynamic stats based on workbench items
   const criticalCount = workbenchItems.filter(t => t.severity === "Critical").length;

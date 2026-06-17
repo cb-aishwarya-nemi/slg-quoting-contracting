@@ -1,6 +1,8 @@
 import { AppLayout } from './components/layout'
 import { WorkbenchPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
+import { UseCaseProvider } from './context/UseCaseContext'
+import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 
 function PageRouter() {
   const { view } = useNavigation()
@@ -22,11 +24,15 @@ function PageRouter() {
 
 function App() {
   return (
-    <NavigationProvider>
-      <AppLayout>
-        <PageRouter />
-      </AppLayout>
-    </NavigationProvider>
+    <UseCaseProvider>
+      <NavigationProvider>
+        <AppLayout>
+          <PageRouter />
+        </AppLayout>
+        {/* Use Case Switcher - always visible, highest z-index */}
+        <UseCaseSwitcher />
+      </NavigationProvider>
+    </UseCaseProvider>
   )
 }
 

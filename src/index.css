@@ -142,3 +142,82 @@ body {
 .slide-in-from-top-2 {
   animation-name: slide-in-from-top;
 }
+
+/* Slide in animation from bottom for use case switcher */
+@keyframes slide-in-from-bottom {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.slide-in-from-bottom-2 {
+  animation-name: slide-in-from-bottom;
+}
+
+/* Linked-comment attention: gradient flash that swipes across a section title.
+   The overlay is a self-clipping, pointer-events-none layer so it never
+   affects layout or grid widths. */
+.title-sweep-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 6px;
+  pointer-events: none;
+}
+
+.title-sweep-band {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 55%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 51, 0, 0.16) 42%,
+    rgba(139, 92, 246, 0.2) 62%,
+    transparent 100%
+  );
+  animation: title-sweep 1.8s ease-out forwards;
+}
+
+@keyframes title-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+/* The section's comment icon settles with a small bounce once the sweep ends.
+   Pure transform animation — no layout impact. */
+.icon-settle {
+  animation: icon-settle 380ms cubic-bezier(0.34, 1.56, 0.64, 1) 1.7s both;
+}
+
+@keyframes icon-settle {
+  0% {
+    transform: translateY(0) scale(1);
+  }
+  45% {
+    transform: translateY(-3px) scale(1.18);
+  }
+  75% {
+    transform: translateY(0) scale(0.94);
+  }
+  100% {
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title-sweep-band,
+  .icon-settle {
+    animation: none;
+  }
+}

@@ -3,6 +3,7 @@ import { X, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type WorkbenchItem } from '@/context/FileDropContext'
 import { useNavigation } from '@/context/NavigationContext'
+import { useUseCase } from '@/context/UseCaseContext'
 import { type CustomerMatch } from '@/data/customerLinkMock'
 import { ContractPreview } from './ContractPreview'
 import { ExtractedMappedRow } from './ExtractedMappedRow'
@@ -17,8 +18,18 @@ interface CustomerLinkModalProps {
 
 export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalProps) {
   const { goToCustomer360 } = useNavigation()
+  const { setActivePage } = useUseCase()
   const [mode, setMode] = useState<Mode>('link')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerMatch | null>(null)
+
+  // Register modal as active page for use case switching
+  useEffect(() => {
+    setActivePage('customer-link-modal')
+    return () => {
+      // Clear to underlying page (workbench) when modal closes
+      setActivePage('workbench')
+    }
+  }, [setActivePage])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {

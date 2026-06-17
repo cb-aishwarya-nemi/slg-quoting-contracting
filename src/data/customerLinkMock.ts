@@ -14,7 +14,7 @@ export interface CustomerMatch {
   primaryContact: string
   email: string
   createdAt: string
-  matchLabel?: 'Closest match' | 'Match'
+  matchLabel?: 'Perfect match' | 'Closest match' | 'Match'
   netPayment?: string
 }
 
@@ -45,13 +45,40 @@ export interface CreateCustomerDefaults {
   }
 }
 
+/**
+ * Use Case Variant Types for Customer Link Modal
+ */
+export type CustomerLinkVariant = 'perfect-match' | 'closest-matches' | 'no-match'
+
 export const extractedCustomer: ExtractedCustomer = {
   companyName: 'Pioneer Systems',
   contactName: 'Alex Nguyen',
   email: 'alex.nguyen@pioneersystems.com',
 }
 
-export const customerMatches: CustomerMatch[] = [
+/**
+ * VARIANT: Perfect Match
+ * Exactly one customer perfectly matches the extracted data
+ */
+export const perfectMatchCustomers: CustomerMatch[] = [
+  {
+    id: 'cust-001',
+    name: 'Pioneer Systems',
+    initials: 'PS',
+    status: 'Active',
+    primaryContact: 'Alex Nguyen',
+    email: 'alex.nguyen@pioneersystems.com',
+    createdAt: '10 Feb 2026',
+    matchLabel: 'Perfect match',
+    netPayment: 'Net 30',
+  },
+]
+
+/**
+ * VARIANT: Closest Matches
+ * Multiple customers with fuzzy matching (original behavior)
+ */
+export const closestMatchCustomers: CustomerMatch[] = [
   {
     id: 'cust-001',
     name: 'Pioneer Systems',
@@ -108,6 +135,34 @@ export const customerMatches: CustomerMatch[] = [
     netPayment: 'Net 30',
   },
 ]
+
+/**
+ * VARIANT: No Match Found
+ * Empty array - no customers match
+ */
+export const noMatchCustomers: CustomerMatch[] = []
+
+/**
+ * Helper function to get customer matches based on use case variant
+ */
+export function getCustomerMatchesByVariant(variant: CustomerLinkVariant): CustomerMatch[] {
+  switch (variant) {
+    case 'perfect-match':
+      return perfectMatchCustomers
+    case 'closest-matches':
+      return closestMatchCustomers
+    case 'no-match':
+      return noMatchCustomers
+    default:
+      return closestMatchCustomers
+  }
+}
+
+/**
+ * Legacy export for backward compatibility
+ * @deprecated Use getCustomerMatchesByVariant instead
+ */
+export const customerMatches: CustomerMatch[] = closestMatchCustomers
 
 export const allCustomers: CustomerMatch[] = [
   ...customerMatches,

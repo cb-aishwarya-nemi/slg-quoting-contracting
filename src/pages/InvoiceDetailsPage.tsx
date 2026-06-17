@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback, useId } from 'react'
 import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowRight, ArrowLeft, MessageSquare } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
+import { useUseCase } from '@/context/UseCaseContext'
 import { invoiceData } from '@/data/invoiceMock'
 import { cn } from '@/lib/utils'
 
@@ -205,6 +206,7 @@ function CommentsPanel({ comments }: { comments: typeof invoiceData.comments }) 
 
 export function InvoiceDetailsPage() {
   const { goToWorkbench, goToAllInvoices } = useNavigation()
+  const { setActivePage } = useUseCase()
   const data = invoiceData
   const [activeTab, setActiveTab] = useState('invoices')
   const [activeSection, setActiveSection] = useState('summary')
@@ -212,6 +214,11 @@ export function InvoiceDetailsPage() {
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  
+  // Register this page with use case context
+  useEffect(() => {
+    setActivePage('invoice-details')
+  }, [setActivePage])
 
   const setSectionRef = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {

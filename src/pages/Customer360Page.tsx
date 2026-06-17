@@ -2,7 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { ArrowLeft, X, ArrowDown, Send } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
-import { contractProcessing } from '@/data/contractProcessingMock'
+import { useUseCase } from '@/context/UseCaseContext'
+import { contractProcessing, sectionSources } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
   LabelValueList,
@@ -10,6 +11,8 @@ import {
   InvoicePreview,
   InPageNav,
   CommentsPanel,
+  SectionSourceThumbnails,
+  SourcePreviewDrawer,
   type NavSection,
 } from '@/components/features/contract-processing'
 
@@ -61,12 +64,26 @@ function SendForApprovalButton({ onClick }: { onClick: () => void }) {
 
 export function Customer360Page() {
   const { goToWorkbench, goToInvoiceDetails } = useNavigation()
+  const { setActivePage } = useUseCase()
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('contracts')
   const [activeSection, setActiveSection] = useState('summary')
+  const [flashingSection, setFlashingSection] = useState<string | null>(null)
+  const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
+  const flashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // While a programmatic (click-driven) scroll is in flight, ignore the scroll
+  // spy so intermediate sections don't flip the active comment back and forth
+  // (which makes the comments rail shake).
+  const programmaticScroll = useRef(false)
+  const spyResumeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  
+  // Register this page with use case context
+  useEffect(() => {
+    setActivePage('customer360')
+  }, [setActivePage])
 
   const setSectionRef = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {
@@ -75,7 +92,7 @@ export function Customer360Page() {
     []
   )
 
-  const handleNavigate = useCallback((id: string) => {
+  const scrollToSection = useCallback((id: string) => {
     const el = sectionRefs.current[id]
     const container = centerRef.current
     if (el && container) {
@@ -83,9 +100,37 @@ export function Customer360Page() {
         el.getBoundingClientRect().top -
         container.getBoundingClientRect().top +
         container.scrollTop
+      // Lock the active section to the target and ignore the spy until the
+      // smooth scroll settles, so the comments rail doesn't jitter en route.
+      programmaticScroll.current = true
+      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
+      spyResumeTimeout.current = setTimeout(() => {
+        programmaticScroll.current = false
+      }, 700)
       container.scrollTo({ top: Math.max(top - 12, 0), behavior: 'smooth' })
     }
     setActiveSection(id)
+  }, [])
+
+  const handleNavigate = scrollToSection
+
+  // Clicking a comment scrolls its linked section into view and plays the
+  // gradient-sweep + icon-settle attention sequence on that section's header.
+  const handleCommentJump = useCallback(
+    (sectionId: string) => {
+      scrollToSection(sectionId)
+      if (flashTimeout.current) clearTimeout(flashTimeout.current)
+      // Reset first so re-clicking the same comment restarts the animation.
+      setFlashingSection(null)
+      requestAnimationFrame(() => setFlashingSection(sectionId))
+      flashTimeout.current = setTimeout(() => setFlashingSection(null), 2300)
+    },
+    [scrollToSection]
+  )
+
+  useEffect(() => () => {
+    if (flashTimeout.current) clearTimeout(flashTimeout.current)
+    if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
   }, [])
 
   // Scroll spy — highlight the in-page nav item nearest the top of the scroll area
@@ -94,6 +139,7 @@ export function Customer360Page() {
     if (!container) return
 
     const handleScroll = () => {
+      if (programmaticScroll.current) return
       const containerTop = container.getBoundingClientRect().top
       let current = NAV_SECTIONS[0].id
       for (const section of NAV_SECTIONS) {
@@ -106,8 +152,17 @@ export function Customer360Page() {
       setActiveSection(current)
     }
 
+    const handleScrollEnd = () => {
+      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
+      programmaticScroll.current = false
+    }
+
     container.addEventListener('scroll', handleScroll)
-    return () => container.removeEventListener('scroll', handleScroll)
+    container.addEventListener('scrollend', handleScrollEnd)
+    return () => {
+      container.removeEventListener('scroll', handleScroll)
+      container.removeEventListener('scrollend', handleScrollEnd)
+    }
   }, [])
 
   return (
@@ -199,10 +254,17 @@ export function Customer360Page() {
             <div className="mx-auto max-w-[800px] space-y-10">
               {/* Summary */}
               <section ref={setSectionRef('summary')} className="mx-auto max-w-[680px]">
-                <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
-                  <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
-                  {data.summary.headline}
-                </h2>
+                <div className="relative">
+                  {flashingSection === 'summary' && (
+                    <span className="title-sweep-overlay" aria-hidden="true">
+                      <span className="title-sweep-band" />
+                    </span>
+                  )}
+                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
+                    <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
+                    {data.summary.headline}
+                  </h2>
+                </div>
                 <p className="mt-3 text-[12px] text-brand-fog">
                   Effective: {data.summary.effectiveDate}
                 </p>
@@ -210,7 +272,16 @@ export function Customer360Page() {
 
               {/* Account */}
               <section ref={setSectionRef('account')} className="mx-auto max-w-[680px]">
-                <SectionHeader title="Account" status="ready" statusLabel="Ready" />
+                <SectionSourceThumbnails
+                  sources={sectionSources.account}
+                  onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
+                />
+                <SectionHeader
+                  title="Account"
+                  status="ready"
+                  statusLabel="Ready"
+                  isFlashing={flashingSection === 'account'}
+                />
                 <div className="mt-4">
                   <LabelValueList items={data.account} />
                 </div>
@@ -218,7 +289,16 @@ export function Customer360Page() {
 
               {/* Addresses */}
               <section ref={setSectionRef('addresses')} className="mx-auto max-w-[680px]">
-                <SectionHeader title="Addresses" status="ready" statusLabel="Ready" />
+                <SectionSourceThumbnails
+                  sources={sectionSources.addresses}
+                  onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
+                />
+                <SectionHeader
+                  title="Addresses"
+                  status="ready"
+                  statusLabel="Ready"
+                  isFlashing={flashingSection === 'addresses'}
+                />
                 <div className="mt-4">
                   <LabelValueList items={data.addresses} />
                 </div>
@@ -226,7 +306,16 @@ export function Customer360Page() {
 
               {/* Terms and billing */}
               <section ref={setSectionRef('terms')} className="mx-auto max-w-[680px]">
-                <SectionHeader title="Terms and billing" status="ready" statusLabel="Ready" />
+                <SectionSourceThumbnails
+                  sources={sectionSources.terms}
+                  onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
+                />
+                <SectionHeader
+                  title="Terms and billing"
+                  status="ready"
+                  statusLabel="Ready"
+                  isFlashing={flashingSection === 'terms'}
+                />
                 <div className="mt-4">
                   <LabelValueList items={data.termsAndBilling} />
                 </div>
@@ -235,10 +324,15 @@ export function Customer360Page() {
               {/* Products and pricing — header capped at 680px (centred), table full 800px */}
               <section ref={setSectionRef('products')}>
                 <div className="mx-auto max-w-[680px]">
+                  <SectionSourceThumbnails
+                    sources={sectionSources.products}
+                    onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                  />
                   <SectionHeader
                     title="Products and pricing"
                     status="attention"
                     statusLabel="Resolve 2 items"
+                    isFlashing={flashingSection === 'products'}
                   />
                 </div>
                 <div className="mt-4">
@@ -248,7 +342,7 @@ export function Customer360Page() {
 
               {/* Invoice preview — title + unit capped at 680px, centred */}
               <section ref={setSectionRef('invoice')} className="mx-auto max-w-[680px]">
-                <SectionHeader title="Invoice preview" />
+                <SectionHeader title="Invoice preview" isFlashing={flashingSection === 'invoice'} />
                 <div className="mt-4">
                   <InvoicePreview />
                 </div>
@@ -258,10 +352,24 @@ export function Customer360Page() {
 
           {/* Grid 3 — comments (scrolls independently, aligned to the primary CTA) */}
           <aside className="shrink-0 overflow-y-auto pb-20 pt-12" style={{ width: 250 }}>
-            <CommentsPanel comments={data.comments} />
+            <CommentsPanel
+              comments={data.comments}
+              activeSectionId={activeSection}
+              onCommentJump={handleCommentJump}
+            />
           </aside>
         </div>
       </div>
+
+      <SourcePreviewDrawer
+        open={!!preview}
+        sources={preview ? sectionSources[preview.sectionId] : []}
+        activeIndex={preview?.index ?? 0}
+        onIndexChange={(index) =>
+          setPreview((prev) => (prev ? { ...prev, index } : null))
+        }
+        onClose={() => setPreview(null)}
+      />
     </div>
   )
 }
