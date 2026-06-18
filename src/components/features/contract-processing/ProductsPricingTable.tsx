@@ -38,12 +38,40 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
   const [searchQuery, setSearchQuery] = useState('')
   const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [position, setPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
       inputRef.current.focus()
     }
   }, [isOpen])
+
+  // Recalculate position on open and on window events
+  useEffect(() => {
+    if (!isOpen || !popoverRef.current || !anchorRef.current) return
+
+    // Use a timeout to ensure DOM has rendered
+    const timer = setTimeout(() => {
+      const anchorRect = anchorRef.current!.getBoundingClientRect()
+      
+      // Default: below
+      const DEFAULT_POSITION = { top: '100%', bottom: 'auto' }
+      
+      // Calculate space
+      const spaceBelow = window.innerHeight - anchorRect.bottom
+      const spaceAbove = anchorRect.top
+      
+      // If not enough space below (< 300px for typical popover + margin)
+      // AND there's enough space above, position above
+      if (spaceBelow < 320 && spaceAbove > 320) {
+        setPosition({ bottom: '100%', top: 'auto' })
+      } else {
+        setPosition(DEFAULT_POSITION)
+      }
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [isOpen, anchorRef])
 
   useEffect(() => {
     if (!isOpen) return
@@ -88,7 +116,14 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
   return (
     <div
       ref={popoverRef}
-      className="absolute left-0 top-full z-50 mt-1 w-[400px] rounded-lg border border-neutral-200 bg-white shadow-lg"
+      className="absolute z-50 w-[400px] rounded-lg border border-neutral-200 bg-white shadow-lg"
+      style={{
+        left: '0',
+        marginTop: typeof position.top !== 'undefined' && position.top === '100%' ? '4px' : '0',
+        marginBottom: typeof position.bottom !== 'undefined' && position.bottom === '100%' ? '4px' : '0',
+        top: position.top as any,
+        bottom: position.bottom as any,
+      }}
     >
       {/* Search bar */}
       <div className="border-b border-neutral-200 p-3">
@@ -157,6 +192,23 @@ interface MiniDropdownPopoverProps {
 
 function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue }: MiniDropdownPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null)
+  const [position, setPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
+
+  useEffect(() => {
+    if (!isOpen || !popoverRef.current) return
+
+    const timer = setTimeout(() => {
+      const spaceBelow = window.innerHeight - popoverRef.current!.getBoundingClientRect().top
+      
+      if (spaceBelow < 200) {
+        setPosition({ bottom: '100%', top: 'auto' })
+      } else {
+        setPosition({ top: '100%', bottom: 'auto' })
+      }
+    }, 0)
+
+    return () => clearTimeout(timer)
+  }, [isOpen])
 
   useEffect(() => {
     if (!isOpen) return
@@ -184,7 +236,13 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
   return (
     <div
       ref={popoverRef}
-      className="absolute left-0 top-full z-50 mt-1 min-w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      className="absolute left-0 z-50 min-w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      style={{
+        top: position.top as any,
+        bottom: position.bottom as any,
+        marginTop: position.top === '100%' ? '4px' : '0',
+        marginBottom: position.bottom === '100%' ? '4px' : '0',
+      }}
     >
       {options.map((option) => (
         <button
@@ -216,9 +274,14 @@ function ItemNameButton({ name, isAttention, onSelect }: ItemNameButtonProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div className="relative flex min-w-0 flex-1 items-center gap-2">
+    <div className="relative flex min-w-0 flex-1 items-center gap-2 group">
       {isAttention ? (
-        <OctagonAlert size={16} className="shrink-0 text-red-500" />
+        <div className="relative shrink-0">
+          <OctagonAlert size={16} className="shrink-0 text-red-500" />
+          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-red-600 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
+            This item needs review
+          </span>
+        </div>
       ) : (
         <CircleCheck size={16} className="shrink-0 text-green-600" />
       )}
@@ -568,20 +631,15 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
       )}
 
       {/* TCV Row */}
-      <div className="flex items-center border-t border-neutral-200 py-3">
-        <div className="flex-1 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Total Contract Value (TCV)
+      <div className="flex items-center justify-center border-t border-neutral-200 py-3">
+        <div className="flex items-baseline gap-3">
+          <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Total Contract Value (TCV)
+          </span>
+          <span className="font-heading text-[16px] font-bold text-brand-navy">
+            {tcv.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
+          </span>
         </div>
-        <GhostSeparator />
-        <div style={{ width: PERIOD_W }} className="shrink-0" />
-        <GhostSeparator />
-        <div style={{ width: QTY_W }} className="shrink-0" />
-        <GhostSeparator />
-        <div style={{ width: UNIT_W }} className="shrink-0" />
-        <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[16px] font-bold text-brand-navy">
-          {tcv.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
-        </div>
-        <div style={{ width: MENU_W }} className="shrink-0" />
       </div>
     </div>
   )

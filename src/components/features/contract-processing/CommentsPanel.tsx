@@ -36,9 +36,8 @@ function CommentCard({
       className={cn(
         // px-2 + the panel's pl-2 gutter give the peek room to move left without
         // ever leaving the panel box — keeps grid width perfectly stable.
-        'group relative rounded-lg px-2 py-2 transition-[transform,background-color] duration-300 ease-out',
-        isLinked && 'cursor-pointer hover:bg-neutral-50',
-        isActive && '-translate-x-2 bg-blue-50/60'
+        'group relative rounded-lg px-2 py-2 transition-[background-color] duration-300 ease-out',
+        isLinked && 'cursor-pointer hover:bg-neutral-50'
       )}
     >
       {/* Active-section accent — absolutely positioned so it never shifts layout */}
@@ -46,7 +45,7 @@ function CommentCard({
         <span
           aria-hidden="true"
           className={cn(
-            'pointer-events-none absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-blue-400 transition-opacity duration-300',
+            'pointer-events-none absolute left-0 top-2 bottom-2 w-0.5 rounded-full bg-brand-navy transition-opacity duration-300',
             isActive ? 'opacity-100' : 'opacity-0'
           )}
         />
@@ -56,7 +55,7 @@ function CommentCard({
       {isLinked && (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-md bg-white text-blue-600 opacity-0 shadow-sm ring-1 ring-blue-100 transition-opacity duration-200 group-hover:opacity-100"
+          className="pointer-events-none absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-md bg-brand-navy text-white opacity-0 shadow-sm transition-opacity duration-200 group-hover:opacity-100"
           title="Go to section"
         >
           <ArrowUpLeft size={13} />

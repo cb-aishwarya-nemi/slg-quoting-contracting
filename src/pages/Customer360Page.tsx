@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, X, ArrowDown, Send } from 'lucide-react'
+import { ArrowLeft, ChevronRight, X, ArrowDown, Send } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
+import { useNotifications } from '@/context/NotificationContext'
 import { contractProcessing, sectionSources } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
   LabelValueList,
   ProductsPricingTable,
   InvoicePreview,
+  PaymentSchedule,
   InPageNav,
   CommentsPanel,
   SectionSourceThumbnails,
@@ -33,14 +35,15 @@ const NAV_SECTIONS: NavSection[] = [
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
-  { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
+  { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
+  { id: 'invoice', label: 'First invoice preview', status: 'neutral' },
 ]
 
 function StatusUnit({ status }: { status: string }) {
   return (
     <button
       type="button"
-      className="flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 transition-colors hover:bg-blue-100"
+      className="flex items-center gap-1.5 rounded-lg border border-brand-navy bg-white px-3 py-2 transition-colors hover:bg-neutral-50"
     >
       <span className="text-[13px] text-brand-navy">Status:</span>
       <span className="text-[13px] font-bold text-blue-700">{status}</span>
@@ -63,8 +66,9 @@ function SendForApprovalButton({ onClick }: { onClick: () => void }) {
 }
 
 export function Customer360Page() {
-  const { goToWorkbench, goToInvoiceDetails } = useNavigation()
+  const { goToWorkbench, goToAllContracts } = useNavigation()
   const { setActivePage } = useUseCase()
+  const { addNotification } = useNotifications()
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('contracts')
   const [activeSection, setActiveSection] = useState('summary')
@@ -128,6 +132,19 @@ export function Customer360Page() {
     [scrollToSection]
   )
 
+  // Handle Send for Approval button click
+  const handleSendForApproval = useCallback(() => {
+    // Show notification
+    addNotification({
+      title: 'Contract sent for approval',
+      message: `${data.customerName} contract has been sent to Adrian Brody (Manager) for approval. Average approval time is 12 hours.`,
+      persistent: true,
+    })
+    
+    // Navigate to contracts page
+    goToAllContracts('pioneer-systems')
+  }, [addNotification, data.customerName, goToAllContracts])
+
   useEffect(() => () => {
     if (flashTimeout.current) clearTimeout(flashTimeout.current)
     if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
@@ -167,31 +184,42 @@ export function Customer360Page() {
 
   return (
     <div className="flex h-full flex-col">
-      {/* Primary nav — back, customer name, deal tag + Customer 360 tabs */}
-      <div className="relative h-[48px] shrink-0">
-        {/* Left section — back button, customer name, deal tag */}
-        <div className="absolute bottom-0 left-6 flex items-center gap-3 pb-[7px]">
+      {/* Primary nav — breadcrumb + customer name + deal tag + Customer 360 tabs */}
+      <div className="relative h-[60px] shrink-0">
+        {/* Left section — back button + breadcrumb stacked above title */}
+        <div className="absolute left-6 bottom-1 flex items-end gap-2">
+          {/* Close button */}
           <button
             type="button"
             onClick={goToWorkbench}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
-            title="Back to Workbench"
+            className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+            title="Close"
           >
-            <ArrowLeft size={18} />
+            <X size={18} />
           </button>
-          <h1
-            className="font-heading text-[16px] font-semibold text-brand-navy"
-            style={{ letterSpacing: '-0.5px' }}
-          >
-            {data.customerName}
-          </h1>
-          <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
-            {data.dealTag}
-          </span>
+
+          {/* Breadcrumb + title stacked */}
+          <div className="flex flex-col justify-end">
+            <div className="flex items-center gap-0.5">
+              <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">Customers</span>
+              <ChevronRight size={10} className="text-brand-fog" />
+            </div>
+            <div className="flex items-center gap-3">
+              <h1
+                className="font-heading text-[16px] font-semibold text-brand-navy"
+                style={{ letterSpacing: '-0.5px' }}
+              >
+                {data.customerName}
+              </h1>
+              <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
+                {data.dealTag}
+              </span>
+            </div>
+          </div>
         </div>
 
-        {/* Center section — tabs centered on the full width */}
-        <div className="absolute bottom-0 left-0 right-0 flex justify-center">
+        {/* Center section — tabs absolutely centered on the full width */}
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
           <TrapezoidalTabs
             tabs={C360_TABS}
             activeTab={activeTab}
@@ -204,17 +232,17 @@ export function Customer360Page() {
       </div>
 
       {/* Secondary nav + 3-grid body, centered within 1440 */}
-      <div className="mx-auto flex min-h-0 w-full max-w-[1440px] flex-1 flex-col px-8">
+      <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
         {/* Secondary nav */}
         <div className="flex shrink-0 items-center py-3">
           <div className="flex shrink-0 items-center" style={{ width: 40 }}>
             <button
               type="button"
               onClick={goToWorkbench}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-              title="Close"
+              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+              title="Back to Workbench"
             >
-              <X size={18} />
+              <ArrowLeft size={18} />
             </button>
           </div>
 
@@ -231,7 +259,7 @@ export function Customer360Page() {
 
           <div className="flex items-center gap-3">
             <StatusUnit status={data.processing.status} />
-            <SendForApprovalButton onClick={() => goToInvoiceDetails('INV-2026-9584')} />
+            <SendForApprovalButton onClick={handleSendForApproval} />
           </div>
         </div>
 
@@ -251,9 +279,9 @@ export function Customer360Page() {
               Wrapper is 800px wide; the table spans the full width while every other
               unit is capped at 680px and centred within it. */}
           <div ref={centerRef} className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12">
-            <div className="mx-auto max-w-[800px] space-y-10">
+            <div className="mx-auto max-w-[800px] space-y-16">
               {/* Summary */}
-              <section ref={setSectionRef('summary')} className="mx-auto max-w-[680px]">
+              <section ref={setSectionRef('summary')} className="group/section mx-auto max-w-[680px]">
                 <div className="relative">
                   {flashingSection === 'summary' && (
                     <span className="title-sweep-overlay" aria-hidden="true">
@@ -265,13 +293,13 @@ export function Customer360Page() {
                     {data.summary.headline}
                   </h2>
                 </div>
-                <p className="mt-3 text-[12px] text-brand-fog">
+                <p className="mt-3 text-[13px] text-brand-navy">
                   Effective: {data.summary.effectiveDate}
                 </p>
               </section>
 
               {/* Account */}
-              <section ref={setSectionRef('account')} className="mx-auto max-w-[680px]">
+              <section ref={setSectionRef('account')} className="group/section mx-auto max-w-[680px]">
                 <SectionSourceThumbnails
                   sources={sectionSources.account}
                   onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
@@ -288,7 +316,7 @@ export function Customer360Page() {
               </section>
 
               {/* Addresses */}
-              <section ref={setSectionRef('addresses')} className="mx-auto max-w-[680px]">
+              <section ref={setSectionRef('addresses')} className="group/section mx-auto max-w-[680px]">
                 <SectionSourceThumbnails
                   sources={sectionSources.addresses}
                   onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
@@ -305,7 +333,7 @@ export function Customer360Page() {
               </section>
 
               {/* Terms and billing */}
-              <section ref={setSectionRef('terms')} className="mx-auto max-w-[680px]">
+              <section ref={setSectionRef('terms')} className="group/section mx-auto max-w-[680px]">
                 <SectionSourceThumbnails
                   sources={sectionSources.terms}
                   onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
@@ -322,7 +350,7 @@ export function Customer360Page() {
               </section>
 
               {/* Products and pricing — header capped at 680px (centred), table full 800px */}
-              <section ref={setSectionRef('products')}>
+              <section ref={setSectionRef('products')} className="group/section">
                 <div className="mx-auto max-w-[680px]">
                   <SectionSourceThumbnails
                     sources={sectionSources.products}
@@ -340,9 +368,17 @@ export function Customer360Page() {
                 </div>
               </section>
 
-              {/* Invoice preview — title + unit capped at 680px, centred */}
-              <section ref={setSectionRef('invoice')} className="mx-auto max-w-[680px]">
-                <SectionHeader title="Invoice preview" isFlashing={flashingSection === 'invoice'} />
+              {/* Billing schedule — timeline, capped at 680px */}
+              <section ref={setSectionRef('schedule')} className="group/section mx-auto max-w-[680px]">
+                <SectionHeader title="Billing schedule" isFlashing={flashingSection === 'schedule'} />
+                <div className="mt-6">
+                  <PaymentSchedule />
+                </div>
+              </section>
+
+              {/* First invoice preview — capped at 680px, centred */}
+              <section ref={setSectionRef('invoice')} className="group/section mx-auto max-w-[680px]">
+                <SectionHeader title="First invoice preview" isFlashing={flashingSection === 'invoice'} hideLine />
                 <div className="mt-4">
                   <InvoicePreview />
                 </div>

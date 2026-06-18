@@ -4,13 +4,13 @@ import {
   Bell,
   Settings,
   HelpCircle,
-  FileText,
-  CheckCircle2,
-  Loader2,
   X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useFileDrop, type ProcessingFile } from '../../context/FileDropContext'
+import { useNavigation } from '../../context/NavigationContext'
+import { useNotifications } from '../../context/NotificationContext'
+import { NotificationPanel } from './NotificationPanel'
 
 interface TopNavProps {
   environmentName?: string
@@ -19,37 +19,34 @@ interface TopNavProps {
 
 function ProcessingBar({ files }: { files: ProcessingFile[] }) {
   const file = files[0]
+  const { removeProcessingFile, setShouldOpenModal } = useFileDrop()
+  const { goToWorkbench } = useNavigation()
+  
   if (!file) return null
 
   const isComplete = file.status === 'complete'
   const isProcessing = file.status === 'processing'
 
+  const handleDismiss = () => {
+    removeProcessingFile(file.id)
+  }
+
+  const handleOpenWorkbench = () => {
+    setShouldOpenModal(true)
+    goToWorkbench()
+    removeProcessingFile(file.id)
+  }
+
   return (
     <div
       className={cn(
-        "fixed right-4 top-11 z-30 min-w-[420px] rounded-lg border bg-white p-4 shadow-lg",
+        "fixed right-4 top-11 z-30 min-w-[420px] rounded-lg border-2 bg-white p-4",
         "animate-in slide-in-from-top-2 duration-300",
-        isComplete ? "border-green-200" : "border-neutral-200"
+        isComplete ? "border-brand-navy" : "border-brand-navy"
       )}
     >
       <div className="flex items-start gap-4">
-        {/* Icon */}
-        <div
-          className={cn(
-            "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg",
-            isComplete ? "bg-green-100" : isProcessing ? "bg-violet-100" : "bg-blue-100"
-          )}
-        >
-          {isComplete ? (
-            <CheckCircle2 size={20} className="text-green-600" />
-          ) : isProcessing ? (
-            <Loader2 size={20} className="animate-spin text-violet-600" />
-          ) : (
-            <FileText size={20} className="text-blue-800" />
-          )}
-        </div>
-
-        {/* Content */}
+        {/* Content - removed icon unit */}
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -67,9 +64,10 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             {isComplete && (
               <button
                 type="button"
-                className="flex h-6 w-6 items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
+                onClick={handleDismiss}
+                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
               >
-                <X size={14} />
+                <X size={16} />
               </button>
             )}
           </div>
@@ -97,11 +95,16 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             </div>
           )}
 
-          {/* Success message */}
+          {/* Success message with CTA */}
           {isComplete && (
-            <p className="mt-2 text-sm text-green-600">
-              Added to your Workbench for review
-            </p>
+            <div className="mt-3">
+              <button onClick={handleOpenWorkbench} className="flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800">
+                Open workbench item
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -111,7 +114,9 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 
 export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavProps) {
   const { processingFiles } = useFileDrop()
+  const { notifications } = useNotifications()
   const hasProcessing = processingFiles.length > 0
+  const hasNotifications = notifications.length > 0
 
   return (
     <>
@@ -155,7 +160,7 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
             title="Notifications"
           >
             <Bell size={16} />
-            {hasProcessing && (
+            {(hasProcessing || hasNotifications) && (
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500" />
             )}
           </button>
@@ -193,6 +198,9 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
 
       {/* Sticky progress bar below nav */}
       {hasProcessing && <ProcessingBar files={processingFiles} />}
+      
+      {/* Notification panel below nav */}
+      <NotificationPanel />
     </>
   )
 }

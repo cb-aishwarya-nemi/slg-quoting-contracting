@@ -5,6 +5,7 @@ export type View =
   | { name: 'customer360'; customerId: string }
   | { name: 'invoiceDetails'; invoiceId: string }
   | { name: 'allInvoices'; customerId: string }
+  | { name: 'allContracts'; customerId: string }
 
 interface NavigationContextValue {
   view: View
@@ -12,6 +13,7 @@ interface NavigationContextValue {
   goToCustomer360: (customerId: string) => void
   goToInvoiceDetails: (invoiceId: string) => void
   goToAllInvoices: (customerId: string) => void
+  goToAllContracts: (customerId: string) => void
 }
 
 const NavigationContext = createContext<NavigationContextValue | null>(null)
@@ -35,8 +37,12 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     setView({ name: 'allInvoices', customerId })
   }, [])
 
+  const goToAllContracts = useCallback((customerId: string) => {
+    setView({ name: 'allContracts', customerId })
+  }, [])
+
   return (
-    <NavigationContext.Provider value={{ view, goToWorkbench, goToCustomer360, goToInvoiceDetails, goToAllInvoices }}>
+    <NavigationContext.Provider value={{ view, goToWorkbench, goToCustomer360, goToInvoiceDetails, goToAllInvoices, goToAllContracts }}>
       {children}
     </NavigationContext.Provider>
   )

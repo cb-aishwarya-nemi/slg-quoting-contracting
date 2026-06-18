@@ -23,9 +23,13 @@ interface FileDropContextValue {
   setIsDragging: (value: boolean) => void
   processingFiles: ProcessingFile[]
   addProcessingFile: (file: File) => void
+  removeProcessingFile: (fileId: string) => void
   workbenchItems: WorkbenchItem[]
   hasNewItem: boolean
   clearNewItemFlag: () => void
+  clearItemNewFlag: (itemId: number) => void
+  shouldOpenModal: boolean
+  setShouldOpenModal: (value: boolean) => void
 }
 
 const FileDropContext = createContext<FileDropContextValue | null>(null)
@@ -37,8 +41,19 @@ const daysAgo = (days: number) => {
   return date
 }
 
-// Initial workbench items (Pioneer Systems NOT included initially)
+// Initial workbench items (Pioneer Systems included for prototype)
 const INITIAL_TASKS: WorkbenchItem[] = [
+  // Pioneer Systems - for Customer Link Modal prototype
+  {
+    id: 100,
+    taskType: "New deal - Ingestion",
+    customer: "Pioneer Systems",
+    subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
+    severity: "High",
+    detail: "New Business · Contract Upload",
+    createdAt: new Date(),
+    isNew: false, // Set to false initially for prototype
+  },
   {
     id: 1,
     taskType: "Early renewal - Ingestion",
@@ -310,6 +325,7 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
   const [processingFiles, setProcessingFiles] = useState<ProcessingFile[]>([])
   const [workbenchItems, setWorkbenchItems] = useState<WorkbenchItem[]>(INITIAL_TASKS)
   const [hasNewItem, setHasNewItem] = useState(false)
+  const [shouldOpenModal, setShouldOpenModal] = useState(false)
 
   const addProcessingFile = useCallback((file: File) => {
     const fileId = `file-${Date.now()}`
@@ -345,20 +361,31 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
             )
           )
 
-          // Add Pioneer Systems to workbench (at the top)
+          // Add or update Pioneer Systems in workbench (at the top)
           setWorkbenchItems(prev => {
             // Check if Pioneer Systems already exists
-            if (prev.some(item => item.customer === 'Pioneer Systems')) {
-              return prev
+            const existingIndex = prev.findIndex(item => item.customer === 'Pioneer Systems')
+            
+            if (existingIndex !== -1) {
+              // Update existing item: mark as new and update timestamp
+              const updatedItems = [...prev]
+              const existingItem = updatedItems[existingIndex]
+              // Remove from current position
+              updatedItems.splice(existingIndex, 1)
+              // Add updated item to the top
+              return [{
+                ...existingItem,
+                isNew: true,
+                createdAt: new Date(),
+              }, ...updatedItems]
             }
+            
+            // Add new Pioneer Systems item
             return [createPioneerSystemsItem(), ...prev]
           })
           setHasNewItem(true)
 
-          // Remove from processing after a delay
-          setTimeout(() => {
-            setProcessingFiles(prev => prev.filter(f => f.id !== fileId))
-          }, 2000)
+          // Keep completed notification persistent - don't auto-remove
         }, 1500)
       } else {
         setProcessingFiles(prev =>
@@ -377,6 +404,21 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
     )
   }, [])
 
+  const clearItemNewFlag = useCallback((itemId: number) => {
+    setWorkbenchItems(prev =>
+      prev.map(item => item.id === itemId ? { ...item, isNew: false } : item)
+    )
+    // Check if there are any remaining new items
+    setHasNewItem(prev => {
+      const hasOtherNew = prev && workbenchItems.some(item => item.id !== itemId && item.isNew)
+      return hasOtherNew
+    })
+  }, [workbenchItems])
+
+  const removeProcessingFile = useCallback((fileId: string) => {
+    setProcessingFiles(prev => prev.filter(f => f.id !== fileId))
+  }, [])
+
   return (
     <FileDropContext.Provider
       value={{
@@ -384,9 +426,13 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
         setIsDragging,
         processingFiles,
         addProcessingFile,
+        removeProcessingFile,
         workbenchItems,
         hasNewItem,
         clearNewItemFlag,
+        clearItemNewFlag,
+        shouldOpenModal,
+        setShouldOpenModal,
       }}
     >
       {children}

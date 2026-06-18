@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { type WorkbenchItem } from '@/context/FileDropContext'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
-import { type CustomerMatch } from '@/data/customerLinkMock'
+import { type CustomerMatch, getCustomerMatchesByVariant } from '@/data/customerLinkMock'
 import { ContractPreview } from './ContractPreview'
 import { ExtractedMappedRow } from './ExtractedMappedRow'
 import { CustomerLinkContent } from './CustomerLinkContent'
@@ -18,9 +18,19 @@ interface CustomerLinkModalProps {
 
 export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalProps) {
   const { goToCustomer360 } = useNavigation()
-  const { setActivePage } = useUseCase()
+  const { setActivePage, activeVariant, activePage, getPage } = useUseCase()
   const [mode, setMode] = useState<Mode>('link')
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerMatch | null>(null)
+
+  // Get current variant for title generation
+  const page = getPage('customer-link-modal')
+  const variant = 
+    activePage === 'customer-link-modal' && activeVariant 
+      ? activeVariant 
+      : page?.defaultVariant || 'closest-matches'
+  
+  // Get matches for the current variant
+  const matches = getCustomerMatchesByVariant(variant as 'perfect-match' | 'closest-matches' | 'no-match')
 
   // Register modal as active page for use case switching
   useEffect(() => {
@@ -30,6 +40,15 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
       setActivePage('workbench')
     }
   }, [setActivePage])
+
+  // Auto-select customer for perfect match scenario
+  useEffect(() => {
+    if (variant === 'perfect-match') {
+      if (matches.length === 1 && !selectedCustomer) {
+        setSelectedCustomer(matches[0])
+      }
+    }
+  }, [variant, matches, selectedCustomer])
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -67,52 +86,85 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
     goToCustomer360(selectedCustomer?.id ?? 'pioneer-systems')
   }
 
+  // Generate title based on variant
+  const getModalTitle = () => {
+    if (variant === 'perfect-match') {
+      return 'Perfect match found'
+    } else if (variant === 'no-match') {
+      return 'No match found'
+    } else {
+      // closest-matches
+      const count = matches.length
+      return `${count} close ${count === 1 ? 'match' : 'matches'} found`
+    }
+  }
+
+  // Generate subtext based on variant
+  const getModalSubtext = () => {
+    if (variant === 'perfect-match') {
+      return "Let's proceed to process the contract."
+    } else if (variant === 'no-match') {
+      return 'Create a new customer with the extracted details from the contract.'
+    } else {
+      // closest-matches
+      return 'Proceed by choosing a customer from the list.'
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex">
       {/* Modal Panel */}
       <div className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-white">
-        {/* Top Bar */}
-        <div className="flex shrink-0 items-center justify-between px-3 py-2">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-            >
-              <X size={18} />
-            </button>
-            <h1 className="font-heading text-[16px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
-              Choose a customer or create new to process the contract
-            </h1>
-          </div>
-          
-          <button
-            type="button"
-            onClick={handleProcessContract}
-            disabled={!canProcess}
-            className={cn(
-              'flex items-center gap-2 rounded-lg px-4 py-2 font-heading text-[14px] font-semibold transition-colors',
-              canProcess
-                ? 'bg-orange-500 text-white hover:bg-orange-600'
-                : 'cursor-not-allowed bg-neutral-200 text-neutral-400'
-            )}
-          >
-            Process Contract
-            <ArrowRight size={16} />
-          </button>
-        </div>
-        
         {/* Body */}
-        <div className="grid min-h-0 flex-1 grid-cols-[35%_65%] gap-4 px-4 pb-4">
-          {/* Left Column - Contract Preview */}
-          <div className="min-h-0 overflow-hidden">
-            <ContractPreview />
+        <div className="grid min-h-0 flex-1 grid-cols-[35%_65%] gap-4 py-4 pr-12">
+          {/* Left Column - X button and Contract Preview */}
+          <div className="flex min-h-0 flex-col pl-4">
+            <div className="shrink-0 pb-6">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-hidden pl-8 pr-6">
+              <ContractPreview />
+            </div>
           </div>
           
           {/* Right Column - Interaction Area */}
-          <div className="flex min-h-0 flex-col px-4">
-            {/* Extracted/Mapped Row */}
+          <div className="flex min-h-0 flex-col pl-10" style={{ paddingTop: 'calc(28px + 24px)' }}>
+            {/* Title Section with CTA */}
             <div className="shrink-0 bg-white pb-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <h1 className="font-heading text-[24px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
+                    {getModalTitle()}
+                  </h1>
+                  <p className="text-[12px] text-brand-navy">
+                    {getModalSubtext()}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleProcessContract}
+                  disabled={!canProcess}
+                  className={cn(
+                    'flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 font-heading text-[14px] font-semibold transition-colors',
+                    canProcess
+                      ? 'bg-orange-500 text-white hover:bg-orange-600'
+                      : 'cursor-not-allowed bg-neutral-200 text-neutral-400'
+                  )}
+                >
+                  Process Contract
+                  <ArrowRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            {/* Extracted/Mapped Row */}
+            <div className="shrink-0 bg-white pb-4">
               <ExtractedMappedRow 
                 mappedCustomer={selectedCustomer}
                 mode={mode}

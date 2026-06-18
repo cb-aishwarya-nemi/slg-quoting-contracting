@@ -37,19 +37,19 @@ export function FileDropOverlay() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-end justify-center"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      {/* Backdrop with blur */}
-      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm" />
+      {/* Backdrop without blur - just overlay */}
+      <div className="absolute inset-0 bg-white/40" />
       
-      {/* Drop zone */}
+      {/* Drop zone - positioned 64px from bottom, wider and taller */}
       <div
         className={cn(
-          "relative z-10 flex flex-col items-center justify-center",
-          "w-[480px] rounded-2xl border-2 border-dashed border-blue-400 bg-blue-50/80 p-12",
+          "relative z-10 mb-16 flex flex-col items-center justify-center",
+          "w-3/5 h-[512px] rounded-2xl border-4 border-solid border-blue-600 bg-blue-50 p-12",
           "transition-all duration-200"
         )}
       >
@@ -58,18 +58,18 @@ export function FileDropOverlay() {
           <Upload className="h-8 w-8 text-blue-700 animate-bounce" />
         </div>
         
-        {/* Text */}
-        <h3 className="mb-2 text-lg font-semibold text-brand-navy">
-          Drop files to upload
+        {/* Text - title now in blue */}
+        <h3 className="mb-2 text-lg font-semibold text-blue-600">
+          Drop contracts to process
         </h3>
-        <p className="text-center text-sm text-brand-fog">
-          Drop contracts, quotes, or documents here to process them
+        <p className="text-center text-sm text-brand-fog max-w-md">
+          Upload multiple files simultaneously. Apex AI will process them as a single contract package.
         </p>
         
-        {/* Target indicator */}
-        <div className="mt-6 flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm text-brand-navy shadow-sm">
+        {/* Target indicator - new styling with brand-navy border, no shadow */}
+        <div className="mt-6 flex items-center gap-2 rounded-full border border-brand-navy bg-white px-4 py-2 text-sm text-brand-navy">
           <span className="text-brand-fog">Upload to</span>
-          <span className="font-medium">Contract Ingestion</span>
+          <span className="font-medium">Contract Queue</span>
         </div>
       </div>
     </div>

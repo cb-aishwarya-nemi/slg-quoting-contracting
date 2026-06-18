@@ -93,8 +93,16 @@ export function UseCaseSwitcher() {
         goToAllInvoices('pioneer-systems')
         break
       case 'customer-link-modal':
-        // Modal - navigate to workbench first, user can open modal from there
+        // Modal - navigate to workbench and trigger modal opening
         goToWorkbench()
+        // Add URL parameter to trigger modal opening, then dispatch custom event
+        setTimeout(() => {
+          const url = new URL(window.location.href)
+          url.searchParams.set('openModal', 'customer-link')
+          window.history.pushState({}, '', url.toString())
+          // Dispatch custom event to trigger the check
+          window.dispatchEvent(new CustomEvent('openModalParam'))
+        }, 100)
         break
     }
     

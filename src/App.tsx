@@ -1,7 +1,8 @@
 import { AppLayout } from './components/layout'
-import { WorkbenchPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage } from './pages'
+import { WorkbenchPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
 import { UseCaseProvider } from './context/UseCaseContext'
+import { NotificationProvider } from './context/NotificationContext'
 import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 
 function PageRouter() {
@@ -19,19 +20,25 @@ function PageRouter() {
     return <AllInvoicesPage />
   }
 
+  if (view.name === 'allContracts') {
+    return <AllContractsPage />
+  }
+
   return <WorkbenchPage />
 }
 
 function App() {
   return (
     <UseCaseProvider>
-      <NavigationProvider>
-        <AppLayout>
-          <PageRouter />
-        </AppLayout>
-        {/* Use Case Switcher - always visible, highest z-index */}
-        <UseCaseSwitcher />
-      </NavigationProvider>
+      <NotificationProvider>
+        <NavigationProvider>
+          <AppLayout>
+            <PageRouter />
+          </AppLayout>
+          {/* Use Case Switcher - always visible, highest z-index */}
+          <UseCaseSwitcher />
+        </NavigationProvider>
+      </NotificationProvider>
     </UseCaseProvider>
   )
 }

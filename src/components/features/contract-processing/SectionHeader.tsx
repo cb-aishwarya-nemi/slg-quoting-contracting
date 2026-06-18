@@ -1,4 +1,4 @@
-import { CircleCheck, OctagonAlert, MessageSquare } from 'lucide-react'
+import { CircleCheck, OctagonAlert, MessageCircleMore } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SectionHeaderProps {
@@ -7,13 +7,17 @@ interface SectionHeaderProps {
   statusLabel?: string
   /** plays the gradient sweep + icon settle when a linked comment targets this section */
   isFlashing?: boolean
+  /** minimal mode: hides the horizontal line and comment button */
+  minimal?: boolean
+  /** hide only the horizontal line (keep the comment button) */
+  hideLine?: boolean
 }
 
 /**
  * Section title + status pill, a horizontal rule filling the remaining width,
  * and an "add comment" affordance at the far end.
  */
-export function SectionHeader({ title, status, statusLabel, isFlashing }: SectionHeaderProps) {
+export function SectionHeader({ title, status, statusLabel, isFlashing, minimal = false, hideLine = false }: SectionHeaderProps) {
   return (
     <div className="relative flex items-center gap-3">
       {/* Gradient flash overlay — self-clipping + pointer-events-none, so it
@@ -44,18 +48,26 @@ export function SectionHeader({ title, status, statusLabel, isFlashing }: Sectio
         )}
       </div>
 
-      <div className="h-px flex-1 bg-brand-navy" />
+      {!minimal && (
+        <>
+          {/* Spacer to push button to the right - shows line or invisible */}
+          <div className={cn('flex-1', !hideLine && 'h-px bg-brand-navy')} />
 
-      <button
-        type="button"
-        title="Add comment"
-        className={cn(
-          'flex h-6 w-6 shrink-0 items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50',
-          isFlashing && 'icon-settle'
-        )}
-      >
-        <MessageSquare size={15} />
-      </button>
+          <button
+            type="button"
+            title="Add note"
+            className={cn(
+              'flex shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 py-1 text-blue-700 transition-all hover:bg-blue-50',
+              isFlashing && 'icon-settle'
+            )}
+          >
+            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[12px] font-medium opacity-0 transition-all duration-200 group-hover/section:max-w-[56px] group-hover/section:opacity-100">
+              Add note
+            </span>
+            <MessageCircleMore size={15} />
+          </button>
+        </>
+      )}
     </div>
   )
 }

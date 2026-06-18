@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useId } from 'react'
-import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowRight, ArrowLeft, MessageSquare } from 'lucide-react'
+import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowRight, ArrowLeft } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
@@ -105,7 +105,7 @@ function SectionHeader({ title }: { title: string }) {
         title="Add comment"
         className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
       >
-        <MessageSquare size={15} />
+        <MessageCircleMore size={15} />
       </button>
     </div>
   )

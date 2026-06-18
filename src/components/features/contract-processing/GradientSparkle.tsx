@@ -3,21 +3,22 @@ import { useId } from 'react'
 interface GradientSparkleProps {
   size?: number
   strokeWidth?: number
+  white?: boolean
 }
 
 /**
  * Static orange → violet gradient 4-point sparkle, used to denote AI-authored
  * surfaces (the contract "Summary" and APEX AI comments).
  */
-export function GradientSparkle({ size = 16, strokeWidth = 2 }: GradientSparkleProps) {
+export function GradientSparkle({ size = 16, strokeWidth = 2, white = false }: GradientSparkleProps) {
   const id = useId()
 
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
       <defs>
         <linearGradient id={id} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ff3300" />
-          <stop offset="1" stopColor="#8b5cf6" />
+          <stop stopColor={white ? '#ffffff' : '#ff3300'} />
+          <stop offset="1" stopColor={white ? '#ffffff' : '#8b5cf6'} />
         </linearGradient>
       </defs>
       <path

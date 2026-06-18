@@ -238,16 +238,16 @@ export const contractProcessing = {
       country: 'United States',
     },
     lineItems: [
-      { name: 'Apex platform - growth services', qty: '50', unitPrice: '$2,400.00', amount: '$120,000.00' },
-      { name: 'Implementation services', qty: '1', unitPrice: '$18,000.00', amount: '$18,000.00' },
-      { name: 'Onboarding & Training', qty: '1', unitPrice: '$9,500.00', amount: '$9,500.00' },
-      { name: 'Premium support SLA', qty: '1', unitPrice: '$12,000.00', amount: '$12,000.00' },
-      { name: 'Sandbox environments', qty: '3', unitPrice: '$1,500.00', amount: '$4,500.00' },
+      { name: 'Apex platform - growth services (Q1)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA (Q1)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments (Q1)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
     ],
-    subtotal: '$164,000.00',
+    subtotal: '$41,000.00',
     tax: '$0.00',
-    total: '$164,000.00',
-    notes: 'Annual term billed upfront. Payment due Net 30 from invoice date.',
+    total: '$41,000.00',
+    notes: 'Quarterly payment 1 of 4. Payment due Net 30 from invoice date.',
   },
 
   sourceDocuments: [
@@ -273,6 +273,8 @@ export const contractProcessing = {
       isAI: true,
       timestamp: 'Just now',
       body: 'I couldn\u2019t match \u201COnboarding & Training\u201D to your product catalog. The closest item is \u201COnboarding Services\u201D (94% match).',
+      linkedSection: 'Products and pricing',
+      linkedSectionId: 'products',
       actions: [
         { label: 'Map item', primary: true },
         { label: 'Create new' },
@@ -321,6 +323,169 @@ export interface CatalogLineItem {
   name: string
   family: string
   unitPrice: string
+}
+
+// Payment schedule data for simulating contract payments over time
+export interface PaymentScheduleItem {
+  id: string
+  period: string
+  dueDate: string
+  amount: string
+  status: 'paid' | 'pending' | 'upcoming'
+  invoiceId: string
+}
+
+export interface ScheduledInvoice {
+  number: string
+  issueDate: string
+  dueDate: string
+  billTo: {
+    company: string
+    contact: string
+    line1: string
+    cityLine: string
+    country: string
+  }
+  lineItems: {
+    name: string
+    qty: string
+    unitPrice: string
+    amount: string
+  }[]
+  subtotal: string
+  tax: string
+  total: string
+  notes: string
+}
+
+export const paymentSchedule: PaymentScheduleItem[] = [
+  {
+    id: 'ps-1',
+    period: 'Year 1 - Q1',
+    dueDate: 'May 31, 2026',
+    amount: '$41,000.00',
+    status: 'pending',
+    invoiceId: 'INV-2026-0042',
+  },
+  {
+    id: 'ps-2',
+    period: 'Year 1 - Q2',
+    dueDate: 'Aug 31, 2026',
+    amount: '$41,000.00',
+    status: 'upcoming',
+    invoiceId: 'INV-2026-0043',
+  },
+  {
+    id: 'ps-3',
+    period: 'Year 1 - Q3',
+    dueDate: 'Nov 30, 2026',
+    amount: '$41,000.00',
+    status: 'upcoming',
+    invoiceId: 'INV-2026-0044',
+  },
+  {
+    id: 'ps-4',
+    period: 'Year 1 - Q4',
+    dueDate: 'Feb 28, 2027',
+    amount: '$41,000.00',
+    status: 'upcoming',
+    invoiceId: 'INV-2026-0045',
+  },
+]
+
+export const scheduledInvoices: Record<string, ScheduledInvoice> = {
+  'INV-2026-0042': {
+    number: 'INV-2026-0042',
+    issueDate: 'May 1, 2026',
+    dueDate: 'May 31, 2026',
+    billTo: {
+      company: 'Pioneer Systems Corp.',
+      contact: 'Alex Nguyen',
+      line1: '340 Market Street, Suite 500',
+      cityLine: 'San Francisco, CA 94103',
+      country: 'United States',
+    },
+    lineItems: [
+      { name: 'Apex platform - growth services (Q1)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA (Q1)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments (Q1)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+    ],
+    subtotal: '$41,000.00',
+    tax: '$0.00',
+    total: '$41,000.00',
+    notes: 'Quarterly payment 1 of 4. Payment due Net 30 from invoice date.',
+  },
+  'INV-2026-0043': {
+    number: 'INV-2026-0043',
+    issueDate: 'Aug 1, 2026',
+    dueDate: 'Aug 31, 2026',
+    billTo: {
+      company: 'Pioneer Systems Corp.',
+      contact: 'Alex Nguyen',
+      line1: '340 Market Street, Suite 500',
+      cityLine: 'San Francisco, CA 94103',
+      country: 'United States',
+    },
+    lineItems: [
+      { name: 'Apex platform - growth services (Q2)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA (Q2)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments (Q2)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+    ],
+    subtotal: '$41,000.00',
+    tax: '$0.00',
+    total: '$41,000.00',
+    notes: 'Quarterly payment 2 of 4. Payment due Net 30 from invoice date.',
+  },
+  'INV-2026-0044': {
+    number: 'INV-2026-0044',
+    issueDate: 'Nov 1, 2026',
+    dueDate: 'Nov 30, 2026',
+    billTo: {
+      company: 'Pioneer Systems Corp.',
+      contact: 'Alex Nguyen',
+      line1: '340 Market Street, Suite 500',
+      cityLine: 'San Francisco, CA 94103',
+      country: 'United States',
+    },
+    lineItems: [
+      { name: 'Apex platform - growth services (Q3)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA (Q3)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments (Q3)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+    ],
+    subtotal: '$41,000.00',
+    tax: '$0.00',
+    total: '$41,000.00',
+    notes: 'Quarterly payment 3 of 4. Payment due Net 30 from invoice date.',
+  },
+  'INV-2026-0045': {
+    number: 'INV-2026-0045',
+    issueDate: 'Feb 1, 2027',
+    dueDate: 'Feb 28, 2027',
+    billTo: {
+      company: 'Pioneer Systems Corp.',
+      contact: 'Alex Nguyen',
+      line1: '340 Market Street, Suite 500',
+      cityLine: 'San Francisco, CA 94103',
+      country: 'United States',
+    },
+    lineItems: [
+      { name: 'Apex platform - growth services (Q4)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA (Q4)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments (Q4)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+    ],
+    subtotal: '$41,000.00',
+    tax: '$0.00',
+    total: '$41,000.00',
+    notes: 'Quarterly payment 4 of 4. Payment due Net 30 from invoice date.',
+  },
 }
 
 export const lineItemCatalog: CatalogLineItem[] = [

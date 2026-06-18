@@ -202,7 +202,7 @@ function TabButton({
             "text-[12px] tracking-[-0.5px]",
             active
               ? "font-bold text-white"
-              : "font-normal text-brand-navy group-hover/tab:text-brand-navy"
+              : "font-medium text-brand-navy group-hover/tab:text-brand-navy"
           )}
           style={{ fontFamily: "'Inter', sans-serif" }}
         >

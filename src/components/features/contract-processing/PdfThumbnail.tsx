@@ -23,7 +23,7 @@ export function PdfThumbnail({ docName, highlightId, isActive, onClick }: PdfThu
         'relative overflow-hidden rounded-md border transition-colors',
         isActive
           ? 'border-brand-navy'
-          : 'border-neutral-200 hover:border-brand-navy'
+          : 'border-brand-navy hover:border-brand-navy'
       )}
       style={{ width: THUMB_WIDTH, height: THUMB_HEIGHT }}
     >

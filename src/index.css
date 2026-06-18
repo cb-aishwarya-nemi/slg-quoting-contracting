@@ -8,6 +8,15 @@
 @import '@fontsource/sora/600.css';
 @import '@fontsource/sora/700.css';
 
+button,
+a,
+[role="button"],
+[role="link"],
+select,
+label[for],
+summary {
+  cursor: pointer;
+}
 @theme {
   /* Orange Accent - Primary action, highlights, CTA surfaces */
   /* Base: #ff3300 */
@@ -122,6 +131,54 @@ body {
   animation: highlight-row 3s ease-out forwards;
 }
 
+.animate-highlight-row:hover {
+  animation: none !important;
+  background-color: #1c1b2e !important;
+}
+
+/* Sweep animation for new row - bolder and longer */
+@keyframes row-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(220%);
+  }
+}
+
+.row-sweep-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.row-sweep-overlay-table {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1rem;
+  right: -200vw;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.row-sweep-band {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 60%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 51, 0, 0.24) 35%,
+    rgba(139, 92, 246, 0.28) 65%,
+    transparent 100%
+  );
+  animation: row-sweep 2.4s ease-out forwards;
+}
+
 /* Slide in animation for processing bar */
 @keyframes slide-in-from-top {
   0% {
@@ -220,4 +277,21 @@ body {
   .icon-settle {
     animation: none;
   }
+}
+
+/* Asymmetric hover trail for workbench table rows.
+   Snap in fast, linger on the way out to leave a visible trail. */
+.row-hover-trail {
+  transition: background-color 150ms ease;
+}
+.row-hover-trail:hover {
+  transition: background-color 60ms ease;
+}
+.row-hover-trail > td,
+.row-hover-trail > td * {
+  transition: color 150ms ease, background-color 150ms ease, opacity 150ms ease;
+}
+.row-hover-trail:hover > td,
+.row-hover-trail:hover > td * {
+  transition: color 60ms ease, background-color 60ms ease, opacity 60ms ease;
 }

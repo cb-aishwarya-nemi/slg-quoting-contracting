@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, MoreVertical } from "lucide-react";
+import { Search, Sparkles, ArrowRight, MoreVertical, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { useFileDrop, type WorkbenchItem } from "@/context/FileDropContext";
@@ -7,13 +7,13 @@ import { useUseCase } from "@/context/UseCaseContext";
 import { CustomerLinkModal } from "@/components/features/customer-link";
 
 const WORKBENCH_TABS: TabItem[] = [
-  { id: "your-tasks", label: "Your tasks" },
-  { id: "queue", label: "Queue" },
+  { id: "your-tasks", label: "My tasks" },
+  { id: "queue", label: "Contract Queue" },
   { id: "approvals", label: "Approvals" },
 ];
 
 // Task type styles - grey for all
-const TASK_TYPE_STYLE = { bg: "bg-neutral-100", text: "text-brand-navy", border: "border-neutral-200" };
+const TASK_TYPE_STYLE = { text: "text-brand-navy" };
 
 // Severity styles
 const SEVERITY_STYLES: Record<string, { bg: string; text: string }> = {
@@ -29,13 +29,54 @@ export function WorkbenchPage() {
   const [linkTask, setLinkTask] = useState<WorkbenchItem | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
-  const { workbenchItems, hasNewItem, clearNewItemFlag } = useFileDrop();
+  const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal } = useFileDrop();
   const { setActivePage } = useUseCase();
 
   // Register this page with use case context
   useEffect(() => {
     setActivePage("workbench");
   }, [setActivePage]);
+
+  // Auto-open modal for new item when flag is set
+  useEffect(() => {
+    if (shouldOpenModal) {
+      const pioneerTask = workbenchItems.find(item => item.id === 100);
+      if (pioneerTask) {
+        setLinkTask(pioneerTask);
+        setShouldOpenModal(false);
+      }
+    }
+  }, [shouldOpenModal, workbenchItems, setShouldOpenModal]);
+
+  // Auto-open modal when URL param is set (for use case switcher)
+  useEffect(() => {
+    const checkUrlParam = () => {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('openModal') === 'customer-link') {
+        console.log('Opening modal from URL param...');
+        console.log('Workbench items:', workbenchItems.length);
+        const pioneerTask = workbenchItems.find(item => item.id === 100);
+        console.log('Found Pioneer task:', pioneerTask);
+        
+        if (pioneerTask) {
+          console.log('Setting linkTask to open modal');
+          setLinkTask(pioneerTask);
+        }
+        
+        // Clean up URL param
+        params.delete('openModal');
+        const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+        window.history.replaceState({}, '', newUrl);
+      }
+    };
+    
+    // Check on mount and when workbench items change
+    checkUrlParam();
+    
+    // Listen for custom event from use case switcher
+    window.addEventListener('openModalParam', checkUrlParam);
+    return () => window.removeEventListener('openModalParam', checkUrlParam);
+  }, [workbenchItems]);
 
   // Dynamic stats based on workbench items
   const criticalCount = workbenchItems.filter(t => t.severity === "Critical").length;
@@ -61,43 +102,41 @@ export function WorkbenchPage() {
     };
 
     scrollContainer.addEventListener("scroll", handleScroll);
-    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleScroll);
+    };
   }, [activeTab]);
-
-  // Clear new item flag after animation
-  useEffect(() => {
-    if (hasNewItem) {
-      const timer = setTimeout(() => {
-        clearNewItemFlag();
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [hasNewItem, clearNewItemFlag]);
 
   return (
     <div className="flex h-full flex-col">
       {/* Header Section - Title and Tabs in one row */}
-      <div className="relative h-[48px] shrink-0">
-        {/* Title and task counts on the left - absolutely positioned */}
-        <div className="absolute left-6 bottom-1 flex items-center gap-3">
-          <h1
-            className="font-heading text-[20px] font-semibold text-brand-navy"
-            style={{ letterSpacing: "-0.5px" }}
-          >
-            Workbench
-          </h1>
-          <div className="flex items-center gap-2">
-            <span className="text-[12px] font-medium text-brand-fog">
-              {workbenchItems.length} tasks
-            </span>
-            {criticalCount > 0 && (
-              <>
-                <div className="h-3 w-px bg-neutral-300" />
-                <span className="text-[12px] font-medium text-red-500">
-                  {criticalCount} critical
-                </span>
-              </>
-            )}
+      <div className="relative h-[60px] shrink-0">
+        {/* Breadcrumb + Title and task counts on the left - absolutely positioned */}
+        <div className="absolute left-6 bottom-1 flex flex-col justify-end">
+          <div className="flex items-center gap-0.5 mb-0">
+            <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">Workbench</span>
+            <ChevronRight size={10} className="text-brand-fog" />
+          </div>
+          <div className="flex items-center gap-3">
+            <h1
+              className="font-heading text-[24px] font-semibold text-brand-navy"
+              style={{ letterSpacing: "-0.5px" }}
+            >
+              My tasks
+            </h1>
+            <div className="flex items-center gap-2">
+              <span className="text-[12px] font-medium text-brand-fog">
+                {workbenchItems.length} tasks
+              </span>
+              {criticalCount > 0 && (
+                <>
+                  <div className="h-3 w-px bg-neutral-300" />
+                  <span className="text-[12px] font-medium text-red-500">
+                    {criticalCount} critical
+                  </span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
@@ -144,8 +183,8 @@ export function WorkbenchPage() {
         <div className="mx-auto max-w-[1560px] px-8">
           {activeTab === "your-tasks" && (
             <div>
-{/* Stats Section - spread across width with vertical separators */}
-                              <div className="flex items-start pb-12">
+              {/* Stats Section - spread across width with vertical separators */}
+              <div className="flex items-start pb-12 pl-4 pt-6">
                 {STATS.map((stat, index) => (
                   <div key={index} className="flex flex-1 items-start">
                     <div className="flex-1">
@@ -155,7 +194,7 @@ export function WorkbenchPage() {
                       >
                         {stat.value}
                       </div>
-                      <div className="mt-1 text-[13px] text-brand-fog">
+                      <div className="mt-1 text-[13px] text-brand-navy">
                         {stat.label}
                       </div>
                     </div>
@@ -170,30 +209,26 @@ export function WorkbenchPage() {
               <table ref={tableRef} className="w-full">
                 {/* Table Header - Sticky with shadow on scroll */}
                 <thead
-                  className={cn(
-                    "sticky -top-4 z-10 bg-white transition-all duration-200",
-                    isHeaderSticky
-                      ? "shadow-[0_1px_0_0_#e5e5e5,0_4px_6px_-1px_rgba(0,0,0,0.08)]"
-                      : "shadow-[0_-1px_0_0_#e5e5e5,0_1px_0_0_#e5e5e5]"
-                  )}
+                  className="sticky -top-4 z-20 bg-white"
+                  style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
-                  <tr>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy" style={{ width: 180 }}>
+                  <tr className="bg-white">
+                    <th className="py-2 pl-4 pr-8 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Task Type
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy" style={{ width: 180 }}>
-                      Customer
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy" style={{ width: 100 }}>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 100, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Severity
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-normal uppercase tracking-wider text-brand-navy">
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 240, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Customer
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Subject
                     </th>
-                    <th className="py-2 pr-4 text-right text-[11px] font-normal uppercase tracking-wider text-brand-navy" style={{ width: 120 }}>
+                    <th className="py-2 pr-4 text-right text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 120, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Created on
                     </th>
-                    <th className="py-2 w-10" />
+                    <th className="py-2 w-10 pr-4 bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }} />
                   </tr>
                 </thead>
 
@@ -210,66 +245,75 @@ export function WorkbenchPage() {
                         <tr
                           key={task.id}
                           onClick={() => {
+                            if (task.isNew) {
+                              clearItemNewFlag(task.id);
+                            }
                             if (task.id === 100) {
                               setLinkTask(task);
                             }
                           }}
                           className={cn(
-                            "border-b border-neutral-100 hover:bg-neutral-50 cursor-pointer transition-all duration-500",
-                            isNew && "animate-highlight-row bg-violet-50/50"
+                            "group row-hover-trail border-b border-neutral-100 hover:bg-brand-navy cursor-pointer",
+                            isNew && "animate-highlight-row"
                           )}
                         >
-                          <td className="py-2.5 pr-4">
-                            <div className="flex items-center gap-2">
+                          <td className="py-1.5 pl-4 pr-8 relative">
+                            {/* Sweep animation overlay for new items */}
+                            {isNew && (
+                              <span className="row-sweep-overlay-table" aria-hidden="true">
+                                <span className="row-sweep-band" />
+                              </span>
+                            )}
+                            <div className="flex items-center gap-2 relative z-10">
                               {isNew && (
-                                <Sparkles size={14} className="text-violet-500 animate-pulse" />
+                                <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
                               )}
                               <span
                                 className={cn(
-                                  "inline-flex items-center rounded-full border px-2 py-0.5 text-[12px] font-medium whitespace-nowrap",
-                                  TASK_TYPE_STYLE.bg,
+                                  "text-[11px] font-medium uppercase tracking-normal whitespace-nowrap",
                                   TASK_TYPE_STYLE.text,
-                                  TASK_TYPE_STYLE.border
+                                  "group-hover:text-white",
                                 )}
                               >
                                 {task.taskType}
                               </span>
                             </div>
                           </td>
-                          <td className="py-2.5 pr-4 text-[14px] font-medium text-brand-navy whitespace-nowrap">
-                            {task.customer}
-                          </td>
-                          <td className="py-2.5 pr-4">
+                          <td className="py-1.5 pr-4 relative z-10">
                             <span
                               className={cn(
-                                "inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium whitespace-nowrap",
-                                severityStyle.bg,
-                                severityStyle.text
+                                "text-[13px] font-medium whitespace-nowrap",
+                                severityStyle.text,
+                                "group-hover:!text-white/80",
                               )}
                             >
                               {task.severity}
                             </span>
                           </td>
-                          <td className="py-2.5 pr-4 text-[14px] text-brand-navy">
+                          <td className="py-1.5 pr-4 text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.customer}
+                          </td>
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy group-hover:text-white relative z-10">
                             <div className="flex items-center gap-2">
                               {task.subject}
                               {isNew && (
-                                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
+                                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 group-hover:bg-white/20 group-hover:text-white">
                                   NEW
                                 </span>
                               )}
                             </div>
                           </td>
-                          <td className="py-2.5 pr-4 text-right text-[13px] text-brand-fog whitespace-nowrap">
+                          <td className="py-1.5 pr-4 text-right text-[13px] text-brand-fog whitespace-nowrap group-hover:text-white/60 relative z-10">
                             {formatRelativeDate(task.createdAt)}
                           </td>
-                          <td className="py-2.5 pl-2">
+                          <td className="py-1.5 pl-2 pr-4 relative z-10">
                             <button
                               type="button"
-                              className="flex h-5 w-5 items-center justify-center rounded text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+                              className="flex h-5 w-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <MoreVertical size={14} />
+                              <MoreVertical size={14} className="group-hover:hidden" />
+                              <ArrowRight size={14} strokeWidth={2} className="hidden group-hover:block text-white" />
                             </button>
                           </td>
                         </tr>
@@ -302,7 +346,10 @@ export function WorkbenchPage() {
       {linkTask && (
         <CustomerLinkModal
           task={linkTask}
-          onClose={() => setLinkTask(null)}
+          onClose={() => {
+            console.log('Closing modal');
+            setLinkTask(null);
+          }}
         />
       )}
     </div>

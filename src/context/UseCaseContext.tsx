@@ -138,6 +138,23 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
       },
     ],
   },
+  {
+    id: 'all-contracts',
+    label: 'All Contracts',
+    defaultVariant: 'default',
+    variants: [
+      {
+        id: 'default',
+        label: 'Default View',
+        description: 'Standard contract list',
+      },
+      {
+        id: 'pending-only',
+        label: 'Pending Only',
+        description: 'Contracts pending approval',
+      },
+    ],
+  },
 ]
 
 /**

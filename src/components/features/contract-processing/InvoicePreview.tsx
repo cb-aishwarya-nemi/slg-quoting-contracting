@@ -4,9 +4,9 @@ const { invoice } = contractProcessing
 
 export function InvoicePreview() {
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+    <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">
       {/* Invoice header */}
-      <div className="flex items-start justify-between border-b border-neutral-100 px-7 pb-5 pt-6">
+      <div className="flex items-start justify-between px-7 pb-5 pt-6">
         <div>
           <h3 className="font-heading text-[18px] font-semibold tracking-[-0.5px] text-brand-navy">
             Invoice
@@ -77,7 +77,7 @@ export function InvoicePreview() {
           </div>
           <div className="flex w-[280px] items-center justify-between border-t border-neutral-200 pt-2">
             <span className="text-[13px] font-semibold text-brand-navy">Total due</span>
-            <span className="font-heading text-[16px] font-semibold text-brand-navy">{invoice.total}</span>
+            <span className="font-heading text-[16px] font-bold text-brand-navy">{invoice.total}</span>
           </div>
         </div>
       </div>
