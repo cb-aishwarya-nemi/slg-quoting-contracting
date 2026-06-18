@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Pencil } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 
@@ -90,73 +90,95 @@ function LabelValueRow({ item, onItemChange }: LabelValueRowProps) {
     <div
       onClick={handleRowClick}
       className={cn(
-        'flex items-center border-b border-neutral-200 transition-colors',
-        !isEditing && !isOpen && 'cursor-pointer hover:border-brand-navy'
+        'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2',
+        !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ height: 36 }}
     >
-      <span className="w-[210px] shrink-0 text-[12px] uppercase tracking-[-0.25px] text-brand-navy">
+      <span className={cn(
+        "w-[210px] shrink-0 text-[12px] uppercase tracking-[-0.25px] text-brand-navy transition-colors",
+        "group-hover:text-white"
+      )}>
         {item.label}
       </span>
 
       {/* Value area */}
-      {isSelect ? (
-        <div ref={dropdownRef} className="relative" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={() => setIsOpen(!isOpen)}
-            className="flex cursor-pointer items-center gap-1.5 text-[14px] font-medium text-blue-700 transition-colors hover:text-brand-navy"
-          >
-            <span>{item.value}</span>
-            <ChevronDown size={14} className="text-brand-mist" />
-          </button>
-          {isOpen && (
-            <div
-              className="absolute left-0 z-50 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-              style={{
-                top: dropdownPosition.top as any,
-                bottom: dropdownPosition.bottom as any,
-                marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
-                marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
-              }}
+      <div className="flex flex-1 items-center justify-between">
+        {isSelect ? (
+          <div ref={dropdownRef} className="relative" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className={cn(
+                "flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors",
+                isEditing || isOpen ? "text-blue-700" : "text-blue-700 group-hover:text-white"
+              )}
             >
-              {item.options!.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => {
-                    onItemChange?.(item.label, option)
-                    setIsOpen(false)
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-left text-[14px] transition-colors',
-                    option === item.value
-                      ? 'bg-neutral-100 font-medium text-brand-navy'
-                      : 'text-brand-navy hover:bg-neutral-50'
-                  )}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      ) : isEditing ? (
-        <input
-          ref={inputRef}
-          type="text"
-          value={editValue}
-          onChange={(e) => setEditValue(e.target.value)}
-          onBlur={handleBlur}
-          onKeyDown={handleKeyDown}
-          onClick={(e) => e.stopPropagation()}
-          className="-mx-2 -my-0.5 flex-1 rounded bg-neutral-100 px-2 py-0.5 text-[14px] font-medium text-brand-navy outline-none"
-        />
-      ) : (
-        <span className="text-[14px] font-medium text-blue-700 transition-colors hover:text-brand-navy">
-          {item.value}
-        </span>
-      )}
+              <span>{item.value}</span>
+              <ChevronDown size={14} className={cn(
+                "transition-colors",
+                isEditing || isOpen ? "text-brand-mist" : "text-brand-mist group-hover:text-white/70"
+              )} />
+            </button>
+            {isOpen && (
+              <div
+                className="absolute left-0 z-50 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+                style={{
+                  top: dropdownPosition.top as any,
+                  bottom: dropdownPosition.bottom as any,
+                  marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
+                  marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
+                }}
+              >
+                {item.options!.map((option) => (
+                  <button
+                    key={option}
+                    type="button"
+                    onClick={() => {
+                      onItemChange?.(item.label, option)
+                      setIsOpen(false)
+                    }}
+                    className={cn(
+                      'w-full px-3 py-2 text-left text-[14px] transition-colors',
+                      option === item.value
+                        ? 'bg-neutral-100 font-medium text-brand-navy'
+                        : 'text-brand-navy hover:bg-neutral-50'
+                    )}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : isEditing ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            className="-mx-2 -my-0.5 flex-1 rounded bg-neutral-100 px-2 py-0.5 text-[14px] font-medium text-brand-navy outline-none"
+          />
+        ) : (
+          <span className={cn(
+            "text-[14px] font-medium transition-colors",
+            isEditing || isOpen ? "text-blue-700" : "text-blue-700 group-hover:text-white"
+          )}>
+            {item.value}
+          </span>
+        )}
+
+        {/* Edit icon - only visible on hover, positioned at the end */}
+        {!isEditing && !isOpen && (
+          <Pencil 
+            size={14} 
+            className="ml-2 opacity-0 text-white transition-opacity group-hover:opacity-100" 
+          />
+        )}
+      </div>
     </div>
   )
 }

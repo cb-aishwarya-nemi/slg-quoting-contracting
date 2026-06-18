@@ -86,7 +86,7 @@ export function ExtractedMappedRow({ mappedCustomer, mode, onModeChange, onClear
           <div className="relative flex-1" ref={dropdownRef}>
             {/* When a customer is selected */}
             {mappedCustomer && mode === 'link' ? (
-              <div className="h-full rounded-lg border border-brand-navy bg-white px-4 py-3">
+              <div className="h-full rounded-lg border border-brand-navy px-4 py-3" style={{ background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 197, 253, 0.08) 100%)' }}>
                 {/* Header with initials and name */}
                 <div className="flex items-center gap-2 pb-3 border-b border-brand-navy">
                   <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-brand-navy">

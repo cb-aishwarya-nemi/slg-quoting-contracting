@@ -36,7 +36,7 @@ const NAV_SECTIONS: NavSection[] = [
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
-  { id: 'invoice', label: 'First invoice preview', status: 'neutral' },
+  { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
 
 function StatusUnit({ status }: { status: string }) {
@@ -74,6 +74,7 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [flashingSection, setFlashingSection] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
+  const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -358,8 +359,8 @@ export function Customer360Page() {
                   />
                   <SectionHeader
                     title="Products and pricing"
-                    status="attention"
-                    statusLabel="Resolve 2 items"
+                    status="ai-created"
+                    statusLabel="Created 2 items"
                     isFlashing={flashingSection === 'products'}
                   />
                 </div>
@@ -372,22 +373,27 @@ export function Customer360Page() {
               <section ref={setSectionRef('schedule')} className="group/section mx-auto max-w-[680px]">
                 <SectionHeader title="Billing schedule" isFlashing={flashingSection === 'schedule'} />
                 <div className="mt-6">
-                  <PaymentSchedule />
+                  <PaymentSchedule onPreviewClick={(invoiceIndex) => {
+                    setActiveInvoiceIndex(invoiceIndex)
+                    scrollToSection('invoice')
+                  }} />
                 </div>
               </section>
 
-              {/* First invoice preview — capped at 680px, centred */}
+              {/* Invoice preview — capped at 680px, centred */}
               <section ref={setSectionRef('invoice')} className="group/section mx-auto max-w-[680px]">
-                <SectionHeader title="First invoice preview" isFlashing={flashingSection === 'invoice'} hideLine />
-                <div className="mt-4">
-                  <InvoicePreview />
-                </div>
+                <InvoicePreview 
+                  activeIndex={activeInvoiceIndex}
+                  totalInvoices={4}
+                  onIndexChange={setActiveInvoiceIndex}
+                  isFlashing={flashingSection === 'invoice'}
+                />
               </section>
             </div>
           </div>
 
           {/* Grid 3 — comments (scrolls independently, aligned to the primary CTA) */}
-          <aside className="shrink-0 overflow-y-auto pb-20 pt-12" style={{ width: 250 }}>
+          <aside className="shrink-0 overflow-y-auto pb-20 pt-12 pr-3" style={{ width: 250, scrollbarGutter: 'stable' }}>
             <CommentsPanel
               comments={data.comments}
               activeSectionId={activeSection}

@@ -16,6 +16,12 @@ export interface WorkbenchItem {
   detail: string
   createdAt: Date
   isNew?: boolean
+  // Contract ingestion specific fields
+  contractId?: string
+  startDate?: Date
+  tcv?: string
+  status?: string
+  owner?: string
 }
 
 interface FileDropContextValue {
@@ -53,6 +59,11 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     detail: "New Business · Contract Upload",
     createdAt: new Date(),
     isNew: false, // Set to false initially for prototype
+    contractId: "CT-2026-0153",
+    startDate: new Date(),
+    tcv: "$48,000",
+    status: "Ready for review",
+    owner: "You",
   },
   {
     id: 1,
@@ -62,6 +73,11 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     severity: "Critical",
     detail: "Early Renewal · PDF Upload",
     createdAt: daysAgo(1),
+    contractId: "CT-2026-0154",
+    startDate: daysAgo(1),
+    tcv: "$240,000",
+    status: "In review",
+    owner: "Marcus Webb",
   },
   {
     id: 2,
@@ -80,6 +96,11 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     severity: "High",
     detail: "New Business · PDF Upload",
     createdAt: daysAgo(3),
+    contractId: "CT-2026-0151",
+    startDate: daysAgo(3),
+    tcv: "$85,000",
+    status: "Ready for review",
+    owner: "Priya Malhotra",
   },
   {
     id: 4,
@@ -197,6 +218,11 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     severity: "Critical",
     detail: "New Business · High-value deal",
     createdAt: daysAgo(1),
+    contractId: "CT-2026-0155",
+    startDate: daysAgo(1),
+    tcv: "$420,000",
+    status: "Pending approval",
+    owner: "You",
   },
   {
     id: 17,
@@ -224,6 +250,11 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     severity: "High",
     detail: "Early Renewal · Upsell opportunity",
     createdAt: daysAgo(5),
+    contractId: "CT-2026-0150",
+    startDate: daysAgo(5),
+    tcv: "$180,000",
+    status: "In review",
+    owner: "Marcus Webb",
   },
   {
     id: 20,
@@ -318,6 +349,11 @@ const createPioneerSystemsItem = (): WorkbenchItem => ({
   detail: "New Business · Contract Upload",
   createdAt: new Date(),
   isNew: true,
+  contractId: "CT-2026-0153",
+  startDate: new Date(),
+  tcv: "$48,000",
+  status: "Ready for review",
+  owner: "You",
 })
 
 export function FileDropProvider({ children }: { children: ReactNode }) {

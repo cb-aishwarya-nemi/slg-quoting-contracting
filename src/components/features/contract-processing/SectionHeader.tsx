@@ -1,9 +1,9 @@
-import { CircleCheck, OctagonAlert, MessageCircleMore } from 'lucide-react'
+import { CircleCheck, PackagePlus, MessageCircleMore } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SectionHeaderProps {
   title: string
-  status?: 'ready' | 'attention'
+  status?: 'ready' | 'attention' | 'ai-created'
   statusLabel?: string
   /** plays the gradient sweep + icon settle when a linked comment targets this section */
   isFlashing?: boolean
@@ -34,13 +34,13 @@ export function SectionHeader({ title, status, statusLabel, isFlashing, minimal 
         </span>
 
         {status === 'ready' && <CircleCheck size={14} className="text-green-600" />}
-        {status === 'attention' && <OctagonAlert size={14} className="text-red-600" />}
+        {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}
 
         {statusLabel && (
           <span
             className={cn(
               'text-[12px] font-medium',
-              status === 'attention' ? 'text-red-600' : 'text-green-600'
+              status === 'ai-created' ? 'ai-gradient-text' : 'text-green-600'
             )}
           >
             {statusLabel}

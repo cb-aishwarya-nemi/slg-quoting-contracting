@@ -81,6 +81,8 @@ export function CustomerLinkContent({
 
   const handleTabChange = (tabId: string) => {
     onModeChange(tabId as Mode)
+    // Mark as manually switched to prevent auto-switch back
+    setHasAutoSwitched(true)
   }
 
   const updateField = <K extends keyof CreateCustomerDefaults>(
@@ -202,14 +204,14 @@ export function CustomerLinkContent({
                             key={customer.id}
                             onClick={() => onSelectCustomer(customer)}
                             className={cn(
-                              'cursor-pointer border-b border-neutral-100 transition-colors last:border-b-0 relative',
+                              'group cursor-pointer border-b border-neutral-100 transition-colors last:border-b-0 relative',
                               isSelected
-                                ? 'bg-neutral-100'
+                                ? 'bg-brand-navy'
                                 : isPerfectMatch
-                                  ? 'bg-green-50/30 hover:bg-green-50 animate-highlight-row'
+                                  ? 'bg-green-50/30 hover:bg-brand-navy animate-highlight-row'
                                   : isClosestMatch
-                                    ? 'bg-violet-50/30 hover:bg-violet-50'
-                                    : 'hover:bg-neutral-50'
+                                    ? 'bg-violet-50/30 hover:bg-brand-navy'
+                                    : 'hover:bg-brand-navy'
                             )}
                           >
                             <td className="py-1.5 pl-3 relative z-10">
@@ -230,18 +232,32 @@ export function CustomerLinkContent({
                                 name="customer-select"
                                 checked={isSelected || isPerfectMatch}
                                 onChange={() => onSelectCustomer(customer)}
-                                className="h-4 w-4 appearance-none rounded-full border border-neutral-300 bg-white checked:border-brand-navy checked:border-[5px] focus:outline-none focus:ring-2 focus:ring-neutral-200"
+                                className={cn(
+                                  "h-4 w-4 appearance-none rounded-full border focus:outline-none focus:ring-2",
+                                  isSelected
+                                    ? "border-white bg-brand-navy checked:border-white checked:border-[5px] focus:ring-white/30"
+                                    : "border-neutral-300 bg-white checked:border-brand-navy checked:border-[5px] focus:ring-neutral-200 group-hover:border-white group-hover:bg-brand-navy group-hover:checked:border-white group-hover:checked:border-[5px]"
+                                )}
                               />
                             </td>
                             <td className="py-1.5 pr-4 relative z-10">
                               <div className="flex items-center gap-2">
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-neutral-100">
-                                  <span className="text-[10px] font-medium text-brand-navy">
+                                <div className={cn(
+                                  "flex h-7 w-7 shrink-0 items-center justify-center rounded-full",
+                                  isSelected ? "bg-white/20" : "bg-neutral-100 group-hover:bg-white/20"
+                                )}>
+                                  <span className={cn(
+                                    "text-[10px] font-medium",
+                                    isSelected ? "text-white" : "text-brand-navy group-hover:text-white"
+                                  )}>
                                     {customer.initials}
                                   </span>
                                 </div>
                                 <div className="flex items-center gap-1.5">
-                                  <span className="whitespace-nowrap text-[14px] font-medium text-brand-navy">
+                                  <span className={cn(
+                                    "whitespace-nowrap text-[14px] font-medium",
+                                    isSelected ? "text-white" : "text-brand-navy group-hover:text-white"
+                                  )}>
                                     {customer.name}
                                   </span>
                                   {customer.matchLabel && (
@@ -250,11 +266,13 @@ export function CustomerLinkContent({
                                         size={14}
                                         className={cn(
                                           'cursor-help shrink-0',
-                                          customer.matchLabel === 'Perfect match'
-                                            ? 'text-green-600'
-                                            : customer.matchLabel === 'Closest match'
-                                              ? 'text-violet-600'
-                                              : 'text-violet-500'
+                                          isSelected
+                                            ? 'text-white/70'
+                                            : customer.matchLabel === 'Perfect match'
+                                              ? 'text-green-600 group-hover:text-white/70'
+                                              : customer.matchLabel === 'Closest match'
+                                                ? 'text-violet-600 group-hover:text-white/70'
+                                                : 'text-violet-500 group-hover:text-white/70'
                                         )}
                                       />
                                     </span>
@@ -262,16 +280,28 @@ export function CustomerLinkContent({
                                 </div>
                               </div>
                             </td>
-                            <td className="py-1.5 pr-4 whitespace-nowrap text-[14px] text-brand-navy relative z-10">
+                            <td className={cn(
+                              "py-1.5 pr-4 whitespace-nowrap text-[14px] relative z-10",
+                              isSelected ? "text-white" : "text-brand-navy group-hover:text-white"
+                            )}>
                               {customer.activeSubscriptions}
                             </td>
-                            <td className="py-1.5 pr-4 whitespace-nowrap text-[14px] text-brand-navy relative z-10">
+                            <td className={cn(
+                              "py-1.5 pr-4 whitespace-nowrap text-[14px] relative z-10",
+                              isSelected ? "text-white" : "text-brand-navy group-hover:text-white"
+                            )}>
                               {customer.primaryContact}
                             </td>
-                            <td className="py-1.5 pr-4 whitespace-nowrap text-[13px] text-brand-fog relative z-10">
+                            <td className={cn(
+                              "py-1.5 pr-4 whitespace-nowrap text-[13px] relative z-10",
+                              isSelected ? "text-white/70" : "text-brand-fog group-hover:text-white/70"
+                            )}>
                               {customer.email}
                             </td>
-                            <td className="py-1.5 pr-3 text-right whitespace-nowrap text-[13px] text-brand-fog relative z-10">
+                            <td className={cn(
+                              "py-1.5 pr-3 text-right whitespace-nowrap text-[13px] relative z-10",
+                              isSelected ? "text-white/70" : "text-brand-fog group-hover:text-white/70"
+                            )}>
                               {customer.createdAt}
                             </td>
                           </tr>

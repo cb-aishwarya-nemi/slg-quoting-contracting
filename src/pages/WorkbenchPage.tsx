@@ -12,15 +12,11 @@ const WORKBENCH_TABS: TabItem[] = [
   { id: "approvals", label: "Approvals" },
 ];
 
-// Task type styles - grey for all
-const TASK_TYPE_STYLE = { text: "text-brand-navy" };
-
-// Severity styles
-const SEVERITY_STYLES: Record<string, { bg: string; text: string }> = {
-  Critical: { bg: "bg-red-50", text: "text-red-600" },
-  High: { bg: "bg-amber-50", text: "text-amber-600" },
-  Medium: { bg: "bg-yellow-50", text: "text-yellow-600" },
-  Low: { bg: "bg-green-50", text: "text-green-600" },
+// Status styles for contract ingestion
+const STATUS_STYLES: Record<string, { text: string }> = {
+  "Ready for review": { text: "text-amber-700" },
+  "In review": { text: "text-orange-700" },
+  "Pending approval": { text: "text-violet-700" },
 };
 
 export function WorkbenchPage() {
@@ -37,16 +33,19 @@ export function WorkbenchPage() {
     setActivePage("workbench");
   }, [setActivePage]);
 
+  // Filter to show only contract ingestion tasks
+  const ingestionTasks = workbenchItems.filter(item => item.taskType.includes("Ingestion"));
+
   // Auto-open modal for new item when flag is set
   useEffect(() => {
     if (shouldOpenModal) {
-      const pioneerTask = workbenchItems.find(item => item.id === 100);
+      const pioneerTask = ingestionTasks.find(item => item.id === 100);
       if (pioneerTask) {
         setLinkTask(pioneerTask);
         setShouldOpenModal(false);
       }
     }
-  }, [shouldOpenModal, workbenchItems, setShouldOpenModal]);
+  }, [shouldOpenModal, ingestionTasks, setShouldOpenModal]);
 
   // Auto-open modal when URL param is set (for use case switcher)
   useEffect(() => {
@@ -54,8 +53,8 @@ export function WorkbenchPage() {
       const params = new URLSearchParams(window.location.search);
       if (params.get('openModal') === 'customer-link') {
         console.log('Opening modal from URL param...');
-        console.log('Workbench items:', workbenchItems.length);
-        const pioneerTask = workbenchItems.find(item => item.id === 100);
+        console.log('Workbench items:', ingestionTasks.length);
+        const pioneerTask = ingestionTasks.find(item => item.id === 100);
         console.log('Found Pioneer task:', pioneerTask);
         
         if (pioneerTask) {
@@ -76,13 +75,22 @@ export function WorkbenchPage() {
     // Listen for custom event from use case switcher
     window.addEventListener('openModalParam', checkUrlParam);
     return () => window.removeEventListener('openModalParam', checkUrlParam);
-  }, [workbenchItems]);
+  }, [ingestionTasks]);
 
-  // Dynamic stats based on workbench items
-  const criticalCount = workbenchItems.filter(t => t.severity === "Critical").length;
+  // Dynamic stats based on ingestion tasks only
+  const totalTCV = ingestionTasks.reduce((sum, task) => {
+    if (task.tcv) {
+      const value = parseFloat(task.tcv.replace(/[$,]/g, ''));
+      return sum + value;
+    }
+    return sum;
+  }, 0);
+  const formattedTCV = `$${(totalTCV / 1000).toFixed(1)}K`;
+  
+  const criticalCount = ingestionTasks.filter(t => t.severity === "Critical").length;
   const STATS = [
-    { value: "$1.0M", label: "TCV pending action" },
-    { value: String(workbenchItems.length), label: "In contract queue" },
+    { value: formattedTCV, label: "TCV pending action" },
+    { value: String(ingestionTasks.length), label: "In contract queue" },
     { value: "0", label: "Pending approvals" },
     { value: "0", label: "Contracts about to expire" },
     { value: "0", label: "In grace period post expiry" },
@@ -126,7 +134,7 @@ export function WorkbenchPage() {
             </h1>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-brand-fog">
-                {workbenchItems.length} tasks
+                {ingestionTasks.length} tasks
               </span>
               {criticalCount > 0 && (
                 <>
@@ -213,20 +221,26 @@ export function WorkbenchPage() {
                   style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
                   <tr className="bg-white">
-                    <th className="py-2 pl-4 pr-8 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Task Type
+                    <th className="py-2 pl-4 pr-8 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 240, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Task
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 100, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Severity
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 240, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Customer
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Subject
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 120, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Contract ID
                     </th>
-                    <th className="py-2 pr-4 text-right text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 120, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Created on
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Start date
+                    </th>
+                    <th className="py-2 pr-4 text-right text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 100, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      TCV
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Status
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Owner
                     </th>
                     <th className="py-2 w-10 pr-4 bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }} />
                   </tr>
@@ -234,9 +248,8 @@ export function WorkbenchPage() {
 
                   {/* Table Body */}
                   <tbody>
-                    {workbenchItems.map((task) => {
-                      const severityStyle = SEVERITY_STYLES[task.severity] || {
-                        bg: "bg-neutral-50",
+                    {ingestionTasks.map((task) => {
+                      const statusStyle = STATUS_STYLES[task.status || ""] || {
                         text: "text-brand-navy",
                       };
                       const isNew = task.isNew;
@@ -257,6 +270,7 @@ export function WorkbenchPage() {
                             isNew && "animate-highlight-row"
                           )}
                         >
+                          {/* Contract Ingestion Task */}
                           <td className="py-1.5 pl-4 pr-8 relative">
                             {/* Sweep animation overlay for new items */}
                             {isNew && (
@@ -268,44 +282,61 @@ export function WorkbenchPage() {
                               {isNew && (
                                 <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
                               )}
-                              <span
-                                className={cn(
-                                  "text-[11px] font-medium uppercase tracking-normal whitespace-nowrap",
-                                  TASK_TYPE_STYLE.text,
-                                  "group-hover:text-white",
-                                )}
-                              >
-                                {task.taskType}
+                              <span className="text-[13px] font-medium uppercase text-brand-navy group-hover:text-white whitespace-nowrap">
+                                {task.taskType.replace(" - Ingestion", "")}
                               </span>
                             </div>
                           </td>
-                          <td className="py-1.5 pr-4 relative z-10">
-                            <span
-                              className={cn(
-                                "text-[13px] font-medium whitespace-nowrap",
-                                severityStyle.text,
-                                "group-hover:!text-white/80",
-                              )}
-                            >
-                              {task.severity}
-                            </span>
-                          </td>
+
+                          {/* Customer */}
                           <td className="py-1.5 pr-4 text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
                             {task.customer}
                           </td>
-                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy group-hover:text-white relative z-10">
-                            <div className="flex items-center gap-2">
-                              {task.subject}
-                              {isNew && (
-                                <span className="inline-flex items-center rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700 group-hover:bg-white/20 group-hover:text-white">
-                                  NEW
+
+                          {/* Contract ID */}
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.contractId || "—"}
+                          </td>
+
+                          {/* Start Date */}
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.startDate ? (
+                              <>
+                                <span>{new Date(task.startDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                <span className="ml-2 text-[11px] text-red-500 group-hover:text-white/70">
+                                  {formatRelativeDate(task.startDate)}
                                 </span>
-                              )}
-                            </div>
+                              </>
+                            ) : "—"}
                           </td>
-                          <td className="py-1.5 pr-4 text-right text-[13px] text-brand-fog whitespace-nowrap group-hover:text-white/60 relative z-10">
-                            {formatRelativeDate(task.createdAt)}
+
+                          {/* TCV */}
+                          <td className="py-1.5 pr-4 text-right text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.tcv || "—"}
                           </td>
+
+                          {/* Status */}
+                          <td className="py-1.5 pr-4 relative z-10">
+                            {task.status && (
+                              <span
+                                className={cn(
+                                  "text-[13px] font-medium whitespace-nowrap",
+                                  statusStyle.text,
+                                  "group-hover:text-white"
+                                )}
+                              >
+                                {task.status}
+                              </span>
+                            )}
+                            {!task.status && "—"}
+                          </td>
+
+                          {/* Owner */}
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.owner || "—"}
+                          </td>
+
+                          {/* Actions */}
                           <td className="py-1.5 pl-2 pr-4 relative z-10">
                             <button
                               type="button"

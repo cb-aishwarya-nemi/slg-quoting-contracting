@@ -116,17 +116,22 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
       {/* Modal Panel */}
       <div className="relative z-10 flex h-full w-full flex-col overflow-hidden bg-white">
         {/* Body */}
-        <div className="grid min-h-0 flex-1 grid-cols-[35%_65%] gap-4 py-4 pr-12">
+        <div className="grid min-h-0 flex-1 grid-cols-[40%_60%] gap-4 py-4 pr-12">
           {/* Left Column - X button and Contract Preview */}
           <div className="flex min-h-0 flex-col pl-4">
             <div className="shrink-0 pb-6">
-              <button
-                type="button"
-                onClick={onClose}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-              >
-                <X size={18} />
-              </button>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+                >
+                  <X size={18} />
+                </button>
+                <h1 className="font-heading text-[16px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
+                  Link customer to your contract
+                </h1>
+              </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden pl-8 pr-6">
               <ContractPreview />
@@ -134,12 +139,12 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
           </div>
           
           {/* Right Column - Interaction Area */}
-          <div className="flex min-h-0 flex-col pl-10" style={{ paddingTop: 'calc(28px + 24px)' }}>
+          <div className="flex min-h-0 flex-col pl-6" style={{ paddingTop: 'calc(28px + 24px)' }}>
             {/* Title Section with CTA */}
             <div className="shrink-0 bg-white pb-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h1 className="font-heading text-[24px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
+                  <h1 className="text-gradient-shine font-heading text-[24px] font-semibold" style={{ letterSpacing: '-0.5px' }}>
                     {getModalTitle()}
                   </h1>
                   <p className="text-[12px] text-brand-navy">

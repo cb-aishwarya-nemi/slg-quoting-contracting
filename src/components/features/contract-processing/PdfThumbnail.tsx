@@ -7,9 +7,9 @@ interface PdfThumbnailProps {
   onClick?: () => void
 }
 
-const THUMB_WIDTH = 48
-const THUMB_HEIGHT = 68
-const IFRAME_WIDTH = 816
+const THUMB_WIDTH = 72
+const THUMB_HEIGHT = 64
+const IFRAME_WIDTH = 600
 const SCALE = THUMB_WIDTH / IFRAME_WIDTH
 
 export function PdfThumbnail({ docName, highlightId, isActive, onClick }: PdfThumbnailProps) {

@@ -1,4 +1,4 @@
-import { MessageCircleMore, CornerDownLeft, ArrowRight, ArrowUpLeft } from 'lucide-react'
+import { MessageCircleMore, CornerDownLeft, ArrowUpLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from './GradientSparkle'
 import { type Comment } from '@/data/contractProcessingMock'
@@ -82,39 +82,26 @@ function CommentCard({
         >
           {comment.isAI ? 'Apex AI' : comment.author}
         </span>
-        <span className="text-[11px] text-brand-fog">{comment.timestamp}</span>
+        <span className="text-[11px] text-brand-fog opacity-0 transition-opacity group-hover:opacity-100">
+          {comment.timestamp}
+        </span>
       </div>
 
       {/* Body */}
       <p className="mt-2 text-[12px] leading-[1.5] text-brand-navy">{comment.body}</p>
 
-      {/* Linked section tag */}
+      {/* Linked section tag - only visible when active */}
       {comment.linkedSection && (
-        <div className="mt-2.5 flex items-center gap-2">
+        <div
+          className={cn(
+            "flex items-center gap-2 overflow-hidden transition-all duration-300 ease-out",
+            isActive ? "mt-2.5 max-h-10 opacity-100" : "mt-0 max-h-0 opacity-0"
+          )}
+        >
           <CornerDownLeft size={14} className="text-brand-mist" />
           <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-brand-fog">
             {comment.linkedSection}
           </span>
-        </div>
-      )}
-
-      {/* Actions */}
-      {comment.actions && (
-        <div className="mt-2.5 flex items-center gap-4">
-          {comment.actions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              onClick={(e) => e.stopPropagation()}
-              className={cn(
-                'inline-flex items-center gap-1 text-[12px] font-medium transition-colors',
-                action.primary ? 'text-blue-700 hover:text-blue-800' : 'text-brand-navy hover:text-brand-fog'
-              )}
-            >
-              {action.label}
-              <ArrowRight size={13} />
-            </button>
-          ))}
         </div>
       )}
     </div>

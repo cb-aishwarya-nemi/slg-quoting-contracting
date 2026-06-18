@@ -295,3 +295,43 @@ body {
 .row-hover-trail:hover > td * {
   transition: color 60ms ease, background-color 60ms ease, opacity 60ms ease;
 }
+
+/* Text gradient shine animation for customer link modal title.
+   Creates a sheen effect that sweeps across the text slowly, fades away, then pauses before repeating. */
+.text-gradient-shine {
+  background: linear-gradient(
+    90deg,
+    #1c1b2e 0%,
+    #1c1b2e 30%,
+    #ff3300 45%,
+    #8b5cf6 55%,
+    #1c1b2e 70%,
+    #1c1b2e 100%
+  );
+  background-size: 250% 100%;
+  background-position: 220% center;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: text-shine 6s ease-in-out 0s infinite;
+}
+
+@keyframes text-shine {
+  0% {
+    background-position: 220% center;
+  }
+  50% {
+    background-position: -220% center;
+  }
+  65%, 100% {
+    background-position: -220% center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text-gradient-shine {
+    animation: none;
+    background: #1c1b2e;
+    -webkit-text-fill-color: #1c1b2e;
+  }
+}

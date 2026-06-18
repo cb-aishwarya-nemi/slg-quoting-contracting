@@ -1,25 +1,36 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { CircleCheck, OctagonAlert, ChevronDown, MoreVertical, CirclePlus, Search, X, Circle } from 'lucide-react'
+import { CircleCheck, PackagePlus, ChevronDown, MoreVertical, CirclePlus, Search, X, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type ProductLineItem, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 
-function Separator() {
-  return <div className="mx-3 h-5 w-px shrink-0 bg-neutral-200" />
+function Separator({ isRowHovered, isRowActive }: { isRowHovered?: boolean; isRowActive?: boolean }) {
+  return <div className={cn(
+    "mx-3 h-5 w-px shrink-0 transition-colors",
+    (isRowActive || isRowHovered) ? "bg-white/20" : "bg-neutral-200"
+  )} />
 }
 
 function GhostSeparator() {
   return <div className="mx-3 h-5 w-px shrink-0" />
 }
 
-function MiniDropdown({ label, width }: { label: string; width: number }) {
+function MiniDropdown({ label, width, isRowHovered, isRowActive }: { label: string; width: number; isRowHovered?: boolean; isRowActive?: boolean }) {
   return (
     <button
       type="button"
       style={{ width }}
-      className="flex shrink-0 items-center justify-between gap-1 rounded px-1 py-1 text-[14px] text-brand-navy transition-colors hover:bg-neutral-100"
+      className={cn(
+        "flex shrink-0 items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors",
+        (isRowActive || isRowHovered)
+          ? "text-white hover:bg-white/10"
+          : "text-brand-navy hover:bg-neutral-100"
+      )}
     >
       <span>{label}</span>
-      <ChevronDown size={14} className="text-brand-mist" />
+      <ChevronDown size={14} className={cn(
+        "transition-colors",
+        (isRowActive || isRowHovered) ? "text-white/70" : "text-brand-mist"
+      )} />
     </button>
   )
 }
@@ -267,44 +278,62 @@ interface ItemNameButtonProps {
   name: string
   isAttention: boolean
   onSelect: (item: CatalogLineItem) => void
+  onOpenChange?: (isOpen: boolean) => void
+  isRowHovered?: boolean
 }
 
-function ItemNameButton({ name, isAttention, onSelect }: ItemNameButtonProps) {
+function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovered }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
+  const handleOpenChange = (open: boolean) => {
+    setIsOpen(open)
+    onOpenChange?.(open)
+  }
+
   return (
-    <div className="relative flex min-w-0 flex-1 items-center gap-2 group">
+    <div className="relative flex min-w-0 flex-1 items-center gap-2 group/item">
       {isAttention ? (
         <div className="relative shrink-0">
-          <OctagonAlert size={16} className="shrink-0 text-red-500" />
-          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-red-600 px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
-            This item needs review
-          </span>
+          <PackagePlus size={16} className={cn(
+            "shrink-0 transition-colors",
+            (isOpen || isRowHovered) ? "text-white" : "ai-gradient-text"
+          )} />
+          {!isOpen && !isRowHovered && (
+            <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
+              Created this item based on your contract
+            </span>
+          )}
         </div>
       ) : (
-        <CircleCheck size={16} className="shrink-0 text-green-600" />
+        <CircleCheck size={16} className={cn(
+          "shrink-0 transition-colors",
+          (isOpen || isRowHovered) ? "text-white" : "text-green-600"
+        )} />
       )}
       <button
         ref={buttonRef}
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={() => handleOpenChange(!isOpen)}
         className={cn(
-          'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] transition-colors',
-          isAttention
-            ? 'text-blue-700 hover:text-blue-800'
-            : 'text-brand-navy hover:text-brand-fog'
+          'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
+          (isOpen || isRowHovered)
+            ? 'text-white'
+            : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
         )}
       >
-        <span className="truncate font-medium">{name}</span>
-        <ChevronDown size={14} className="shrink-0 text-brand-mist" />
+        <span className="truncate">{name}</span>
+        <ChevronDown size={14} className={cn(
+          "shrink-0 transition-colors",
+          (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
+        )} />
       </button>
       <LineItemPopover
         isOpen={isOpen}
-        onClose={() => setIsOpen(false)}
+        onClose={() => handleOpenChange(false)}
         onSelect={(item) => {
           onSelect(item)
-          setIsOpen(false)
+          handleOpenChange(false)
         }}
         anchorRef={buttonRef}
         currentName={name}
@@ -503,6 +532,8 @@ interface ProductsPricingTableProps {
 export function ProductsPricingTable({ items: initialItems }: ProductsPricingTableProps) {
   const [items, setItems] = useState(initialItems)
   const [isAddingNew, setIsAddingNew] = useState(false)
+  const [activeRowId, setActiveRowId] = useState<string | null>(null)
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
 
   const handleAddComplete = (newItem: {
     name: string
@@ -563,15 +594,27 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
       {/* Rows */}
       {items.map((item) => {
         const isAttention = item.status === 'attention'
+        const isActive = activeRowId === item.id
+        const isHovered = hoveredRowId === item.id
+        
         return (
           <div
             key={item.id}
-            className="flex items-center border-b border-neutral-100 py-1.5"
+            onMouseEnter={() => setHoveredRowId(item.id)}
+            onMouseLeave={() => setHoveredRowId(null)}
+            className={cn(
+              "group row-hover-trail flex items-center border-b py-1.5 px-2",
+              isActive 
+                ? "bg-brand-navy border-brand-navy cursor-pointer"
+                : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+            )}
           >
             {/* Item */}
             <ItemNameButton
               name={item.name}
               isAttention={isAttention}
+              isRowHovered={isHovered && !isActive}
+              onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
               onSelect={(catalogItem) => {
                 setItems((prev) =>
                   prev.map((i) =>
@@ -580,26 +623,38 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
                       : i
                   )
                 )
+                setActiveRowId(null)
               }}
             />
 
-            <Separator />
-            <MiniDropdown label={item.billingPeriod} width={PERIOD_W} />
-            <Separator />
-            <MiniDropdown label={item.quantity} width={QTY_W} />
-            <Separator />
+            <Separator isRowHovered={isHovered} isRowActive={isActive} />
+            <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
+            <Separator isRowHovered={isHovered} isRowActive={isActive} />
+            <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
+            <Separator isRowHovered={isHovered} isRowActive={isActive} />
 
-            <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-navy">
+            <div style={{ width: UNIT_W }} className={cn(
+              "shrink-0 text-right text-[14px] font-medium transition-colors",
+              (isActive || isHovered) ? "text-white" : "text-brand-navy"
+            )}>
               {item.unitPrice}
             </div>
-            <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-navy">
+            <div style={{ width: TOTAL_W }} className={cn(
+              "shrink-0 text-right text-[14px] font-medium transition-colors",
+              (isActive || isHovered) ? "text-white" : "text-brand-navy"
+            )}>
               {item.totalPrice}
             </div>
 
             <div style={{ width: MENU_W }} className="flex shrink-0 justify-end">
               <button
                 type="button"
-                className="flex h-6 w-6 items-center justify-center rounded text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+                className={cn(
+                  "flex h-6 w-6 items-center justify-center rounded transition-colors",
+                  (isActive || isHovered)
+                    ? "text-white/70 hover:bg-white/10"
+                    : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
+                )}
               >
                 <MoreVertical size={15} />
               </button>
@@ -631,7 +686,7 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
       )}
 
       {/* TCV Row */}
-      <div className="flex items-center justify-center border-t border-neutral-200 py-3">
+      <div className="flex items-center justify-end border-t border-neutral-200 py-3 pr-7">
         <div className="flex items-baseline gap-3">
           <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
             Total Contract Value (TCV)
