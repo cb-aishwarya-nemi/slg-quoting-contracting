@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback, useId } from 'react'
-import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowRight, ArrowLeft } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowLeft } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
+import { CommentsPanel } from '@/components/features/contract-processing/CommentsPanel'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { invoiceData } from '@/data/invoiceMock'
@@ -111,99 +112,6 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-function GradientSparkle({ size = 16, strokeWidth = 2 }: { size?: number; strokeWidth?: number }) {
-  const id = useId()
-
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <defs>
-        <linearGradient id={id} x1="2" y1="2" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#ff3300" />
-          <stop offset="1" stopColor="#8b5cf6" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .962 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.962 0z"
-        stroke={`url(#${id})`}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  )
-}
-
-function CommentCard({ comment }: { comment: typeof invoiceData.comments[0] }) {
-  return (
-    <div>
-      {/* Author row */}
-      <div className="flex items-center gap-2">
-        {comment.isAI ? (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-200">
-            <GradientSparkle size={14} />
-          </span>
-        ) : (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-navy text-[11px] font-semibold text-white">
-            {comment.initials}
-          </span>
-        )}
-
-        <span
-          className={cn(
-            'text-[13px] font-semibold',
-            comment.isAI ? 'ai-gradient-text uppercase tracking-[0.02em]' : 'text-brand-navy'
-          )}
-        >
-          {comment.isAI ? 'Apex AI' : comment.author}
-        </span>
-        <span className="text-[11px] text-brand-fog">{comment.timestamp}</span>
-      </div>
-
-      {/* Body */}
-      <p className="mt-2 text-[12px] leading-[1.5] text-brand-navy">{comment.body}</p>
-
-      {/* Actions */}
-      {comment.actions && (
-        <div className="mt-2.5 flex items-center gap-4">
-          {comment.actions.map((action) => (
-            <button
-              key={action.label}
-              type="button"
-              className={cn(
-                'inline-flex items-center gap-1 text-[12px] font-medium transition-colors',
-                action.primary ? 'text-blue-700 hover:text-blue-800' : 'text-brand-navy hover:text-brand-fog'
-              )}
-            >
-              {action.label}
-              <ArrowRight size={13} />
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function CommentsPanel({ comments }: { comments: typeof invoiceData.comments }) {
-  return (
-    <div>
-      <button
-        type="button"
-        className="flex items-center gap-2 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
-      >
-        <MessageCircleMore size={16} />
-        Add note
-      </button>
-
-      <div className="mt-6 flex flex-col gap-7">
-        {comments.map((comment) => (
-          <CommentCard key={comment.id} comment={comment} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
 export function InvoiceDetailsPage() {
   const { goToWorkbench, goToAllInvoices } = useNavigation()
   const { setActivePage } = useUseCase()
@@ -211,6 +119,7 @@ export function InvoiceDetailsPage() {
   const [activeTab, setActiveTab] = useState('invoices')
   const [activeSection, setActiveSection] = useState('summary')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -536,8 +445,15 @@ export function InvoiceDetailsPage() {
           </div>
 
           {/* Grid 3 — comments */}
-          <aside className="shrink-0 overflow-y-auto pb-20 pt-12" style={{ width: 250 }}>
-            <CommentsPanel comments={data.comments} />
+          <aside 
+            className="shrink-0 overflow-y-auto pb-20 pt-12 transition-all duration-300 ease-out" 
+            style={{ width: isCommentsCollapsed ? 48 : 250 }}
+          >
+            <CommentsPanel 
+              comments={data.comments} 
+              isCollapsed={isCommentsCollapsed}
+              onToggleCollapse={() => setIsCommentsCollapsed(!isCommentsCollapsed)}
+            />
           </aside>
         </div>
       </div>

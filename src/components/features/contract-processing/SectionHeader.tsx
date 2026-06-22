@@ -11,13 +11,23 @@ interface SectionHeaderProps {
   minimal?: boolean
   /** hide only the horizontal line (keep the comment button) */
   hideLine?: boolean
+  /** callback when add note button is clicked */
+  onAddNote?: () => void
 }
 
 /**
  * Section title + status pill, a horizontal rule filling the remaining width,
  * and an "add comment" affordance at the far end.
  */
-export function SectionHeader({ title, status, statusLabel, isFlashing, minimal = false, hideLine = false }: SectionHeaderProps) {
+export function SectionHeader({ 
+  title, 
+  status, 
+  statusLabel, 
+  isFlashing, 
+  minimal = false, 
+  hideLine = false,
+  onAddNote,
+}: SectionHeaderProps) {
   return (
     <div className="relative flex items-center gap-3">
       {/* Gradient flash overlay — self-clipping + pointer-events-none, so it
@@ -55,6 +65,7 @@ export function SectionHeader({ title, status, statusLabel, isFlashing, minimal 
 
           <button
             type="button"
+            onClick={onAddNote}
             title="Add note"
             className={cn(
               'flex shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 py-1 text-blue-700 transition-all hover:bg-blue-50',

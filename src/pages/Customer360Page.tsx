@@ -75,6 +75,9 @@ export function Customer360Page() {
   const [flashingSection, setFlashingSection] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
+  const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
+  const [linkedSection, setLinkedSection] = useState<string | undefined>(undefined)
+  const [contractStatus, setContractStatus] = useState<string>('In progress')
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -145,6 +148,19 @@ export function Customer360Page() {
     // Navigate to contracts page
     goToAllContracts('pioneer-systems')
   }, [addNotification, data.customerName, goToAllContracts])
+
+  // Handle add note from section header
+  const handleAddNoteForSection = useCallback((sectionLabel: string) => {
+    setLinkedSection(sectionLabel)
+    // Trigger the add note textarea to open
+    setShowAddNote(true)
+  }, [])
+
+  const handleClearLinkedSection = useCallback(() => {
+    setLinkedSection(undefined)
+  }, [])
+
+  const [showAddNote, setShowAddNote] = useState(false)
 
   useEffect(() => () => {
     if (flashTimeout.current) clearTimeout(flashTimeout.current)
@@ -259,7 +275,7 @@ export function Customer360Page() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
-            <StatusUnit status={data.processing.status} />
+            <StatusUnit status={contractStatus} />
             <SendForApprovalButton onClick={handleSendForApproval} />
           </div>
         </div>
@@ -310,6 +326,7 @@ export function Customer360Page() {
                   status="ready"
                   statusLabel="Ready"
                   isFlashing={flashingSection === 'account'}
+                  onAddNote={() => handleAddNoteForSection('Account')}
                 />
                 <div className="mt-4">
                   <LabelValueList items={data.account} />
@@ -327,6 +344,7 @@ export function Customer360Page() {
                   status="ready"
                   statusLabel="Ready"
                   isFlashing={flashingSection === 'addresses'}
+                  onAddNote={() => handleAddNoteForSection('Addresses')}
                 />
                 <div className="mt-4">
                   <LabelValueList items={data.addresses} />
@@ -344,6 +362,7 @@ export function Customer360Page() {
                   status="ready"
                   statusLabel="Ready"
                   isFlashing={flashingSection === 'terms'}
+                  onAddNote={() => handleAddNoteForSection('Terms and billing')}
                 />
                 <div className="mt-4">
                   <LabelValueList items={data.termsAndBilling} />
@@ -362,6 +381,7 @@ export function Customer360Page() {
                     status="ai-created"
                     statusLabel="Created 2 items"
                     isFlashing={flashingSection === 'products'}
+                    onAddNote={() => handleAddNoteForSection('Products and pricing')}
                   />
                 </div>
                 <div className="mt-4">
@@ -371,12 +391,19 @@ export function Customer360Page() {
 
               {/* Billing schedule — timeline, capped at 680px */}
               <section ref={setSectionRef('schedule')} className="group/section mx-auto max-w-[680px]">
-                <SectionHeader title="Billing schedule" isFlashing={flashingSection === 'schedule'} />
+                <SectionHeader 
+                  title="Billing schedule" 
+                  isFlashing={flashingSection === 'schedule'}
+                  onAddNote={() => handleAddNoteForSection('Billing schedule')}
+                />
                 <div className="mt-6">
-                  <PaymentSchedule onPreviewClick={(invoiceIndex) => {
-                    setActiveInvoiceIndex(invoiceIndex)
-                    scrollToSection('invoice')
-                  }} />
+                  <PaymentSchedule 
+                    onPreviewClick={(invoiceIndex) => {
+                      setActiveInvoiceIndex(invoiceIndex)
+                      scrollToSection('invoice')
+                    }}
+                    tcv={data.summary.contractValue}
+                  />
                 </div>
               </section>
 
@@ -393,11 +420,24 @@ export function Customer360Page() {
           </div>
 
           {/* Grid 3 — comments (scrolls independently, aligned to the primary CTA) */}
-          <aside className="shrink-0 overflow-y-auto pb-20 pt-12 pr-3" style={{ width: 250, scrollbarGutter: 'stable' }}>
+          <aside 
+            className="shrink-0 overflow-y-auto pb-20 pt-12 pr-3 transition-all duration-300 ease-out" 
+            style={{ 
+              width: isCommentsCollapsed ? 48 : 250, 
+              scrollbarGutter: 'stable' 
+            }}
+          >
             <CommentsPanel
               comments={data.comments}
               activeSectionId={activeSection}
               onCommentJump={handleCommentJump}
+              isCollapsed={isCommentsCollapsed}
+              onToggleCollapse={() => setIsCommentsCollapsed(!isCommentsCollapsed)}
+              linkedSection={linkedSection}
+              onStatusChange={(status) => setContractStatus(status)}
+              showAddNote={showAddNote}
+              onShowAddNoteChange={setShowAddNote}
+              onClearLinkedSection={handleClearLinkedSection}
             />
           </aside>
         </div>

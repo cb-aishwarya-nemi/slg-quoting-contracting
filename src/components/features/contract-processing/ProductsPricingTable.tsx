@@ -559,11 +559,6 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
     setIsAddingNew(false)
   }
 
-  const tcv = items.reduce((sum, item) => {
-    const price = parseFloat(item.totalPrice.replace(/[$,]/g, ''))
-    return sum + (isNaN(price) ? 0 : price)
-  }, 0)
-
   return (
     <div>
       {/* Header */}
@@ -684,18 +679,6 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
           </button>
         </div>
       )}
-
-      {/* TCV Row */}
-      <div className="flex items-center justify-end border-t border-neutral-200 py-3 pr-7">
-        <div className="flex items-baseline gap-3">
-          <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Total Contract Value (TCV)
-          </span>
-          <span className="font-heading text-[16px] font-bold text-brand-navy">
-            {tcv.toLocaleString('en-US', { style: 'currency', currency: 'USD' })}
-          </span>
-        </div>
-      </div>
     </div>
   )
 }
