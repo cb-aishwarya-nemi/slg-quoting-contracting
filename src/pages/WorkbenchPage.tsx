@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Search, Sparkles, ArrowRight, MoreVertical, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
+import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatRelativeDate } from "@/lib/utils";
 import { useFileDrop, type WorkbenchItem } from "@/context/FileDropContext";
 import { useUseCase } from "@/context/UseCaseContext";
@@ -23,6 +24,12 @@ export function WorkbenchPage() {
   const [activeTab, setActiveTab] = useState("your-tasks");
   const [isHeaderSticky, setIsHeaderSticky] = useState(false);
   const [linkTask, setLinkTask] = useState<WorkbenchItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [filters, setFilters] = useState<Filter[]>([]);
+  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal } = useFileDrop();
@@ -35,6 +42,101 @@ export function WorkbenchPage() {
 
   // Filter to show only contract ingestion tasks
   const ingestionTasks = workbenchItems.filter(item => item.taskType.includes("Ingestion"));
+
+  // Apply filters
+  const applyFilters = (tasks: WorkbenchItem[]) => {
+    if (filters.length === 0) return tasks;
+
+    return tasks.filter(task => {
+      return filters.every(filter => {
+        const taskValue = getTaskValue(task, filter.attribute);
+        const filterValue = filter.value.toLowerCase();
+        
+        switch (filter.condition) {
+          case 'is':
+          case 'equals':
+            return taskValue.toLowerCase() === filterValue;
+          case 'is_not':
+          case 'not_equals':
+            return taskValue.toLowerCase() !== filterValue;
+          case 'contains':
+            return taskValue.toLowerCase().includes(filterValue);
+          case 'does_not_contain':
+            return !taskValue.toLowerCase().includes(filterValue);
+          case 'greater_than':
+            return parseFloat(taskValue.replace(/[$,]/g, '')) > parseFloat(filter.value.replace(/[$,]/g, ''));
+          case 'less_than':
+            return parseFloat(taskValue.replace(/[$,]/g, '')) < parseFloat(filter.value.replace(/[$,]/g, ''));
+          case 'is_before':
+            return new Date(taskValue) < new Date(filter.value);
+          case 'is_after':
+            return new Date(taskValue) > new Date(filter.value);
+          default:
+            return true;
+        }
+      });
+    });
+  };
+
+  const getTaskValue = (task: WorkbenchItem, attribute: string): string => {
+    switch (attribute) {
+      case 'customer':
+        return task.customer;
+      case 'status':
+        return task.status || '';
+      case 'taskType':
+        return task.taskType;
+      case 'severity':
+        return task.severity || '';
+      case 'owner':
+        return task.owner || '';
+      case 'tcv':
+        return task.tcv || '';
+      case 'startDate':
+        return task.startDate ? task.startDate.toISOString() : '';
+      case 'contractId':
+        return task.contractId || '';
+      default:
+        return '';
+    }
+  };
+
+  // Filter tasks based on search query and filters
+  const filteredTasks = applyFilters(ingestionTasks).filter(task => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      task.customer.toLowerCase().includes(query) ||
+      task.taskType.toLowerCase().includes(query) ||
+      task.contractId?.toLowerCase().includes(query) ||
+      task.status?.toLowerCase().includes(query) ||
+      task.owner?.toLowerCase().includes(query)
+    );
+  });
+
+  // Focus search input when opened
+  useEffect(() => {
+    if (isSearchOpen && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [isSearchOpen]);
+
+  // Click-outside handler to close search
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setIsSearchOpen(false);
+        setSearchQuery("");
+      }
+    }
+
+    if (isSearchOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }
+  }, [isSearchOpen]);
 
   // Auto-open modal for new item when flag is set
   useEffect(() => {
@@ -134,7 +236,7 @@ export function WorkbenchPage() {
             </h1>
             <div className="flex items-center gap-2">
               <span className="text-[12px] font-medium text-brand-fog">
-                {ingestionTasks.length} tasks
+                {filteredTasks.length} tasks
               </span>
               {criticalCount > 0 && (
                 <>
@@ -160,14 +262,67 @@ export function WorkbenchPage() {
 
         {/* Search/Filter/Sort on the right */}
         <div className="absolute right-4 bottom-1.5 flex items-center gap-2.5">
-          <button className="text-brand-navy hover:text-brand-fog transition-colors">
-            <Search size={14} />
-          </button>
-          <button className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-brand-navy transition-colors hover:bg-neutral-100">
-            <svg className="h-3 w-3 text-brand-mist" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          {/* Inline search box - fixed width container to prevent jumping */}
+          <div 
+            ref={searchContainerRef}
+            className="relative flex items-center gap-1.5 bg-white transition-all duration-300 ease-in-out overflow-hidden"
+            style={{ 
+              width: isSearchOpen ? '240px' : '14px',
+              paddingLeft: isSearchOpen ? '8px' : '0px',
+              paddingRight: isSearchOpen ? '8px' : '0px',
+            }}
+          >
+            <button
+              onClick={() => !isSearchOpen && setIsSearchOpen(true)}
+              className={cn(
+                "shrink-0 transition-colors",
+                isSearchOpen ? "text-brand-navy cursor-default" : "text-brand-navy hover:text-brand-fog cursor-pointer"
+              )}
+            >
+              <Search size={14} />
+            </button>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Escape') {
+                  setSearchQuery("");
+                  setIsSearchOpen(false);
+                }
+              }}
+              placeholder="Search tasks..."
+              className={cn(
+                "bg-transparent py-1.5 text-[13px] text-brand-navy placeholder:text-brand-navy outline-none transition-all duration-300 ease-in-out",
+                isSearchOpen ? "opacity-100" : "opacity-0"
+              )}
+              style={{ 
+                fontSize: '12px',
+                width: isSearchOpen ? 'calc(100% - 30px)' : '0px',
+              }}
+            />
+          </div>
+          <button 
+            onClick={() => {
+              const willExpand = !isFilterExpanded;
+              setIsFilterExpanded(willExpand);
+            }}
+            className={cn(
+              "relative inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] transition-colors",
+              filters.length > 0 && isFilterExpanded
+                ? "bg-brand-navy text-white hover:bg-brand-soft" 
+                : "text-brand-navy hover:bg-neutral-100"
+            )}
+          >
+            <svg className={cn("h-3 w-3", filters.length > 0 && isFilterExpanded ? "text-white" : "text-brand-mist")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             <span className="font-medium">Filter</span>
+            {/* Red dot indicator when collapsed with filters */}
+            {filters.length > 0 && !isFilterExpanded && (
+              <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-red-500" />
+            )}
           </button>
           <button className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-brand-navy transition-colors hover:bg-neutral-100">
             <span className="text-brand-fog">Sort:</span>
@@ -181,6 +336,19 @@ export function WorkbenchPage() {
         {/* Horizontal line - aligned with title on left, avatar on right */}
         <div className="absolute bottom-0 left-6 right-4 h-[1px] bg-brand-navy" />
       </div>
+
+      {/* Filter Unit */}
+      <FilterUnit 
+        filters={filters} 
+        onFiltersChange={(newFilters) => {
+          setFilters(newFilters);
+          // If all filters are removed, collapse the unit
+          if (newFilters.length === 0) {
+            setIsFilterExpanded(false);
+          }
+        }} 
+        isExpanded={isFilterExpanded} 
+      />
 
       {/* Content Area */}
       <div
@@ -248,7 +416,25 @@ export function WorkbenchPage() {
 
                   {/* Table Body */}
                   <tbody>
-                    {ingestionTasks.map((task) => {
+                    {filteredTasks.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center">
+                          <div className="flex flex-col items-center gap-2">
+                            <Search size={24} className="text-brand-mist" />
+                            <p className="text-[14px] text-brand-fog">
+                              No tasks found matching "{searchQuery}"
+                            </p>
+                            <button
+                              onClick={() => setSearchQuery("")}
+                              className="mt-2 text-[13px] text-blue-700 hover:underline"
+                            >
+                              Clear search
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredTasks.map((task) => {
                       const statusStyle = STATUS_STYLES[task.status || ""] || {
                         text: "text-brand-navy",
                       };
@@ -349,7 +535,8 @@ export function WorkbenchPage() {
                           </td>
                         </tr>
                       );
-                    })}
+                    })
+                    )}
                   </tbody>
               </table>
             </div>
