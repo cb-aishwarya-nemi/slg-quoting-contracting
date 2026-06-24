@@ -168,15 +168,17 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
               </div>
             </div>
 
-            {/* Extracted/Mapped Row */}
-            <div className="shrink-0 bg-white pb-4">
-              <ExtractedMappedRow 
-                mappedCustomer={selectedCustomer}
-                mode={mode}
-                onModeChange={handleModeChange}
-                onClearSelection={() => setSelectedCustomer(null)}
-              />
-            </div>
+            {/* Extracted/Mapped Row - Sticky for non no-match variants */}
+            {variant !== 'no-match' && (
+              <div className="shrink-0 bg-white pb-4">
+                <ExtractedMappedRow 
+                  mappedCustomer={selectedCustomer}
+                  mode={mode}
+                  onModeChange={handleModeChange}
+                  onClearSelection={() => setSelectedCustomer(null)}
+                />
+              </div>
+            )}
             
             {/* Content Area */}
             <div className="min-h-0 flex-1">
@@ -185,6 +187,19 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
                 onModeChange={handleModeChange}
                 selectedCustomerId={selectedCustomer?.id ?? null}
                 onSelectCustomer={handleSelectCustomer}
+                variant={variant}
+                extractedMappedRow={
+                  variant === 'no-match' ? (
+                    <div className="pb-4">
+                      <ExtractedMappedRow 
+                        mappedCustomer={selectedCustomer}
+                        mode={mode}
+                        onModeChange={handleModeChange}
+                        onClearSelection={() => setSelectedCustomer(null)}
+                      />
+                    </div>
+                  ) : undefined
+                }
               />
             </div>
           </div>

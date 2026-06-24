@@ -87,6 +87,28 @@ summary {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-variant-numeric: tabular-nums;
+  
+  /* Theme-aware semantic tokens - Light mode defaults (used by V0.1) */
+  --theme-bg-primary: #ffffff;
+  --theme-bg-surface: #ffffff;
+  --theme-bg-hover: #f4f4f8;
+  --theme-text-primary: #1c1b2e;
+  --theme-text-secondary: #6b6885;
+  --theme-text-muted: #9b99b4;
+  --theme-border: #e8e8f0;
+  --theme-border-strong: #1c1b2e;
+}
+
+/* Dark mode variables - ONLY for V0.1 layout */
+[data-theme="dark"] .v0-layout {
+  --theme-bg-primary: #1c1b2e;
+  --theme-bg-surface: #13121f;
+  --theme-bg-hover: #2e2c4a;
+  --theme-text-primary: #ffffff;
+  --theme-text-secondary: #9b99b4;
+  --theme-text-muted: #6b6885;
+  --theme-border: #2e2c4a;
+  --theme-border-strong: #ffffff;
 }
 
 body {
@@ -114,6 +136,18 @@ body {
 
 .ai-gradient-border {
   border-image: linear-gradient(135deg, var(--color-orange-500) 0%, var(--color-violet-500) 100%) 1;
+}
+
+/* AI Gradient - Dark mode (brighter, higher contrast) */
+[data-theme="dark"] .v0-layout .ai-gradient {
+  background: linear-gradient(135deg, var(--color-orange-300) 0%, var(--color-violet-300) 100%);
+}
+
+[data-theme="dark"] .v0-layout .ai-gradient-text {
+  background: linear-gradient(135deg, var(--color-orange-300) 0%, var(--color-violet-300) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 /* Animation for new workbench items */
@@ -336,4 +370,206 @@ body {
     background: #1c1b2e;
     -webkit-text-fill-color: #1c1b2e;
   }
+}
+
+/* Drop zone pill expand animation: morph shape first, then scale */
+@keyframes pill-expand {
+  0% {
+    border-radius: 9999px;
+    width: auto;
+    height: auto;
+    padding: 8px 18px;
+  }
+  35% {
+    border-radius: 16px;
+    width: auto;
+    height: auto;
+    padding: 8px 18px;
+  }
+  100% {
+    border-radius: 16px;
+    width: 60vw;
+    height: 512px;
+    padding: 48px;
+  }
+}
+
+/* Drop zone pill collapse animation: shrink first, then morph shape */
+@keyframes pill-collapse {
+  0% {
+    border-radius: 16px;
+    width: 60vw;
+    height: 512px;
+    padding: 48px;
+  }
+  65% {
+    border-radius: 16px;
+    width: auto;
+    height: auto;
+    padding: 8px 18px;
+  }
+  100% {
+    border-radius: 9999px;
+    width: auto;
+    height: auto;
+    padding: 8px 18px;
+  }
+}
+
+.animate-pill-expand {
+  animation: pill-expand 400ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.animate-pill-collapse {
+  animation: pill-collapse 350ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+/* Dynamic Island style pill - content hugging with smooth transitions */
+.dynamic-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 18px;
+  border-radius: 9999px;
+  transition: padding 300ms cubic-bezier(0.4, 0, 0.2, 1),
+              width 300ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Theme-aware utility classes */
+.bg-theme-primary {
+  background-color: var(--theme-bg-primary);
+}
+
+.bg-theme-surface {
+  background-color: var(--theme-bg-surface);
+}
+
+.bg-theme-hover {
+  background-color: var(--theme-bg-hover);
+}
+
+.text-theme-primary {
+  color: var(--theme-text-primary);
+}
+
+.text-theme-secondary {
+  color: var(--theme-text-secondary);
+}
+
+.text-theme-muted {
+  color: var(--theme-text-muted);
+}
+
+.border-theme-border {
+  border-color: var(--theme-border);
+}
+
+.border-theme-strong {
+  border-color: var(--theme-border-strong);
+}
+
+/* Hover variants */
+.hover\:bg-theme-hover:hover {
+  background-color: var(--theme-bg-hover);
+}
+
+/* Hover text theme variant */
+.hover\:text-theme-primary:hover {
+  color: var(--theme-text-primary);
+}
+
+/* ============================================
+   V0.1 DARK MODE STYLES
+   All dark mode styles are scoped to .v0-layout
+   V1.0 remains light mode only
+   ============================================ */
+
+/* Dark mode adjustments for blues (lighter in dark mode) - V0.1 only */
+[data-theme="dark"] .v0-layout .text-blue-700 {
+  color: #60a5fa;
+}
+
+[data-theme="dark"] .v0-layout .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.15);
+}
+
+[data-theme="dark"] .v0-layout .hover\:bg-blue-50:hover {
+  background-color: rgba(59, 130, 246, 0.2);
+}
+
+/* Dark mode overrides for brand-navy text (becomes white) - V0.1 only */
+[data-theme="dark"] .v0-layout .text-brand-navy {
+  color: #ffffff;
+}
+
+[data-theme="dark"] .v0-layout .text-brand-fog {
+  color: #9b99b4;
+}
+
+[data-theme="dark"] .v0-layout .text-brand-mist {
+  color: #6b6885;
+}
+
+/* Dark mode background overrides - V0.1 only */
+[data-theme="dark"] .v0-layout .bg-white {
+  background-color: var(--theme-bg-surface);
+}
+
+[data-theme="dark"] .v0-layout .bg-neutral-100 {
+  background-color: #2e2c4a;
+}
+
+[data-theme="dark"] .v0-layout .bg-neutral-50 {
+  background-color: #232136;
+}
+
+[data-theme="dark"] .v0-layout .hover\:bg-neutral-100:hover {
+  background-color: #2e2c4a;
+}
+
+[data-theme="dark"] .v0-layout .hover\:bg-neutral-50:hover {
+  background-color: #232136;
+}
+
+/* Dark mode border overrides - V0.1 only */
+[data-theme="dark"] .v0-layout .border-neutral-200 {
+  border-color: #2e2c4a;
+}
+
+[data-theme="dark"] .v0-layout .border-neutral-100 {
+  border-color: #232136;
+}
+
+[data-theme="dark"] .v0-layout .border-brand-navy {
+  border-color: #ffffff;
+}
+
+/* Dark mode for green status badges - V0.1 only */
+[data-theme="dark"] .v0-layout .bg-green-50 {
+  background-color: rgba(34, 134, 58, 0.15);
+}
+
+[data-theme="dark"] .v0-layout .text-green-700 {
+  color: #4ade80;
+}
+
+/* Dark mode for amber/orange accents - V0.1 only */
+[data-theme="dark"] .v0-layout .bg-orange-100 {
+  background-color: rgba(255, 51, 0, 0.15);
+}
+
+[data-theme="dark"] .v0-layout .text-orange-700 {
+  color: #ff7a5c;
+}
+
+[data-theme="dark"] .v0-layout .text-orange-600 {
+  color: #ff7a5c;
+}
+
+/* Dark mode for violet - V0.1 only */
+[data-theme="dark"] .v0-layout .bg-violet-100 {
+  background-color: rgba(109, 40, 217, 0.2);
+}
+
+[data-theme="dark"] .v0-layout .text-violet-700 {
+  color: #a78bfa;
 }

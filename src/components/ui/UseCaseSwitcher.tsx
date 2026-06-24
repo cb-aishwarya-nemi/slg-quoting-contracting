@@ -1,14 +1,22 @@
 import { useState, useRef, useEffect } from 'react'
-import { GitBranch, Check, Copy, ExternalLink, ChevronRight } from 'lucide-react'
+import { GitBranch, Check, Copy, ExternalLink, ChevronRight, Layers } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUseCase, type UseCaseVariant, type UseCasePage } from '@/context/UseCaseContext'
 import { useNavigation } from '@/context/NavigationContext'
+import { useVersion, type AppVersion } from '@/context/VersionContext'
+
+const VERSIONS: { id: AppVersion; label: string; description: string }[] = [
+  { id: 'v0.1', label: 'V0.1 Contract Ingestion', description: 'Lean, focused contract upload flow' },
+  { id: 'v1.0', label: 'V1.0 SLG Prototype', description: 'Full Sales-Led Growth experience' },
+]
 
 export function UseCaseSwitcher() {
   const [isOpen, setIsOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  
+  const { version, setVersion, isV0 } = useVersion()
   
   const {
     activePage,
@@ -21,6 +29,13 @@ export function UseCaseSwitcher() {
   } = useUseCase()
   
   const { goToWorkbench, goToCustomer360, goToInvoiceDetails, goToAllInvoices } = useNavigation()
+  
+  // Handle version selection
+  const handleSelectVersion = (versionId: AppVersion) => {
+    setVersion(versionId)
+    // Reset to workbench when switching versions
+    goToWorkbench()
+  }
   
   // Get current page info
   const currentPage = activePage ? getPage(activePage) : null
@@ -158,114 +173,170 @@ export function UseCaseSwitcher() {
             )}
           </div>
           
-          {/* Variants List */}
-          <div className="max-h-[320px] overflow-y-auto p-2">
-            {currentPage ? (
-              <div className="space-y-1">
-                {variants.map((variant) => {
-                  const isActive = activeVariant === variant.id
-                  return (
-                    <button
-                      key={variant.id}
-                      type="button"
-                      onClick={() => handleSelectVariant(variant)}
+          {/* Versions Section */}
+          <div className="border-b border-neutral-100 p-2">
+            <div className="mb-1.5 flex items-center gap-1.5 px-3 pt-1">
+              <Layers size={12} className="text-brand-fog" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-brand-fog">
+                Version
+              </span>
+            </div>
+            <div className="space-y-0.5">
+              {VERSIONS.map((v) => {
+                const isActive = version === v.id
+                return (
+                  <button
+                    key={v.id}
+                    type="button"
+                    onClick={() => handleSelectVersion(v.id)}
+                    className={cn(
+                      'flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors',
+                      isActive
+                        ? 'bg-orange-50'
+                        : 'hover:bg-neutral-50'
+                    )}
+                  >
+                    <div
                       className={cn(
-                        'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
                         isActive
-                          ? 'bg-neutral-100'
-                          : 'hover:bg-neutral-50'
+                          ? 'border-orange-500 bg-orange-500'
+                          : 'border-neutral-300 bg-white'
                       )}
                     >
-                      <div
+                      {isActive && <Check size={10} className="text-white" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span
                         className={cn(
-                          'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                          isActive
-                            ? 'border-brand-navy bg-brand-navy'
-                            : 'border-neutral-300 bg-white'
+                          'block text-[13px] font-medium',
+                          isActive ? 'text-orange-700' : 'text-brand-navy'
                         )}
                       >
-                        {isActive && <Check size={10} className="text-white" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span
-                          className={cn(
-                            'block text-[13px] font-medium',
-                            isActive ? 'text-brand-navy' : 'text-brand-navy'
-                          )}
-                        >
-                          {variant.label}
-                        </span>
-                        {variant.description && (
-                          <span className="block mt-0.5 text-[12px] text-brand-fog leading-snug">
-                            {variant.description}
-                          </span>
-                        )}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="px-3 py-8 text-center">
-                <p className="text-[13px] text-brand-fog">
-                  No page selected
-                </p>
-                <p className="mt-1 text-[12px] text-brand-mist">
-                  Navigate to a page to see available variants
-                </p>
-              </div>
-            )}
+                        {v.label}
+                      </span>
+                      <span className="block mt-0.5 text-[11px] text-brand-fog leading-snug">
+                        {v.description}
+                      </span>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
           </div>
           
-          {/* All Pages (collapsed section) */}
-          <div className="border-t border-neutral-100">
-            <details className="group" open={!currentPage}>
-              <summary className="flex cursor-pointer items-center justify-between px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-brand-fog hover:text-brand-navy transition-colors">
-                All pages
-                <svg
-                  className="h-3 w-3 transition-transform group-open:rotate-180"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </summary>
-              <div className="border-t border-neutral-50 p-2 pt-1">
-                {registry.map((page) => {
-                  const isCurrent = page.id === activePage
-                  const isModal = page.id === 'customer-link-modal'
-                  
-                  return (
-                    <button
-                      key={page.id}
-                      type="button"
-                      onClick={() => handleNavigateToPage(page)}
-                      className={cn(
-                        'flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[12px] text-left transition-colors',
-                        isCurrent
-                          ? 'bg-neutral-100 font-medium text-brand-navy'
-                          : 'text-brand-fog hover:bg-neutral-50 hover:text-brand-navy'
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        {page.label}
-                        {isCurrent && (
-                          <span className="text-brand-mist">(current)</span>
+          {/* Variants List - only show for V1.0 */}
+          {!isV0 && (
+            <div className="max-h-[320px] overflow-y-auto p-2">
+              {currentPage ? (
+                <div className="space-y-1">
+                  {variants.map((variant) => {
+                    const isActive = activeVariant === variant.id
+                    return (
+                      <button
+                        key={variant.id}
+                        type="button"
+                        onClick={() => handleSelectVariant(variant)}
+                        className={cn(
+                          'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                          isActive
+                            ? 'bg-neutral-100'
+                            : 'hover:bg-neutral-50'
                         )}
-                        {isModal && !isCurrent && (
-                          <span className="text-[10px] text-brand-mist">(modal)</span>
+                      >
+                        <div
+                          className={cn(
+                            'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                            isActive
+                              ? 'border-brand-navy bg-brand-navy'
+                              : 'border-neutral-300 bg-white'
+                          )}
+                        >
+                          {isActive && <Check size={10} className="text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span
+                            className={cn(
+                              'block text-[13px] font-medium',
+                              isActive ? 'text-brand-navy' : 'text-brand-navy'
+                            )}
+                          >
+                            {variant.label}
+                          </span>
+                          {variant.description && (
+                            <span className="block mt-0.5 text-[12px] text-brand-fog leading-snug">
+                              {variant.description}
+                            </span>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="px-3 py-8 text-center">
+                  <p className="text-[13px] text-brand-fog">
+                    No page selected
+                  </p>
+                  <p className="mt-1 text-[12px] text-brand-mist">
+                    Navigate to a page to see available variants
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* All Pages (collapsed section) - only show for V1.0 */}
+          {!isV0 && (
+            <div className="border-t border-neutral-100">
+              <details className="group" open={!currentPage}>
+                <summary className="flex cursor-pointer items-center justify-between px-4 py-2 text-[11px] font-medium uppercase tracking-wider text-brand-fog hover:text-brand-navy transition-colors">
+                  All pages
+                  <svg
+                    className="h-3 w-3 transition-transform group-open:rotate-180"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </summary>
+                <div className="border-t border-neutral-50 p-2 pt-1">
+                  {registry.map((page) => {
+                    const isCurrent = page.id === activePage
+                    const isModal = page.id === 'customer-link-modal'
+                    
+                    return (
+                      <button
+                        key={page.id}
+                        type="button"
+                        onClick={() => handleNavigateToPage(page)}
+                        className={cn(
+                          'flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[12px] text-left transition-colors',
+                          isCurrent
+                            ? 'bg-neutral-100 font-medium text-brand-navy'
+                            : 'text-brand-fog hover:bg-neutral-50 hover:text-brand-navy'
                         )}
-                      </span>
-                      {!isCurrent && (
-                        <ChevronRight size={12} className="text-brand-mist" />
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </details>
-          </div>
+                      >
+                        <span className="flex items-center gap-2">
+                          {page.label}
+                          {isCurrent && (
+                            <span className="text-brand-mist">(current)</span>
+                          )}
+                          {isModal && !isCurrent && (
+                            <span className="text-[10px] text-brand-mist">(modal)</span>
+                          )}
+                        </span>
+                        {!isCurrent && (
+                          <ChevronRight size={12} className="text-brand-mist" />
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </details>
+            </div>
+          )}
           
           {/* Footer - Share URL */}
           <div className="border-t border-neutral-100 px-4 py-3">

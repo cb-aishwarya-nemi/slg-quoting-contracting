@@ -25,6 +25,10 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
         {sections.map((section) => {
           const isActive = section.id === activeId
           const isHovered = hoveredId === section.id
+          const showFlag = section.id.toLowerCase().includes('product')
+          const useGradient = section.status === 'attention'
+          const gradientId = `flag-gradient-${section.id}`
+          
           return (
             <li key={section.id}>
               <button
@@ -33,9 +37,9 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
                 onMouseEnter={() => setHoveredId(section.id)}
                 onMouseLeave={() => setHoveredId(null)}
                 className={cn(
-                  'flex items-center text-left transition-all duration-200 ease-out',
+                  'flex items-center gap-1.5 text-left transition-all duration-200 ease-out',
                   isActive
-                    ? 'bg-brand-navy rounded-full px-2.5 py-0.5'
+                    ? 'bg-white dark:bg-brand-navy rounded-full px-2.5 py-0.5'
                     : 'rounded-full px-2.5 py-0.5'
                 )}
               >
@@ -43,16 +47,48 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
                   className={cn(
                     'text-[13px] tracking-[-0.25px] transition-all duration-200',
                     isActive
-                      ? 'font-bold text-white'
+                      ? 'font-bold text-brand-navy dark:text-white'
                       : isHovered
                         ? 'font-medium text-brand-navy ml-1.5'
-                        : section.status === 'attention'
-                          ? 'font-normal text-red-600'
-                          : 'font-normal text-brand-navy'
+                        : section.status === 'attention' && showFlag
+                          ? 'font-normal ai-gradient-text'
+                          : section.status === 'attention'
+                            ? 'font-normal text-red-600'
+                            : 'font-normal text-brand-navy'
                   )}
                 >
                   {section.label}
                 </span>
+                {showFlag && (
+                  <svg
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="shrink-0"
+                  >
+                    <defs>
+                      <linearGradient id={gradientId} x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+                        <stop offset="0%" stopColor="#ff3300" />
+                        <stop offset="100%" stopColor="#6d28d9" />
+                      </linearGradient>
+                    </defs>
+                    <path
+                      d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
+                      stroke={isActive ? '#1c1b2e' : useGradient ? `url(#${gradientId})` : '#1c1b2e'}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                    <path
+                      d="M4 22v-7"
+                      stroke={isActive ? '#1c1b2e' : useGradient ? `url(#${gradientId})` : '#1c1b2e'}
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </svg>
+                )}
               </button>
             </li>
           )

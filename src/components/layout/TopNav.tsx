@@ -46,7 +46,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
       )}
     >
       <div className="flex items-start gap-4">
-        {/* Content - removed icon unit */}
         <div className="flex-1">
           <div className="flex items-start justify-between gap-2">
             <div>
@@ -72,7 +71,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             )}
           </div>
 
-          {/* Progress bar */}
           {!isComplete && (
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs">
@@ -95,7 +93,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             </div>
           )}
 
-          {/* Success message with CTA */}
           {isComplete && (
             <div className="mt-3">
               <button onClick={handleOpenWorkbench} className="flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800">
@@ -114,9 +111,13 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 
 export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavProps) {
   const { processingFiles } = useFileDrop()
+  const { view } = useNavigation()
   const { notifications } = useNotifications()
-  const hasProcessing = processingFiles.length > 0
+  const completedFiles = processingFiles.filter((f) => f.status === 'complete')
+  const hasProcessing = completedFiles.length > 0
   const hasNotifications = notifications.length > 0
+  
+  const shouldShowProcessingBar = view.name === 'workbench' || view.name === 'allContracts'
 
   return (
     <>
@@ -196,10 +197,8 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
         </div>
       </header>
 
-      {/* Sticky progress bar below nav */}
-      {hasProcessing && <ProcessingBar files={processingFiles} />}
+      {hasProcessing && shouldShowProcessingBar && <ProcessingBar files={completedFiles} />}
       
-      {/* Notification panel below nav */}
       <NotificationPanel />
     </>
   )

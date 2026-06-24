@@ -7,3 +7,5 @@ export {
   type UseCaseVariant,
   type UseCasePage,
 } from './UseCaseContext'
+export { VersionProvider, useVersion, type AppVersion } from './VersionContext'
+export { ThemeProvider, useTheme, type Theme } from './ThemeContext'

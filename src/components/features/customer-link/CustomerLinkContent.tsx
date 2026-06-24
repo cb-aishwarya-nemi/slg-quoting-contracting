@@ -12,11 +12,6 @@ import { SectionHeader, LabelValueList } from '@/components/features/contract-pr
 import { createCustomerDefaults, type CreateCustomerDefaults } from '@/data/customerLinkMock'
 import { useUseCase } from '@/context/UseCaseContext'
 
-const TABS: TabItem[] = [
-  { id: 'link', label: 'Choose a customer' },
-  { id: 'create', label: 'Create new customer' },
-]
-
 type Mode = 'link' | 'create'
 
 interface CustomerLinkContentProps {
@@ -24,6 +19,8 @@ interface CustomerLinkContentProps {
   onModeChange: (mode: Mode) => void
   selectedCustomerId: string | null
   onSelectCustomer: (customer: CustomerMatch) => void
+  variant?: CustomerLinkVariant
+  extractedMappedRow?: React.ReactNode
 }
 
 export function CustomerLinkContent({
@@ -31,6 +28,8 @@ export function CustomerLinkContent({
   onModeChange,
   selectedCustomerId,
   onSelectCustomer,
+  variant: variantProp,
+  extractedMappedRow,
 }: CustomerLinkContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAllCustomers, setShowAllCustomers] = useState(false)
@@ -40,10 +39,24 @@ export function CustomerLinkContent({
   // Get current use case variant from context
   const { activeVariant, activePage, getPage } = useUseCase()
   const page = getPage('customer-link-modal')
-  const variant: CustomerLinkVariant = 
+  const variantFromContext: CustomerLinkVariant = 
     activePage === 'customer-link-modal' && activeVariant 
       ? (activeVariant as CustomerLinkVariant) 
       : (page?.defaultVariant as CustomerLinkVariant) || 'closest-matches'
+  
+  // Use prop variant if provided, otherwise use context variant
+  const variant = variantProp ?? variantFromContext
+  
+  // Dynamic tabs - swap order for no-match variant
+  const TABS: TabItem[] = variant === 'no-match'
+    ? [
+        { id: 'create', label: 'Create new customer' },
+        { id: 'link', label: 'Choose a customer' },
+      ]
+    : [
+        { id: 'link', label: 'Choose a customer' },
+        { id: 'create', label: 'Create new customer' },
+      ]
   
   // Get customer matches based on current variant
   const customerMatches = useMemo(() => {
@@ -104,22 +117,32 @@ export function CustomerLinkContent({
 
   return (
     <div className="flex h-full flex-col">
-      {/* Tabs with horizontal line - center aligned */}
-      <div className="shrink-0 mb-3">
-        <div className="relative flex items-end justify-center">
-          <TrapezoidalTabs
-            tabs={TABS}
-            activeTab={mode}
-            onTabChange={handleTabChange}
-            compact
-          />
-          {/* Horizontal line that tabs sit on */}
-          <div className="absolute bottom-0 left-0 right-0 h-px bg-brand-navy" />
-        </div>
-      </div>
-
       {/* Content Area - Scrollable */}
       <div className="min-h-0 flex-1 overflow-y-auto">
+        {/* Extracted/Mapped Row - for no-match variant only, scrolls with content */}
+        {extractedMappedRow && (
+          <div className="bg-white pb-4">
+            {extractedMappedRow}
+          </div>
+        )}
+
+        {/* Tabs with horizontal line - sticky when scrolling (for no-match), regular otherwise */}
+        <div className={cn(
+          "shrink-0 mb-3 bg-white pt-[2px]",
+          extractedMappedRow && "sticky top-0 z-10"
+        )}>
+          <div className="relative flex items-end justify-center">
+            <TrapezoidalTabs
+              tabs={TABS}
+              activeTab={mode}
+              onTabChange={handleTabChange}
+              compact
+            />
+            {/* Horizontal line that tabs sit on */}
+            <div className="absolute bottom-0 left-0 right-0 h-px bg-brand-navy" />
+          </div>
+        </div>
+        {/* Main content */}
         {mode === 'link' ? (
           <div className="flex flex-col">
             {/* No Matches Empty State */}

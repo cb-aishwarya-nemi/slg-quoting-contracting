@@ -1,12 +1,19 @@
+import { useState } from 'react'
 import { AppLayout } from './components/layout'
-import { WorkbenchPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage } from './pages'
+import { WorkbenchPage, CustomersPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage, ContractIngestionPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
 import { UseCaseProvider } from './context/UseCaseContext'
 import { NotificationProvider } from './context/NotificationContext'
+import { VersionProvider, useVersion } from './context/VersionContext'
+import { ThemeProvider } from './context/ThemeContext'
 import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 
-function PageRouter() {
+function V1PageRouter() {
   const { view } = useNavigation()
+
+  if (view.name === 'customers') {
+    return <CustomersPage />
+  }
 
   if (view.name === 'customer360') {
     return <Customer360Page />
@@ -27,19 +34,48 @@ function PageRouter() {
   return <WorkbenchPage />
 }
 
+function V0PageRouter() {
+  const [activeContractId, setActiveContractId] = useState<number | null>(null)
+  
+  const handleContractProcessed = (contractId: number) => {
+    setActiveContractId(contractId)
+  }
+  
+  return (
+    <ContractIngestionPage 
+      activeContractId={activeContractId}
+      onContractProcessed={handleContractProcessed}
+    />
+  )
+}
+
+function PageRouter() {
+  const { isV0 } = useVersion()
+  
+  if (isV0) {
+    return <V0PageRouter />
+  }
+  
+  return <V1PageRouter />
+}
+
 function App() {
   return (
-    <UseCaseProvider>
-      <NotificationProvider>
-        <NavigationProvider>
-          <AppLayout>
-            <PageRouter />
-          </AppLayout>
-          {/* Use Case Switcher - always visible, highest z-index */}
-          <UseCaseSwitcher />
-        </NavigationProvider>
-      </NotificationProvider>
-    </UseCaseProvider>
+    <VersionProvider>
+      <ThemeProvider>
+        <UseCaseProvider>
+          <NotificationProvider>
+            <NavigationProvider>
+              <AppLayout>
+                <PageRouter />
+              </AppLayout>
+              {/* Use Case Switcher - always visible, highest z-index */}
+              <UseCaseSwitcher />
+            </NavigationProvider>
+          </NotificationProvider>
+        </UseCaseProvider>
+      </ThemeProvider>
+    </VersionProvider>
   )
 }
 

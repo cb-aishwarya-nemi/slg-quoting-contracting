@@ -13,6 +13,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useNavigation } from '../../context/NavigationContext'
 import cbLogo from '../../assets/cb-logo-squircle.svg'
 
 function GradientMessageSquarePlus({ size = 18, paused = false }: { size?: number; paused?: boolean }) {
@@ -82,28 +83,33 @@ function GradientHistory({ size = 18, paused = false }: { size?: number; paused?
 interface NavItem {
   icon: LucideIcon
   label: string
-  desc: string
   href: string
   isAI?: boolean
-  isActive?: boolean
+  onClick?: () => void
 }
-
-const navItems: NavItem[] = [
-  { icon: Home,              label: 'Workbench',   desc: 'Your task dashboard',       href: '/',            isActive: true },
-  { icon: MessageSquarePlus, label: 'New Chat',    desc: 'Start an AI conversation',  href: '/chat',        isAI: true },
-  { icon: History,           label: 'History',     desc: 'Browse past AI chats',      href: '/history',     isAI: true },
-  { icon: Users,             label: 'Customers',   desc: 'Manage your accounts',      href: '/customers' },
-  { icon: FileText,          label: 'Quotes',      desc: 'Quotes and proposals',      href: '/quotes' },
-  { icon: ScrollText,        label: 'Contracts',   desc: 'Contract management',       href: '/contracts' },
-  { icon: ReceiptText,       label: 'Invoices',    desc: 'Billing and payments',      href: '/invoices' },
-  { icon: WalletCards,       label: 'Collections', desc: 'Track receivables',         href: '/collections' },
-  { icon: BarChart3,         label: 'Reports',     desc: 'Analytics and insights',    href: '/reports' },
-]
-
 
 export function LeftNav() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const { view, goToWorkbench, goToCustomers } = useNavigation()
+
+  const navItems: NavItem[] = [
+    { icon: Home,              label: 'Workbench',   href: '/',            onClick: goToWorkbench },
+    { icon: MessageSquarePlus, label: 'New Chat',    href: '/chat',        isAI: true },
+    { icon: History,           label: 'History',     href: '/history',     isAI: true },
+    { icon: Users,             label: 'Customers',   href: '/customers',   onClick: goToCustomers },
+    { icon: FileText,          label: 'Quotes',      href: '/quotes' },
+    { icon: ScrollText,        label: 'Contracts',   href: '/contracts' },
+    { icon: ReceiptText,       label: 'Invoices',    href: '/invoices' },
+    { icon: WalletCards,       label: 'Collections', href: '/collections' },
+    { icon: BarChart3,         label: 'Reports',     href: '/reports' },
+  ]
+
+  const getIsActive = (item: NavItem): boolean => {
+    if (item.href === '/' && view.name === 'workbench') return true
+    if (item.href === '/customers' && view.name === 'customers') return true
+    return false
+  }
 
   return (
     <>
@@ -183,37 +189,31 @@ export function LeftNav() {
           <div className="flex flex-col gap-0.5 px-1.5 pt-2 pb-2">
             {navItems.map((item, idx) => {
               const Icon = item.icon
+              const isActive = getIsActive(item)
               return (
                 <button
                   key={item.href}
                   type="button"
+                  onClick={item.onClick}
                   className={cn(
                     'group flex cursor-pointer items-center rounded-lg text-left transition-colors',
-                    item.isActive
+                    isActive
                       ? 'bg-orange-100 text-brand-navy'
                       : 'text-brand-navy hover:bg-brand-navy hover:text-white'
                   )}
                   style={{
-                    height: isExpanded ? 'auto' : 36,
+                    height: 36,
                     width: isExpanded ? 'auto' : 36,
-                    padding: isExpanded ? '10px 12px' : item.isActive ? 4 : 0,
-                    justifyContent: isExpanded ? 'flex-start' : 'center',
-                    gap: isExpanded ? 12 : 0,
-                    transition: isExpanded
-                      ? 'padding 120ms cubic-bezier(0.2,0,0,1), height 120ms cubic-bezier(0.2,0,0,1), width 120ms cubic-bezier(0.2,0,0,1), background-color 150ms ease-out, color 150ms ease-out'
-                      : 'padding 0ms, height 0ms, width 0ms, background-color 150ms ease-out, color 150ms ease-out',
+                    padding: isExpanded ? '8px 12px' : '8px',
+                    justifyContent: 'flex-start',
+                    gap: 12,
+                    transition: 'width 140ms cubic-bezier(0.2,0,0,1), padding 140ms cubic-bezier(0.2,0,0,1), background-color 150ms ease-out, color 150ms ease-out',
                   }}
                   onMouseEnter={() => setHoveredItem(item.href)}
                   onMouseLeave={() => setHoveredItem(null)}
                 >
-                  {/* Icon wrapper — keeps icon centred in collapsed, left-aligned in expanded */}
-                  <div
-                    className="flex shrink-0 items-center justify-center transition-all duration-150"
-                    style={{
-                      width: item.isActive && !isExpanded ? 28 : 18,
-                      height: item.isActive && !isExpanded ? 28 : 18,
-                    }}
-                  >
+                  {/* Icon wrapper — always 18px */}
+                  <div className={cn("flex shrink-0 items-center justify-center", isActive && "text-orange-500")} style={{ width: 18, height: 18 }}>
                     {item.isAI ? (
                       item.label === 'New Chat' ? (
                         <GradientMessageSquarePlus size={18} paused={hoveredItem === item.href} />
@@ -227,38 +227,22 @@ export function LeftNav() {
                     )}
                   </div>
 
-                  {/* Label + description — always in DOM, fades in/out */}
-                  <div
-                    className="flex min-w-0 flex-col overflow-hidden"
+                  {/* Label — slides in from left */}
+                  <span
+                    className={cn(
+                      'whitespace-nowrap text-[12px] uppercase leading-none tracking-[0em]',
+                      isActive ? 'font-semibold' : 'font-medium'
+                    )}
                     style={{
                       opacity: isExpanded ? 1 : 0,
-                      maxWidth: isExpanded ? 240 : 0,
-                      transform: isExpanded ? 'translateX(0)' : 'translateX(-4px)',
+                      transform: isExpanded ? 'translateX(0)' : 'translateX(-8px)',
                       transition: isExpanded
-                        ? `opacity 80ms cubic-bezier(0.2,0,0,1) ${idx * 12 + 40}ms, transform 80ms cubic-bezier(0.2,0,0,1) ${idx * 12 + 40}ms, max-width 120ms cubic-bezier(0.2,0,0,1)`
-                        : 'opacity 0ms, transform 0ms, max-width 0ms',
-                      pointerEvents: isExpanded ? 'auto' : 'none',
+                        ? `opacity 100ms cubic-bezier(0.2,0,0,1) ${idx * 8 + 50}ms, transform 100ms cubic-bezier(0.2,0,0,1) ${idx * 8 + 50}ms`
+                        : 'opacity 60ms, transform 60ms',
                     }}
                   >
-                    <span
-                      className={cn(
-                        'whitespace-nowrap text-[12px] uppercase leading-none tracking-[0em]',
-                        item.isActive ? 'font-semibold' : 'font-medium'
-                      )}
-                    >
-                      {item.label}
-                    </span>
-                    <span
-                      className={cn(
-                        'mt-[5px] whitespace-nowrap text-[11px] leading-none transition-colors',
-                        item.isActive
-                          ? 'text-brand-navy'
-                          : 'text-brand-fog group-hover:text-white/70'
-                      )}
-                    >
-                      {item.desc}
-                    </span>
-                  </div>
+                    {item.label}
+                  </span>
                 </button>
               )
             })}

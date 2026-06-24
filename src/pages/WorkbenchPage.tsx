@@ -14,10 +14,10 @@ const WORKBENCH_TABS: TabItem[] = [
 ];
 
 // Status styles for contract ingestion
-const STATUS_STYLES: Record<string, { text: string }> = {
-  "Ready for review": { text: "text-amber-700" },
-  "In review": { text: "text-orange-700" },
-  "Pending approval": { text: "text-violet-700" },
+const STATUS_STYLES: Record<string, { text: string; bg: string }> = {
+  "Ready for review": { text: "text-amber-700", bg: "bg-amber-50" },
+  "In review": { text: "text-orange-700", bg: "bg-orange-50" },
+  "Pending approval": { text: "text-violet-700", bg: "bg-violet-50" },
 };
 
 export function WorkbenchPage() {
@@ -404,7 +404,7 @@ export function WorkbenchPage() {
                     <th className="py-2 pr-4 text-right text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 100, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       TCV
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Status
                     </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
@@ -437,6 +437,7 @@ export function WorkbenchPage() {
                       filteredTasks.map((task) => {
                       const statusStyle = STATUS_STYLES[task.status || ""] || {
                         text: "text-brand-navy",
+                        bg: "bg-neutral-50",
                       };
                       const isNew = task.isNew;
 
@@ -502,17 +503,18 @@ export function WorkbenchPage() {
                           </td>
 
                           {/* Status */}
-                          <td className="py-1.5 pr-4 relative z-10">
+                          <td className="py-0 pl-1 pr-4 relative z-10">
                             {task.status && (
-                              <span
+                              <div
                                 className={cn(
-                                  "text-[13px] font-medium whitespace-nowrap",
+                                  "px-2 py-1 text-[13px] font-medium whitespace-nowrap",
                                   statusStyle.text,
-                                  "group-hover:text-white"
+                                  statusStyle.bg,
+                                  "group-hover:text-white group-hover:bg-white/20"
                                 )}
                               >
                                 {task.status}
-                              </span>
+                              </div>
                             )}
                             {!task.status && "—"}
                           </td>

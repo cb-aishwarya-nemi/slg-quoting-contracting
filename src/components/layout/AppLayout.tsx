@@ -1,14 +1,47 @@
-import { type ReactNode, useEffect, useRef } from 'react'
+import { type ReactNode, useEffect, useRef, useState } from 'react'
 import { LeftNav } from './LeftNav'
+import { MinimalLeftNav } from './MinimalLeftNav'
 import { TopNav } from './TopNav'
+import { TopNavV0 } from './TopNavV0'
 import { FileDropProvider, useFileDrop } from '../../context/FileDropContext'
+import { useVersion } from '../../context/VersionContext'
 import { FileDropOverlay } from '../ui/FileDropOverlay'
 
 interface AppLayoutProps {
   children: ReactNode
 }
 
-function AppLayoutInner({ children }: AppLayoutProps) {
+interface V0LayoutProps {
+  children: ReactNode
+}
+
+function V0Layout({ children }: V0LayoutProps) {
+  const [activeContractId, setActiveContractId] = useState<number | null>(null)
+  
+  const handleNewContract = () => {
+    setActiveContractId(null)
+  }
+  
+  const handleSelectContract = (contractId: number) => {
+    setActiveContractId(contractId)
+  }
+  
+  return (
+    <div className="v0-layout h-full bg-theme-surface">
+      <MinimalLeftNav
+        activeContractId={activeContractId}
+        onNewContract={handleNewContract}
+        onSelectContract={handleSelectContract}
+      />
+      <TopNavV0 />
+      <main className="ml-12 mt-10 h-[calc(100vh-40px)] bg-theme-surface">
+        {children}
+      </main>
+    </div>
+  )
+}
+
+function V1Layout({ children }: { children: ReactNode }) {
   const { setIsDragging } = useFileDrop()
   const dragCounterRef = useRef(0)
 
@@ -59,19 +92,30 @@ function AppLayoutInner({ children }: AppLayoutProps) {
       window.removeEventListener('drop', handleDrop)
     }
   }, [setIsDragging])
-
+  
   return (
-    <div className="h-screen overflow-hidden bg-white">
+    <>
       <LeftNav />
       <TopNav />
-      
-      {/* Main content area - offset by nav dimensions */}
       <main className="ml-12 mt-10 h-[calc(100vh-40px)] bg-white">
         {children}
       </main>
-
-      {/* File drop overlay */}
+      {/* File drop overlay - only for V1.0 */}
       <FileDropOverlay />
+    </>
+  )
+}
+
+function AppLayoutInner({ children }: AppLayoutProps) {
+  const { isV0 } = useVersion()
+
+  return (
+    <div className="h-screen overflow-hidden bg-white">
+      {isV0 ? (
+        <V0Layout>{children}</V0Layout>
+      ) : (
+        <V1Layout>{children}</V1Layout>
+      )}
     </div>
   )
 }
