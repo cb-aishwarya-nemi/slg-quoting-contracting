@@ -245,8 +245,7 @@ function ContractProcessingView({ contractId }: { contractId: number }) {
   const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
   const [linkedSection, setLinkedSection] = useState<string | undefined>(undefined)
   const [showAddNote, setShowAddNote] = useState(false)
-  const [contractStatus, setContractStatus] = useState<string>('In progress')
-
+  const [, setContractStatus] = useState<string>('In progress')
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const flashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)

@@ -4,7 +4,11 @@ import { cn } from '@/lib/utils'
 import { type WorkbenchItem } from '@/context/FileDropContext'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
-import { type CustomerMatch, getCustomerMatchesByVariant } from '@/data/customerLinkMock'
+import {
+  type CustomerMatch,
+  type CustomerLinkVariant,
+  getCustomerMatchesByVariant,
+} from '@/data/customerLinkMock'
 import { ContractPreview } from './ContractPreview'
 import { ExtractedMappedRow } from './ExtractedMappedRow'
 import { CustomerLinkContent } from './CustomerLinkContent'
@@ -24,13 +28,13 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
 
   // Get current variant for title generation
   const page = getPage('customer-link-modal')
-  const variant = 
-    activePage === 'customer-link-modal' && activeVariant 
-      ? activeVariant 
-      : page?.defaultVariant || 'closest-matches'
+  const variant: CustomerLinkVariant =
+  activePage === 'customer-link-modal' && activeVariant
+    ? (activeVariant as CustomerLinkVariant)
+    : ((page?.defaultVariant as CustomerLinkVariant) ?? 'closest-matches')
   
   // Get matches for the current variant
-  const matches = getCustomerMatchesByVariant(variant as 'perfect-match' | 'closest-matches' | 'no-match')
+  const matches = getCustomerMatchesByVariant(variant)
 
   // Register modal as active page for use case switching
   useEffect(() => {
