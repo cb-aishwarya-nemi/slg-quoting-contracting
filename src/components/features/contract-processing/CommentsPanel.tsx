@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowUpLeft, ArrowRight, MoreHorizontal, ChevronDown } from 'lucide-react'
+import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { GradientSparkle } from './GradientSparkle'
 import { type Comment } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
 
@@ -254,7 +253,6 @@ function CommentCard({
   commentStatus?: CommentStatus
 }) {
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
-  const [isHovered, setIsHovered] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -307,8 +305,8 @@ function CommentCard({
       role={isLinked || isResolved ? 'button' : undefined}
       tabIndex={isLinked || isResolved ? 0 : undefined}
       onClick={handleClick}
-      onMouseEnter={isLinked && !isActive && !isResolved ? () => setIsHovered(true) : undefined}
-      onMouseLeave={isLinked && !isActive && !isResolved ? () => setIsHovered(false) : undefined}
+      onMouseEnter={undefined}
+      onMouseLeave={undefined}
       onKeyDown={
         isLinked || isResolved
           ? (e) => {
@@ -355,60 +353,10 @@ function CommentCard({
         />
       )}
 
-      {/* Author row */}
-      <div className="flex items-center gap-2">
-        {comment.isAI ? (
-          <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neutral-200">
-            <GradientSparkle size={14} />
-          </span>
-        ) : (
-          <span
-            className={cn(
-              'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold transition-all duration-200',
-              isLinked && isHovered && !isActive && !isResolved
-                ? 'bg-blue-100 text-blue-700'
-                : 'bg-neutral-200 text-neutral-700'
-            )}
-          >
-            {isLinked && isHovered && !isActive && !isResolved ? (
-              <ArrowUpLeft size={14} />
-            ) : (
-              comment.initials
-            )}
-          </span>
-        )}
-
-        <span
-          className={cn(
-            'text-[13px] font-semibold',
-            comment.isAI ? 'ai-gradient-text uppercase tracking-[0.02em]' : 'text-brand-navy'
-          )}
-        >
-          {comment.isAI ? 'Apex AI' : comment.author}
-        </span>
-        <span className="text-[11px] text-brand-fog opacity-0 transition-opacity group-hover:opacity-100">
-          {comment.timestamp}
-        </span>
-
-        {!comment.isAI && (onDelete || onResolve) && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              setShowMoreMenu(!showMoreMenu)
-            }}
-            className="ml-auto flex h-5 w-5 cursor-pointer items-center justify-center rounded text-brand-fog opacity-0 transition-opacity hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
-            title="More options"
-          >
-            <MoreHorizontal size={14} />
-          </button>
-        )}
-      </div>
-
       {/* Body */}
       {isResolved && !isExpanded ? (
         <p
-          className="mt-2 text-[12px] leading-[1.5] text-brand-navy line-through"
+          className="text-[12px] leading-[1.5] text-brand-navy line-through"
           style={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -419,7 +367,7 @@ function CommentCard({
           {comment.body}
         </p>
       ) : (
-        <p className="mt-2 text-[12px] leading-[1.5] text-brand-navy">
+        <p className="text-[12px] leading-[1.5] text-brand-navy">
           {bodyParts.map((part, idx) =>
             part.type === 'mention' ? (
               <span key={idx} className="font-medium text-blue-700">
@@ -431,6 +379,35 @@ function CommentCard({
           )}
         </p>
       )}
+
+      {/* Footer row: Name · time · line · ellipses */}
+      <div className="mt-2 flex items-center gap-2">
+        <span
+          className={cn(
+            'shrink-0 text-[11px] font-bold',
+            comment.isAI ? 'ai-gradient-text uppercase tracking-[0.02em]' : 'text-brand-navy'
+          )}
+        >
+          {comment.isAI ? 'Apex AI' : comment.author}
+        </span>
+        <span className="shrink-0 text-[10px] text-brand-fog">
+          {comment.timestamp}
+        </span>
+        <div className="h-px flex-1 bg-neutral-200" />
+        {!comment.isAI && (onDelete || onResolve) && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowMoreMenu(!showMoreMenu)
+            }}
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog opacity-0 transition-opacity hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
+            title="More options"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        )}
+      </div>
     </div>
   )
 }

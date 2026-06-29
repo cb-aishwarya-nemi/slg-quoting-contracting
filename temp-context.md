@@ -27,4 +27,6 @@ This file is used to give Context to build complex features. Only use this when 
             On click, I can simply start typing in that space, Keep it centre aligned and if I click outside, the text is auto-saved. 
             I can click Process Contract to take me to the next step. 
         As I remove the attached files, you will make me revert to the "No Contract Added" State mentioned above. 
-    
+
+@Jun 29, 2026, - Drag a contract UI -- For V0.1 only
+    - 

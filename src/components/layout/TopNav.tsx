@@ -2,10 +2,13 @@ import {
   ChevronsUpDown,
   Search,
   X,
+  Sun,
+  Moon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useFileDrop, type ProcessingFile } from '../../context/FileDropContext'
 import { useNavigation } from '../../context/NavigationContext'
+import { useTheme } from '../../context/ThemeContext'
 import { NotificationPanel } from './NotificationPanel'
 
 interface TopNavProps {
@@ -108,6 +111,7 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavProps) {
   const { processingFiles } = useFileDrop()
   const { view } = useNavigation()
+  const { isDark, toggleTheme } = useTheme()
   const completedFiles = processingFiles.filter((f) => f.status === 'complete')
   const hasProcessing = completedFiles.length > 0
   
@@ -146,6 +150,15 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
 
         {/* Right section - Actions */}
         <div className="flex items-center gap-0.5">
+          {/* Theme toggle */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+            title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+          >
+            {isDark ? <Sun size={15} /> : <Moon size={15} />}
+          </button>
           {/* User Avatar */}
           <button
             type="button"

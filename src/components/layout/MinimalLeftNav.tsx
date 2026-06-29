@@ -58,7 +58,7 @@ function ContractListCard({ contracts, onSelect, onClose }: ContractListCardProp
         <span className="text-[11px] font-semibold uppercase tracking-wider text-theme-secondary">
           Contracts
         </span>
-        <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-theme-primary dark:bg-neutral-700">
+        <span className="ml-2 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-theme-primary">
           {contracts.length}
         </span>
       </div>
@@ -74,14 +74,14 @@ function ContractListCard({ contracts, onSelect, onClose }: ContractListCardProp
               className={cn(
                 'flex w-full flex-col gap-0.5 rounded-lg px-3 py-2.5 text-left transition-colors',
                 contract.isActive
-                  ? 'bg-orange-50 dark:bg-orange-900/20'
+                  ? 'bg-orange-50'
                   : 'hover:bg-theme-hover'
               )}
             >
               <span
                 className={cn(
                   'text-[13px] font-medium',
-                  contract.isActive ? 'text-orange-700 dark:text-orange-400' : 'text-theme-primary'
+                  contract.isActive ? 'text-orange-700' : 'text-theme-primary'
                 )}
               >
                 {contract.customer}
@@ -153,14 +153,14 @@ export function MinimalLeftNav({
           className={cn(
             'group relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
             isNewContractActive
-              ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+              ? 'bg-orange-100 text-orange-600'
               : 'text-theme-primary hover:bg-theme-hover'
           )}
           title="New Contract"
         >
           <FilePlus2 size={18} />
           {/* Tooltip */}
-          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-brand-navy px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-white dark:text-brand-navy">
+          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-brand-navy px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
             New Contract
           </span>
         </button>
@@ -174,7 +174,7 @@ export function MinimalLeftNav({
               className={cn(
                 'group relative flex h-9 w-9 items-center justify-center rounded-lg transition-colors',
                 isContractListActive
-                  ? 'bg-orange-100 text-orange-600 dark:bg-orange-900/30 dark:text-orange-400'
+                  ? 'bg-orange-100 text-orange-600'
                   : isContractListOpen
                     ? 'bg-theme-hover text-theme-primary'
                     : 'text-theme-primary hover:bg-theme-hover'
@@ -183,7 +183,7 @@ export function MinimalLeftNav({
             >
               <List size={18} />
               {/* Badge showing count */}
-              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-navy text-[9px] font-semibold text-white dark:bg-white dark:text-brand-navy">
+              <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-navy text-[9px] font-semibold text-white">
                 {contracts.length}
               </span>
             </button>
@@ -214,7 +214,7 @@ export function MinimalLeftNav({
           title="Switch site"
         >
           <ChevronsUpDown size={16} />
-          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-brand-navy px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100 dark:bg-white dark:text-brand-navy">
+          <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-brand-navy px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100">
             Switch site
           </span>
         </button>

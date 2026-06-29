@@ -42,7 +42,6 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   const [isDragOver, setIsDragOver] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notes, setNotes] = useState('')
-  const [isNotesEditing, setIsNotesEditing] = useState(false)
   
   const activeFile = processingFiles.find(
     (f) => f.status === 'uploading' || f.status === 'processing',
@@ -180,80 +179,33 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
         className="sr-only"
       />
 
-      <div className="flex flex-col items-center gap-8">
+      <div className="flex flex-col items-center">
         <div className="flex flex-col items-center gap-2">
           <h1 className="font-heading text-[28px] font-normal tracking-[-1px] text-brand-navy transition-all duration-300">
             {getHeadline()}
           </h1>
-          <p className="text-[13px] text-brand-fog">
-            You can choose multiple files while uploading
-          </p>
+          {hasFiles ? (
+            <p className="text-[13px] text-brand-fog">
+              You can{' '}
+              <button
+                type="button"
+                onClick={handleAttachClick}
+                disabled={isProcessing}
+                className="text-blue-700 hover:underline disabled:opacity-50"
+              >
+                upload more
+              </button>
+              {' '}contracts to process
+            </p>
+          ) : (
+            <p className="text-[13px] text-brand-fog">
+              You can choose multiple files while uploading
+            </p>
+          )}
         </div>
         
-        {hasFiles && (
-          <div className={cn(
-            "flex flex-wrap justify-center gap-3 max-w-[600px] transition-all duration-300",
-            isDragOver && "blur-sm opacity-60"
-          )}>
-            {pendingFiles.map((file, index) => {
-              const fileKey = `${file.name}-${index}`
-              const uploadProgress = uploadingFiles.get(fileKey)
-              const isFileUploading = uploadProgress !== undefined
-              
-              return (
-                <div
-                  key={fileKey}
-                  className={cn(
-                    'group relative flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2 transition-all duration-200',
-                    isFileUploading 
-                      ? 'border-brand-mist' 
-                      : 'border-neutral-200 hover:border-brand-navy hover:shadow-sm'
-                  )}
-                >
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-50">
-                    <FileText size={16} className="text-red-500" />
-                  </div>
-                  
-                  <div className="flex flex-col min-w-0">
-                    <span className="text-[13px] font-medium text-brand-navy truncate max-w-[160px]">
-                      {truncateFileName(file.name)}
-                    </span>
-                    {isFileUploading ? (
-                      <div className="flex items-center gap-2 mt-0.5">
-                        <div className="h-1 w-20 overflow-hidden rounded-full bg-neutral-200">
-                          <div
-                            className="h-full rounded-full ai-gradient transition-all duration-200"
-                            style={{ width: `${uploadProgress}%` }}
-                          />
-                        </div>
-                        <span className="text-[10px] text-brand-mist">
-                          {Math.round(uploadProgress)}%
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-[11px] text-brand-fog">
-                        {(file.size / 1024).toFixed(0)} KB
-                      </span>
-                    )}
-                  </div>
-                  
-                  {!isFileUploading && !isProcessing && (
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFile(index)}
-                      className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-mist opacity-0 transition-all hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
-                    >
-                      <X size={12} />
-                    </button>
-                  )}
-                </div>
-              )
-            })}
-          </div>
-        )}
-        
         {isAIProcessing ? (
-          <div className="flex flex-col items-center gap-3">
+          <div className="mt-4 flex flex-col items-center gap-3">
             <div className="relative flex items-center gap-3 overflow-hidden rounded-full bg-brand-navy px-6 py-3">
               {/* AI gradient progress bar */}
               <div className="absolute inset-0 ai-gradient animate-ai-progress" />
@@ -264,7 +216,7 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
             </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-3">
+          <div className="mt-4 flex flex-col items-center gap-3">
             {hasFiles ? (
               <>
                 <button
@@ -294,21 +246,6 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
                   )}
                 </button>
                 
-                {!isDragOver && (
-                  <button
-                    type="button"
-                    onClick={handleAttachClick}
-                    disabled={isProcessing}
-                    className={cn(
-                      'flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium text-brand-navy transition-all duration-200',
-                      'hover:bg-neutral-100',
-                      isProcessing && 'cursor-not-allowed opacity-50'
-                    )}
-                  >
-                    <Upload size={14} />
-                    <span>Upload more</span>
-                  </button>
-                )}
               </>
             ) : (
               <button
@@ -340,52 +277,104 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
             )}
           </div>
         )}
-        
+
         {hasFiles && !isProcessing && (
-          <div className="flex w-full max-w-[480px] flex-col items-center gap-4 pt-2">
-            <div className="h-px w-full bg-neutral-200" />
-            
-            {isNotesEditing ? (
+          <div className="mt-8 flex w-[520px] flex-col items-center gap-4">
+            <div className="w-full rounded-lg border border-brand-navy px-4 py-3">
               <textarea
                 ref={notesInputRef}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                onBlur={() => setIsNotesEditing(false)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && !e.shiftKey) {
+                  if (e.key === 'Enter' && !e.shiftKey) { 
                     e.preventDefault()
-                    setIsNotesEditing(false)
                   }
                 }}
-                placeholder="+ Add instructions for the AI about this contract"
-                className="w-full resize-none bg-transparent text-center text-[14px] leading-[1.5] text-brand-navy outline-none placeholder:text-brand-mist"
+                placeholder="Add additional instructions to process this contract..."
+                className="w-full resize-none bg-transparent text-left text-[14px] leading-[1.5] text-brand-navy outline-none placeholder:text-brand-mist"
                 style={{ minHeight: '63px', maxHeight: '63px', overflowY: 'auto' }}
                 rows={3}
-                autoFocus
               />
-            ) : (
+            </div>
+          </div>
+        )}
+        
+        {hasFiles && (
+          <div className="mt-4 flex w-[520px] flex-col items-center gap-3">
+            <div className="flex w-full items-center justify-between">
+              <span className="text-[13px] font-medium text-brand-navy">Files attached</span>
               <button
                 type="button"
-                onClick={() => {
-                  setIsNotesEditing(true)
-                  setTimeout(() => notesInputRef.current?.focus(), 0)
-                }}
-                className="flex w-full flex-col items-center gap-1 text-[14px] transition-colors"
-              >
-                {notes ? (
-                  <>
-                    <span className="font-sans text-[11px] font-medium uppercase tracking-[0.04em] text-brand-fog">
-                      Note:
-                    </span>
-                    <span className="text-brand-navy">{notes}</span>
-                  </>
-                ) : (
-                  <span className="text-blue-700 hover:text-blue-500">
-                    + Add instructions for the AI about this contract
-                  </span>
+                onClick={handleAttachClick}
+                disabled={isProcessing}
+                className={cn(
+                  'text-[13px] text-blue-700 transition-all hover:underline',
+                  isProcessing && 'cursor-not-allowed opacity-50'
                 )}
+              >
+                Upload more
               </button>
-            )}
+            </div>
+            <div className="h-px w-full bg-brand-navy" />
+          <div className={cn(
+            "flex flex-wrap justify-center gap-3 w-full transition-all duration-300",
+            isDragOver && "blur-sm opacity-60"
+          )}>
+            {pendingFiles.map((file, index) => {
+              const fileKey = `${file.name}-${index}`
+              const uploadProgress = uploadingFiles.get(fileKey)
+              const isFileUploading = uploadProgress !== undefined
+              
+              return (
+                <div
+                  key={fileKey}
+                  className={cn(
+                    'group relative flex items-center gap-2.5 rounded-lg bg-brand-navy px-3 py-2 transition-all duration-200',
+                    isFileUploading 
+                      ? 'opacity-80' 
+                      : 'hover:opacity-90 hover:shadow-sm'
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-50">
+                    <FileText size={16} className="text-red-500" />
+                  </div>
+                  
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-medium text-white truncate max-w-[160px]">
+                      {truncateFileName(file.name)}
+                    </span>
+                    {isFileUploading ? (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="h-1 w-20 overflow-hidden rounded-full bg-brand-soft">
+                          <div
+                            className="h-full rounded-full ai-gradient transition-all duration-200"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-brand-mist">
+                          {Math.round(uploadProgress)}%
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-brand-mist">
+                        {(file.size / 1024).toFixed(0)} KB
+                      </span>
+                    )}
+                  </div>
+                  
+                  {!isFileUploading && !isProcessing && (
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveFile(index)}
+                      className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-mist opacity-0 transition-all hover:bg-brand-soft hover:text-white group-hover:opacity-100"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
           </div>
         )}
       </div>
@@ -565,7 +554,8 @@ function ContractProcessingView({
   }, [])
 
   const LEFT_NAV_WIDTH = 180
-  const CONTENT_COL_WIDTH = 680
+  const CONTENT_COL_WIDTH = 820
+  const BODY_COL_WIDTH = 620
   const COMMENTS_COL_WIDTH = 250
 
   // 2-col section row: content on the left, inline comment stack on the right
@@ -613,7 +603,7 @@ function ContractProcessingView({
             <h1 className="font-heading text-[18px] font-semibold text-theme-primary">
               {customerName}
             </h1>
-            <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700 dark:bg-green-900/30 dark:text-green-400">
+            <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
               {data.dealTag}
             </span>
 
@@ -641,13 +631,13 @@ function ContractProcessingView({
                     'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
                     currentIndex === 0
                       ? 'cursor-not-allowed text-brand-mist'
-                      : 'text-brand-navy hover:bg-neutral-100 dark:text-white dark:hover:bg-brand-soft'
+                      : 'text-brand-navy hover:bg-neutral-100'
                   )}
                   title="Previous contract"
                 >
                   <ArrowLeft size={16} />
                 </button>
-                <span className="min-w-[90px] text-center text-[13px] text-brand-navy dark:text-white">
+                <span className="min-w-[90px] text-center text-[13px] text-brand-navy">
                   {currentIndex + 1}/{totalContracts} contracts
                 </span>
                 <button
@@ -658,7 +648,7 @@ function ContractProcessingView({
                     'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
                     currentIndex === totalContracts - 1
                       ? 'cursor-not-allowed text-brand-mist'
-                      : 'text-brand-navy hover:bg-neutral-100 dark:text-white dark:hover:bg-brand-soft'
+                      : 'text-brand-navy hover:bg-neutral-100'
                   )}
                   title="Next contract"
                 >
@@ -715,7 +705,7 @@ function ContractProcessingView({
             <section
               ref={setSectionRef('summary')}
               className="group/section"
-              style={{ maxWidth: CONTENT_COL_WIDTH }}
+              style={{ maxWidth: BODY_COL_WIDTH }}
             >
               <div className="relative">
                 <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-theme-primary">
@@ -741,8 +731,8 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['account']}
                 />
-                <div className="mt-4">
-                  <LabelValueList items={data.account} />
+                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
+                  <LabelValueList items={data.account} showAddField />
                 </div>
               </SectionRow>
             </section>
@@ -760,7 +750,7 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['addresses']}
                 />
-                <div className="mt-4">
+                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
                   <LabelValueList items={data.addresses} />
                 </div>
               </SectionRow>
@@ -779,7 +769,7 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['terms']}
                 />
-                <div className="mt-4">
+                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
                   <LabelValueList items={data.termsAndBilling} />
                 </div>
               </SectionRow>
@@ -798,7 +788,7 @@ function ContractProcessingView({
                   statusLabel="Created 2 items"
                   commentCount={commentCountsBySection['products']}
                 />
-                <div className="mt-4">
+                <div className="mt-4" style={{ width: 780 }}>
                   <ProductsPricingTable items={data.products} />
                 </div>
               </SectionRow>
@@ -809,10 +799,9 @@ function ContractProcessingView({
               <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
                 <SectionHeader
                   title="Billing schedule"
-                  hideLine
                   commentCount={commentCountsBySection['schedule']}
                 />
-                <div className="mt-6">
+                <div className="mt-6" style={{ maxWidth: BODY_COL_WIDTH }}>
                   <PaymentSchedule
                     onPreviewClick={(invoiceIndex) => {
                       setActiveInvoiceIndex(invoiceIndex)
@@ -827,12 +816,14 @@ function ContractProcessingView({
             {/* Invoice preview */}
             <section ref={setSectionRef('invoice')} className="group/section">
               <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
-                <InvoicePreview
-                  activeIndex={activeInvoiceIndex}
-                  totalInvoices={4}
-                  onIndexChange={setActiveInvoiceIndex}
-                  isFlashing={false}
-                />
+                <div style={{ maxWidth: BODY_COL_WIDTH }}>
+                  <InvoicePreview
+                    activeIndex={activeInvoiceIndex}
+                    totalInvoices={4}
+                    onIndexChange={setActiveInvoiceIndex}
+                    isFlashing={false}
+                  />
+                </div>
               </SectionRow>
             </section>
           </div>

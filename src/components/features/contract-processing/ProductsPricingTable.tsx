@@ -175,14 +175,14 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
                 onSelect(item)
               }}
               className={cn(
-                'flex w-full cursor-pointer flex-col gap-0.5 border-b border-neutral-100 px-4 py-3 text-left transition-colors last:border-b-0',
-                item.name === currentName ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                'group/opt flex w-full cursor-pointer flex-col gap-0.5 border-b border-neutral-100 px-4 py-3 text-left transition-colors last:border-b-0',
+                item.name === currentName ? 'bg-neutral-100' : 'hover:bg-brand-navy'
               )}
             >
-              <span className="text-[14px] font-medium text-brand-navy">
+              <span className="text-[14px] font-medium text-brand-navy group-hover/opt:text-white">
                 {item.name}
               </span>
-              <span className="text-[12px] text-brand-fog">
+              <span className="text-[12px] text-brand-fog group-hover/opt:text-white/70">
                 {item.family} · {item.unitPrice}/unit
               </span>
             </button>
@@ -261,11 +261,11 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
           type="button"
           onClick={() => onSelect(option)}
           className={cn(
-            'w-full cursor-pointer px-3 py-1.5 text-left text-[14px] transition-colors',
-            option === currentValue
-              ? 'bg-neutral-100 font-medium text-brand-navy'
-              : 'text-brand-navy hover:bg-neutral-50'
-          )}
+                    'w-full cursor-pointer px-3 py-1.5 text-left text-[14px] transition-colors',
+                    option === currentValue
+                      ? 'bg-neutral-100 font-medium text-brand-navy'
+                      : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+                  )}
         >
           {option}
         </button>
@@ -293,8 +293,8 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
 
   return (
     <div className="relative flex min-w-0 flex-1 items-center gap-2 group/item">
-      {/* Only show icon for attention items (exceptions) */}
-      {isAttention && (
+      {/* Icon slot — always reserves 16px so item names stay vertically aligned */}
+      {isAttention ? (
         <div className="relative shrink-0">
           <PackagePlus size={16} className={cn(
             "shrink-0 transition-colors",
@@ -306,6 +306,8 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
             </span>
           )}
         </div>
+      ) : (
+        <div className="w-4 shrink-0" />
       )}
       <button
         ref={buttonRef}
@@ -563,9 +565,13 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
           Item
         </div>
         <GhostSeparator />
-        <div style={{ width: PERIOD_W }} className="shrink-0" />
+        <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+          Fqy
+        </div>
         <GhostSeparator />
-        <div style={{ width: QTY_W }} className="shrink-0" />
+        <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+          Qty
+        </div>
         <GhostSeparator />
         <div
           style={{ width: UNIT_W }}
@@ -664,7 +670,7 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
 
       {/* Add line item button */}
       {!isAddingNew && (
-        <div className="flex justify-center py-3">
+        <div className="flex justify-start py-3">
           <button
             type="button"
             onClick={() => setIsAddingNew(true)}

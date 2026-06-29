@@ -1,5 +1,6 @@
-import { ChevronsUpDown } from 'lucide-react'
+import { ChevronsUpDown, Sun, Moon } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { useTheme } from '../../context/ThemeContext'
 
 interface TopNavV0Props {
   environmentName?: string
@@ -7,6 +8,7 @@ interface TopNavV0Props {
 }
 
 export function TopNavV0({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavV0Props) {
+  const { isDark, toggleTheme } = useTheme()
 
   return (
     <header 
@@ -37,6 +39,15 @@ export function TopNavV0({ environmentName = 'Echocorp.test.chargebee.com', isLi
 
       {/* Right section - Actions */}
       <div className="flex items-center gap-0.5">
+        {/* Theme toggle */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-theme-primary transition-colors hover:bg-theme-hover"
+          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {isDark ? <Sun size={15} /> : <Moon size={15} />}
+        </button>
         {/* Expanded profile with name */}
         <button
           type="button"
