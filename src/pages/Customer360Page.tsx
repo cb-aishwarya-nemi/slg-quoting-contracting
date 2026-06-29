@@ -1,10 +1,10 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { ArrowLeft, ChevronRight, X, ArrowDown, Send } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { ArrowLeft, ChevronRight, X, ArrowDown, Send, MessageCircleMore } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
-import { contractProcessing, sectionSources } from '@/data/contractProcessingMock'
+import { contractProcessing, sectionSources, type Comment } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
   LabelValueList,
@@ -12,11 +12,20 @@ import {
   InvoicePreview,
   PaymentSchedule,
   InPageNav,
-  CommentsPanel,
+  SectionCommentStack,
   SectionSourceThumbnails,
   SourcePreviewDrawer,
   type NavSection,
 } from '@/components/features/contract-processing'
+import { cn } from '@/lib/utils'
+
+export interface SectionOffset {
+  top: number
+  height: number
+}
+
+type CommentStatus = 'open' | 'resolved'
+type ContractStatus = 'Blocked' | 'In progress'
 
 const C360_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
@@ -39,11 +48,15 @@ const NAV_SECTIONS: NavSection[] = [
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
 
+const CONTENT_COL_WIDTH = 680
+const COMMENTS_COL_WIDTH = 250
+const LEFT_NAV_WIDTH = 180
+
 function StatusUnit({ status }: { status: string }) {
   return (
     <button
       type="button"
-      className="flex items-center gap-1.5 rounded-lg border border-brand-navy bg-white px-3 py-2 transition-colors hover:bg-neutral-50"
+      className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-brand-navy bg-white px-3 py-2 transition-colors hover:bg-neutral-50"
     >
       <span className="text-[13px] text-brand-navy">Status:</span>
       <span className="text-[13px] font-bold text-blue-700">{status}</span>
@@ -57,7 +70,7 @@ function SendForApprovalButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
+      className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
     >
       <Send size={16} />
       Send for approval
@@ -72,23 +85,51 @@ export function Customer360Page() {
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('contracts')
   const [activeSection, setActiveSection] = useState('summary')
-  const [flashingSection, setFlashingSection] = useState<string | null>(null)
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
   const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
-  const [linkedSection, setLinkedSection] = useState<string | undefined>(undefined)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
+
+  // Comment state lifted to page so all stacks share the same source of truth
+  const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
+    () => data.comments.map((c) => ({ ...c, status: 'open' as CommentStatus }))
+  )
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const flashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // While a programmatic (click-driven) scroll is in flight, ignore the scroll
-  // spy so intermediate sections don't flip the active comment back and forth
-  // (which makes the comments rail shake).
   const programmaticScroll = useRef(false)
   const spyResumeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  
-  // Register this page with use case context
+
+  // Group comments by section (newest first within each group)
+  const commentsBySection = useMemo(() => {
+    const grouped: Record<string, Array<Comment & { status?: CommentStatus }>> = {}
+    for (const comment of localComments) {
+      if (comment.linkedSectionId) {
+        if (!grouped[comment.linkedSectionId]) grouped[comment.linkedSectionId] = []
+        grouped[comment.linkedSectionId].push(comment)
+      }
+    }
+    for (const sectionId of Object.keys(grouped)) {
+      grouped[sectionId].sort((a, b) => {
+        if (a.id.startsWith('c-') && b.id.startsWith('c-')) {
+          const aNum = parseInt(a.id.slice(2))
+          const bNum = parseInt(b.id.slice(2))
+          if (!isNaN(aNum) && !isNaN(bNum)) return bNum - aNum
+        }
+        return 0
+      })
+    }
+    return grouped
+  }, [localComments])
+
+  const commentCountsBySection = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      counts[sectionId] = comments.length
+    }
+    return counts
+  }, [commentsBySection])
+
   useEffect(() => {
     setActivePage('customer360')
   }, [setActivePage])
@@ -108,8 +149,6 @@ export function Customer360Page() {
         el.getBoundingClientRect().top -
         container.getBoundingClientRect().top +
         container.scrollTop
-      // Lock the active section to the target and ignore the spy until the
-      // smooth scroll settles, so the comments rail doesn't jitter en route.
       programmaticScroll.current = true
       if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
       spyResumeTimeout.current = setTimeout(() => {
@@ -122,52 +161,56 @@ export function Customer360Page() {
 
   const handleNavigate = scrollToSection
 
-  // Clicking a comment scrolls its linked section into view and plays the
-  // gradient-sweep + icon-settle attention sequence on that section's header.
-  const handleCommentJump = useCallback(
-    (sectionId: string) => {
-      scrollToSection(sectionId)
-      if (flashTimeout.current) clearTimeout(flashTimeout.current)
-      // Reset first so re-clicking the same comment restarts the animation.
-      setFlashingSection(null)
-      requestAnimationFrame(() => setFlashingSection(sectionId))
-      flashTimeout.current = setTimeout(() => setFlashingSection(null), 2300)
-    },
-    [scrollToSection]
-  )
-
-  // Handle Send for Approval button click
   const handleSendForApproval = useCallback(() => {
-    // Show notification
     addNotification({
       title: 'Contract sent for approval',
       message: `${data.customerName} contract has been sent to Adrian Brody (Manager) for approval. Average approval time is 12 hours.`,
       persistent: true,
     })
-    
-    // Navigate to contracts page
     goToAllContracts('pioneer-systems')
   }, [addNotification, data.customerName, goToAllContracts])
 
-  // Handle add note from section header
-  const handleAddNoteForSection = useCallback((sectionLabel: string) => {
-    setLinkedSection(sectionLabel)
-    // Trigger the add note textarea to open
-    setShowAddNote(true)
+  // Comment CRUD – shared across all section stacks
+  const handleAddComment = useCallback(
+    (sectionId: string, sectionLabel: string, text: string, status: ContractStatus) => {
+      const newComment: Comment & { status: CommentStatus } = {
+        id: `c-${Date.now()}`,
+        author: 'Adrian Brody',
+        initials: 'AB',
+        timestamp: 'Just now',
+        body: text,
+        status: 'open',
+        linkedSection: sectionLabel,
+        linkedSectionId: sectionId,
+      }
+      setLocalComments((prev) => [newComment, ...prev])
+      setContractStatus(status)
+    },
+    []
+  )
+
+  const handleDeleteComment = useCallback((commentId: string) => {
+    setLocalComments((prev) => prev.filter((c) => c.id !== commentId))
   }, [])
 
-  const handleClearLinkedSection = useCallback(() => {
-    setLinkedSection(undefined)
+  const handleResolveComment = useCallback((commentId: string) => {
+    setLocalComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId
+          ? { ...c, status: c.status === 'resolved' ? 'open' : ('resolved' as CommentStatus) }
+          : c
+      )
+    )
   }, [])
 
-  const [showAddNote, setShowAddNote] = useState(false)
+  useEffect(
+    () => () => {
+      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
+    },
+    []
+  )
 
-  useEffect(() => () => {
-    if (flashTimeout.current) clearTimeout(flashTimeout.current)
-    if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-  }, [])
-
-  // Scroll spy — highlight the in-page nav item nearest the top of the scroll area
+  // Scroll spy
   useEffect(() => {
     const container = centerRef.current
     if (!container) return
@@ -199,26 +242,60 @@ export function Customer360Page() {
     }
   }, [])
 
+  // Helper: section row layout (content col + optional comments col)
+  const SectionRow = useCallback(
+    ({
+      sectionId,
+      sectionLabel,
+      children,
+    }: {
+      sectionId: string
+      sectionLabel: string
+      children: React.ReactNode
+    }) => (
+      <div className="flex items-start gap-8">
+        <div style={{ width: CONTENT_COL_WIDTH, flexShrink: 0 }}>{children}</div>
+        {!isCommentsCollapsed && (
+          <div style={{ width: COMMENTS_COL_WIDTH, flexShrink: 0 }}>
+            <SectionCommentStack
+              sectionId={sectionId}
+              comments={commentsBySection[sectionId] ?? []}
+              linkedSection={sectionLabel}
+              onAddNote={(text, status) => handleAddComment(sectionId, sectionLabel, text, status)}
+              onDelete={handleDeleteComment}
+              onResolve={handleResolveComment}
+            />
+          </div>
+        )}
+      </div>
+    ),
+    [
+      isCommentsCollapsed,
+      commentsBySection,
+      handleAddComment,
+      handleDeleteComment,
+      handleResolveComment,
+    ]
+  )
+
   return (
     <div className="flex h-full flex-col">
-      {/* Primary nav — breadcrumb + customer name + deal tag + Customer 360 tabs */}
+      {/* Primary nav */}
       <div className="relative h-[60px] shrink-0">
-        {/* Left section — back button + breadcrumb stacked above title */}
         <div className="absolute left-6 bottom-1 flex items-end gap-2">
-          {/* Close button */}
           <button
             type="button"
             onClick={goToWorkbench}
-            className="mb-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+            className="mb-0.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
             title="Close"
           >
             <X size={18} />
           </button>
-
-          {/* Breadcrumb + title stacked */}
           <div className="flex flex-col justify-end">
             <div className="flex items-center gap-0.5">
-              <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">Customers</span>
+              <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">
+                Customers
+              </span>
               <ChevronRight size={10} className="text-brand-fog" />
             </div>
             <div className="flex items-center gap-3">
@@ -235,7 +312,6 @@ export function Customer360Page() {
           </div>
         </div>
 
-        {/* Center section — tabs absolutely centered on the full width */}
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
           <TrapezoidalTabs
             tabs={C360_TABS}
@@ -248,7 +324,7 @@ export function Customer360Page() {
         <div className="absolute bottom-0 left-6 right-4 h-px bg-brand-navy" />
       </div>
 
-      {/* Secondary nav + 3-grid body, centered within 1440 */}
+      {/* Secondary nav + body */}
       <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
         {/* Secondary nav */}
         <div className="flex shrink-0 items-center py-3">
@@ -256,7 +332,7 @@ export function Customer360Page() {
             <button
               type="button"
               onClick={goToWorkbench}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
               title="Back to Workbench"
             >
               <ArrowLeft size={18} />
@@ -275,15 +351,29 @@ export function Customer360Page() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
+            {/* Comments toggle */}
+            <button
+              type="button"
+              onClick={() => setIsCommentsCollapsed(!isCommentsCollapsed)}
+              className={cn(
+                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
+                isCommentsCollapsed
+                  ? 'text-brand-fog hover:bg-neutral-100'
+                  : 'text-blue-700 hover:bg-blue-50'
+              )}
+              title={isCommentsCollapsed ? 'Show comments' : 'Hide comments'}
+            >
+              <MessageCircleMore size={16} />
+            </button>
             <StatusUnit status={contractStatus} />
             <SendForApprovalButton onClick={handleSendForApproval} />
           </div>
         </div>
 
-        {/* 3-grid body */}
+        {/* Body: left nav + merged content+comments column */}
         <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
-          {/* Grid 1 — in-page nav (aligned to the title, 20px below the secondary nav) */}
-          <aside className="shrink-0 pt-4" style={{ width: 180 }}>
+          {/* Grid 1 — in-page nav */}
+          <aside className="shrink-0 pt-4" style={{ width: LEFT_NAV_WIDTH }}>
             <InPageNav
               sections={NAV_SECTIONS}
               sourceDocuments={data.sourceDocuments}
@@ -292,21 +382,29 @@ export function Customer360Page() {
             />
           </aside>
 
-          {/* Grid 2 — content (scrolls independently, 48px below the secondary nav).
-              Wrapper is 800px wide; the table spans the full width while every other
-              unit is capped at 680px and centred within it. */}
+          {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
           <div ref={centerRef} className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12">
-            <div className="mx-auto max-w-[800px] space-y-16">
-              {/* Summary */}
-              <section ref={setSectionRef('summary')} className="group/section mx-auto max-w-[680px]">
+            <div
+              className="mx-auto space-y-16"
+              style={{ maxWidth: CONTENT_COL_WIDTH + 32 + COMMENTS_COL_WIDTH }}
+            >
+
+              {/* Summary — no comments column (no SectionHeader) */}
+              <section
+                ref={setSectionRef('summary')}
+                className="group/section"
+                style={{ maxWidth: CONTENT_COL_WIDTH }}
+              >
                 <div className="relative">
-                  {flashingSection === 'summary' && (
+                  {false && (
                     <span className="title-sweep-overlay" aria-hidden="true">
                       <span className="title-sweep-band" />
                     </span>
                   )}
                   <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
-                    <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
+                    <span className="font-bold">
+                      Contract Value: {data.summary.contractValue}
+                    </span>
                     {data.summary.headline}
                   </h2>
                 </div>
@@ -316,130 +414,119 @@ export function Customer360Page() {
               </section>
 
               {/* Account */}
-              <section ref={setSectionRef('account')} className="group/section mx-auto max-w-[680px]">
+              <section ref={setSectionRef('account')} className="group/section">
                 <SectionSourceThumbnails
                   sources={sectionSources.account}
                   onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
                 />
-                <SectionHeader
-                  title="Account"
-                  status="ready"
-                  statusLabel="Ready"
-                  isFlashing={flashingSection === 'account'}
-                  onAddNote={() => handleAddNoteForSection('Account')}
-                />
-                <div className="mt-4">
-                  <LabelValueList items={data.account} />
-                </div>
+                <SectionRow sectionId="account" sectionLabel="Account">
+                  <SectionHeader
+                    title="Account"
+                    status="ready"
+                    statusLabel="Ready"
+                    isFlashing={false}
+                    commentCount={commentCountsBySection['account']}
+                  />
+                  <div className="mt-4">
+                    <LabelValueList items={data.account} />
+                  </div>
+                </SectionRow>
               </section>
 
               {/* Addresses */}
-              <section ref={setSectionRef('addresses')} className="group/section mx-auto max-w-[680px]">
+              <section ref={setSectionRef('addresses')} className="group/section">
                 <SectionSourceThumbnails
                   sources={sectionSources.addresses}
                   onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
                 />
-                <SectionHeader
-                  title="Addresses"
-                  status="ready"
-                  statusLabel="Ready"
-                  isFlashing={flashingSection === 'addresses'}
-                  onAddNote={() => handleAddNoteForSection('Addresses')}
-                />
-                <div className="mt-4">
-                  <LabelValueList items={data.addresses} />
-                </div>
+                <SectionRow sectionId="addresses" sectionLabel="Addresses">
+                  <SectionHeader
+                    title="Addresses"
+                    status="ready"
+                    statusLabel="Ready"
+                    isFlashing={false}
+                    commentCount={commentCountsBySection['addresses']}
+                  />
+                  <div className="mt-4">
+                    <LabelValueList items={data.addresses} />
+                  </div>
+                </SectionRow>
               </section>
 
               {/* Terms and billing */}
-              <section ref={setSectionRef('terms')} className="group/section mx-auto max-w-[680px]">
+              <section ref={setSectionRef('terms')} className="group/section">
                 <SectionSourceThumbnails
                   sources={sectionSources.terms}
                   onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
                 />
-                <SectionHeader
-                  title="Terms and billing"
-                  status="ready"
-                  statusLabel="Ready"
-                  isFlashing={flashingSection === 'terms'}
-                  onAddNote={() => handleAddNoteForSection('Terms and billing')}
-                />
-                <div className="mt-4">
-                  <LabelValueList items={data.termsAndBilling} />
-                </div>
+                <SectionRow sectionId="terms" sectionLabel="Terms and billing">
+                  <SectionHeader
+                    title="Terms and billing"
+                    status="ready"
+                    statusLabel="Ready"
+                    isFlashing={false}
+                    commentCount={commentCountsBySection['terms']}
+                  />
+                  <div className="mt-4">
+                    <LabelValueList items={data.termsAndBilling} />
+                  </div>
+                </SectionRow>
               </section>
 
-              {/* Products and pricing — header capped at 680px (centred), table full 800px */}
+              {/* Products and pricing */}
               <section ref={setSectionRef('products')} className="group/section">
-                <div className="mx-auto max-w-[680px]">
-                  <SectionSourceThumbnails
-                    sources={sectionSources.products}
-                    onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                  />
+                <SectionSourceThumbnails
+                  sources={sectionSources.products}
+                  onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                />
+                <SectionRow sectionId="products" sectionLabel="Products and pricing">
                   <SectionHeader
                     title="Products and pricing"
                     status="ai-created"
                     statusLabel="Created 2 items"
-                    isFlashing={flashingSection === 'products'}
-                    onAddNote={() => handleAddNoteForSection('Products and pricing')}
+                    isFlashing={false}
+                    commentCount={commentCountsBySection['products']}
                   />
-                </div>
-                <div className="mt-4">
-                  <ProductsPricingTable items={data.products} />
-                </div>
+                  <div className="mt-4">
+                    <ProductsPricingTable items={data.products} />
+                  </div>
+                </SectionRow>
               </section>
 
-              {/* Billing schedule — timeline, capped at 680px */}
-              <section ref={setSectionRef('schedule')} className="group/section mx-auto max-w-[680px]">
-                <SectionHeader 
-                  title="Billing schedule" 
-                  isFlashing={flashingSection === 'schedule'}
-                  onAddNote={() => handleAddNoteForSection('Billing schedule')}
-                />
-                <div className="mt-6">
-                  <PaymentSchedule 
-                    onPreviewClick={(invoiceIndex) => {
-                      setActiveInvoiceIndex(invoiceIndex)
-                      scrollToSection('invoice')
-                    }}
-                    tcv={data.summary.contractValue}
+              {/* Billing schedule */}
+              <section ref={setSectionRef('schedule')} className="group/section">
+                <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
+                  <SectionHeader
+                    title="Billing schedule"
+                    hideLine
+                    isFlashing={false}
+                    commentCount={commentCountsBySection['schedule']}
                   />
-                </div>
+                  <div className="mt-6">
+                    <PaymentSchedule
+                      onPreviewClick={(invoiceIndex) => {
+                        setActiveInvoiceIndex(invoiceIndex)
+                        scrollToSection('invoice')
+                      }}
+                      tcv={data.summary.contractValue}
+                    />
+                  </div>
+                </SectionRow>
               </section>
 
-              {/* Invoice preview — capped at 680px, centred */}
-              <section ref={setSectionRef('invoice')} className="group/section mx-auto max-w-[680px]">
-                <InvoicePreview 
-                  activeIndex={activeInvoiceIndex}
-                  totalInvoices={4}
-                  onIndexChange={setActiveInvoiceIndex}
-                  isFlashing={flashingSection === 'invoice'}
-                />
+              {/* Invoice preview */}
+              <section ref={setSectionRef('invoice')} className="group/section">
+                <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
+                  <InvoicePreview
+                    activeIndex={activeInvoiceIndex}
+                    totalInvoices={4}
+                    onIndexChange={setActiveInvoiceIndex}
+                    isFlashing={false}
+                  />
+                </SectionRow>
               </section>
             </div>
           </div>
-
-          {/* Grid 3 — comments (scrolls independently, aligned to the primary CTA) */}
-          <aside 
-            className="shrink-0 overflow-y-auto pb-20 pt-12 pr-3 transition-all duration-300 ease-out" 
-            style={{ 
-              width: isCommentsCollapsed ? 48 : 250, 
-              scrollbarGutter: 'stable' 
-            }}
-          >
-            <CommentsPanel
-              comments={data.comments}
-              activeSectionId={activeSection}
-              onCommentJump={handleCommentJump}
-              isCollapsed={isCommentsCollapsed}
-              onToggleCollapse={() => setIsCommentsCollapsed(!isCommentsCollapsed)}
-              linkedSection={linkedSection}
-              onStatusChange={(status) => setContractStatus(status)}
-              showAddNote={showAddNote}
-              onShowAddNoteChange={setShowAddNote}
-              onClearLinkedSection={handleClearLinkedSection}
-            />
-          </aside>
         </div>
       </div>
 
@@ -447,9 +534,7 @@ export function Customer360Page() {
         open={!!preview}
         sources={preview ? sectionSources[preview.sectionId] : []}
         activeIndex={preview?.index ?? 0}
-        onIndexChange={(index) =>
-          setPreview((prev) => (prev ? { ...prev, index } : null))
-        }
+        onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}
       />
     </div>

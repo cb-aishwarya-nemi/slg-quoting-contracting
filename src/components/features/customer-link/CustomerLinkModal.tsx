@@ -128,7 +128,7 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
                 <button
                   type="button"
                   onClick={onClose}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+                  className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
                 >
                   <X size={18} />
                 </button>
@@ -160,7 +160,7 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
                   onClick={handleProcessContract}
                   disabled={!canProcess}
                   className={cn(
-                    'flex shrink-0 items-center gap-2 rounded-lg px-4 py-2 font-heading text-[14px] font-semibold transition-colors',
+                    'flex shrink-0 cursor-pointer items-center gap-2 rounded-lg px-4 py-2 font-heading text-[14px] font-semibold transition-colors',
                     canProcess
                       ? 'bg-orange-500 text-white hover:bg-orange-600'
                       : 'cursor-not-allowed bg-neutral-200 text-neutral-400'

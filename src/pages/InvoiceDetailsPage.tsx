@@ -50,7 +50,7 @@ function InPageNav({
                 type="button"
                 onClick={() => onNavigate(section.id)}
                 className={cn(
-                  '-ml-2 flex items-center rounded-md px-2 py-1 text-left text-[13px] tracking-[-0.25px] transition-colors',
+                  '-ml-2 flex cursor-pointer items-center rounded-md px-2 py-1 text-left text-[13px] tracking-[-0.25px] transition-colors',
                   isActive
                     ? 'bg-neutral-100 font-semibold text-brand-navy'
                     : 'font-normal text-brand-fog hover:bg-neutral-50 hover:text-brand-navy'
@@ -104,7 +104,7 @@ function SectionHeader({ title }: { title: string }) {
       <button
         type="button"
         title="Add comment"
-        className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
+        className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
       >
         <MessageCircleMore size={15} />
       </button>
@@ -187,7 +187,7 @@ export function InvoiceDetailsPage() {
           <button
             type="button"
             onClick={goToWorkbench}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
             title="Back to Workbench"
           >
             <ArrowLeft size={18} />
@@ -220,7 +220,7 @@ export function InvoiceDetailsPage() {
             <button
               type="button"
               onClick={() => goToAllInvoices('pioneer-systems')}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
               title="Close"
             >
               <X size={18} />
@@ -241,7 +241,7 @@ export function InvoiceDetailsPage() {
           <div className="flex items-center gap-2">
             <button
               type="button"
-              className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600"
+              className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-orange-600"
             >
               <FileText size={16} />
               Preview Invoice
@@ -253,7 +253,7 @@ export function InvoiceDetailsPage() {
                   e.stopPropagation()
                   setShowMoreMenu(!showMoreMenu)
                 }}
-                className="flex h-9 w-9 items-center justify-center rounded-lg border border-neutral-200 text-brand-navy transition-colors hover:bg-neutral-50"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 text-brand-navy transition-colors hover:bg-neutral-50"
               >
                 <MoreHorizontal size={18} />
               </button>
@@ -261,13 +261,13 @@ export function InvoiceDetailsPage() {
                 <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
                   <button
                     type="button"
-                    className="flex w-full items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
                   >
                     Issue credit note
                   </button>
                   <button
                     type="button"
-                    className="flex w-full items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
                   >
                     Regenerate invoice
                   </button>

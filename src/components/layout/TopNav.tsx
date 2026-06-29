@@ -1,15 +1,11 @@
 import {
   ChevronsUpDown,
   Search,
-  Bell,
-  Settings,
-  HelpCircle,
   X,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useFileDrop, type ProcessingFile } from '../../context/FileDropContext'
 import { useNavigation } from '../../context/NavigationContext'
-import { useNotifications } from '../../context/NotificationContext'
 import { NotificationPanel } from './NotificationPanel'
 
 interface TopNavProps {
@@ -64,7 +60,7 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
               <button
                 type="button"
                 onClick={handleDismiss}
-                className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
+                className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
               >
                 <X size={16} />
               </button>
@@ -95,7 +91,7 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 
           {isComplete && (
             <div className="mt-3">
-              <button onClick={handleOpenWorkbench} className="flex items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800">
+              <button onClick={handleOpenWorkbench} className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800">
                 Open workbench item
                 <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -112,10 +108,8 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavProps) {
   const { processingFiles } = useFileDrop()
   const { view } = useNavigation()
-  const { notifications } = useNotifications()
   const completedFiles = processingFiles.filter((f) => f.status === 'complete')
   const hasProcessing = completedFiles.length > 0
-  const hasNotifications = notifications.length > 0
   
   const shouldShowProcessingBar = view.name === 'workbench' || view.name === 'allContracts'
 
@@ -152,44 +146,10 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
 
         {/* Right section - Actions */}
         <div className="flex items-center gap-0.5">
-          <button
-            type="button"
-            className={cn(
-              'relative flex h-7 w-7 items-center justify-center rounded-lg',
-              'cursor-pointer text-brand-navy transition-colors hover:bg-neutral-100'
-            )}
-            title="Notifications"
-          >
-            <Bell size={16} />
-            {(hasProcessing || hasNotifications) && (
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-orange-500" />
-            )}
-          </button>
-          <button
-            type="button"
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-lg',
-              'cursor-pointer text-brand-navy transition-colors hover:bg-neutral-100'
-            )}
-            title="Settings"
-          >
-            <Settings size={16} />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-lg',
-              'cursor-pointer text-brand-navy transition-colors hover:bg-neutral-100'
-            )}
-            title="Help"
-          >
-            <HelpCircle size={16} />
-          </button>
-
           {/* User Avatar */}
           <button
             type="button"
-            className="ml-1.5 flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-200"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full bg-orange-100 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-200"
             title="Account"
           >
             A

@@ -285,7 +285,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
                   selectAttribute(attr.id)
                 }
               }}
-              className="flex w-full items-center px-3 py-2 text-left text-[13px] text-brand-navy transition-colors hover:bg-blue-50"
+              className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] text-brand-navy transition-colors hover:bg-blue-50"
             >
               {attr.label}
             </button>
@@ -314,7 +314,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
                   selectCondition(cond.id)
                 }
               }}
-              className="flex w-full items-center px-3 py-2 text-left text-[13px] italic text-brand-navy transition-colors hover:bg-blue-50"
+              className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] italic text-brand-navy transition-colors hover:bg-blue-50"
             >
               {cond.label}
             </button>
@@ -343,7 +343,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
                     selectValue(option)
                   }
                 }}
-                className="flex w-full items-center px-3 py-2 text-left text-[13px] font-semibold text-brand-navy transition-colors hover:bg-blue-50"
+                className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] font-semibold text-brand-navy transition-colors hover:bg-blue-50"
               >
                 {option}
               </button>
@@ -407,28 +407,28 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
                 <button
                   type="button"
                   onClick={(e) => startEditFilter(e, filter.id, 'attribute')}
-                  className="text-[12px] font-bold text-brand-navy transition-colors hover:text-blue-700"
+                  className="cursor-pointer text-[12px] font-bold text-brand-navy transition-colors hover:text-blue-700"
                 >
                   {getAttributeLabel(filter.attribute)}
                 </button>
                 <button
                   type="button"
                   onClick={(e) => startEditFilter(e, filter.id, 'condition')}
-                  className="text-[12px] italic text-brand-navy transition-colors hover:text-blue-700"
+                  className="cursor-pointer text-[12px] italic text-brand-navy transition-colors hover:text-blue-700"
                 >
                   {getConditionLabel(filter.attribute, filter.condition)}
                 </button>
                 <button
                   type="button"
                   onClick={(e) => startEditFilter(e, filter.id, 'value')}
-                  className="text-[12px] font-semibold text-brand-navy transition-colors hover:text-blue-700"
+                  className="cursor-pointer text-[12px] font-semibold text-brand-navy transition-colors hover:text-blue-700"
                 >
                   {filter.value}
                 </button>
                 <button
                   type="button"
                   onClick={() => removeFilter(filter.id)}
-                  className="ml-1 flex h-4 w-4 items-center justify-center text-brand-mist hover:text-red-600 transition-colors"
+                  className="ml-1 flex h-4 w-4 cursor-pointer items-center justify-center text-brand-mist hover:text-red-600 transition-colors"
                 >
                   <X size={12} />
                 </button>
@@ -440,7 +440,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
               ref={triggerRef}
               type="button"
               onClick={(e) => startNewFilter(e)}
-              className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-100"
+              className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-100"
             >
               <PlusCircle size={14} />
               <span>Add filter</span>

@@ -177,7 +177,7 @@ function YearAccordion({
         />
       )}
       
-      <div className="relative rounded-lg border border-neutral-200 overflow-hidden transition-all">
+      <div className="relative rounded-lg border border-brand-navy overflow-hidden transition-all">
         <button
           type="button"
           onClick={onToggle}
@@ -205,7 +205,7 @@ function YearAccordion({
         </button>
 
         {isExpanded && (
-          <div className="relative z-10 border-t border-neutral-200 bg-white px-4 py-2">
+          <div className="relative z-10 border-t border-brand-navy bg-white px-4 py-2">
             <div className="space-y-2">
               {group.items.map((item, idx) => (
                 <QuarterlyItem

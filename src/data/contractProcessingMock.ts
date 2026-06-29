@@ -312,10 +312,336 @@ export const contractProcessing = {
       linkedSection: 'Terms and billing',
       linkedSectionId: 'terms',
     },
+    {
+      id: 'c-6',
+      author: 'Adrian Brody',
+      initials: 'A',
+      timestamp: '2 min ago',
+      body: 'Double-checked the product quantities against the schedule — all line items match.',
+      linkedSection: 'Products and pricing',
+      linkedSectionId: 'products',
+    },
+    {
+      id: 'c-7',
+      author: 'Apex AI',
+      initials: 'AI',
+      isAI: true,
+      timestamp: '5 min ago',
+      body: 'Invoice preview generated based on Q1 billing schedule. Tax calculation uses default 0% rate — confirm tax exemption status before sending.',
+      linkedSection: 'Invoice preview',
+      linkedSectionId: 'invoice',
+    },
   ] as Comment[],
 }
 
 export type ContractProcessing = typeof contractProcessing
+
+// Additional contract data for navigation demo
+export const verdantHealthContract: ContractProcessing = {
+  customerName: 'Verdant Health',
+  dealTag: 'EARLY RENEWAL',
+  environment: 'Echocorp.test.chargebee.com',
+
+  processing: {
+    title: 'Contract processing…',
+    sectionsReady: 4,
+    sectionsTotal: 4,
+    status: 'Ready for review',
+  },
+
+  summary: {
+    contractValue: '$720,000.00',
+    headline:
+      ', 3-year Enterprise renewal with Verdant Health covering 8 line items — Enterprise platform (200 seats), Premium Support, and more.',
+    effectiveDate: 'June 1, 2026',
+  },
+
+  account: [
+    { label: 'Account', value: 'Verdant Health' },
+    { label: 'Legal entity', value: 'Verdant Health Systems Inc.' },
+    { label: 'Contact name', value: 'Dr. Sarah Chen' },
+    { label: 'Email', value: 'sarah.chen@verdanthealth.com' },
+    { label: 'Phone', value: '+1 (617) 555 0198' },
+    { label: 'Industry', value: 'Healthcare Technology' },
+  ] as LabelValue[],
+
+  addresses: [
+    { label: 'Billing contact', value: 'Dr. Sarah Chen' },
+    { label: 'Address line 1', value: '100 Longwood Avenue, Floor 12' },
+    { label: 'City', value: 'Boston' },
+    { label: 'State / region', value: 'Massachusetts' },
+    { label: 'Postal code', value: '02115' },
+    { label: 'Country', value: 'United States' },
+  ] as LabelValue[],
+
+  termsAndBilling: contractProcessing.termsAndBilling,
+  products: [
+    {
+      id: 'vh-1',
+      name: 'Apex platform - enterprise services',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '200',
+      unitPrice: '$4,800.00',
+      totalPrice: '$960,000.00',
+    },
+    {
+      id: 'vh-2',
+      name: 'Enterprise support SLA',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '01',
+      unitPrice: '$24,000.00',
+      totalPrice: '$24,000.00',
+    },
+    {
+      id: 'vh-3',
+      name: 'HIPAA compliance module',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '01',
+      unitPrice: '$36,000.00',
+      totalPrice: '$36,000.00',
+    },
+  ] as ProductLineItem[],
+
+  invoice: contractProcessing.invoice,
+  sourceDocuments: contractProcessing.sourceDocuments,
+  comments: [] as Comment[],
+}
+
+export const zenithAnalyticsContract: ContractProcessing = {
+  customerName: 'Zenith Analytics Inc.',
+  dealTag: 'NEW DEAL',
+  environment: 'Echocorp.test.chargebee.com',
+
+  processing: {
+    title: 'Contract processing…',
+    sectionsReady: 3,
+    sectionsTotal: 4,
+    status: 'Ready for review',
+  },
+
+  summary: {
+    contractValue: '$255,000.00',
+    headline:
+      ', 24-month platform license with Zenith Analytics covering 4 line items — Growth platform (75 seats), Implementation, and Training.',
+    effectiveDate: 'July 1, 2026',
+  },
+
+  account: [
+    { label: 'Account', value: 'Zenith Analytics Inc.' },
+    { label: 'Legal entity', value: 'Zenith Analytics Corporation' },
+    { label: 'Contact name', value: 'Marcus Webb' },
+    { label: 'Email', value: 'marcus.webb@zenithanalytics.io' },
+    { label: 'Phone', value: '+1 (512) 555 0234' },
+    { label: 'Industry', value: 'Data Analytics' },
+  ] as LabelValue[],
+
+  addresses: [
+    { label: 'Billing contact', value: 'Marcus Webb' },
+    { label: 'Address line 1', value: '500 Congress Avenue, Suite 800' },
+    { label: 'City', value: 'Austin' },
+    { label: 'State / region', value: 'Texas' },
+    { label: 'Postal code', value: '78701' },
+    { label: 'Country', value: 'United States' },
+  ] as LabelValue[],
+
+  termsAndBilling: contractProcessing.termsAndBilling,
+  products: [
+    {
+      id: 'za-1',
+      name: 'Apex platform - growth services',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '75',
+      unitPrice: '$2,400.00',
+      totalPrice: '$180,000.00',
+    },
+    {
+      id: 'za-2',
+      name: 'Implementation services',
+      status: 'ready',
+      billingPeriod: 'One-time',
+      quantity: '01',
+      unitPrice: '$25,000.00',
+      totalPrice: '$25,000.00',
+    },
+    {
+      id: 'za-3',
+      name: 'Data migration services',
+      status: 'attention',
+      billingPeriod: 'One-time',
+      quantity: '01',
+      unitPrice: '$15,000.00',
+      totalPrice: '$15,000.00',
+    },
+  ] as ProductLineItem[],
+
+  invoice: contractProcessing.invoice,
+  sourceDocuments: contractProcessing.sourceDocuments,
+  comments: [] as Comment[],
+}
+
+export const quantumInnovationsContract: ContractProcessing = {
+  customerName: 'Quantum Innovations',
+  dealTag: 'NEW DEAL',
+  environment: 'Echocorp.test.chargebee.com',
+
+  processing: {
+    title: 'Contract processing…',
+    sectionsReady: 4,
+    sectionsTotal: 4,
+    status: 'Pending approval',
+  },
+
+  summary: {
+    contractValue: '$1,260,000.00',
+    headline:
+      ', 36-month Enterprise agreement with Quantum Innovations covering 6 line items — Full platform (200 seats), Premium Support, Custom Integrations, and more.',
+    effectiveDate: 'August 1, 2026',
+  },
+
+  account: [
+    { label: 'Account', value: 'Quantum Innovations' },
+    { label: 'Legal entity', value: 'Quantum Innovations Ltd.' },
+    { label: 'Contact name', value: 'Elena Rodriguez' },
+    { label: 'Email', value: 'elena.rodriguez@quantuminnovations.com' },
+    { label: 'Phone', value: '+1 (650) 555 0876' },
+    { label: 'Industry', value: 'Quantum Computing' },
+  ] as LabelValue[],
+
+  addresses: [
+    { label: 'Billing contact', value: 'Elena Rodriguez' },
+    { label: 'Address line 1', value: '1600 Amphitheatre Parkway' },
+    { label: 'City', value: 'Mountain View' },
+    { label: 'State / region', value: 'California' },
+    { label: 'Postal code', value: '94043' },
+    { label: 'Country', value: 'United States' },
+  ] as LabelValue[],
+
+  termsAndBilling: contractProcessing.termsAndBilling,
+  products: [
+    {
+      id: 'qi-1',
+      name: 'Apex platform - enterprise services',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '200',
+      unitPrice: '$4,800.00',
+      totalPrice: '$960,000.00',
+    },
+    {
+      id: 'qi-2',
+      name: 'Enterprise support SLA',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '01',
+      unitPrice: '$24,000.00',
+      totalPrice: '$24,000.00',
+    },
+    {
+      id: 'qi-3',
+      name: 'Custom integrations',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '05',
+      unitPrice: '$5,000.00',
+      totalPrice: '$25,000.00',
+    },
+  ] as ProductLineItem[],
+
+  invoice: contractProcessing.invoice,
+  sourceDocuments: contractProcessing.sourceDocuments,
+  comments: [] as Comment[],
+}
+
+export const nexusPaymentsContract: ContractProcessing = {
+  customerName: 'Nexus Payments',
+  dealTag: 'EARLY RENEWAL',
+  environment: 'Echocorp.test.chargebee.com',
+
+  processing: {
+    title: 'Contract processing…',
+    sectionsReady: 3,
+    sectionsTotal: 4,
+    status: 'In review',
+  },
+
+  summary: {
+    contractValue: '$540,000.00',
+    headline:
+      ', 2-year renewal with Nexus Payments covering 5 line items — Growth platform (100 seats), Premium Support, and API access.',
+    effectiveDate: 'September 1, 2026',
+  },
+
+  account: [
+    { label: 'Account', value: 'Nexus Payments' },
+    { label: 'Legal entity', value: 'Nexus Payments Corp.' },
+    { label: 'Contact name', value: 'James Park' },
+    { label: 'Email', value: 'james.park@nexuspayments.io' },
+    { label: 'Phone', value: '+1 (212) 555 0432' },
+    { label: 'Industry', value: 'Financial Services' },
+  ] as LabelValue[],
+
+  addresses: [
+    { label: 'Billing contact', value: 'James Park' },
+    { label: 'Address line 1', value: '200 Park Avenue, Floor 40' },
+    { label: 'City', value: 'New York' },
+    { label: 'State / region', value: 'New York' },
+    { label: 'Postal code', value: '10166' },
+    { label: 'Country', value: 'United States' },
+  ] as LabelValue[],
+
+  termsAndBilling: contractProcessing.termsAndBilling,
+  products: [
+    {
+      id: 'np-1',
+      name: 'Apex platform - growth services',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '100',
+      unitPrice: '$2,400.00',
+      totalPrice: '$240,000.00',
+    },
+    {
+      id: 'np-2',
+      name: 'Premium support SLA',
+      status: 'ready',
+      billingPeriod: 'Yearly',
+      quantity: '01',
+      unitPrice: '$12,000.00',
+      totalPrice: '$12,000.00',
+    },
+    {
+      id: 'np-3',
+      name: 'API access add-on',
+      status: 'attention',
+      billingPeriod: 'Yearly',
+      quantity: '01',
+      unitPrice: '$3,000.00',
+      totalPrice: '$3,000.00',
+    },
+  ] as ProductLineItem[],
+
+  invoice: contractProcessing.invoice,
+  sourceDocuments: contractProcessing.sourceDocuments,
+  comments: [] as Comment[],
+}
+
+// Map workbench item IDs to contract data
+export const contractsById: Record<number, ContractProcessing> = {
+  100: contractProcessing,        // Pioneer Systems
+  1: verdantHealthContract,       // Verdant Health
+  3: zenithAnalyticsContract,     // Zenith Analytics Inc.
+  16: quantumInnovationsContract, // Quantum Innovations
+  19: nexusPaymentsContract,      // Nexus Payments
+}
+
+// Helper function to get contract data by workbench item ID
+export function getContractById(id: number): ContractProcessing {
+  return contractsById[id] ?? contractProcessing
+}
 
 // Line item catalog for the search popover
 export interface CatalogLineItem {

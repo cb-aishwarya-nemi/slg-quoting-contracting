@@ -37,7 +37,7 @@ export function AllContractsPage() {
           <button
             type="button"
             onClick={goToWorkbench}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
             title="Back to Workbench"
           >
             <ArrowLeft size={18} />
@@ -69,7 +69,7 @@ export function AllContractsPage() {
             <button
               type="button"
               onClick={goToWorkbench}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
               title="Close"
             >
               <X size={18} />
@@ -83,7 +83,7 @@ export function AllContractsPage() {
 
           {/* Filter/Sort controls */}
           <div className="flex items-center gap-2.5">
-            <button className="text-brand-navy hover:text-brand-fog transition-colors">
+            <button className="cursor-pointer text-brand-navy hover:text-brand-fog transition-colors">
               <Search size={14} />
             </button>
             <button className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-brand-navy transition-colors hover:bg-neutral-100">

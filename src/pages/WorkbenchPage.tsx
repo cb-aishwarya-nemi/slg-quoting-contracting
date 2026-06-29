@@ -426,7 +426,7 @@ export function WorkbenchPage() {
                             </p>
                             <button
                               onClick={() => setSearchQuery("")}
-                              className="mt-2 text-[13px] text-blue-700 hover:underline"
+                              className="mt-2 cursor-pointer text-[13px] text-blue-700 hover:underline"
                             >
                               Clear search
                             </button>
@@ -528,7 +528,7 @@ export function WorkbenchPage() {
                           <td className="py-1.5 pl-2 pr-4 relative z-10">
                             <button
                               type="button"
-                              className="flex h-5 w-5 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white"
+                              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white"
                               onClick={(e) => e.stopPropagation()}
                             >
                               <MoreVertical size={14} className="group-hover:hidden" />

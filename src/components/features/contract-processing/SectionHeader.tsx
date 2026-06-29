@@ -1,4 +1,4 @@
-import { CircleCheck, PackagePlus, MessageCircleMore } from 'lucide-react'
+import { CircleCheck, PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SectionHeaderProps {
@@ -7,17 +7,17 @@ interface SectionHeaderProps {
   statusLabel?: string
   /** plays the gradient sweep + icon settle when a linked comment targets this section */
   isFlashing?: boolean
-  /** minimal mode: hides the horizontal line and comment button */
+  /** minimal mode: hides the horizontal line and comment count */
   minimal?: boolean
-  /** hide only the horizontal line (keep the comment button) */
+  /** hide only the horizontal line (keep the comment count) */
   hideLine?: boolean
-  /** callback when add note button is clicked */
-  onAddNote?: () => void
+  /** number of comments linked to this section */
+  commentCount?: number
 }
 
 /**
  * Section title + status pill, a horizontal rule filling the remaining width,
- * and an "add comment" affordance at the far end.
+ * and a comment count pill at the far end.
  */
 export function SectionHeader({ 
   title, 
@@ -26,12 +26,13 @@ export function SectionHeader({
   isFlashing, 
   minimal = false, 
   hideLine = false,
-  onAddNote,
+  commentCount,
 }: SectionHeaderProps) {
+  const hasComments = commentCount !== undefined && commentCount > 0
+
   return (
     <div className="relative flex items-center gap-3">
-      {/* Gradient flash overlay — self-clipping + pointer-events-none, so it
-          never shifts layout. Keyed so it re-triggers on every link click. */}
+      {/* Gradient flash overlay */}
       {isFlashing && (
         <span className="title-sweep-overlay" aria-hidden="true">
           <span className="title-sweep-band" />
@@ -60,23 +61,15 @@ export function SectionHeader({
 
       {!minimal && (
         <>
-          {/* Spacer to push button to the right - shows line or invisible */}
+          {/* Spacer / line */}
           <div className={cn('flex-1', !hideLine && 'h-px bg-brand-navy')} />
 
-          <button
-            type="button"
-            onClick={onAddNote}
-            title="Add note"
-            className={cn(
-              'flex shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 py-1 text-blue-700 transition-all hover:bg-blue-50',
-              isFlashing && 'icon-settle'
-            )}
-          >
-            <span className="max-w-0 overflow-hidden whitespace-nowrap text-[12px] font-medium opacity-0 transition-all duration-200 group-hover/section:max-w-[56px] group-hover/section:opacity-100">
-              Add note
+          {/* Comment count pill */}
+          {hasComments && (
+            <span className="flex items-center gap-1 rounded-full bg-brand-navy px-2 py-0.5 text-[11px] font-medium text-white">
+              {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
             </span>
-            <MessageCircleMore size={15} />
-          </button>
+          )}
         </>
       )}
     </div>

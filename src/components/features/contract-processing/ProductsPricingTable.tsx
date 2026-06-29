@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { CircleCheck, PackagePlus, ChevronDown, MoreVertical, CirclePlus, Search, X, Circle } from 'lucide-react'
+import { PackagePlus, ChevronDown, MoreVertical, CirclePlus, Search, X, Circle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type ProductLineItem, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 
@@ -152,7 +152,7 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
             <button
               type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-brand-mist hover:bg-neutral-200 hover:text-brand-navy"
+              className="absolute right-2 top-1/2 -translate-y-1/2 cursor-pointer rounded p-0.5 text-brand-mist hover:bg-neutral-200 hover:text-brand-navy"
             >
               <X size={14} />
             </button>
@@ -175,7 +175,7 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
                 onSelect(item)
               }}
               className={cn(
-                'flex w-full flex-col gap-0.5 border-b border-neutral-100 px-4 py-3 text-left transition-colors last:border-b-0',
+                'flex w-full cursor-pointer flex-col gap-0.5 border-b border-neutral-100 px-4 py-3 text-left transition-colors last:border-b-0',
                 item.name === currentName ? 'bg-neutral-100' : 'hover:bg-neutral-50'
               )}
             >
@@ -261,7 +261,7 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
           type="button"
           onClick={() => onSelect(option)}
           className={cn(
-            'w-full px-3 py-1.5 text-left text-[14px] transition-colors',
+            'w-full cursor-pointer px-3 py-1.5 text-left text-[14px] transition-colors',
             option === currentValue
               ? 'bg-neutral-100 font-medium text-brand-navy'
               : 'text-brand-navy hover:bg-neutral-50'
@@ -293,7 +293,8 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
 
   return (
     <div className="relative flex min-w-0 flex-1 items-center gap-2 group/item">
-      {isAttention ? (
+      {/* Only show icon for attention items (exceptions) */}
+      {isAttention && (
         <div className="relative shrink-0">
           <PackagePlus size={16} className={cn(
             "shrink-0 transition-colors",
@@ -305,11 +306,6 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
             </span>
           )}
         </div>
-      ) : (
-        <CircleCheck size={16} className={cn(
-          "shrink-0 transition-colors",
-          (isOpen || isRowHovered) ? "text-white" : "text-green-600"
-        )} />
       )}
       <button
         ref={buttonRef}
@@ -516,7 +512,7 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         <button
           type="button"
           onClick={onCancel}
-          className="flex h-6 w-6 items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
         >
           <X size={15} />
         </button>
@@ -645,7 +641,7 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
               <button
                 type="button"
                 className={cn(
-                  "flex h-6 w-6 items-center justify-center rounded transition-colors",
+                  "flex h-6 w-6 cursor-pointer items-center justify-center rounded transition-colors",
                   (isActive || isHovered)
                     ? "text-white/70 hover:bg-white/10"
                     : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
@@ -672,7 +668,7 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
           <button
             type="button"
             onClick={() => setIsAddingNew(true)}
-            className="flex items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
           >
             <CirclePlus size={16} className="text-blue-700" />
             Add line item

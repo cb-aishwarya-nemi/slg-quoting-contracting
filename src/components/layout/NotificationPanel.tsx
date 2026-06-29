@@ -27,7 +27,7 @@ function NotificationItem({ notification }: { notification: Notification }) {
             <button
               type="button"
               onClick={() => removeNotification(notification.id)}
-              className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
+              className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog hover:bg-neutral-100 hover:text-brand-navy"
               aria-label="Dismiss notification"
             >
               <X size={16} />

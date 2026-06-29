@@ -161,7 +161,7 @@ export function CustomerLinkContent({
                   <button
                     type="button"
                     onClick={() => setShowAllCustomers(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-200 bg-white px-4 py-2 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
                   >
                     <Search size={14} />
                     Search all customers
@@ -169,7 +169,7 @@ export function CustomerLinkContent({
                   <button
                     type="button"
                     onClick={() => onModeChange('create')}
-                    className="inline-flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-orange-600"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-[13px] font-medium text-white transition-colors hover:bg-orange-600"
                   >
                     <Plus size={14} />
                     Create new customer
@@ -340,7 +340,7 @@ export function CustomerLinkContent({
                     <button
                       type="button"
                       onClick={() => setShowAllCustomers(true)}
-                      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
+                      className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
                     >
                       View all customers
                       <ChevronDown size={14} />
@@ -350,7 +350,7 @@ export function CustomerLinkContent({
                     <button
                       type="button"
                       onClick={() => setShowAllCustomers(false)}
-                      className="inline-flex items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
+                      className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
                     >
                       {hasNoMatches ? 'Back to empty state' : 'Show matches only'}
                       <ChevronUp size={14} />

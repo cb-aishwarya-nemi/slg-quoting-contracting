@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { AppLayout } from './components/layout'
 import { WorkbenchPage, CustomersPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage, ContractIngestionPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
@@ -6,6 +5,7 @@ import { UseCaseProvider } from './context/UseCaseContext'
 import { NotificationProvider } from './context/NotificationContext'
 import { VersionProvider, useVersion } from './context/VersionContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { useV0Contract } from './context/V0ContractContext'
 import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 
 function V1PageRouter() {
@@ -35,7 +35,7 @@ function V1PageRouter() {
 }
 
 function V0PageRouter() {
-  const [activeContractId, setActiveContractId] = useState<number | null>(null)
+  const { activeContractId, setActiveContractId } = useV0Contract()
   
   const handleContractProcessed = (contractId: number) => {
     setActiveContractId(contractId)

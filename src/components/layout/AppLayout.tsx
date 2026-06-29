@@ -1,10 +1,11 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react'
+import { type ReactNode, useEffect, useRef } from 'react'
 import { LeftNav } from './LeftNav'
 import { MinimalLeftNav } from './MinimalLeftNav'
 import { TopNav } from './TopNav'
 import { TopNavV0 } from './TopNavV0'
 import { FileDropProvider, useFileDrop } from '../../context/FileDropContext'
 import { useVersion } from '../../context/VersionContext'
+import { V0ContractProvider, useV0Contract } from '../../context/V0ContractContext'
 import { FileDropOverlay } from '../ui/FileDropOverlay'
 
 interface AppLayoutProps {
@@ -15,8 +16,8 @@ interface V0LayoutProps {
   children: ReactNode
 }
 
-function V0Layout({ children }: V0LayoutProps) {
-  const [activeContractId, setActiveContractId] = useState<number | null>(null)
+function V0LayoutInner({ children }: V0LayoutProps) {
+  const { activeContractId, setActiveContractId } = useV0Contract()
   
   const handleNewContract = () => {
     setActiveContractId(null)
@@ -38,6 +39,14 @@ function V0Layout({ children }: V0LayoutProps) {
         {children}
       </main>
     </div>
+  )
+}
+
+function V0Layout({ children }: V0LayoutProps) {
+  return (
+    <V0ContractProvider>
+      <V0LayoutInner>{children}</V0LayoutInner>
+    </V0ContractProvider>
   )
 }
 

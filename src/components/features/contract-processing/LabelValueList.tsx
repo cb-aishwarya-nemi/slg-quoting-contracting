@@ -138,12 +138,12 @@ function LabelValueRow({ item, onItemChange }: LabelValueRowProps) {
                       onItemChange?.(item.label, option)
                       setIsOpen(false)
                     }}
-                    className={cn(
-                      'w-full px-3 py-2 text-left text-[14px] transition-colors',
-                      option === item.value
-                        ? 'bg-neutral-100 font-medium text-brand-navy'
-                        : 'text-brand-navy hover:bg-neutral-50'
-                    )}
+                  className={cn(
+                    'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
+                    option === item.value
+                      ? 'bg-neutral-100 font-medium text-brand-navy'
+                      : 'text-brand-navy hover:bg-neutral-50'
+                  )}
                   >
                     {option}
                   </button>

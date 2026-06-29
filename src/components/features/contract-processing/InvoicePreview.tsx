@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, MessageCircleMore } from 'lucide-react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { scheduledInvoices } from '@/data/contractProcessingMock'
 
@@ -72,22 +72,6 @@ export function InvoicePreview({ activeIndex, totalInvoices, onIndexChange, isFl
             <ChevronRight size={16} />
           </button>
         </div>
-
-        <div className="flex-1" />
-
-        <button
-          type="button"
-          title="Add note"
-          className={cn(
-            'flex shrink-0 items-center gap-1.5 overflow-hidden rounded px-1.5 py-1 text-blue-700 transition-all hover:bg-blue-50',
-            isFlashing && 'icon-settle'
-          )}
-        >
-          <span className="max-w-0 overflow-hidden whitespace-nowrap text-[12px] font-medium opacity-0 transition-all duration-200 group-hover/section:max-w-[56px] group-hover/section:opacity-100">
-            Add note
-          </span>
-          <MessageCircleMore size={15} />
-        </button>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">

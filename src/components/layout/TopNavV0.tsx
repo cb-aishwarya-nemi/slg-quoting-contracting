@@ -1,6 +1,5 @@
-import { ChevronsUpDown, Bell, Settings, Sun, Moon } from 'lucide-react'
+import { ChevronsUpDown } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { useTheme } from '../../context/ThemeContext'
 
 interface TopNavV0Props {
   environmentName?: string
@@ -8,8 +7,6 @@ interface TopNavV0Props {
 }
 
 export function TopNavV0({ environmentName = 'Echocorp.test.chargebee.com', isLive = true }: TopNavV0Props) {
-  const { theme, toggleTheme } = useTheme()
-  const isDark = theme === 'dark'
 
   return (
     <header 
@@ -40,45 +37,10 @@ export function TopNavV0({ environmentName = 'Echocorp.test.chargebee.com', isLi
 
       {/* Right section - Actions */}
       <div className="flex items-center gap-0.5">
-        {/* Theme Toggle */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-lg',
-            'cursor-pointer text-theme-primary transition-colors hover:bg-theme-hover'
-          )}
-          title={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {isDark ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
-        
-        <button
-          type="button"
-          className={cn(
-            'relative flex h-7 w-7 items-center justify-center rounded-lg',
-            'cursor-pointer text-theme-primary transition-colors hover:bg-theme-hover'
-          )}
-          title="Notifications"
-        >
-          <Bell size={16} />
-        </button>
-        
-        <button
-          type="button"
-          className={cn(
-            'flex h-7 w-7 items-center justify-center rounded-lg',
-            'cursor-pointer text-theme-primary transition-colors hover:bg-theme-hover'
-          )}
-          title="Settings"
-        >
-          <Settings size={16} />
-        </button>
-
         {/* Expanded profile with name */}
         <button
           type="button"
-          className="ml-1.5 flex h-7 cursor-pointer items-center gap-2 rounded-full bg-orange-100 px-2.5 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-200"
+          className="flex h-7 cursor-pointer items-center gap-2 rounded-full bg-orange-100 px-2.5 text-xs font-medium text-orange-700 transition-colors hover:bg-orange-200"
           title="Account"
         >
           <span className="flex h-5 w-5 items-center justify-center rounded-full bg-orange-200 text-[10px] font-semibold">

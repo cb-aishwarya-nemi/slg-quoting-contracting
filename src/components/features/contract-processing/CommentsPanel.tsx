@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowUpLeft, ArrowRight, MoreHorizontal, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from './GradientSparkle'
 import { type Comment } from '@/data/contractProcessingMock'
+import { type SectionOffset } from '@/pages/Customer360Page'
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
@@ -34,17 +35,20 @@ function AddNoteTextarea({
   onCancel,
   linkedSection,
   onStatusChange,
+  compact = false,
 }: {
   onSubmit: (text: string, status: ContractStatus) => void
   onCancel: () => void
   linkedSection?: string
   onStatusChange?: (status: ContractStatus) => void
+  compact?: boolean
 }) {
   const [value, setValue] = useState('')
   const [status, setStatus] = useState<ContractStatus>('In progress')
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const defaultHeight = compact ? 100 : 220
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -55,14 +59,12 @@ function AddNoteTextarea({
   useEffect(() => {
     const textarea = textareaRef.current
     if (!textarea) return
-
-    // Auto-resize logic
-    textarea.style.height = '220px' // Reset to initial
+    textarea.style.height = `${defaultHeight}px`
     const scrollHeight = textarea.scrollHeight
-    if (scrollHeight > 220) {
+    if (scrollHeight > defaultHeight) {
       textarea.style.height = Math.min(scrollHeight, 400) + 'px'
     }
-  }, [value])
+  }, [value, defaultHeight])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -99,43 +101,41 @@ function AddNoteTextarea({
   }
 
   return (
-    <div className="mt-3">
+    <div className="mt-0">
       <div className="relative">
         <textarea
           ref={textareaRef}
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Add a note... Use @ to mention users or Apex AI"
-          className="w-full resize-none rounded-lg border border-neutral-200 pl-3 pr-4 py-2 pb-8 text-[13px] text-brand-navy placeholder:text-brand-fog focus:border-brand-navy focus:outline-none focus:ring-1 focus:ring-brand-navy"
-          style={{ height: '220px', maxHeight: '400px', overflowY: 'auto' }}
+          placeholder="Add a note… Use @ to mention"
+          className="w-full resize-none rounded-lg border border-neutral-200 pl-3 pr-4 py-2 pb-7 text-[12px] text-brand-navy placeholder:text-brand-fog focus:border-brand-navy focus:outline-none focus:ring-1 focus:ring-brand-navy"
+          style={{ height: `${defaultHeight}px`, maxHeight: '400px', overflowY: 'auto' }}
         />
-        {/* Linked section tag inside textarea at bottom */}
         {linkedSection && (
-          <div className="pointer-events-none absolute bottom-3 left-3 flex items-center gap-1.5">
-            <CornerDownLeft size={12} className="text-brand-mist" />
-            <span className="text-[11px] font-medium text-brand-fog">{linkedSection}</span>
+          <div className="pointer-events-none absolute bottom-2 left-3 flex items-center gap-1.5">
+            <CornerDownLeft size={11} className="text-brand-mist" />
+            <span className="text-[10px] font-medium text-brand-fog">{linkedSection}</span>
           </div>
         )}
       </div>
-      <div className="mt-3 flex items-center justify-between">
-        {/* Status dropdown on the left */}
+      <div className="mt-2 flex items-center justify-between">
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setShowStatusDropdown(!showStatusDropdown)}
-            className="flex items-center gap-1 text-[12px] font-medium text-blue-500 transition-colors hover:text-blue-700"
+            className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-blue-500 transition-colors hover:text-blue-700"
           >
             {status}
-            <ChevronDown size={14} />
+            <ChevronDown size={12} />
           </button>
           {showStatusDropdown && (
-            <div className="absolute bottom-full left-0 mb-1 w-[140px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+            <div className="absolute bottom-full left-0 mb-1 w-[140px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg z-20">
               <button
                 type="button"
                 onClick={() => handleStatusSelect('In progress')}
                 className={cn(
-                  'flex w-full items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
+                  'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
                   status === 'In progress' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
                 )}
               >
@@ -145,7 +145,7 @@ function AddNoteTextarea({
                 type="button"
                 onClick={() => handleStatusSelect('Blocked')}
                 className={cn(
-                  'flex w-full items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
+                  'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
                   status === 'Blocked' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
                 )}
               >
@@ -154,16 +154,14 @@ function AddNoteTextarea({
             </div>
           )}
         </div>
-        
-        {/* Submit button on the right */}
         <button
           type="button"
           onClick={handleSubmit}
           disabled={!value.trim()}
-          className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-navy text-white transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg bg-brand-navy text-white transition-colors hover:bg-brand-soft disabled:opacity-40 disabled:cursor-not-allowed"
           title="Post comment"
         >
-          <ArrowRight size={16} />
+          <ArrowRight size={14} />
         </button>
       </div>
     </div>
@@ -182,7 +180,7 @@ function DeleteConfirmationPopover({
       <button
         type="button"
         onClick={onConfirm}
-        className="flex w-full items-center justify-center px-3 py-2 text-[12px] font-medium text-red-600 transition-colors hover:bg-red-50"
+        className="flex w-full cursor-pointer items-center justify-center px-3 py-2 text-[12px] font-medium text-red-600 transition-colors hover:bg-red-50"
       >
         Delete
       </button>
@@ -190,7 +188,7 @@ function DeleteConfirmationPopover({
       <button
         type="button"
         onClick={onCancel}
-        className="flex w-full items-center justify-center px-3 py-2 text-[12px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+        className="flex w-full cursor-pointer items-center justify-center px-3 py-2 text-[12px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
       >
         Cancel
       </button>
@@ -216,14 +214,14 @@ function CommentMoreMenu({
           <button
             type="button"
             onClick={onResolve}
-            className="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
+            className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
           >
             Resolve
           </button>
           <button
             type="button"
             onClick={onEdit}
-            className="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
+            className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
           >
             Edit
           </button>
@@ -232,7 +230,7 @@ function CommentMoreMenu({
       <button
         type="button"
         onClick={onDelete}
-        className="flex w-full items-center px-3 py-1.5 text-left text-[12px] text-red-600 transition-colors hover:bg-red-50"
+        className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] text-red-600 transition-colors hover:bg-red-50"
       >
         Delete
       </button>
@@ -338,14 +336,10 @@ function CommentCard({
         />
       )}
 
-      {/* More menu popover */}
       {showMoreMenu && (
         <CommentMoreMenu
           onResolve={handleResolve}
-          onEdit={() => {
-            setShowMoreMenu(false)
-            // Edit functionality placeholder
-          }}
+          onEdit={() => setShowMoreMenu(false)}
           onDelete={() => {
             setShowMoreMenu(false)
             setShowDeleteConfirm(true)
@@ -354,7 +348,6 @@ function CommentCard({
         />
       )}
 
-      {/* Delete confirmation popover */}
       {showDeleteConfirm && (
         <DeleteConfirmationPopover
           onConfirm={handleDelete}
@@ -396,8 +389,7 @@ function CommentCard({
         <span className="text-[11px] text-brand-fog opacity-0 transition-opacity group-hover:opacity-100">
           {comment.timestamp}
         </span>
-        
-        {/* More menu button */}
+
         {!comment.isAI && (onDelete || onResolve) && (
           <button
             type="button"
@@ -405,7 +397,7 @@ function CommentCard({
               e.stopPropagation()
               setShowMoreMenu(!showMoreMenu)
             }}
-            className="ml-auto flex h-5 w-5 items-center justify-center rounded text-brand-fog opacity-0 transition-opacity hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
+            className="ml-auto flex h-5 w-5 cursor-pointer items-center justify-center rounded text-brand-fog opacity-0 transition-opacity hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
             title="More options"
           >
             <MoreHorizontal size={14} />
@@ -413,9 +405,9 @@ function CommentCard({
         )}
       </div>
 
-      {/* Body with mention highlighting and resolved state */}
+      {/* Body */}
       {isResolved && !isExpanded ? (
-        <p 
+        <p
           className="mt-2 text-[12px] leading-[1.5] text-brand-navy line-through"
           style={{
             display: '-webkit-box',
@@ -428,85 +420,260 @@ function CommentCard({
         </p>
       ) : (
         <p className="mt-2 text-[12px] leading-[1.5] text-brand-navy">
-          {bodyParts.map((part, idx) => (
+          {bodyParts.map((part, idx) =>
             part.type === 'mention' ? (
-              <span key={idx} className="font-medium text-blue-700">{part.content}</span>
+              <span key={idx} className="font-medium text-blue-700">
+                {part.content}
+              </span>
             ) : (
               <span key={idx}>{part.content}</span>
             )
-          ))}
-        </p>
-      )}
-
-      {/* Linked section tag - only visible when active */}
-      {comment.linkedSection && !isResolved && (
-        <div
-          className={cn(
-            "flex items-center gap-2 overflow-hidden transition-all duration-300 ease-out",
-            isActive ? "mt-2.5 max-h-10 opacity-100" : "mt-0 max-h-0 opacity-0"
           )}
-        >
-          <CornerDownLeft size={14} className="text-brand-mist" />
-          <span className="inline-flex items-center rounded-full bg-neutral-100 px-2.5 py-1 text-[11px] font-medium text-brand-fog">
-            {comment.linkedSection}
-          </span>
-        </div>
+        </p>
       )}
     </div>
   )
 }
 
-interface CommentsPanelProps {
-  comments: Comment[]
-  /** in-page section currently nearest the top of the scroll area */
-  activeSectionId?: string
-  /** scroll the doc to a comment's linked section */
-  onCommentJump?: (sectionId: string) => void
-  /** collapsed state */
-  isCollapsed?: boolean
-  /** toggle collapse */
-  onToggleCollapse?: () => void
-  /** linked section for new comment */
+// ─── SectionCommentStack ──────────────────────────────────────────────────────
+// Inline (relative-positioned) comment stack rendered next to each section.
+// No pixel math – it scrolls naturally with the content column.
+
+export interface SectionCommentStackProps {
+  sectionId: string
+  comments: Array<Comment & { status?: CommentStatus }>
+  /** Human-readable section label for the note textarea hint */
   linkedSection?: string
-  /** callback when status changes */
-  onStatusChange?: (status: ContractStatus) => void
-  /** controlled show add note state */
-  showAddNote?: boolean
-  /** callback to change show add note state */
-  onShowAddNoteChange?: (show: boolean) => void
-  /** callback to clear linked section */
-  onClearLinkedSection?: () => void
+  onAddNote: (text: string, status: ContractStatus) => void
+  onDelete: (id: string) => void
+  onResolve: (id: string) => void
 }
 
-export function CommentsPanel({ 
-  comments, 
-  activeSectionId, 
+export function SectionCommentStack({
+  comments,
+  linkedSection,
+  onAddNote,
+  onDelete,
+  onResolve,
+}: SectionCommentStackProps) {
+  const [isExpanded, setIsExpanded] = useState(false)
+  const [isStackHovered, setIsStackHovered] = useState(false)
+  const [showAddNote, setShowAddNote] = useState(false)
+  const stackRef = useRef<HTMLDivElement>(null)
+
+  // Collapse on outside click
+  useEffect(() => {
+    if (!isExpanded && !showAddNote) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (stackRef.current && !stackRef.current.contains(e.target as Node)) {
+        setIsExpanded(false)
+        setShowAddNote(false)
+        setIsStackHovered(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isExpanded, showAddNote])
+
+  // Reset expansion when comment list changes (e.g. a new comment is added)
+  useEffect(() => {
+    setIsExpanded(false)
+  }, [comments.length])
+
+  const commentCount = comments.length
+  const topComment = comments[0]
+  const hasStack = commentCount > 1
+
+  return (
+    <div ref={stackRef} className="pt-0.5">
+      {/* Add note CTA – always visible at top */}
+      <button
+        type="button"
+        onClick={() => setShowAddNote(!showAddNote)}
+        className={cn(
+          'mb-2 flex cursor-pointer items-center gap-1.5 rounded-lg px-2 py-1 text-[12px] font-medium transition-colors',
+          showAddNote
+            ? 'bg-blue-50 text-blue-700'
+            : 'text-blue-700 hover:bg-blue-50'
+        )}
+      >
+        <MessageCircleMore size={14} />
+        Add note
+      </button>
+
+      {/* Add note textarea – pushes content down when open */}
+      {showAddNote && (
+        <div className="mb-3">
+          <AddNoteTextarea
+            onSubmit={(text, status) => {
+              onAddNote(text, status)
+              setShowAddNote(false)
+            }}
+            onCancel={() => setShowAddNote(false)}
+            linkedSection={linkedSection}
+            compact
+          />
+        </div>
+      )}
+
+      {/* Comment stack */}
+      {commentCount > 0 && (
+        <>
+          {isExpanded ? (
+            // Expanded: all comments with internal scroll capped at ~320px
+            <div className="relative">
+              <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1">
+                {comments.map((comment) => (
+                  <CommentCard
+                    key={comment.id}
+                    comment={comment}
+                    commentStatus={comment.status}
+                    isActive={false}
+                    onDelete={onDelete}
+                    onResolve={onResolve}
+                  />
+                ))}
+              </div>
+              {/* Fade at bottom */}
+              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+            </div>
+          ) : (
+            // Collapsed: top comment + 3 peek lines for stack depth cue
+            <div
+              role={hasStack ? 'button' : undefined}
+              tabIndex={hasStack ? 0 : undefined}
+              onClick={() => {
+                if (hasStack) {
+                  setIsExpanded(true)
+                  setIsStackHovered(false)
+                }
+              }}
+              onKeyDown={(e) => {
+                if ((e.key === 'Enter' || e.key === ' ') && hasStack) {
+                  e.preventDefault()
+                  setIsExpanded(true)
+                  setIsStackHovered(false)
+                }
+              }}
+              onMouseEnter={() => setIsStackHovered(true)}
+              onMouseLeave={() => setIsStackHovered(false)}
+              className={cn('relative', hasStack && 'cursor-pointer')}
+            >
+              {topComment && (
+                <CommentCard
+                  comment={topComment}
+                  commentStatus={topComment.status}
+                  isActive={false}
+                  onDelete={onDelete}
+                  onResolve={onResolve}
+                />
+              )}
+
+              {/* Stack indicator: label always visible, lines cascade on hover */}
+              {hasStack && (
+                <div className="mt-1.5 flex flex-col items-center gap-1">
+                  {/* Label - always visible in blue */}
+                  <div className="text-[11px] font-medium text-blue-700">
+                    +{commentCount - 1} {commentCount - 1 === 1 ? 'comment' : 'comments'}
+                  </div>
+                  {/* Lines - cascade in on hover */}
+                  <div
+                    className={cn(
+                      'h-px w-[35%] rounded-full bg-blue-500 transition-all duration-150 ease-out',
+                      isStackHovered
+                        ? 'opacity-100 translate-y-0'
+                        : 'opacity-0 -translate-y-1'
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'h-px w-[20%] rounded-full bg-blue-500 transition-all duration-150 ease-out delay-[50ms]',
+                      isStackHovered
+                        ? 'opacity-100 translate-y-0'
+                        : 'opacity-0 -translate-y-1'
+                    )}
+                  />
+                  <div
+                    className={cn(
+                      'h-px w-[8%] rounded-full bg-blue-500 transition-all duration-150 ease-out delay-100',
+                      isStackHovered
+                        ? 'opacity-100 translate-y-0'
+                        : 'opacity-0 -translate-y-1'
+                    )}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
+// ─── CommentsPanel ────────────────────────────────────────────────────────────
+// Legacy full-panel component (kept for backward compatibility).
+// New code should use SectionCommentStack directly next to each section.
+
+interface CommentsPanelProps {
+  comments: Comment[]
+  activeSectionId?: string
+  onCommentJump?: (sectionId: string) => void
+  isCollapsed?: boolean
+  onToggleCollapse?: () => void
+  linkedSection?: string
+  linkedSectionId?: string
+  onStatusChange?: (status: ContractStatus) => void
+  showAddNote?: boolean
+  onShowAddNoteChange?: (show: boolean) => void
+  onClearLinkedSection?: () => void
+  /** @deprecated No longer needed — comments are rendered inline */
+  sectionOffsets?: Record<string, SectionOffset>
+  /** @deprecated No longer needed — comments are rendered inline */
+  centerScrollTop?: number
+}
+
+export function CommentsPanel({
+  comments,
+  activeSectionId,
   onCommentJump,
   isCollapsed = false,
   onToggleCollapse,
   linkedSection,
+  linkedSectionId,
   onStatusChange,
   showAddNote: externalShowAddNote,
   onShowAddNoteChange,
   onClearLinkedSection,
 }: CommentsPanelProps) {
   const [internalShowAddNote, setInternalShowAddNote] = useState(false)
-  const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(comments)
+  const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
+    () => comments.map((c) => ({ ...c, status: 'open' as CommentStatus }))
+  )
 
-  // Use external control if provided, otherwise internal state
   const showAddNote = externalShowAddNote !== undefined ? externalShowAddNote : internalShowAddNote
   const setShowAddNote = (show: boolean) => {
-    if (onShowAddNoteChange) {
-      onShowAddNoteChange(show)
-    } else {
-      setInternalShowAddNote(show)
-    }
+    if (onShowAddNoteChange) onShowAddNoteChange(show)
+    else setInternalShowAddNote(show)
   }
 
-  // Update local comments when prop changes
   useEffect(() => {
-    setLocalComments(comments.map(c => ({ ...c, status: 'open' as CommentStatus })))
+    setLocalComments(comments.map((c) => ({ ...c, status: 'open' as CommentStatus })))
   }, [comments])
+
+  const commentsBySection = useMemo(() => {
+    const grouped: Record<string, Array<Comment & { status?: CommentStatus }>> = {}
+    const unlinked: Array<Comment & { status?: CommentStatus }> = []
+    for (const comment of localComments) {
+      if (comment.linkedSectionId) {
+        if (!grouped[comment.linkedSectionId]) grouped[comment.linkedSectionId] = []
+        grouped[comment.linkedSectionId].push(comment)
+      } else {
+        unlinked.push(comment)
+      }
+    }
+    return { grouped, unlinked }
+  }, [localComments])
 
   const handleAddNote = (text: string, status: ContractStatus) => {
     const newComment: Comment & { status: CommentStatus } = {
@@ -517,52 +684,38 @@ export function CommentsPanel({
       body: text,
       status: 'open',
       ...(linkedSection && { linkedSection }),
+      ...(linkedSectionId && { linkedSectionId }),
     }
     setLocalComments([newComment, ...localComments])
     setShowAddNote(false)
-    
-    // Notify parent of status change
-    if (onStatusChange) {
-      onStatusChange(status)
-    }
-    
-    // Clear linked section after posting
-    if (onClearLinkedSection) {
-      onClearLinkedSection()
-    }
+    if (onStatusChange) onStatusChange(status)
+    if (onClearLinkedSection) onClearLinkedSection()
   }
 
   const handleDeleteComment = (commentId: string) => {
-    setLocalComments(localComments.filter(c => c.id !== commentId))
+    setLocalComments(localComments.filter((c) => c.id !== commentId))
   }
 
   const handleResolveComment = (commentId: string) => {
-    setLocalComments(localComments.map(c => 
-      c.id === commentId 
-        ? { ...c, status: c.status === 'resolved' ? 'open' : 'resolved' as CommentStatus }
-        : c
-    ))
+    setLocalComments(
+      localComments.map((c) =>
+        c.id === commentId
+          ? { ...c, status: c.status === 'resolved' ? 'open' : ('resolved' as CommentStatus) }
+          : c
+      )
+    )
   }
 
-  const handleCancelAddNote = () => {
-    setShowAddNote(false)
-    if (onClearLinkedSection) {
-      onClearLinkedSection()
-    }
-  }
-
-  // Collapsed state - just show icon with notification dot
   if (isCollapsed) {
     return (
       <div className="flex justify-center pt-0">
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="relative flex h-10 w-10 items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+          className="relative flex h-10 w-10 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
           title="Expand comments"
         >
           <MessageCircleMore size={20} />
-          {/* Notification dot */}
           <span className="absolute right-1 top-1 flex h-3 w-3 items-center justify-center">
             <span className="absolute h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
           </span>
@@ -571,7 +724,6 @@ export function CommentsPanel({
     )
   }
 
-  // Expanded state - normal comments panel
   return (
     <div className="pl-2">
       <div className="flex items-center justify-between">
@@ -579,34 +731,35 @@ export function CommentsPanel({
           type="button"
           onClick={() => setShowAddNote(!showAddNote)}
           className={cn(
-            "flex items-center gap-2 rounded-lg px-2 py-1 text-[13px] font-medium transition-colors",
-            showAddNote
-              ? "bg-blue-50 text-blue-700"
-              : "text-blue-700 hover:bg-blue-50"
+            'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] font-medium transition-colors',
+            showAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
           )}
         >
           <MessageCircleMore size={16} />
           Add note
         </button>
-        
         <button
           type="button"
           onClick={onToggleCollapse}
-          className="flex h-6 w-6 items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
           title="Collapse comments"
         >
           <ChevronRight size={16} />
         </button>
       </div>
 
-      {/* Add note textarea */}
       {showAddNote && (
-        <AddNoteTextarea
-          onSubmit={handleAddNote}
-          onCancel={handleCancelAddNote}
-          linkedSection={linkedSection}
-          onStatusChange={onStatusChange}
-        />
+        <div className="mt-3">
+          <AddNoteTextarea
+            onSubmit={handleAddNote}
+            onCancel={() => {
+              setShowAddNote(false)
+              if (onClearLinkedSection) onClearLinkedSection()
+            }}
+            linkedSection={linkedSection}
+            onStatusChange={onStatusChange}
+          />
+        </div>
       )}
 
       <div className="mt-5 flex flex-col gap-5">
@@ -621,6 +774,13 @@ export function CommentsPanel({
             onResolve={handleResolveComment}
           />
         ))}
+        {commentsBySection.unlinked.length > 0 && commentsBySection.unlinked.length !== localComments.length && (
+          <div className="mt-4 border-t border-neutral-200 pt-4">
+            <div className="mb-3 text-[11px] font-medium uppercase tracking-wider text-brand-fog">
+              General notes
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

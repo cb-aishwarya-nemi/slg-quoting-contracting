@@ -372,6 +372,19 @@ body {
   }
 }
 
+/* AI gradient flow animation for drag-over state */
+@keyframes gradient-flow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
 /* Drop zone pill expand animation: morph shape first, then scale */
 @keyframes pill-expand {
   0% {
