@@ -122,6 +122,41 @@ body {
   font-variant-numeric: proportional-nums;
 }
 
+/* Primary CTA gradient - subtle darker bottom-right for depth */
+.bg-orange-500 {
+  background: linear-gradient(
+    135deg,
+    var(--color-orange-500) 0%,
+    var(--color-orange-500) 40%,
+    #621401 100%
+  ) !important;
+  transition: filter 0.35s ease, box-shadow 0.35s ease, transform 0.2s ease;
+}
+
+.bg-orange-500:hover,
+.hover\:bg-orange-600:hover {
+  filter: brightness(0.9);
+}
+
+/* AI processing progress animation */
+@keyframes ai-progress {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0.7;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0.7;
+  }
+}
+
+.animate-ai-progress {
+  animation: ai-progress 2s ease-in-out infinite;
+}
+
 /* AI Gradient - for AI-related UI elements */
 .ai-gradient {
   background: linear-gradient(135deg, var(--color-orange-500) 0%, var(--color-violet-500) 100%);
@@ -372,13 +407,582 @@ body {
   }
 }
 
+/* ============================================
+   INK DROP PHYSICS ANIMATION
+   Realistic fluid simulation with:
+   - Falling drops with gravity acceleration
+   - Splash effect on impact
+   - Liquid accumulation from bottom
+   - Drain cycle at 35% fill
+   - Fluid hover continuation
+   ============================================ */
+
+.ink-drop-button {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Liquid fill layer - accumulates at bottom */
+.ink-liquid-fill {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(0deg, var(--color-violet-500) 0%, var(--color-orange-500) 100%);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 1;
+  animation: liquid-accumulate 12s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Hover fill layer - fluid continuation on hover */
+.ink-liquid-hover {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 0%;
+  background: linear-gradient(0deg, var(--color-violet-500) 0%, var(--color-orange-500) 100%);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 4;
+  transition: height 0.7s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* On hover - liquid rises to fill entire button */
+.ink-drop-button:hover .ink-liquid-hover {
+  height: 100%;
+  transition: height 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* On hover-out - liquid drains back down with gravity */
+.ink-drop-button:not(:hover) .ink-liquid-hover {
+  transition: height 1.2s cubic-bezier(0.55, 0, 1, 0.45);
+}
+
+/* On drag-over - instant liquid fill */
+.ink-drop-button.ink-drag-active .ink-liquid-hover {
+  height: 100%;
+  transition: height 0.30s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hide drops instantly on drag-over */
+.ink-drop-button.ink-drag-active .ink-drop,
+.ink-drop-button.ink-drag-active .ink-splash {
+  opacity: 0 !important;
+  transition: opacity 0.1s ease;
+}
+
+/* Liquid surface wobble - meniscus effect */
+.ink-liquid-fill::before,
+.ink-liquid-hover::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 0;
+  right: 0;
+  height: 6px;
+  background: linear-gradient(90deg, 
+    transparent 0%, 
+    var(--color-orange-500) 20%,
+    var(--color-orange-300) 50%,
+    var(--color-orange-500) 80%,
+    transparent 100%
+  );
+  border-radius: 50%;
+  animation: surface-wobble 1.5s ease-in-out infinite;
+  opacity: 0.8;
+}
+
+/* Hide the animated fill's meniscus when hover layer is active */
+.ink-drop-button:hover .ink-liquid-fill::before {
+  opacity: 0;
+}
+
+/* Falling ink drops - teardrop shape */
+.ink-drop {
+  position: absolute;
+  width: 4px;
+  height: 6px;
+  background: linear-gradient(180deg, var(--color-orange-500) 0%, var(--color-violet-500) 100%);
+  border-radius: 50% 50% 50% 50% / 40% 40% 60% 60%;
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+/* Hide drops on hover (submerged in liquid) */
+.ink-drop-button:hover .ink-drop {
+  opacity: 0 !important;
+  transition: opacity 0.2s ease;
+}
+
+/* Drop 1 - center - starts immediately */
+.ink-drop-1 {
+  left: 50%;
+  transform: translateX(-50%);
+  animation: drop-fall-1 12s ease-in infinite;
+}
+
+/* Drop 2 - left of center */
+.ink-drop-2 {
+  left: 35%;
+  transform: translateX(-50%);
+  animation: drop-fall-2 12s ease-in infinite;
+}
+
+/* Drop 3 - right of center */
+.ink-drop-3 {
+  left: 65%;
+  transform: translateX(-50%);
+  animation: drop-fall-3 12s ease-in infinite;
+}
+
+/* Drop 4 - far left */
+.ink-drop-4 {
+  left: 25%;
+  transform: translateX(-50%);
+  animation: drop-fall-4 12s ease-in infinite;
+}
+
+/* Drop 5 - far right */
+.ink-drop-5 {
+  left: 75%;
+  transform: translateX(-50%);
+  animation: drop-fall-5 12s ease-in infinite;
+}
+
+/* Splash rings - appear on drop impact */
+.ink-splash {
+  position: absolute;
+  bottom: 0;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, var(--color-violet-500) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+/* Hide splashes on hover */
+.ink-drop-button:hover .ink-splash {
+  opacity: 0 !important;
+}
+
+.ink-splash-1 {
+  left: 50%;
+  transform: translateX(-50%);
+  animation: splash-expand-1 12s ease-out infinite;
+}
+
+.ink-splash-2 {
+  left: 35%;
+  transform: translateX(-50%);
+  animation: splash-expand-2 12s ease-out infinite;
+}
+
+.ink-splash-3 {
+  left: 65%;
+  transform: translateX(-50%);
+  animation: splash-expand-3 12s ease-out infinite;
+}
+
+.ink-splash-4 {
+  left: 25%;
+  transform: translateX(-50%);
+  animation: splash-expand-4 12s ease-out infinite;
+}
+
+.ink-splash-5 {
+  left: 75%;
+  transform: translateX(-50%);
+  animation: splash-expand-5 12s ease-out infinite;
+}
+
+/* ============================================
+   KEYFRAME ANIMATIONS - 12s cycle
+   First drop starts immediately (reduced delay)
+   ============================================ */
+
+/* Liquid accumulation - rises with each drop, drains at 35% */
+@keyframes liquid-accumulate {
+  0% { height: 0%; }
+  /* Drop 1 lands at ~4% - liquid rises to 7% */
+  5% { height: 7%; }
+  /* Drop 2 lands at ~17% - liquid rises to 14% */
+  18% { height: 14%; }
+  /* Drop 3 lands at ~33% - liquid rises to 21% */
+  35% { height: 21%; }
+  /* Drop 4 lands at ~50% - liquid rises to 28% */
+  52% { height: 28%; }
+  /* Drop 5 lands at ~67% - liquid rises to 35% */
+  69% { height: 35%; }
+  /* Hold at 35% briefly */
+  73% { height: 35%; }
+  /* Drain - liquid flows out from bottom */
+  90% { height: 0%; }
+  100% { height: 0%; }
+}
+
+/* Surface tension wobble */
+@keyframes surface-wobble {
+  0%, 100% { transform: scaleX(1) translateY(0); }
+  25% { transform: scaleX(1.08) translateY(-1px); }
+  50% { transform: scaleX(0.92) translateY(1px); }
+  75% { transform: scaleX(1.04) translateY(-0.5px); }
+}
+
+/* Drop 1 - falls immediately (0-4%), gravity acceleration */
+@keyframes drop-fall-1 {
+  0% { 
+    top: -8px; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  1.5% { 
+    top: 15%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.15);
+  }
+  3% { 
+    top: 55%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.35);
+  }
+  3.8% { 
+    top: calc(100% - 8px); 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.4);
+  }
+  4% { 
+    top: calc(100% - 4px); 
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.5) scaleX(2);
+  }
+  4.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+/* Drop 2 - falls at ~14-17% */
+@keyframes drop-fall-2 {
+  0%, 14% { 
+    top: -8px; 
+    opacity: 0;
+  }
+  14.1% { 
+    top: -8px; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  15.5% { 
+    top: 15%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.15);
+  }
+  16.5% { 
+    top: 55%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.35);
+  }
+  17% { 
+    top: calc(100% - 12px); 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.4);
+  }
+  17.2% { 
+    top: calc(100% - 8px); 
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.5) scaleX(2);
+  }
+  17.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+/* Drop 3 - falls at ~30-33% */
+@keyframes drop-fall-3 {
+  0%, 30% { 
+    top: -8px; 
+    opacity: 0;
+  }
+  30.1% { 
+    top: -8px; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  31.5% { 
+    top: 15%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.15);
+  }
+  32.5% { 
+    top: 55%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.35);
+  }
+  33% { 
+    top: calc(100% - 16px); 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.4);
+  }
+  33.2% { 
+    top: calc(100% - 12px); 
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.5) scaleX(2);
+  }
+  33.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+/* Drop 4 - falls at ~47-50% */
+@keyframes drop-fall-4 {
+  0%, 47% { 
+    top: -8px; 
+    opacity: 0;
+  }
+  47.1% { 
+    top: -8px; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  48.5% { 
+    top: 15%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.15);
+  }
+  49.5% { 
+    top: 55%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.35);
+  }
+  50% { 
+    top: calc(100% - 20px); 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.4);
+  }
+  50.2% { 
+    top: calc(100% - 16px); 
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.5) scaleX(2);
+  }
+  50.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+/* Drop 5 - falls at ~64-67% */
+@keyframes drop-fall-5 {
+  0%, 64% { 
+    top: -8px; 
+    opacity: 0;
+  }
+  64.1% { 
+    top: -8px; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1);
+  }
+  65.5% { 
+    top: 15%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.15);
+  }
+  66.5% { 
+    top: 55%; 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.35);
+  }
+  67% { 
+    top: calc(100% - 24px); 
+    opacity: 1;
+    transform: translateX(-50%) scaleY(1.4);
+  }
+  67.2% { 
+    top: calc(100% - 20px); 
+    opacity: 0;
+    transform: translateX(-50%) scaleY(0.5) scaleX(2);
+  }
+  67.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+/* Splash animations - radial expansion on impact */
+@keyframes splash-expand-1 {
+  0%, 3.8% { 
+    width: 0; 
+    height: 0; 
+    opacity: 0;
+    bottom: 0;
+  }
+  4% { 
+    width: 16px; 
+    height: 4px; 
+    opacity: 0.9;
+    bottom: 0;
+  }
+  5% { 
+    width: 28px; 
+    height: 6px; 
+    opacity: 0.5;
+    bottom: 2px;
+  }
+  6% { 
+    width: 36px; 
+    height: 3px; 
+    opacity: 0;
+    bottom: 4px;
+  }
+  6.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@keyframes splash-expand-2 {
+  0%, 17% { 
+    width: 0; 
+    height: 0; 
+    opacity: 0;
+    bottom: 7%;
+  }
+  17.2% { 
+    width: 14px; 
+    height: 4px; 
+    opacity: 0.9;
+    bottom: 7%;
+  }
+  18% { 
+    width: 24px; 
+    height: 5px; 
+    opacity: 0.5;
+    bottom: calc(7% + 2px);
+  }
+  19% { 
+    width: 32px; 
+    height: 3px; 
+    opacity: 0;
+    bottom: calc(7% + 4px);
+  }
+  19.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@keyframes splash-expand-3 {
+  0%, 33% { 
+    width: 0; 
+    height: 0; 
+    opacity: 0;
+    bottom: 14%;
+  }
+  33.2% { 
+    width: 14px; 
+    height: 4px; 
+    opacity: 0.9;
+    bottom: 14%;
+  }
+  34% { 
+    width: 24px; 
+    height: 5px; 
+    opacity: 0.5;
+    bottom: calc(14% + 2px);
+  }
+  35% { 
+    width: 32px; 
+    height: 3px; 
+    opacity: 0;
+    bottom: calc(14% + 4px);
+  }
+  35.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@keyframes splash-expand-4 {
+  0%, 50% { 
+    width: 0; 
+    height: 0; 
+    opacity: 0;
+    bottom: 21%;
+  }
+  50.2% { 
+    width: 14px; 
+    height: 4px; 
+    opacity: 0.9;
+    bottom: 21%;
+  }
+  51% { 
+    width: 24px; 
+    height: 5px; 
+    opacity: 0.5;
+    bottom: calc(21% + 2px);
+  }
+  52% { 
+    width: 32px; 
+    height: 3px; 
+    opacity: 0;
+    bottom: calc(21% + 4px);
+  }
+  52.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@keyframes splash-expand-5 {
+  0%, 67% { 
+    width: 0; 
+    height: 0; 
+    opacity: 0;
+    bottom: 28%;
+  }
+  67.2% { 
+    width: 14px; 
+    height: 4px; 
+    opacity: 0.9;
+    bottom: 28%;
+  }
+  68% { 
+    width: 24px; 
+    height: 5px; 
+    opacity: 0.5;
+    bottom: calc(28% + 2px);
+  }
+  69% { 
+    width: 32px; 
+    height: 3px; 
+    opacity: 0;
+    bottom: calc(28% + 4px);
+  }
+  69.5%, 100% { 
+    opacity: 0; 
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ink-liquid-fill,
+  .ink-liquid-hover,
+  .ink-drop,
+  .ink-splash {
+    animation: none;
+    opacity: 0;
+  }
+  .ink-liquid-hover {
+    transition: none;
+  }
+}
+
 /* AI gradient flow animation for drag-over state */
 @keyframes gradient-flow {
   0% {
     background-position: 0% 50%;
   }
   50% {
-    background-position: 100% 50%;
+    background-position: 100% 100%;
   }
   100% {
     background-position: 0% 50%;

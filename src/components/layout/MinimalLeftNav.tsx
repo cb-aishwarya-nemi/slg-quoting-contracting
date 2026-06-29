@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { FilePlus2, FileStack, ChevronsUpDown } from 'lucide-react'
+import { FilePlus2, List, ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
 import cbLogo from '@/assets/cb-logo-squircle.svg'
@@ -181,7 +181,7 @@ export function MinimalLeftNav({
               )}
               title="Contracts"
             >
-              <FileStack size={18} />
+              <List size={18} />
               {/* Badge showing count */}
               <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-navy text-[9px] font-semibold text-white dark:bg-white dark:text-brand-navy">
                 {contracts.length}

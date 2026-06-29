@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import { Upload, Sparkles, Loader2, PanelLeftClose, PanelLeft, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Upload, Sparkles, PanelLeftClose, PanelLeft, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
 import { sectionSources, type Comment, getContractById } from '@/data/contractProcessingMock'
@@ -33,20 +33,25 @@ interface ContractIngestionPageProps {
 
 function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: number) => void }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const chatAreaRef = useRef<HTMLDivElement>(null)
+  const dropZoneRef = useRef<HTMLDivElement>(null)
+  const notesInputRef = useRef<HTMLTextAreaElement>(null)
   const { addProcessingFile, processingFiles, workbenchItems } = useFileDrop()
   
   const [pendingFiles, setPendingFiles] = useState<File[]>([])
+  const [uploadingFiles, setUploadingFiles] = useState<Map<string, number>>(new Map())
   const [isDragOver, setIsDragOver] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [notes, setNotes] = useState('')
+  const [isNotesEditing, setIsNotesEditing] = useState(false)
   
   const activeFile = processingFiles.find(
     (f) => f.status === 'uploading' || f.status === 'processing',
   )
-  const isUploading = activeFile?.status === 'uploading'
   const isAIProcessing = activeFile?.status === 'processing'
-  const isProcessing = isUploading || isAIProcessing || isSubmitting
+  const isProcessing = isAIProcessing || isSubmitting
+  
+  const hasFiles = pendingFiles.length > 0
+  const isUploading = uploadingFiles.size > 0
   
   useEffect(() => {
     const completedFile = processingFiles.find(f => f.status === 'complete')
@@ -69,9 +74,29 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   const handleDragLeave = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    if (!chatAreaRef.current?.contains(e.relatedTarget as Node)) {
+    if (!dropZoneRef.current?.contains(e.relatedTarget as Node)) {
       setIsDragOver(false)
     }
+  }, [])
+  
+  const simulateUpload = useCallback((_file: File, fileId: string) => {
+    setUploadingFiles(prev => new Map(prev).set(fileId, 0))
+    
+    let progress = 0
+    const interval = setInterval(() => {
+      progress += Math.random() * 25 + 10
+      if (progress >= 100) {
+        progress = 100
+        clearInterval(interval)
+        setUploadingFiles(prev => {
+          const next = new Map(prev)
+          next.delete(fileId)
+          return next
+        })
+      } else {
+        setUploadingFiles(prev => new Map(prev).set(fileId, Math.min(progress, 99)))
+      }
+    }, 150)
   }, [])
   
   const handleDrop = useCallback((e: React.DragEvent) => {
@@ -80,9 +105,13 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
     setIsDragOver(false)
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
-      setPendingFiles(prev => [...prev, ...files])
+      files.forEach(file => {
+        const fileId = `${file.name}-${Date.now()}-${Math.random()}`
+        setPendingFiles(prev => [...prev, file])
+        simulateUpload(file, fileId)
+      })
     }
-  }, [])
+  }, [simulateUpload])
   
   const handleAttachClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -95,7 +124,11 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
-      setPendingFiles(prev => [...prev, ...Array.from(files)])
+      Array.from(files).forEach(file => {
+        const fileId = `${file.name}-${Date.now()}-${Math.random()}`
+        setPendingFiles(prev => [...prev, file])
+        simulateUpload(file, fileId)
+      })
       e.target.value = ''
     }
   }
@@ -105,12 +138,12 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   }
   
   const handleProcess = () => {
-    if (pendingFiles.length === 0 || isProcessing) return
+    if (pendingFiles.length === 0 || isProcessing || isUploading) return
     setIsSubmitting(true)
     pendingFiles.forEach(file => addProcessingFile(file))
   }
   
-  const truncateFileName = (name: string, maxLength = 20) => {
+  const truncateFileName = (name: string, maxLength = 24) => {
     if (name.length <= maxLength) return name
     const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : ''
     const baseName = name.slice(0, name.lastIndexOf('.') || name.length)
@@ -118,9 +151,22 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
     return `${truncatedBase}...${ext}`
   }
   
+  const getCountWord = (count: number): string => {
+    const words = ['Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten']
+    return count <= 10 ? words[count] : String(count)
+  }
+  
+  const getHeadline = (): string => {
+    if (!hasFiles) return 'Drop one or more contracts to begin'
+    if (isAIProcessing) return `Processing ${getCountWord(pendingFiles.length).toLowerCase()} contract${pendingFiles.length > 1 ? 's' : ''}...`
+    if (isUploading) return `${getCountWord(pendingFiles.length)} contract${pendingFiles.length > 1 ? 's' : ''} uploading...`
+    return `${getCountWord(pendingFiles.length)} contract${pendingFiles.length > 1 ? 's' : ''} ready to process`
+  }
+  
   return (
     <div 
-      className="flex h-full w-full flex-col items-center justify-center gap-6"
+      ref={dropZoneRef}
+      className="flex h-full w-full flex-col items-center justify-start pt-[20vh] transition-all duration-300"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -131,170 +177,217 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
         onChange={handleFileSelect}
         accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.xls,.xlsx,.csv"
         multiple
-        style={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          padding: 0,
-          margin: -1,
-          overflow: 'hidden',
-          clip: 'rect(0, 0, 0, 0)',
-          whiteSpace: 'nowrap',
-          border: 0,
-        }}
+        className="sr-only"
       />
 
-      <div className="flex flex-col items-center gap-1.5 text-center">
-        <h2 className="font-heading text-[24px] font-normal text-brand-navy dark:text-white tracking-[-0.5px]">
-          Start by dropping your latest contract
-        </h2>
-      </div>
-      
-      <div
-        ref={chatAreaRef}
-        className={cn(
-          'group/chatbox relative flex flex-col overflow-hidden rounded-xl transition-all duration-300',
-          'hover:scale-[1.015]',
-          isDragOver ? 'scale-[1.02] shadow-lg' : '',
-          isProcessing && 'pointer-events-none opacity-70'
-        )}
-        style={{ 
-          width: 520, 
-          height: 260,
-          border: isDragOver ? '1.5px solid transparent' : '1.5px solid #1c1b2e',
-        }}
-      >
-        {isDragOver && (
-          <div 
-            className="absolute inset-0 -z-10 animate-pulse rounded-xl"
-            style={{
-              background: 'linear-gradient(135deg, #ff3300, #8b5cf6, #ff3300)',
-              backgroundSize: '200% 200%',
-              animation: 'gradient-flow 2s ease infinite',
-              padding: 2,
-            }}
-          />
-        )}
+      <div className="flex flex-col items-center gap-8">
+        <div className="flex flex-col items-center gap-2">
+          <h1 className="font-heading text-[28px] font-normal tracking-[-1px] text-brand-navy transition-all duration-300">
+            {getHeadline()}
+          </h1>
+          <p className="text-[13px] text-brand-fog">
+            You can choose multiple files while uploading
+          </p>
+        </div>
         
-        <div className={cn(
-          'flex flex-1 flex-col rounded-[10px] bg-white dark:bg-brand-deep',
-          isDragOver && 'm-[2px]'
-        )}>
-          <div 
-            className="shrink-0 cursor-pointer overflow-x-auto rounded-t-[10px] bg-brand-navy px-3 py-2" 
-            style={{ borderBottom: '1.5px solid #1c1b2e' }}
-            onClick={(e) => {
-              if (!isProcessing && pendingFiles.length === 0 && fileInputRef.current) {
-                e.stopPropagation()
-                fileInputRef.current.click()
-              }
-            }}
-          >
-            {pendingFiles.length === 0 && !isProcessing ? (
-              <p className="text-[13px] text-white/60">
-                {isDragOver ? 'Release to attach contracts' : 'Drag and drop contracts here'}
-              </p>
-            ) : isProcessing ? (
-              <div className="flex items-center gap-3">
-                {isUploading && activeFile && (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin text-white" />
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-medium text-white">Uploading</span>
-                      <div className="h-1 w-24 overflow-hidden rounded-full bg-white/20">
-                        <div
-                          className="h-full rounded-full bg-white transition-all duration-300"
-                          style={{ width: `${activeFile.progress}%` }}
-                        />
-                      </div>
-                      <span className="text-[11px] text-white/50">
-                        {Math.round(activeFile.progress)}%
-                      </span>
-                    </div>
-                  </>
-                )}
-                {isAIProcessing && (
-                  <>
-                    <Sparkles className="h-4 w-4 animate-pulse text-orange-400" />
-                    <span className="text-[12px] font-medium text-white">
-                      Processing contracts...
-                    </span>
-                    <div className="h-1 w-24 overflow-hidden rounded-full ai-gradient animate-pulse" />
-                  </>
-                )}
-              </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {pendingFiles.map((file, index) => (
-                  <div
-                    key={`${file.name}-${index}`}
-                    className="group flex items-center gap-2 rounded-md px-2 py-1 transition-colors"
-                    style={{ border: '1.5px solid rgba(255,255,255,0.3)' }}
-                  >
-                    <FileText size={12} className="shrink-0 text-white/60" />
-                    <span className="text-[12px] font-medium text-white">
+        {hasFiles && (
+          <div className={cn(
+            "flex flex-wrap justify-center gap-3 max-w-[600px] transition-all duration-300",
+            isDragOver && "blur-sm opacity-60"
+          )}>
+            {pendingFiles.map((file, index) => {
+              const fileKey = `${file.name}-${index}`
+              const uploadProgress = uploadingFiles.get(fileKey)
+              const isFileUploading = uploadProgress !== undefined
+              
+              return (
+                <div
+                  key={fileKey}
+                  className={cn(
+                    'group relative flex items-center gap-2.5 rounded-lg border bg-white px-3 py-2 transition-all duration-200',
+                    isFileUploading 
+                      ? 'border-brand-mist' 
+                      : 'border-neutral-200 hover:border-brand-navy hover:shadow-sm'
+                  )}
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-red-50">
+                    <FileText size={16} className="text-red-500" />
+                  </div>
+                  
+                  <div className="flex flex-col min-w-0">
+                    <span className="text-[13px] font-medium text-brand-navy truncate max-w-[160px]">
                       {truncateFileName(file.name)}
                     </span>
+                    {isFileUploading ? (
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <div className="h-1 w-20 overflow-hidden rounded-full bg-neutral-200">
+                          <div
+                            className="h-full rounded-full ai-gradient transition-all duration-200"
+                            style={{ width: `${uploadProgress}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-brand-mist">
+                          {Math.round(uploadProgress)}%
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[11px] text-brand-fog">
+                        {(file.size / 1024).toFixed(0)} KB
+                      </span>
+                    )}
+                  </div>
+                  
+                  {!isFileUploading && !isProcessing && (
                     <button
                       type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleRemoveFile(index)
-                      }}
-                      className="flex h-4 w-4 cursor-pointer items-center justify-center rounded-full text-white/40 transition-colors hover:bg-white hover:text-brand-navy"
+                      onClick={() => handleRemoveFile(index)}
+                      className="ml-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-brand-mist opacity-0 transition-all hover:bg-neutral-100 hover:text-brand-navy group-hover:opacity-100"
                     >
-                      <X size={10} />
+                      <X size={12} />
                     </button>
-                  </div>
-                ))}
-              </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+        
+        {isAIProcessing ? (
+          <div className="flex flex-col items-center gap-3">
+            <div className="relative flex items-center gap-3 overflow-hidden rounded-full bg-brand-navy px-6 py-3">
+              {/* AI gradient progress bar */}
+              <div className="absolute inset-0 ai-gradient animate-ai-progress" />
+              <Sparkles className="relative z-10 h-5 w-5 animate-pulse text-white" />
+              <span className="relative z-10 text-[14px] font-medium text-white">
+                AI is analyzing your contracts...
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3">
+            {hasFiles ? (
+              <>
+                <button
+                  type="button"
+                  onClick={isDragOver ? undefined : handleProcess}
+                  disabled={isUploading || isProcessing}
+                  className={cn(
+                    'relative flex items-center gap-2 overflow-hidden rounded-full px-6 py-3 font-heading text-[15px] font-semibold text-white transition-all duration-200',
+                    isUploading || isProcessing
+                      ? 'cursor-not-allowed bg-neutral-300'
+                      : isDragOver
+                      ? 'scale-[1.03] bg-brand-navy'
+                      : 'bg-orange-500 hover:scale-[1.02] hover:bg-orange-600 hover:shadow-lg'
+                  )}
+                >
+                  {isDragOver ? (
+                    <>
+                      <div className="absolute inset-0 ai-gradient" />
+                      <Upload size={18} className="relative z-10" />
+                      <span className="relative z-10">Upload contract</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>Process Contract{pendingFiles.length > 1 ? 's' : ''}</span>
+                      <ArrowRight size={18} />
+                    </>
+                  )}
+                </button>
+                
+                {!isDragOver && (
+                  <button
+                    type="button"
+                    onClick={handleAttachClick}
+                    disabled={isProcessing}
+                    className={cn(
+                      'flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-medium text-brand-navy transition-all duration-200',
+                      'hover:bg-neutral-100',
+                      isProcessing && 'cursor-not-allowed opacity-50'
+                    )}
+                  >
+                    <Upload size={14} />
+                    <span>Upload more</span>
+                  </button>
+                )}
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={handleAttachClick}
+                className={cn(
+                  'group/btn ink-drop-button flex items-center gap-2.5 rounded-full px-6 py-3.5 font-heading text-[15px] font-semibold text-white transition-all duration-300',
+                  'bg-brand-navy hover:scale-[1.03]',
+                  isDragOver && 'scale-[1.03] ink-drag-active'
+                )}
+              >
+                {/* Ink animation layers */}
+                <div className="ink-liquid-fill" />
+                <div className="ink-liquid-hover" />
+                <div className="ink-drop ink-drop-1" />
+                <div className="ink-drop ink-drop-2" />
+                <div className="ink-drop ink-drop-3" />
+                <div className="ink-drop ink-drop-4" />
+                <div className="ink-drop ink-drop-5" />
+                <div className="ink-splash ink-splash-1" />
+                <div className="ink-splash ink-splash-2" />
+                <div className="ink-splash ink-splash-3" />
+                <div className="ink-splash ink-splash-4" />
+                <div className="ink-splash ink-splash-5" />
+                
+                <Upload size={18} className="relative z-10" />
+                <span className="relative z-10">Upload contract</span>
+              </button>
             )}
           </div>
-          
-          <div className="flex-1 p-3">
-            <textarea
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Add some notes..."
-              disabled={isProcessing}
-              className={cn(
-                'h-full w-full resize-none bg-transparent text-[13px] text-brand-navy outline-none placeholder:text-brand-mist dark:text-white dark:placeholder:text-brand-fog',
-                isProcessing && 'cursor-not-allowed opacity-50'
-              )}
-            />
-          </div>
-          
-          <div className="flex shrink-0 items-center justify-between rounded-b-[10px] bg-brand-navy px-4 py-3">
-            <button
-              type="button"
-              onClick={handleAttachClick}
-              disabled={isProcessing}
-              className={cn(
-                'flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1.5 text-[13px] transition-colors',
-                'text-white/60 hover:bg-white hover:text-brand-navy',
-                isProcessing && 'cursor-not-allowed opacity-50'
-              )}
-            >
-              <Upload size={14} />
-              <span>Drop a contract</span>
-            </button>
+        )}
+        
+        {hasFiles && !isProcessing && (
+          <div className="flex w-full max-w-[480px] flex-col items-center gap-4 pt-2">
+            <div className="h-px w-full bg-neutral-200" />
             
-            <button
-              type="button"
-              onClick={handleProcess}
-              disabled={pendingFiles.length === 0 || isProcessing}
-              className={cn(
-                'flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-[14px] font-semibold transition-colors',
-                pendingFiles.length > 0 && !isProcessing
-                  ? 'bg-orange-500 text-white hover:bg-orange-600'
-                  : 'cursor-not-allowed bg-white/10 text-white/30'
-              )}
-            >
-              <span>Process</span>
-              <ArrowRight size={16} />
-            </button>
+            {isNotesEditing ? (
+              <textarea
+                ref={notesInputRef}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={() => setIsNotesEditing(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault()
+                    setIsNotesEditing(false)
+                  }
+                }}
+                placeholder="+ Add instructions for the AI about this contract"
+                className="w-full resize-none bg-transparent text-center text-[14px] leading-[1.5] text-brand-navy outline-none placeholder:text-brand-mist"
+                style={{ minHeight: '63px', maxHeight: '63px', overflowY: 'auto' }}
+                rows={3}
+                autoFocus
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  setIsNotesEditing(true)
+                  setTimeout(() => notesInputRef.current?.focus(), 0)
+                }}
+                className="flex w-full flex-col items-center gap-1 text-[14px] transition-colors"
+              >
+                {notes ? (
+                  <>
+                    <span className="font-sans text-[11px] font-medium uppercase tracking-[0.04em] text-brand-fog">
+                      Note:
+                    </span>
+                    <span className="text-brand-navy">{notes}</span>
+                  </>
+                ) : (
+                  <span className="text-blue-700 hover:text-blue-500">
+                    + Add instructions for the AI about this contract
+                  </span>
+                )}
+              </button>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
