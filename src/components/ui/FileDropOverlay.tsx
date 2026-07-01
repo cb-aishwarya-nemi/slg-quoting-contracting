@@ -105,10 +105,25 @@ export function FileDropOverlay() {
             animationClass,
             isDragging && 'border-4 border-brand-navy backdrop-blur-xl',
             !hasEverDragged && 'dynamic-pill',
-            !isProcessing && !isDragging && 'cursor-pointer',
+            !isProcessing && !isDragging && 'cursor-pointer ink-drop-button',
+            isDragging && 'ink-drag-active',
           )}
           onClick={handlePillClick}
         >
+          {/* Ink animation layers */}
+          <div className="ink-liquid-fill" />
+          <div className="ink-liquid-hover" />
+          <div className="ink-drop ink-drop-1" />
+          <div className="ink-drop ink-drop-2" />
+          <div className="ink-drop ink-drop-3" />
+          <div className="ink-drop ink-drop-4" />
+          <div className="ink-drop ink-drop-5" />
+          <div className="ink-splash ink-splash-1" />
+          <div className="ink-splash ink-splash-2" />
+          <div className="ink-splash ink-splash-3" />
+          <div className="ink-splash ink-splash-4" />
+          <div className="ink-splash ink-splash-5" />
+
           {/* Background layer */}
           <div
             className={cn(
@@ -145,7 +160,7 @@ export function FileDropOverlay() {
           <div
             className={cn(
               'relative flex items-center whitespace-nowrap transition-all duration-300',
-              isDragging ? 'opacity-0 py-2 px-4' : 'opacity-100 py-2 px-4',
+              isDragging ? 'opacity-0 py-1.5 px-4' : 'opacity-100 py-1.5 px-4',
             )}
           >
             {!isProcessing && (

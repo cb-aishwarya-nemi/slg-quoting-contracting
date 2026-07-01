@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ArrowLeft, ChevronRight, X, ArrowDown, Send, MessageCircleMore } from 'lucide-react'
+import { ArrowLeft, ChevronRight, X, ArrowDown, Send, Maximize2, Minimize2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
@@ -51,6 +51,7 @@ const NAV_SECTIONS: NavSection[] = [
 const CONTENT_COL_WIDTH = 680
 const COMMENTS_COL_WIDTH = 250
 const LEFT_NAV_WIDTH = 180
+const EXPANDED_MAX_WIDTH = 1000
 
 function StatusUnit({ status }: { status: string }) {
   return (
@@ -87,7 +88,7 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
-  const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
+  const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
 
   // Comment state lifted to page so all stacks share the same source of truth
@@ -254,9 +255,10 @@ export function Customer360Page() {
       children: React.ReactNode
     }) => (
       <div className="flex items-start gap-8">
-        <div style={{ width: CONTENT_COL_WIDTH, flexShrink: 0 }}>{children}</div>
-        {!isCommentsCollapsed && (
-          <div style={{ width: COMMENTS_COL_WIDTH, flexShrink: 0 }}>
+        {/* Content expands to fill available space when panels expanded */}
+        <div className="min-w-0 flex-1">{children}</div>
+        {isPanelsExpanded && (
+          <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH }}>
             <SectionCommentStack
               sectionId={sectionId}
               comments={commentsBySection[sectionId] ?? []}
@@ -270,7 +272,7 @@ export function Customer360Page() {
       </div>
     ),
     [
-      isCommentsCollapsed,
+      isPanelsExpanded,
       commentsBySection,
       handleAddComment,
       handleDeleteComment,
@@ -351,20 +353,6 @@ export function Customer360Page() {
           <div className="flex-1" />
 
           <div className="flex items-center gap-3">
-            {/* Comments toggle */}
-            <button
-              type="button"
-              onClick={() => setIsCommentsCollapsed(!isCommentsCollapsed)}
-              className={cn(
-                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
-                isCommentsCollapsed
-                  ? 'text-brand-fog hover:bg-neutral-100'
-                  : 'text-blue-700 hover:bg-blue-50'
-              )}
-              title={isCommentsCollapsed ? 'Show comments' : 'Hide comments'}
-            >
-              <MessageCircleMore size={16} />
-            </button>
             <StatusUnit status={contractStatus} />
             <SendForApprovalButton onClick={handleSendForApproval} />
           </div>
@@ -373,20 +361,37 @@ export function Customer360Page() {
         {/* Body: left nav + merged content+comments column */}
         <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
           {/* Grid 1 — in-page nav */}
-          <aside className="shrink-0 pt-4" style={{ width: LEFT_NAV_WIDTH }}>
-            <InPageNav
-              sections={NAV_SECTIONS}
-              sourceDocuments={data.sourceDocuments}
-              activeId={activeSection}
-              onNavigate={handleNavigate}
-            />
+          <aside 
+            className="shrink-0 pt-4 overflow-hidden transition-all duration-300 ease-out"
+            style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
+          >
+            <div
+              className={cn(
+                'transition-opacity duration-200',
+                isPanelsExpanded ? 'opacity-100 delay-100' : 'opacity-0'
+              )}
+              style={{ width: LEFT_NAV_WIDTH }}
+            >
+              <InPageNav
+                sections={NAV_SECTIONS}
+                sourceDocuments={data.sourceDocuments}
+                activeId={activeSection}
+                onNavigate={handleNavigate}
+              />
+            </div>
           </aside>
 
           {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
-          <div ref={centerRef} className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12">
-            <div
-              className="mx-auto space-y-16"
-              style={{ maxWidth: CONTENT_COL_WIDTH + 32 + COMMENTS_COL_WIDTH }}
+          <div 
+            ref={centerRef} 
+            className={cn(
+              "min-w-0 flex-1 overflow-y-auto pb-20 pt-12",
+              isPanelsExpanded ? "pl-16 pr-4" : "px-16"
+            )}
+          >
+            <div 
+              className="space-y-16"
+              style={!isPanelsExpanded ? { maxWidth: EXPANDED_MAX_WIDTH, margin: '0 auto' } : undefined}
             >
 
               {/* Summary — no comments column (no SectionHeader) */}
@@ -396,12 +401,19 @@ export function Customer360Page() {
                 style={{ maxWidth: CONTENT_COL_WIDTH }}
               >
                 <div className="relative">
-                  {false && (
-                    <span className="title-sweep-overlay" aria-hidden="true">
-                      <span className="title-sweep-band" />
-                    </span>
-                  )}
-                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
+                  {/* Expand/collapse button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsPanelsExpanded(!isPanelsExpanded)}
+                    className={cn(
+                      'absolute -right-2 -top-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
+                      'text-brand-fog hover:bg-neutral-100 hover:text-brand-navy'
+                    )}
+                    title={isPanelsExpanded ? 'Expand content' : 'Show panels'}
+                  >
+                    {isPanelsExpanded ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+                  </button>
+                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy pr-10">
                     <span className="font-bold">
                       Contract Value: {data.summary.contractValue}
                     </span>
@@ -428,7 +440,7 @@ export function Customer360Page() {
                     commentCount={commentCountsBySection['account']}
                   />
                   <div className="mt-4">
-                    <LabelValueList items={data.account} />
+                    <LabelValueList items={data.account} showAddField />
                   </div>
                 </SectionRow>
               </section>
@@ -488,7 +500,7 @@ export function Customer360Page() {
                     commentCount={commentCountsBySection['products']}
                   />
                   <div className="mt-4">
-                    <ProductsPricingTable items={data.products} />
+                    <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
                   </div>
                 </SectionRow>
               </section>

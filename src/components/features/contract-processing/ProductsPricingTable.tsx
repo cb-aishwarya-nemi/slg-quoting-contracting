@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { PackagePlus, ChevronDown, MoreVertical, CirclePlus, Search, X, Circle } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, MoreVertical, CirclePlus, Search, X, Circle, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { type ProductLineItem, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
+import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 
 function Separator({ isRowHovered, isRowActive }: { isRowHovered?: boolean; isRowActive?: boolean }) {
   return <div className={cn(
@@ -292,10 +292,10 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 items-center gap-2 group/item">
-      {/* Icon slot — always reserves 16px so item names stay vertically aligned */}
-      {isAttention ? (
-        <div className="relative shrink-0">
+    <div className="relative flex min-w-0 flex-1 items-center group/item">
+      {/* Icon with negative margin — sits outside the table column for alignment */}
+      {isAttention && (
+        <div className="relative -ml-6 mr-2 shrink-0">
           <PackagePlus size={16} className={cn(
             "shrink-0 transition-colors",
             (isOpen || isRowHovered) ? "text-white" : "ai-gradient-text"
@@ -306,8 +306,6 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
             </span>
           )}
         </div>
-      ) : (
-        <div className="w-4 shrink-0" />
       )}
       <button
         ref={buttonRef}
@@ -417,10 +415,10 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
   }
 
   return (
-    <div className="flex items-center border-b border-neutral-100 bg-blue-50/50 py-1.5">
+    <div className="flex items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2">
       {/* Item */}
-      <div ref={itemAnchorRef} className="relative flex min-w-0 flex-1 items-center gap-2">
-        <Circle size={16} className="shrink-0 text-brand-mist" />
+      <div ref={itemAnchorRef} className="relative flex min-w-0 flex-1 items-center">
+        <Circle size={16} className="-ml-6 mr-2 shrink-0 text-brand-mist" />
         <button
           type="button"
           onClick={() => setStep('item')}
@@ -523,22 +521,84 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
   )
 }
 
-interface ProductsPricingTableProps {
-  items: ProductLineItem[]
+interface PeriodHeaderProps {
+  period: RampPeriod
+  isExpanded: boolean
+  onToggle: () => void
 }
 
-export function ProductsPricingTable({ items: initialItems }: ProductsPricingTableProps) {
+function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full cursor-pointer items-center justify-between py-3 pr-2 transition-colors hover:bg-neutral-50"
+    >
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-brand-navy">{period.label}</span>
+        <span className="text-[13px] text-brand-fog">·</span>
+        <div className="flex items-center gap-1.5 text-[13px] text-brand-fog">
+          <Calendar size={14} className="text-brand-mist" />
+          <span>{period.startDate}</span>
+          <span>to</span>
+          <Calendar size={14} className="text-brand-mist" />
+          <span>{period.endDate}</span>
+        </div>
+      </div>
+      {isExpanded ? (
+        <ChevronUp size={16} className="text-brand-mist" />
+      ) : (
+        <ChevronDown size={16} className="text-brand-mist" />
+      )}
+    </button>
+  )
+}
+
+function RampPriceChangeBadge({ change }: { change: number }) {
+  return (
+    <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[11px] font-medium text-green-700">
+      {change}%
+    </span>
+  )
+}
+
+interface ProductsPricingTableProps {
+  items: ProductLineItem[]
+  periods?: RampPeriod[]
+}
+
+export function ProductsPricingTable({ items: initialItems, periods: initialPeriods }: ProductsPricingTableProps) {
   const [items, setItems] = useState(initialItems)
+  const [periods, setPeriods] = useState(initialPeriods)
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
+    if (initialPeriods) {
+      return new Set(initialPeriods.map(p => p.id))
+    }
+    return new Set()
+  })
+  const [addingToPeriodId, setAddingToPeriodId] = useState<string | null>(null)
+
+  const togglePeriod = (periodId: string) => {
+    setExpandedPeriods(prev => {
+      const next = new Set(prev)
+      if (next.has(periodId)) {
+        next.delete(periodId)
+      } else {
+        next.add(periodId)
+      }
+      return next
+    })
+  }
 
   const handleAddComplete = (newItem: {
     name: string
     unitPrice: string
     billingPeriod: string
     quantity: string
-  }) => {
+  }, periodId?: string) => {
     const unitPrice = parseFloat(newItem.unitPrice.replace(/[$,]/g, ''))
     const qty = parseInt(newItem.quantity, 10) || 0
     const totalPrice = (unitPrice * qty).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
@@ -553,117 +613,195 @@ export function ProductsPricingTable({ items: initialItems }: ProductsPricingTab
       totalPrice,
     }
 
-    setItems((prev) => [...prev, newLineItem])
-    setIsAddingNew(false)
+    if (periodId && periods) {
+      setPeriods(prev => prev?.map(p => 
+        p.id === periodId 
+          ? { ...p, items: [...p.items, newLineItem] }
+          : p
+      ))
+      setAddingToPeriodId(null)
+    } else {
+      setItems((prev) => [...prev, newLineItem])
+      setIsAddingNew(false)
+    }
   }
 
-  return (
-    <div>
-      {/* Header */}
-      <div className="flex items-center border-b border-neutral-200 pb-2">
-        <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Item
-        </div>
-        <GhostSeparator />
-        <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Fqy
-        </div>
-        <GhostSeparator />
-        <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Qty
-        </div>
-        <GhostSeparator />
-        <div
-          style={{ width: UNIT_W }}
-          className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
-        >
-          Unit price
-        </div>
-        <div
-          style={{ width: TOTAL_W }}
-          className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
-        >
-          Total price
-        </div>
-        <div style={{ width: MENU_W }} className="shrink-0" />
+  const renderTableHeader = () => (
+    <div className="flex items-center border-b border-neutral-200 pb-2 pr-2">
+      <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Item
       </div>
+      <GhostSeparator />
+      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Frequency
+      </div>
+      <GhostSeparator />
+      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Qty
+      </div>
+      <GhostSeparator />
+      <div
+        style={{ width: UNIT_W }}
+        className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+      >
+        Unit price
+      </div>
+      <div
+        style={{ width: TOTAL_W }}
+        className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+      >
+        Total price
+      </div>
+      <div style={{ width: MENU_W }} className="shrink-0" />
+    </div>
+  )
 
-      {/* Rows */}
-      {items.map((item) => {
-        const isAttention = item.status === 'attention'
-        const isActive = activeRowId === item.id
-        const isHovered = hoveredRowId === item.id
-        
-        return (
-          <div
-            key={item.id}
-            onMouseEnter={() => setHoveredRowId(item.id)}
-            onMouseLeave={() => setHoveredRowId(null)}
+  const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
+    const isAttention = item.status === 'attention'
+    const isActive = activeRowId === item.id
+    const isHovered = hoveredRowId === item.id
+    
+    return (
+      <div
+        key={item.id}
+        onMouseEnter={() => setHoveredRowId(item.id)}
+        onMouseLeave={() => setHoveredRowId(null)}
+        className={cn(
+          "group row-hover-trail flex items-center border-b py-1.5 pr-2",
+          isActive 
+            ? "bg-brand-navy border-brand-navy cursor-pointer"
+            : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+        )}
+      >
+        {/* Item */}
+        <ItemNameButton
+          name={item.name}
+          isAttention={isAttention}
+          isRowHovered={isHovered && !isActive}
+          onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
+          onSelect={(catalogItem) => {
+            updateItems((prev) =>
+              prev.map((i) =>
+                i.id === item.id
+                  ? { ...i, name: catalogItem.name, unitPrice: catalogItem.unitPrice, status: 'ready' }
+                  : i
+              )
+            )
+            setActiveRowId(null)
+          }}
+        />
+
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+
+        <div style={{ width: UNIT_W }} className={cn(
+          "flex shrink-0 items-center justify-end text-[14px] font-medium transition-colors",
+          (isActive || isHovered) ? "text-white" : "text-brand-navy"
+        )}>
+          {item.rampPriceChange && !isActive && !isHovered && (
+            <RampPriceChangeBadge change={item.rampPriceChange} />
+          )}
+          <span className="ml-2">{item.unitPrice}</span>
+        </div>
+        <div style={{ width: TOTAL_W }} className={cn(
+          "shrink-0 text-right text-[14px] font-medium transition-colors",
+          (isActive || isHovered) ? "text-white" : "text-brand-navy"
+        )}>
+          {item.totalPrice}
+        </div>
+
+        <div style={{ width: MENU_W }} className="flex shrink-0 justify-end">
+          <button
+            type="button"
             className={cn(
-              "group row-hover-trail flex items-center border-b py-1.5 px-2",
-              isActive 
-                ? "bg-brand-navy border-brand-navy cursor-pointer"
-                : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+              "flex h-6 w-6 cursor-pointer items-center justify-center rounded transition-colors",
+              (isActive || isHovered)
+                ? "text-white/70 hover:bg-white/10"
+                : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
             )}
           >
-            {/* Item */}
-            <ItemNameButton
-              name={item.name}
-              isAttention={isAttention}
-              isRowHovered={isHovered && !isActive}
-              onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
-              onSelect={(catalogItem) => {
-                setItems((prev) =>
-                  prev.map((i) =>
-                    i.id === item.id
-                      ? { ...i, name: catalogItem.name, unitPrice: catalogItem.unitPrice, status: 'ready' }
-                      : i
-                  )
-                )
-                setActiveRowId(null)
-              }}
-            />
+            <MoreVertical size={15} />
+          </button>
+        </div>
+      </div>
+    )
+  }
 
-            <Separator isRowHovered={isHovered} isRowActive={isActive} />
-            <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
-            <Separator isRowHovered={isHovered} isRowActive={isActive} />
-            <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
-            <Separator isRowHovered={isHovered} isRowActive={isActive} />
+  const renderAddLineItemButton = (onClick: () => void) => (
+    <div className="flex justify-start py-3">
+      <button
+        type="button"
+        onClick={onClick}
+        className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+      >
+        <CirclePlus size={16} className="text-blue-700" />
+        Add line item
+      </button>
+    </div>
+  )
 
-            <div style={{ width: UNIT_W }} className={cn(
-              "shrink-0 text-right text-[14px] font-medium transition-colors",
-              (isActive || isHovered) ? "text-white" : "text-brand-navy"
-            )}>
-              {item.unitPrice}
+  // Render with periods (ramp view)
+  if (periods && periods.length > 0) {
+    return (
+      <div className="space-y-8">
+        {periods.map((period) => {
+          const isExpanded = expandedPeriods.has(period.id)
+          const isAddingToThisPeriod = addingToPeriodId === period.id
+          
+          return (
+            <div key={period.id}>
+              <PeriodHeader
+                period={period}
+                isExpanded={isExpanded}
+                onToggle={() => togglePeriod(period.id)}
+              />
+              
+              {isExpanded && (
+                <div>
+                  {renderTableHeader()}
+                  
+                  {period.items.map((item) => 
+                    renderLineItem(item, (updater) => {
+                      setPeriods(prev => prev?.map(p => 
+                        p.id === period.id 
+                          ? { ...p, items: updater(p.items) }
+                          : p
+                      ))
+                    })
+                  )}
+                  
+                  {isAddingToThisPeriod ? (
+                    <NewLineItemRow
+                      onComplete={(newItem) => handleAddComplete(newItem, period.id)}
+                      onCancel={() => setAddingToPeriodId(null)}
+                    />
+                  ) : (
+                    renderAddLineItemButton(() => setAddingToPeriodId(period.id))
+                  )}
+                </div>
+              )}
             </div>
-            <div style={{ width: TOTAL_W }} className={cn(
-              "shrink-0 text-right text-[14px] font-medium transition-colors",
-              (isActive || isHovered) ? "text-white" : "text-brand-navy"
-            )}>
-              {item.totalPrice}
-            </div>
+          )
+        })}
+      </div>
+    )
+  }
 
-            <div style={{ width: MENU_W }} className="flex shrink-0 justify-end">
-              <button
-                type="button"
-                className={cn(
-                  "flex h-6 w-6 cursor-pointer items-center justify-center rounded transition-colors",
-                  (isActive || isHovered)
-                    ? "text-white/70 hover:bg-white/10"
-                    : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
-                )}
-              >
-                <MoreVertical size={15} />
-              </button>
-            </div>
-          </div>
-        )
-      })}
+  // Default single-table view (backward compatible)
+  return (
+    <div>
+      {renderTableHeader()}
+
+      {/* Rows */}
+      {items.map((item) => renderLineItem(item, setItems))}
 
       {/* New line item row */}
       {isAddingNew && (
         <NewLineItemRow
-          onComplete={handleAddComplete}
+          onComplete={(newItem) => handleAddComplete(newItem)}
           onCancel={() => setIsAddingNew(false)}
         />
       )}

@@ -22,6 +22,16 @@ export interface ProductLineItem {
   quantity: string
   unitPrice: string
   totalPrice: string
+  /** Price change percentage from previous period (e.g., 7 for 7% increase) */
+  rampPriceChange?: number
+}
+
+export interface RampPeriod {
+  id: string
+  label: string
+  startDate: string
+  endDate: string
+  items: ProductLineItem[]
 }
 
 export interface Comment {
@@ -226,6 +236,117 @@ export const contractProcessing = {
     },
   ] as ProductLineItem[],
 
+  rampPeriods: [
+    {
+      id: 'period-1',
+      label: 'Period 1',
+      startDate: '17 Jul 2026',
+      endDate: '17 Jun 2028',
+      items: [
+        {
+          id: 'rp1-li-1',
+          name: 'Apex platform - growth services',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '50',
+          unitPrice: '$2,400.00',
+          totalPrice: '$120,000.00',
+        },
+        {
+          id: 'rp1-li-2',
+          name: 'Implementation services',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$18,000.00',
+          totalPrice: '$18,000.00',
+        },
+        {
+          id: 'rp1-li-3',
+          name: 'Onboarding & Training',
+          status: 'attention',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$9,500.00',
+          totalPrice: '$9,500.00',
+        },
+        {
+          id: 'rp1-li-4',
+          name: 'Premium support SLA',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$12,000.00',
+          totalPrice: '$12,000.00',
+        },
+        {
+          id: 'rp1-li-5',
+          name: 'Sandbox environments',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '03',
+          unitPrice: '$1,500.00',
+          totalPrice: '$4,500.00',
+        },
+      ] as ProductLineItem[],
+    },
+    {
+      id: 'period-2',
+      label: 'Period 2',
+      startDate: '17 Jul 2027',
+      endDate: '17 Jul 2028',
+      items: [
+        {
+          id: 'rp2-li-1',
+          name: 'Apex platform - growth services',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '50',
+          unitPrice: '$2,568.00',
+          totalPrice: '$128,400.00',
+          rampPriceChange: 7,
+        },
+        {
+          id: 'rp2-li-2',
+          name: 'Implementation services',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$18,000.00',
+          totalPrice: '$18,000.00',
+        },
+        {
+          id: 'rp2-li-3',
+          name: 'Onboarding & Training',
+          status: 'attention',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$10,165.00',
+          totalPrice: '$10,165.00',
+          rampPriceChange: 7,
+        },
+        {
+          id: 'rp2-li-4',
+          name: 'Premium support SLA',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$12,840.00',
+          totalPrice: '$12,840.00',
+        },
+        {
+          id: 'rp2-li-5',
+          name: 'Sandbox environments',
+          status: 'ready',
+          billingPeriod: 'Yearly',
+          quantity: '03',
+          unitPrice: '$1,605.00',
+          totalPrice: '$4,815.00',
+        },
+      ] as ProductLineItem[],
+    },
+  ] as RampPeriod[],
+
   invoice: {
     number: 'INV-DRAFT-2026-0042',
     issueDate: 'May 1, 2026',
@@ -407,6 +528,7 @@ export const verdantHealthContract: ContractProcessing = {
 
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
+  rampPeriods: [],
   comments: [] as Comment[],
 }
 
@@ -480,6 +602,7 @@ export const zenithAnalyticsContract: ContractProcessing = {
 
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
+  rampPeriods: [],
   comments: [] as Comment[],
 }
 
@@ -553,6 +676,7 @@ export const quantumInnovationsContract: ContractProcessing = {
 
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
+  rampPeriods: [],
   comments: [] as Comment[],
 }
 
@@ -626,6 +750,7 @@ export const nexusPaymentsContract: ContractProcessing = {
 
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
+  rampPeriods: [],
   comments: [] as Comment[],
 }
 

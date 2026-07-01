@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import { Upload, Sparkles, PanelLeftClose, PanelLeft, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
+import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
 import { sectionSources, type Comment, getContractById } from '@/data/contractProcessingMock'
@@ -557,6 +557,12 @@ function ContractProcessingView({
   const CONTENT_COL_WIDTH = 820
   const BODY_COL_WIDTH = 620
   const COMMENTS_COL_WIDTH = 250
+  const EXPANDED_MAX_WIDTH = 1000
+
+  // Dynamic widths based on panel state
+  const contentWidth = isPanelsExpanded ? CONTENT_COL_WIDTH : EXPANDED_MAX_WIDTH
+  const bodyWidth = isPanelsExpanded ? BODY_COL_WIDTH : EXPANDED_MAX_WIDTH
+  const productsWidth = isPanelsExpanded ? 780 : EXPANDED_MAX_WIDTH
 
   // 2-col section row: content on the left, inline comment stack on the right
   const SectionRow = useCallback(
@@ -570,7 +576,7 @@ function ContractProcessingView({
       children: React.ReactNode
     }) => (
       <div className="flex items-start gap-8">
-        <div style={{ width: CONTENT_COL_WIDTH, flexShrink: 0 }}>{children}</div>
+        <div style={{ width: contentWidth, flexShrink: 0 }}>{children}</div>
         {isPanelsExpanded && (
           <div style={{ width: COMMENTS_COL_WIDTH, flexShrink: 0 }}>
             <SectionCommentStack
@@ -587,6 +593,7 @@ function ContractProcessingView({
     ),
     [
       isPanelsExpanded,
+      contentWidth,
       commentsBySection,
       handleAddComment,
       handleDeleteComment,
@@ -597,7 +604,7 @@ function ContractProcessingView({
   return (
     <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="shrink-0 px-6 py-3">
+      <div className="shrink-0 px-9 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <h1 className="font-heading text-[18px] font-semibold text-theme-primary">
@@ -606,18 +613,6 @@ function ContractProcessingView({
             <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
               {data.dealTag}
             </span>
-
-            <button
-              type="button"
-              onClick={() => setIsPanelsExpanded(!isPanelsExpanded)}
-              className={cn(
-                'ml-4 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
-                'text-theme-secondary hover:bg-theme-hover hover:text-theme-primary'
-              )}
-              title={isPanelsExpanded ? 'Collapse panels' : 'Expand panels'}
-            >
-              {isPanelsExpanded ? <PanelLeftClose size={16} /> : <PanelLeft size={16} />}
-            </button>
           </div>
 
           <div className="flex items-center gap-3">
@@ -669,10 +664,10 @@ function ContractProcessingView({
       </div>
 
       {/* Body */}
-      <div className="relative min-h-0 flex-1 px-6">
+      <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}
         <aside
-          className="absolute left-6 top-0 bottom-0 z-10 overflow-hidden pt-4 transition-all duration-300 ease-out"
+          className="absolute left-9 top-0 bottom-0 z-10 overflow-hidden pt-4 transition-all duration-300 ease-out"
           style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
         >
           <div
@@ -699,16 +694,28 @@ function ContractProcessingView({
         >
           <div
             className="mx-auto space-y-16"
-            style={{ maxWidth: CONTENT_COL_WIDTH + (isPanelsExpanded ? 32 + COMMENTS_COL_WIDTH : 0) }}
+            style={{ maxWidth: isPanelsExpanded ? CONTENT_COL_WIDTH + 32 + COMMENTS_COL_WIDTH : EXPANDED_MAX_WIDTH }}
           >
             {/* Summary — no comments column */}
             <section
               ref={setSectionRef('summary')}
               className="group/section"
-              style={{ maxWidth: BODY_COL_WIDTH }}
+              style={{ maxWidth: bodyWidth }}
             >
               <div className="relative">
-                <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-theme-primary">
+                {/* Expand/collapse button */}
+                <button
+                  type="button"
+                  onClick={() => setIsPanelsExpanded(!isPanelsExpanded)}
+                  className={cn(
+                    'absolute -right-2 -top-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
+                    'text-theme-secondary hover:bg-theme-hover hover:text-theme-primary'
+                  )}
+                  title={isPanelsExpanded ? 'Expand content' : 'Show panels'}
+                >
+                  {isPanelsExpanded ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
+                </button>
+                <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-theme-primary pr-10">
                   <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
                   {data.summary.headline}
                 </h2>
@@ -731,7 +738,7 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['account']}
                 />
-                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
+                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList items={data.account} showAddField />
                 </div>
               </SectionRow>
@@ -750,7 +757,7 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['addresses']}
                 />
-                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
+                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList items={data.addresses} />
                 </div>
               </SectionRow>
@@ -769,7 +776,7 @@ function ContractProcessingView({
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['terms']}
                 />
-                <div className="mt-4" style={{ maxWidth: BODY_COL_WIDTH }}>
+                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList items={data.termsAndBilling} />
                 </div>
               </SectionRow>
@@ -788,8 +795,11 @@ function ContractProcessingView({
                   statusLabel="Created 2 items"
                   commentCount={commentCountsBySection['products']}
                 />
-                <div className="mt-4" style={{ width: 780 }}>
-                  <ProductsPricingTable items={data.products} />
+                <div className="mt-4" style={{ width: productsWidth }}>
+                  <ProductsPricingTable 
+                    items={data.products} 
+                    periods={data.rampPeriods}
+                  />
                 </div>
               </SectionRow>
             </section>
@@ -801,7 +811,7 @@ function ContractProcessingView({
                   title="Billing schedule"
                   commentCount={commentCountsBySection['schedule']}
                 />
-                <div className="mt-6" style={{ maxWidth: BODY_COL_WIDTH }}>
+                <div className="mt-6" style={{ maxWidth: bodyWidth }}>
                   <PaymentSchedule
                     onPreviewClick={(invoiceIndex) => {
                       setActiveInvoiceIndex(invoiceIndex)
@@ -816,7 +826,7 @@ function ContractProcessingView({
             {/* Invoice preview */}
             <section ref={setSectionRef('invoice')} className="group/section">
               <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
-                <div style={{ maxWidth: BODY_COL_WIDTH }}>
+                <div style={{ maxWidth: bodyWidth }}>
                   <InvoicePreview
                     activeIndex={activeInvoiceIndex}
                     totalInvoices={4}

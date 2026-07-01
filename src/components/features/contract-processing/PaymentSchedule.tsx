@@ -225,7 +225,7 @@ function YearAccordion({
 }
 
 export function PaymentSchedule({ onPreviewClick, tcv }: PaymentScheduleProps) {
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set(['Year 1']))
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set())
   const yearGroups = groupByYear(paymentSchedule)
 
   const toggleYear = (year: string) => {
