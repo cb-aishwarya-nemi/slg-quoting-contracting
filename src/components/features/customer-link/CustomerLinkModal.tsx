@@ -132,9 +132,14 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
                 >
                   <X size={18} />
                 </button>
-                <h1 className="font-heading text-[16px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
-                  Link customer to your contract
-                </h1>
+                <div className="flex flex-col">
+                  <h1 className="font-heading text-[16px] font-semibold text-brand-navy" style={{ letterSpacing: '-0.5px' }}>
+                    Contract processing…
+                  </h1>
+                  <p className="text-[12px] text-brand-fog">
+                    Link customer to this contract and get started
+                  </p>
+                </div>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden pl-8 pr-6">

@@ -18,8 +18,7 @@ interface TopNavProps {
 
 function ProcessingBar({ files }: { files: ProcessingFile[] }) {
   const file = files[0]
-  const { removeProcessingFile, setShouldOpenModal } = useFileDrop()
-  const { goToWorkbench } = useNavigation()
+  const { removeProcessingFile } = useFileDrop()
   
   if (!file) return null
 
@@ -27,12 +26,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
   const isProcessing = file.status === 'processing'
 
   const handleDismiss = () => {
-    removeProcessingFile(file.id)
-  }
-
-  const handleOpenWorkbench = () => {
-    setShouldOpenModal(true)
-    goToWorkbench()
     removeProcessingFile(file.id)
   }
 
@@ -58,6 +51,11 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
               <p className="mt-0.5 max-w-[280px] truncate text-sm text-brand-fog">
                 {file.name}
               </p>
+              {isComplete && (
+                <p className="mt-1 text-[13px] text-brand-fog">
+                  Opening customer linking…
+                </p>
+              )}
             </div>
             {isComplete && (
               <button
@@ -92,16 +90,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             </div>
           )}
 
-          {isComplete && (
-            <div className="mt-3">
-              <button onClick={handleOpenWorkbench} className="flex cursor-pointer items-center gap-1.5 text-sm font-medium text-blue-700 hover:text-blue-800">
-                Open workbench item
-                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          )}
         </div>
       </div>
     </div>

@@ -1,17 +1,21 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, MoreVertical, ChevronRight } from "lucide-react";
+import { Search, Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
-import { cn, formatRelativeDate } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { useFileDrop, type WorkbenchItem } from "@/context/FileDropContext";
 import { useUseCase } from "@/context/UseCaseContext";
 import { CustomerLinkModal } from "@/components/features/customer-link";
 
 const WORKBENCH_TABS: TabItem[] = [
   { id: "your-tasks", label: "My tasks" },
-  { id: "queue", label: "Contract Queue" },
   { id: "approvals", label: "Approvals" },
 ];
+
+const TAB_TITLES: Record<string, string> = {
+  "your-tasks": "My tasks",
+  approvals: "Approvals",
+};
 
 // Status styles for contract ingestion
 const STATUS_STYLES: Record<string, { text: string; bg: string }> = {
@@ -80,12 +84,18 @@ export function WorkbenchPage() {
 
   const getTaskValue = (task: WorkbenchItem, attribute: string): string => {
     switch (attribute) {
-      case 'customer':
-        return task.customer;
-      case 'status':
-        return task.status || '';
+      case 'taskId':
+        return task.taskId || '';
       case 'taskType':
         return task.taskType;
+      case 'taskName':
+        return task.taskName || '';
+      case 'customer':
+        return task.customer;
+      case 'subject':
+        return task.subject;
+      case 'status':
+        return task.status || '';
       case 'severity':
         return task.severity || '';
       case 'owner':
@@ -108,7 +118,9 @@ export function WorkbenchPage() {
     return (
       task.customer.toLowerCase().includes(query) ||
       task.taskType.toLowerCase().includes(query) ||
-      task.contractId?.toLowerCase().includes(query) ||
+      task.taskId?.toLowerCase().includes(query) ||
+      task.taskName?.toLowerCase().includes(query) ||
+      task.subject.toLowerCase().includes(query) ||
       task.status?.toLowerCase().includes(query) ||
       task.owner?.toLowerCase().includes(query)
     );
@@ -232,21 +244,23 @@ export function WorkbenchPage() {
               className="font-heading text-[24px] font-semibold text-brand-navy"
               style={{ letterSpacing: "-0.5px" }}
             >
-              My tasks
+              {TAB_TITLES[activeTab] ?? "My tasks"}
             </h1>
-            <div className="flex items-center gap-2">
-              <span className="text-[12px] font-medium text-brand-fog">
-                {filteredTasks.length} tasks
-              </span>
-              {criticalCount > 0 && (
-                <>
-                  <div className="h-3 w-px bg-neutral-300" />
-                  <span className="text-[12px] font-medium text-red-500">
-                    {criticalCount} critical
-                  </span>
-                </>
-              )}
-            </div>
+            {activeTab === "your-tasks" && (
+              <div className="flex items-center gap-2">
+                <span className="text-[12px] font-medium text-brand-fog">
+                  {filteredTasks.length} tasks
+                </span>
+                {criticalCount > 0 && (
+                  <>
+                    <div className="h-3 w-px bg-neutral-300" />
+                    <span className="text-[12px] font-medium text-red-500">
+                      {criticalCount} critical
+                    </span>
+                  </>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -389,26 +403,26 @@ export function WorkbenchPage() {
                   style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
                   <tr className="bg-white">
-                    <th className="py-2 pl-4 pr-8 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 240, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Task
+                    <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 130, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Task ID
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 150, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Task Type
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 130, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Task Name
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Customer
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 120, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Contract ID
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Subject
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 180, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Start date
-                    </th>
-                    <th className="py-2 pr-4 text-right text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 100, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      TCV
-                    </th>
-                    <th className="py-2 pl-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 150, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Status
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 140, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Owner
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 130, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Created on
                     </th>
                     <th className="py-2 w-10 pr-4 bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }} />
                   </tr>
@@ -457,8 +471,8 @@ export function WorkbenchPage() {
                             isNew && "animate-highlight-row"
                           )}
                         >
-                          {/* Contract Ingestion Task */}
-                          <td className="py-1.5 pl-4 pr-8 relative">
+                          {/* Task ID */}
+                          <td className="py-1.5 pl-4 pr-4 relative">
                             {/* Sweep animation overlay for new items */}
                             {isNew && (
                               <span className="row-sweep-overlay-table" aria-hidden="true">
@@ -470,9 +484,21 @@ export function WorkbenchPage() {
                                 <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
                               )}
                               <span className="text-[13px] font-medium uppercase text-brand-navy group-hover:text-white whitespace-nowrap">
-                                {task.taskType.replace(" - Ingestion", "")}
+                                {task.taskId || "—"}
                               </span>
                             </div>
+                          </td>
+
+                          {/* Task Type */}
+                          <td className="py-0 pl-1 pr-4 relative z-10">
+                            <div className="px-2 py-1 text-[13px] font-medium whitespace-nowrap bg-neutral-100 text-brand-navy group-hover:bg-white/20 group-hover:text-white">
+                              {task.taskType}
+                            </div>
+                          </td>
+
+                          {/* Task Name */}
+                          <td className="py-1.5 pr-4 text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            {task.taskName || "—"}
                           </td>
 
                           {/* Customer */}
@@ -480,26 +506,9 @@ export function WorkbenchPage() {
                             {task.customer}
                           </td>
 
-                          {/* Contract ID */}
-                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
-                            {task.contractId || "—"}
-                          </td>
-
-                          {/* Start Date */}
-                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
-                            {task.startDate ? (
-                              <>
-                                <span>{new Date(task.startDate).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                                <span className="ml-2 text-[11px] text-red-500 group-hover:text-white/70">
-                                  {formatRelativeDate(task.startDate)}
-                                </span>
-                              </>
-                            ) : "—"}
-                          </td>
-
-                          {/* TCV */}
-                          <td className="py-1.5 pr-4 text-right text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
-                            {task.tcv || "—"}
+                          {/* Subject */}
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-fog group-hover:text-white/70 relative z-10 max-w-0">
+                            <span className="block truncate">{task.subject}</span>
                           </td>
 
                           {/* Status */}
@@ -519,20 +528,21 @@ export function WorkbenchPage() {
                             {!task.status && "—"}
                           </td>
 
-                          {/* Owner */}
+                          {/* Created on */}
                           <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
-                            {task.owner || "—"}
+                            {task.createdAt
+                              ? new Date(task.createdAt).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' })
+                              : "—"}
                           </td>
 
                           {/* Actions */}
                           <td className="py-1.5 pl-2 pr-4 relative z-10">
                             <button
                               type="button"
-                              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white"
+                              className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-white/70 opacity-0 transition-opacity hover:bg-white/10 hover:text-white group-hover:opacity-100"
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <MoreVertical size={14} className="group-hover:hidden" />
-                              <ArrowRight size={14} strokeWidth={2} className="hidden group-hover:block text-white" />
+                              <ArrowRight size={14} strokeWidth={2} className="text-white" />
                             </button>
                           </td>
                         </tr>
@@ -544,18 +554,16 @@ export function WorkbenchPage() {
             </div>
           )}
 
-          {activeTab === "queue" && (
-            <div className="py-8">
-              <p className="text-brand-fog">
-                Items in your queue will appear here.
-              </p>
-            </div>
-          )}
-
           {activeTab === "approvals" && (
-            <div className="py-8">
-              <p className="text-brand-fog">
-                Pending approvals will appear here.
+            <div className="flex flex-col items-center justify-center gap-2 py-24">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+                <Check size={22} className="text-brand-fog" />
+              </div>
+              <p className="mt-2 text-[15px] font-semibold text-brand-navy">
+                No pending approvals
+              </p>
+              <p className="max-w-sm text-center text-[13px] text-brand-fog">
+                Contracts sent for approval and items awaiting your sign-off will appear here.
               </p>
             </div>
           )}

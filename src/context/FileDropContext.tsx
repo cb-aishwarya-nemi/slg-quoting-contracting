@@ -9,7 +9,12 @@ export interface ProcessingFile {
 
 export interface WorkbenchItem {
   id: number
+  /** Human-readable task identifier, e.g. "TSK-2026-0153" */
+  taskId?: string
+  /** Task category, e.g. "Contract Ingestion" */
   taskType: string
+  /** Short task name, e.g. "New deal", "Early renewal" */
+  taskName?: string
   customer: string
   subject: string
   severity: string
@@ -52,7 +57,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
   // Pioneer Systems - for Customer Link Modal prototype
   {
     id: 100,
-    taskType: "New deal - Ingestion",
+    taskId: "TSK-2026-0153",
+    taskType: "Contract Ingestion",
+    taskName: "New deal",
     customer: "Pioneer Systems",
     subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
     severity: "High",
@@ -67,7 +74,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
   },
   {
     id: 1,
-    taskType: "Early renewal - Ingestion",
+    taskId: "TSK-2026-0154",
+    taskType: "Contract Ingestion",
+    taskName: "Early renewal",
     customer: "Verdant Health",
     subject: "VerdantHealth_EarlyRenewal_2026.pdf — 3-year Enterprise renewal, $240K ARR",
     severity: "Critical",
@@ -90,7 +99,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
   },
   {
     id: 3,
-    taskType: "New deal - Ingestion",
+    taskId: "TSK-2026-0151",
+    taskType: "Contract Ingestion",
+    taskName: "New deal",
     customer: "Zenith Analytics Inc.",
     subject: "ZenithAnalytics_NewBusiness_Contract_2026.pdf — Platform license + Implementation",
     severity: "High",
@@ -212,7 +223,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
   },
   {
     id: 16,
-    taskType: "New deal - Ingestion",
+    taskId: "TSK-2026-0155",
+    taskType: "Contract Ingestion",
+    taskName: "New deal",
     customer: "Quantum Innovations",
     subject: "QuantumInnovations_Enterprise_2026.pdf — Full platform, 200 seats",
     severity: "Critical",
@@ -244,7 +257,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
   },
   {
     id: 19,
-    taskType: "Early renewal - Ingestion",
+    taskId: "TSK-2026-0150",
+    taskType: "Contract Ingestion",
+    taskName: "Early renewal",
     customer: "Nexus Payments",
     subject: "NexusPayments_EarlyRenewal_2026.pdf — 2-year renewal, $180K ARR",
     severity: "High",
@@ -342,7 +357,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
 // Factory function to create Pioneer Systems item with current timestamp
 const createPioneerSystemsItem = (): WorkbenchItem => ({
   id: 100,
-  taskType: "New deal - Ingestion",
+  taskId: "TSK-2026-0153",
+  taskType: "Contract Ingestion",
+  taskName: "New deal",
   customer: "Pioneer Systems",
   subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
   severity: "High",
@@ -420,6 +437,10 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
             return [createPioneerSystemsItem(), ...prev]
           })
           setHasNewItem(true)
+
+          // Direct-to-linking: auto-open the Customer Link modal once processing
+          // completes, skipping the "Open workbench item" step.
+          setShouldOpenModal(true)
 
           // Keep completed notification persistent - don't auto-remove
         }, 1500)

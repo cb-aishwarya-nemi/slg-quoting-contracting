@@ -1,10 +1,12 @@
 import { useRef, useEffect, useState } from 'react'
 import { Upload, Loader2, Sparkles } from 'lucide-react'
 import { useFileDrop } from '../../context/FileDropContext'
+import { useNavigation } from '../../context/NavigationContext'
 import { cn } from '../../lib/utils'
 
 export function FileDropOverlay() {
   const { isDragging, setIsDragging, addProcessingFile, processingFiles } = useFileDrop()
+  const { goToWorkbench } = useNavigation()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
 
@@ -46,6 +48,7 @@ export function FileDropOverlay() {
     setIsDragging(false)
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
+      goToWorkbench()
       files.forEach((file) => addProcessingFile(file))
     }
   }
@@ -59,6 +62,7 @@ export function FileDropOverlay() {
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files
     if (files && files.length > 0) {
+      goToWorkbench()
       Array.from(files).forEach((file) => addProcessingFile(file))
       e.target.value = ''
     }
@@ -106,23 +110,26 @@ export function FileDropOverlay() {
             isDragging && 'border-4 border-brand-navy backdrop-blur-xl',
             !hasEverDragged && 'dynamic-pill',
             !isProcessing && !isDragging && 'cursor-pointer ink-drop-button',
-            isDragging && 'ink-drag-active',
           )}
           onClick={handlePillClick}
         >
-          {/* Ink animation layers */}
-          <div className="ink-liquid-fill" />
-          <div className="ink-liquid-hover" />
-          <div className="ink-drop ink-drop-1" />
-          <div className="ink-drop ink-drop-2" />
-          <div className="ink-drop ink-drop-3" />
-          <div className="ink-drop ink-drop-4" />
-          <div className="ink-drop ink-drop-5" />
-          <div className="ink-splash ink-splash-1" />
-          <div className="ink-splash ink-splash-2" />
-          <div className="ink-splash ink-splash-3" />
-          <div className="ink-splash ink-splash-4" />
-          <div className="ink-splash ink-splash-5" />
+          {/* Ink animation layers - only visible in pill state, not when expanded */}
+          {!isDragging && (
+            <>
+              <div className="ink-liquid-fill" />
+              <div className="ink-liquid-hover" />
+              <div className="ink-drop ink-drop-1" />
+              <div className="ink-drop ink-drop-2" />
+              <div className="ink-drop ink-drop-3" />
+              <div className="ink-drop ink-drop-4" />
+              <div className="ink-drop ink-drop-5" />
+              <div className="ink-splash ink-splash-1" />
+              <div className="ink-splash ink-splash-2" />
+              <div className="ink-splash ink-splash-3" />
+              <div className="ink-splash ink-splash-4" />
+              <div className="ink-splash ink-splash-5" />
+            </>
+          )}
 
           {/* Background layer */}
           <div
@@ -159,7 +166,7 @@ export function FileDropOverlay() {
           {/* PILL CONTENT — visible when NOT dragging */}
           <div
             className={cn(
-              'relative flex items-center whitespace-nowrap transition-all duration-300',
+              'relative z-10 flex items-center whitespace-nowrap transition-all duration-300',
               isDragging ? 'opacity-0 py-1.5 px-4' : 'opacity-100 py-1.5 px-4',
             )}
           >

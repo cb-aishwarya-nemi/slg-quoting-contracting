@@ -17,14 +17,14 @@ interface FilterUnitProps {
 }
 
 const FILTER_ATTRIBUTES = [
-  { id: 'customer', label: 'Customer' },
-  { id: 'status', label: 'Status' },
+  { id: 'taskId', label: 'Task ID' },
   { id: 'taskType', label: 'Task Type' },
+  { id: 'taskName', label: 'Task Name' },
+  { id: 'customer', label: 'Customer' },
+  { id: 'subject', label: 'Subject' },
+  { id: 'status', label: 'Status' },
   { id: 'severity', label: 'Severity' },
   { id: 'owner', label: 'Owner' },
-  { id: 'tcv', label: 'TCV' },
-  { id: 'startDate', label: 'Start Date' },
-  { id: 'contractId', label: 'Contract ID' },
 ]
 
 const CONDITIONS: Record<string, Array<{ id: string; label: string }>> = {
@@ -52,20 +52,21 @@ const CONDITIONS: Record<string, Array<{ id: string; label: string }>> = {
 }
 
 const ATTRIBUTE_TYPES: Record<string, string> = {
+  taskId: 'text',
   customer: 'text',
+  subject: 'text',
   status: 'select',
   taskType: 'select',
+  taskName: 'select',
   severity: 'select',
   owner: 'text',
-  tcv: 'number',
-  startDate: 'date',
-  contractId: 'text',
 }
 
 const VALUE_OPTIONS: Record<string, string[]> = {
   status: ['Ready for review', 'In review', 'Pending approval'],
   severity: ['Critical', 'High', 'Medium', 'Low'],
-  taskType: ['Contract - Ingestion', 'Quote - Ingestion'],
+  taskType: ['Contract Ingestion'],
+  taskName: ['New deal', 'Early renewal'],
 }
 
 type PopoverStep = 'attribute' | 'condition' | 'value'

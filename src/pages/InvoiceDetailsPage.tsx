@@ -1,10 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, FileText, MoreHorizontal, MessageCircleMore, ArrowLeft } from 'lucide-react'
+import { FileText, MoreHorizontal, MessageCircleMore, ArrowLeft, MoveDiagonal2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
+import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { CommentsPanel } from '@/components/features/contract-processing/CommentsPanel'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { invoiceData } from '@/data/invoiceMock'
+import { invoiceListData } from '@/data/invoiceListMock'
 import { cn } from '@/lib/utils'
 
 const INVOICE_TABS: TabItem[] = [
@@ -113,9 +115,15 @@ function SectionHeader({ title }: { title: string }) {
 }
 
 export function InvoiceDetailsPage() {
-  const { goToWorkbench, goToAllInvoices } = useNavigation()
+  const { goToWorkbench, goToAllInvoices, goToInvoiceDetails } = useNavigation()
   const { setActivePage } = useUseCase()
   const data = invoiceData
+
+  const invoiceSwitcherItems: SwitcherItem[] = invoiceListData.invoices.map((inv) => ({
+    id: inv.invoiceId,
+    label: inv.invoiceId,
+    sublabel: `${inv.amount} · ${inv.status}`,
+  }))
   const [activeTab, setActiveTab] = useState('invoices')
   const [activeSection, setActiveSection] = useState('summary')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -219,17 +227,28 @@ export function InvoiceDetailsPage() {
           <div className="flex shrink-0 items-center" style={{ width: 40 }}>
             <button
               type="button"
-              onClick={() => goToAllInvoices('pioneer-systems')}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-              title="Close"
+              onClick={() => setIsCommentsCollapsed((prev) => !prev)}
+              className={cn(
+                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
+                isCommentsCollapsed ? 'text-blue-700' : 'text-brand-navy'
+              )}
+              title={isCommentsCollapsed ? 'Show panels' : 'Hide panels'}
             >
-              <X size={18} />
+              <MoveDiagonal2 size={18} />
             </button>
           </div>
 
           <div className="shrink-0">
-            <div className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-              {data.invoiceId}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
+                {data.invoiceId}
+              </span>
+              <SecondaryNavSwitcher
+                items={invoiceSwitcherItems}
+                activeId={data.invoiceId}
+                onSelect={(id) => goToInvoiceDetails(id)}
+                onViewMore={() => goToAllInvoices('pioneer-systems')}
+              />
             </div>
             <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-fog">
               {data.invoiceValue}
@@ -290,7 +309,10 @@ export function InvoiceDetailsPage() {
 
           {/* Grid 2 — content */}
           <div ref={centerRef} className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12">
-            <div className="mx-auto max-w-[800px] space-y-10">
+            <div
+              className="mx-auto space-y-10"
+              style={{ maxWidth: isCommentsCollapsed ? 1000 : 800 }}
+            >
               {/* Summary - Metric cards with vertical separators */}
               <section ref={setSectionRef('summary')} className="mx-auto max-w-[680px]">
                 <MetricsRow metrics={data.topMetrics} />

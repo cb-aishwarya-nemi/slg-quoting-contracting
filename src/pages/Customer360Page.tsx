@@ -1,11 +1,16 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ArrowLeft, ChevronRight, X, ArrowDown, Send, Maximize2, Minimize2 } from 'lucide-react'
+import { ChevronLeft, ArrowDown, MoveDiagonal2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
+import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
+import { useFileDrop } from '@/context/FileDropContext'
 import { contractProcessing, sectionSources, type Comment } from '@/data/contractProcessingMock'
+import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
+import { SalesOrderDetails } from '@/components/features/sales-order'
 import {
+  GradientSparkle,
   SectionHeader,
   LabelValueList,
   ProductsPricingTable,
@@ -32,7 +37,7 @@ const C360_TABS: TabItem[] = [
   { id: 'tasks', label: 'Tasks' },
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
-  { id: 'contracts', label: 'Contracts' },
+  { id: 'sales-order', label: 'Sales Order' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'collections', label: 'Collections' },
   { id: 'revrec', label: 'Revrec' },
@@ -49,9 +54,12 @@ const NAV_SECTIONS: NavSection[] = [
 ]
 
 const CONTENT_COL_WIDTH = 680
+const WIDE_CONTENT_WIDTH = 780
 const COMMENTS_COL_WIDTH = 250
-const LEFT_NAV_WIDTH = 180
+const LEFT_NAV_WIDTH = 48
 const EXPANDED_MAX_WIDTH = 1000
+
+const TASK_ID = 'TSK-2026-0153'
 
 function StatusUnit({ status }: { status: string }) {
   return (
@@ -66,30 +74,39 @@ function StatusUnit({ status }: { status: string }) {
   )
 }
 
-function SendForApprovalButton({ onClick }: { onClick: () => void }) {
+function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
   return (
     <button
       type="button"
       onClick={onClick}
       className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
     >
-      <Send size={16} />
-      Send for approval
+      Create Sales Order
     </button>
   )
 }
 
+function TabPlaceholder({ label }: { label: string }) {
+  return (
+    <div className="mx-auto flex w-full max-w-[1560px] flex-1 items-center justify-center px-12">
+      <p className="text-[14px] text-brand-fog">{label} will appear here.</p>
+    </div>
+  )
+}
+
 export function Customer360Page() {
-  const { goToWorkbench, goToAllContracts } = useNavigation()
+  const { goToCustomers } = useNavigation()
   const { setActivePage } = useUseCase()
   const { addNotification } = useNotifications()
+  const { workbenchItems } = useFileDrop()
   const data = contractProcessing
-  const [activeTab, setActiveTab] = useState('contracts')
+  const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
+  const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
 
   // Comment state lifted to page so all stacks share the same source of truth
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
@@ -98,8 +115,7 @@ export function Customer360Page() {
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
-  const programmaticScroll = useRef(false)
-  const spyResumeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollTargetRef = useRef<string | null>(null)
 
   // Group comments by section (newest first within each group)
   const commentsBySection = useMemo(() => {
@@ -150,26 +166,22 @@ export function Customer360Page() {
         el.getBoundingClientRect().top -
         container.getBoundingClientRect().top +
         container.scrollTop
-      programmaticScroll.current = true
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-      spyResumeTimeout.current = setTimeout(() => {
-        programmaticScroll.current = false
-      }, 700)
+      scrollTargetRef.current = id
       container.scrollTo({ top: Math.max(top - 12, 0), behavior: 'smooth' })
     }
-    setActiveSection(id)
   }, [])
 
   const handleNavigate = scrollToSection
 
-  const handleSendForApproval = useCallback(() => {
+  const handleCreateSalesOrder = useCallback(() => {
+    setActiveSalesOrderId(salesOrders[0].id)
+    setActiveTab('sales-order')
     addNotification({
-      title: 'Contract sent for approval',
-      message: `${data.customerName} contract has been sent to Adrian Brody (Manager) for approval. Average approval time is 12 hours.`,
+      title: 'Sales order created',
+      message: `A sales order has been created for ${data.customerName} from the processed contract.`,
       persistent: true,
     })
-    goToAllContracts('pioneer-systems')
-  }, [addNotification, data.customerName, goToAllContracts])
+  }, [addNotification, data.customerName])
 
   // Comment CRUD – shared across all section stacks
   const handleAddComment = useCallback(
@@ -204,20 +216,12 @@ export function Customer360Page() {
     )
   }, [])
 
-  useEffect(
-    () => () => {
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-    },
-    []
-  )
-
-  // Scroll spy
+  // Scroll spy — runs during smooth programmatic scroll so the nav indicator animates fluidly
   useEffect(() => {
     const container = centerRef.current
     if (!container) return
 
-    const handleScroll = () => {
-      if (programmaticScroll.current) return
+    const updateActiveSection = () => {
       const containerTop = container.getBoundingClientRect().top
       let current = NAV_SECTIONS[0].id
       for (const section of NAV_SECTIONS) {
@@ -231,17 +235,34 @@ export function Customer360Page() {
     }
 
     const handleScrollEnd = () => {
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-      programmaticScroll.current = false
+      if (scrollTargetRef.current) {
+        setActiveSection(scrollTargetRef.current)
+        scrollTargetRef.current = null
+      } else {
+        updateActiveSection()
+      }
     }
 
-    container.addEventListener('scroll', handleScroll)
+    container.addEventListener('scroll', updateActiveSection)
     container.addEventListener('scrollend', handleScrollEnd)
     return () => {
-      container.removeEventListener('scroll', handleScroll)
+      container.removeEventListener('scroll', updateActiveSection)
       container.removeEventListener('scrollend', handleScrollEnd)
     }
-  }, [])
+  }, [activeTab])
+
+  // Switcher: recent ingestion tasks to jump between
+  const taskSwitcherItems: SwitcherItem[] = useMemo(
+    () =>
+      workbenchItems
+        .filter((item) => item.taskType.includes('Ingestion') && item.taskId)
+        .map((item) => ({
+          id: String(item.id),
+          label: item.taskId as string,
+          sublabel: item.customer,
+        })),
+    [workbenchItems]
+  )
 
   // Helper: section row layout (content col + optional comments col)
   const SectionRow = useCallback(
@@ -284,33 +305,27 @@ export function Customer360Page() {
     <div className="flex h-full flex-col">
       {/* Primary nav */}
       <div className="relative h-[60px] shrink-0">
-        <div className="absolute left-6 bottom-1 flex items-end gap-2">
+        <div className="absolute left-6 bottom-1 flex flex-col justify-end">
           <button
             type="button"
-            onClick={goToWorkbench}
-            className="mb-0.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
-            title="Close"
+            onClick={goToCustomers}
+            className="mb-0 flex cursor-pointer items-center gap-0.5 text-brand-fog transition-colors hover:text-brand-navy"
           >
-            <X size={18} />
+            <ChevronLeft size={12} />
+            <span className="text-[10px] font-medium uppercase tracking-[0]">
+              Back to customers
+            </span>
           </button>
-          <div className="flex flex-col justify-end">
-            <div className="flex items-center gap-0.5">
-              <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">
-                Customers
-              </span>
-              <ChevronRight size={10} className="text-brand-fog" />
-            </div>
-            <div className="flex items-center gap-3">
-              <h1
-                className="font-heading text-[16px] font-semibold text-brand-navy"
-                style={{ letterSpacing: '-0.5px' }}
-              >
-                {data.customerName}
-              </h1>
-              <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
-                {data.dealTag}
-              </span>
-            </div>
+          <div className="flex items-center gap-3">
+            <h1
+              className="font-heading text-[16px] font-semibold text-brand-navy"
+              style={{ letterSpacing: '-0.5px' }}
+            >
+              {data.customerName}
+            </h1>
+            <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
+              {data.dealTag}
+            </span>
           </div>
         </div>
 
@@ -326,221 +341,237 @@ export function Customer360Page() {
         <div className="absolute bottom-0 left-6 right-4 h-px bg-brand-navy" />
       </div>
 
-      {/* Secondary nav + body */}
-      <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
-        {/* Secondary nav */}
-        <div className="flex shrink-0 items-center py-3">
-          <div className="flex shrink-0 items-center" style={{ width: 40 }}>
-            <button
-              type="button"
-              onClick={goToWorkbench}
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
-              title="Back to Workbench"
-            >
-              <ArrowLeft size={18} />
-            </button>
-          </div>
-
-          <div className="shrink-0">
-            <div className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-              {data.processing.title}
-            </div>
-            <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-navy">
-              {data.processing.sectionsReady} of {data.processing.sectionsTotal} sections ready
-            </div>
-          </div>
-
-          <div className="flex-1" />
-
-          <div className="flex items-center gap-3">
-            <StatusUnit status={contractStatus} />
-            <SendForApprovalButton onClick={handleSendForApproval} />
-          </div>
-        </div>
-
-        {/* Body: left nav + merged content+comments column */}
-        <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
-          {/* Grid 1 — in-page nav */}
-          <aside 
-            className="shrink-0 pt-4 overflow-hidden transition-all duration-300 ease-out"
-            style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
-          >
-            <div
-              className={cn(
-                'transition-opacity duration-200',
-                isPanelsExpanded ? 'opacity-100 delay-100' : 'opacity-0'
-              )}
-              style={{ width: LEFT_NAV_WIDTH }}
-            >
-              <InPageNav
-                sections={NAV_SECTIONS}
-                sourceDocuments={data.sourceDocuments}
-                activeId={activeSection}
-                onNavigate={handleNavigate}
-              />
-            </div>
-          </aside>
-
-          {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
-          <div 
-            ref={centerRef} 
-            className={cn(
-              "min-w-0 flex-1 overflow-y-auto pb-20 pt-12",
-              isPanelsExpanded ? "pl-16 pr-4" : "px-16"
-            )}
-          >
-            <div 
-              className="space-y-16"
-              style={!isPanelsExpanded ? { maxWidth: EXPANDED_MAX_WIDTH, margin: '0 auto' } : undefined}
-            >
-
-              {/* Summary — no comments column (no SectionHeader) */}
-              <section
-                ref={setSectionRef('summary')}
-                className="group/section"
-                style={{ maxWidth: CONTENT_COL_WIDTH }}
+      {/* Tasks tab — contract processing body */}
+      {activeTab === 'tasks' && (
+        <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
+          {/* Secondary nav */}
+          <div className="flex shrink-0 items-center py-3">
+            <div className="flex shrink-0 items-center" style={{ width: 40 }}>
+              <button
+                type="button"
+                onClick={() => setIsPanelsExpanded((prev) => !prev)}
+                className={cn(
+                  'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
+                  isPanelsExpanded ? 'text-brand-navy' : 'text-blue-700'
+                )}
+                title={isPanelsExpanded ? 'Hide panels' : 'Show panels'}
               >
-                <div className="relative">
-                  {/* Expand/collapse button */}
-                  <button
-                    type="button"
-                    onClick={() => setIsPanelsExpanded(!isPanelsExpanded)}
-                    className={cn(
-                      'absolute -right-2 -top-1 flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors',
-                      'text-brand-fog hover:bg-neutral-100 hover:text-brand-navy'
-                    )}
-                    title={isPanelsExpanded ? 'Expand content' : 'Show panels'}
-                  >
-                    {isPanelsExpanded ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
-                  </button>
-                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy pr-10">
-                    <span className="font-bold">
-                      Contract Value: {data.summary.contractValue}
+                <MoveDiagonal2 size={18} />
+              </button>
+            </div>
+
+            <div className="shrink-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
+                  {TASK_ID}
+                </span>
+                <SecondaryNavSwitcher
+                  items={taskSwitcherItems}
+                  activeId="100"
+                  onSelect={() => {}}
+                />
+              </div>
+            </div>
+
+            <div className="flex-1" />
+
+            <div className="flex items-center gap-3">
+              <StatusUnit status={contractStatus} />
+              <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
+            </div>
+          </div>
+
+          {/* Body: left nav + merged content+comments column */}
+          <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
+            {/* Grid 1 — in-page nav */}
+            <aside
+              className="shrink-0 overflow-visible pt-4 transition-all duration-300 ease-out"
+              style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
+            >
+              <div
+                className={cn(
+                  'transition-opacity duration-200',
+                  isPanelsExpanded ? 'opacity-100 delay-100' : 'opacity-0'
+                )}
+              >
+                <InPageNav
+                  sections={NAV_SECTIONS}
+                  sourceDocuments={data.sourceDocuments}
+                  activeId={activeSection}
+                  onNavigate={handleNavigate}
+                />
+              </div>
+            </aside>
+
+            {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
+            <div
+              ref={centerRef}
+              className={cn(
+                'min-w-0 flex-1 overflow-y-auto pb-20 pt-12',
+                isPanelsExpanded ? 'pl-16 pr-4' : 'px-16'
+              )}
+            >
+              <div
+                className="space-y-16"
+                style={
+                  !isPanelsExpanded ? { maxWidth: EXPANDED_MAX_WIDTH, margin: '0 auto' } : undefined
+                }
+              >
+                {/* Summary — AI header + headline, no comments column */}
+                <section
+                  ref={setSectionRef('summary')}
+                  className="group/section"
+                  style={{ maxWidth: CONTENT_COL_WIDTH }}
+                >
+                  <div className="mb-3 flex items-center gap-1.5">
+                    <GradientSparkle size={16} />
+                    <span className="text-[13px] font-semibold uppercase tracking-[-0.25px] ai-gradient-text">
+                      Summary
                     </span>
+                  </div>
+                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
+                    <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
                     {data.summary.headline}
                   </h2>
-                </div>
-                <p className="mt-3 text-[13px] text-brand-navy">
-                  Effective: {data.summary.effectiveDate}
-                </p>
-              </section>
+                  <p className="mt-3 text-[13px] text-brand-navy">
+                    Effective: {data.summary.effectiveDate}
+                  </p>
+                </section>
 
-              {/* Account */}
-              <section ref={setSectionRef('account')} className="group/section">
-                <SectionSourceThumbnails
-                  sources={sectionSources.account}
-                  onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
-                />
-                <SectionRow sectionId="account" sectionLabel="Account">
-                  <SectionHeader
-                    title="Account"
-                    status="ready"
-                    statusLabel="Ready"
-                    isFlashing={false}
-                    commentCount={commentCountsBySection['account']}
+                {/* Account */}
+                <section ref={setSectionRef('account')} className="group/section">
+                  <SectionSourceThumbnails
+                    sources={sectionSources.account}
+                    onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
                   />
-                  <div className="mt-4">
-                    <LabelValueList items={data.account} showAddField />
-                  </div>
-                </SectionRow>
-              </section>
-
-              {/* Addresses */}
-              <section ref={setSectionRef('addresses')} className="group/section">
-                <SectionSourceThumbnails
-                  sources={sectionSources.addresses}
-                  onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
-                />
-                <SectionRow sectionId="addresses" sectionLabel="Addresses">
-                  <SectionHeader
-                    title="Addresses"
-                    status="ready"
-                    statusLabel="Ready"
-                    isFlashing={false}
-                    commentCount={commentCountsBySection['addresses']}
-                  />
-                  <div className="mt-4">
-                    <LabelValueList items={data.addresses} />
-                  </div>
-                </SectionRow>
-              </section>
-
-              {/* Terms and billing */}
-              <section ref={setSectionRef('terms')} className="group/section">
-                <SectionSourceThumbnails
-                  sources={sectionSources.terms}
-                  onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
-                />
-                <SectionRow sectionId="terms" sectionLabel="Terms and billing">
-                  <SectionHeader
-                    title="Terms and billing"
-                    status="ready"
-                    statusLabel="Ready"
-                    isFlashing={false}
-                    commentCount={commentCountsBySection['terms']}
-                  />
-                  <div className="mt-4">
-                    <LabelValueList items={data.termsAndBilling} />
-                  </div>
-                </SectionRow>
-              </section>
-
-              {/* Products and pricing */}
-              <section ref={setSectionRef('products')} className="group/section">
-                <SectionSourceThumbnails
-                  sources={sectionSources.products}
-                  onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                />
-                <SectionRow sectionId="products" sectionLabel="Products and pricing">
-                  <SectionHeader
-                    title="Products and pricing"
-                    status="ai-created"
-                    statusLabel="Created 2 items"
-                    isFlashing={false}
-                    commentCount={commentCountsBySection['products']}
-                  />
-                  <div className="mt-4">
-                    <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
-                  </div>
-                </SectionRow>
-              </section>
-
-              {/* Billing schedule */}
-              <section ref={setSectionRef('schedule')} className="group/section">
-                <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
-                  <SectionHeader
-                    title="Billing schedule"
-                    hideLine
-                    isFlashing={false}
-                    commentCount={commentCountsBySection['schedule']}
-                  />
-                  <div className="mt-6">
-                    <PaymentSchedule
-                      onPreviewClick={(invoiceIndex) => {
-                        setActiveInvoiceIndex(invoiceIndex)
-                        scrollToSection('invoice')
-                      }}
-                      tcv={data.summary.contractValue}
+                  <SectionRow sectionId="account" sectionLabel="Account">
+                    <SectionHeader
+                      title="Account"
+                      status="ready"
+                      statusLabel="Ready"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['account']}
                     />
-                  </div>
-                </SectionRow>
-              </section>
+                    <div className="mt-4">
+                      <LabelValueList items={data.account} showAddField />
+                    </div>
+                  </SectionRow>
+                </section>
 
-              {/* Invoice preview */}
-              <section ref={setSectionRef('invoice')} className="group/section">
-                <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
-                  <InvoicePreview
-                    activeIndex={activeInvoiceIndex}
-                    totalInvoices={4}
-                    onIndexChange={setActiveInvoiceIndex}
-                    isFlashing={false}
+                {/* Addresses */}
+                <section ref={setSectionRef('addresses')} className="group/section">
+                  <SectionSourceThumbnails
+                    sources={sectionSources.addresses}
+                    onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
                   />
-                </SectionRow>
-              </section>
+                  <SectionRow sectionId="addresses" sectionLabel="Addresses">
+                    <SectionHeader
+                      title="Addresses"
+                      status="ready"
+                      statusLabel="Ready"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['addresses']}
+                    />
+                    <div className="mt-4">
+                      <LabelValueList items={data.addresses} />
+                    </div>
+                  </SectionRow>
+                </section>
+
+                {/* Terms and billing */}
+                <section ref={setSectionRef('terms')} className="group/section">
+                  <SectionSourceThumbnails
+                    sources={sectionSources.terms}
+                    onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
+                  />
+                  <SectionRow sectionId="terms" sectionLabel="Terms and billing">
+                    <SectionHeader
+                      title="Terms and billing"
+                      status="ready"
+                      statusLabel="Ready"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['terms']}
+                    />
+                    <div className="mt-4">
+                      <LabelValueList items={data.termsAndBilling} />
+                    </div>
+                  </SectionRow>
+                </section>
+
+                {/* Products and pricing */}
+                <section ref={setSectionRef('products')} className="group/section">
+                  <SectionSourceThumbnails
+                    sources={sectionSources.products}
+                    onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                  />
+                  <SectionRow sectionId="products" sectionLabel="Products and pricing">
+                    <SectionHeader
+                      title="Products and pricing"
+                      status="ai-created"
+                      statusLabel="Created 2 items"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['products']}
+                    />
+                    <div className="mt-4">
+                      <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
+                    </div>
+                  </SectionRow>
+                </section>
+
+                {/* Billing schedule */}
+                <section ref={setSectionRef('schedule')} className="group/section">
+                  <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
+                    <SectionHeader
+                      title="Billing schedule"
+                      hideLine
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['schedule']}
+                    />
+                    <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                      <PaymentSchedule
+                        onPreviewClick={(invoiceIndex) => {
+                          setActiveInvoiceIndex(invoiceIndex)
+                          scrollToSection('invoice')
+                        }}
+                        tcv={data.summary.contractValue}
+                      />
+                    </div>
+                  </SectionRow>
+                </section>
+
+                {/* Invoice preview */}
+                <section ref={setSectionRef('invoice')} className="group/section">
+                  <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
+                    <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                      <InvoicePreview
+                        activeIndex={activeInvoiceIndex}
+                        totalInvoices={4}
+                        onIndexChange={setActiveInvoiceIndex}
+                        isFlashing={false}
+                      />
+                    </div>
+                  </SectionRow>
+                </section>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* Sales Order tab — in-frame read-only details */}
+      {activeTab === 'sales-order' && (
+        <SalesOrderDetails
+          order={getSalesOrderById(activeSalesOrderId)}
+          orders={salesOrders}
+          activeOrderId={activeSalesOrderId}
+          onSelectOrder={setActiveSalesOrderId}
+        />
+      )}
+
+      {/* Other tabs — simple placeholders */}
+      {activeTab !== 'tasks' && activeTab !== 'sales-order' && (
+        <TabPlaceholder label={C360_TABS.find((t) => t.id === activeTab)?.label ?? 'Content'} />
+      )}
 
       <SourcePreviewDrawer
         open={!!preview}

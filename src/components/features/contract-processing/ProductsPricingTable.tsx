@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, MoreVertical, CirclePlus, Search, X, Circle, Calendar } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, MoreVertical, CirclePlus, Search, X, Circle, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 
@@ -296,10 +296,7 @@ function ItemNameButton({ name, isAttention, onSelect, onOpenChange, isRowHovere
       {/* Icon with negative margin — sits outside the table column for alignment */}
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
-          <PackagePlus size={16} className={cn(
-            "shrink-0 transition-colors",
-            (isOpen || isRowHovered) ? "text-white" : "ai-gradient-text"
-          )} />
+          <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
           {!isOpen && !isRowHovered && (
             <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
               Created this item based on your contract
@@ -532,7 +529,7 @@ function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
     <button
       type="button"
       onClick={onToggle}
-      className="flex w-full cursor-pointer items-center justify-between py-3 pr-2 transition-colors hover:bg-neutral-50"
+      className="flex w-full cursor-pointer items-center justify-between py-3 pl-1 pr-2 transition-colors hover:bg-neutral-50"
     >
       <div className="flex items-center gap-2">
         <span className="text-[13px] font-semibold text-brand-navy">{period.label}</span>
@@ -555,9 +552,13 @@ function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
 }
 
 function RampPriceChangeBadge({ change }: { change: number }) {
+  const isIncrease = change >= 0
+  const Icon = isIncrease ? TrendingUp : TrendingDown
+
   return (
-    <span className="ml-2 inline-flex items-center rounded-full bg-green-100 px-1.5 py-0.5 text-[11px] font-medium text-green-700">
-      {change}%
+    <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-green-700 whitespace-nowrap">
+      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
+      {Math.abs(change)}%
     </span>
   )
 }
@@ -627,7 +628,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   }
 
   const renderTableHeader = () => (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pr-2">
+    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
       <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Item
       </div>
@@ -667,7 +668,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         onMouseEnter={() => setHoveredRowId(item.id)}
         onMouseLeave={() => setHoveredRowId(null)}
         className={cn(
-          "group row-hover-trail flex items-center border-b py-1.5 pr-2",
+          "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
             : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
@@ -698,13 +699,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         <Separator isRowHovered={isHovered} isRowActive={isActive} />
 
         <div style={{ width: UNIT_W }} className={cn(
-          "flex shrink-0 items-center justify-end text-[14px] font-medium transition-colors",
+          "shrink-0 text-right text-[14px] font-medium transition-colors",
           (isActive || isHovered) ? "text-white" : "text-brand-navy"
         )}>
-          {item.rampPriceChange && !isActive && !isHovered && (
-            <RampPriceChangeBadge change={item.rampPriceChange} />
-          )}
-          <span className="ml-2">{item.unitPrice}</span>
+          {item.unitPrice}
         </div>
         <div style={{ width: TOTAL_W }} className={cn(
           "shrink-0 text-right text-[14px] font-medium transition-colors",
@@ -713,7 +711,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           {item.totalPrice}
         </div>
 
-        <div style={{ width: MENU_W }} className="flex shrink-0 justify-end">
+        <div style={{ width: MENU_W }} className="relative flex shrink-0 justify-end">
           <button
             type="button"
             className={cn(
@@ -725,6 +723,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           >
             <MoreVertical size={15} />
           </button>
+          {item.rampPriceChange && !isActive && (
+            <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2">
+              <RampPriceChangeBadge change={item.rampPriceChange} />
+            </div>
+          )}
         </div>
       </div>
     )

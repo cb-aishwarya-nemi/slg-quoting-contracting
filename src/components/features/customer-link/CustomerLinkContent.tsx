@@ -469,6 +469,9 @@ export function CustomerLinkContent({
                 />
               </div>
             </section>
+
+            {/* Extra bottom spacing so fields aren't clipped in the no-match variant */}
+            {variant === 'no-match' && <div aria-hidden="true" style={{ height: 120 }} />}
           </div>
         )}
       </div>

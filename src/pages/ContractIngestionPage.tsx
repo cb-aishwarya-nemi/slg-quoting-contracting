@@ -418,8 +418,7 @@ function ContractProcessingView({
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const flashTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const programmaticScroll = useRef(false)
-  const spyResumeTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scrollTargetRef = useRef<string | null>(null)
 
   // Use customer name from the dynamic contract data
   const customerName = data.customerName
@@ -469,14 +468,9 @@ function ContractProcessingView({
         el.getBoundingClientRect().top -
         container.getBoundingClientRect().top +
         container.scrollTop
-      programmaticScroll.current = true
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-      spyResumeTimeout.current = setTimeout(() => {
-        programmaticScroll.current = false
-      }, 700)
+      scrollTargetRef.current = id
       container.scrollTo({ top: Math.max(top - 12, 0), behavior: 'smooth' })
     }
-    setActiveSection(id)
   }, [])
 
   const handleNavigate = scrollToSection
@@ -516,18 +510,16 @@ function ContractProcessingView({
   useEffect(
     () => () => {
       if (flashTimeout.current) clearTimeout(flashTimeout.current)
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
     },
     []
   )
 
-  // Scroll spy
+  // Scroll spy — runs during smooth programmatic scroll so the nav indicator animates fluidly
   useEffect(() => {
     const container = centerRef.current
     if (!container) return
 
-    const handleScroll = () => {
-      if (programmaticScroll.current) return
+    const updateActiveSection = () => {
       const containerTop = container.getBoundingClientRect().top
       let current = NAV_SECTIONS[0].id
       for (const section of NAV_SECTIONS) {
@@ -541,14 +533,18 @@ function ContractProcessingView({
     }
 
     const handleScrollEnd = () => {
-      if (spyResumeTimeout.current) clearTimeout(spyResumeTimeout.current)
-      programmaticScroll.current = false
+      if (scrollTargetRef.current) {
+        setActiveSection(scrollTargetRef.current)
+        scrollTargetRef.current = null
+      } else {
+        updateActiveSection()
+      }
     }
 
-    container.addEventListener('scroll', handleScroll)
+    container.addEventListener('scroll', updateActiveSection)
     container.addEventListener('scrollend', handleScrollEnd)
     return () => {
-      container.removeEventListener('scroll', handleScroll)
+      container.removeEventListener('scroll', updateActiveSection)
       container.removeEventListener('scrollend', handleScrollEnd)
     }
   }, [])
@@ -667,7 +663,7 @@ function ContractProcessingView({
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}
         <aside
-          className="absolute left-9 top-0 bottom-0 z-10 overflow-hidden pt-4 transition-all duration-300 ease-out"
+          className="absolute left-9 top-0 bottom-0 z-10 overflow-visible pt-4 transition-all duration-300 ease-out"
           style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
         >
           <div
