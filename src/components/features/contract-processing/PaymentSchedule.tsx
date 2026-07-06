@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ExternalLink, Check, Clock, CalendarClock, ChevronDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 import {
   paymentSchedule,
   type PaymentScheduleItem,
@@ -56,8 +56,16 @@ function getStatusLabel(status: PaymentScheduleItem['status'], dueDate: string):
 }
 
 interface PaymentScheduleProps {
-  onPreviewClick: (invoiceIndex: number) => void
   tcv?: string
+}
+
+/** Open a billing-schedule invoice in a standalone viewer window. */
+function openInvoiceViewer(invoiceId: string) {
+  window.open(
+    `/invoice-viewer.html?invoice=${encodeURIComponent(invoiceId)}`,
+    `invoice-${invoiceId}`,
+    'popup,width=720,height=860'
+  )
 }
 
 interface YearGroup {
@@ -99,13 +107,9 @@ function groupByYear(items: PaymentScheduleItem[]): YearGroup[] {
 function QuarterlyItem({
   item,
   isLast,
-  onPreviewClick,
-  invoiceIndex,
 }: {
   item: PaymentScheduleItem
   isLast: boolean
-  onPreviewClick: (invoiceIndex: number) => void
-  invoiceIndex: number
 }) {
   const config = STATUS_CONFIG[item.status]
   const StatusIcon = config.icon
@@ -128,11 +132,11 @@ function QuarterlyItem({
 
       <button
         type="button"
-        onClick={() => onPreviewClick(invoiceIndex)}
+        onClick={() => openInvoiceViewer(item.invoiceId)}
         className="group ml-3 flex flex-1 cursor-pointer items-start justify-between gap-4 border-b border-transparent pt-0.5 pb-1.5 text-left transition-colors hover:border-neutral-200"
       >
         <div>
-          <p className="text-[12px] text-brand-fog">{item.dueDate}</p>
+          <p className="text-[12px] text-brand-fog">{withRelativeAnnotation(item.dueDate)}</p>
           <div className="mt-0.5 flex items-center gap-2">
             <span className="text-[14px] font-medium text-brand-navy">{quarter}</span>
             <span className="flex items-center gap-1 text-[12px] font-medium text-blue-600 opacity-0 transition-opacity group-hover:opacity-100">
@@ -158,13 +162,11 @@ function YearAccordion({
   group,
   isExpanded,
   onToggle,
-  onPreviewClick,
   isLast,
 }: {
   group: YearGroup
   isExpanded: boolean
   onToggle: () => void
-  onPreviewClick: (invoiceIndex: number) => void
   isLast: boolean
 }) {
   return (
@@ -212,8 +214,6 @@ function YearAccordion({
                   key={item.id}
                   item={item}
                   isLast={idx === group.items.length - 1}
-                  onPreviewClick={onPreviewClick}
-                  invoiceIndex={group.startIndex + idx}
                 />
               ))}
             </div>
@@ -224,7 +224,7 @@ function YearAccordion({
   )
 }
 
-export function PaymentSchedule({ onPreviewClick, tcv }: PaymentScheduleProps) {
+export function PaymentSchedule({ tcv }: PaymentScheduleProps) {
   const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set())
   const yearGroups = groupByYear(paymentSchedule)
 
@@ -249,7 +249,6 @@ export function PaymentSchedule({ onPreviewClick, tcv }: PaymentScheduleProps) {
             group={group}
             isExpanded={expandedYears.has(group.year)}
             onToggle={() => toggleYear(group.year)}
-            onPreviewClick={onPreviewClick}
             isLast={idx === yearGroups.length - 1}
           />
         ))}

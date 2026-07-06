@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, ArrowDown, MoveDiagonal2 } from 'lucide-react'
+import { ChevronLeft, ArrowDown, Maximize2, Focus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -22,7 +22,7 @@ import {
   SourcePreviewDrawer,
   type NavSection,
 } from '@/components/features/contract-processing'
-import { cn } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 
 export interface SectionOffset {
   top: number
@@ -103,7 +103,6 @@ export function Customer360Page() {
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
-  const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
   const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
@@ -259,7 +258,9 @@ export function Customer360Page() {
         .map((item) => ({
           id: String(item.id),
           label: item.taskId as string,
-          sublabel: item.customer,
+          taskType: item.taskName ? `${item.taskName}: ${item.taskType}` : item.taskType,
+          status: item.status,
+          customer: item.customer,
         })),
     [workbenchItems]
   )
@@ -346,7 +347,15 @@ export function Customer360Page() {
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div className="flex shrink-0 items-center py-3">
-            <div className="flex shrink-0 items-center" style={{ width: 40 }}>
+            <div className="flex shrink-0 items-center gap-2">
+              <SecondaryNavSwitcher
+                items={taskSwitcherItems}
+                activeId="100"
+                onSelect={() => {}}
+              />
+              <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
+                {TASK_ID}
+              </span>
               <button
                 type="button"
                 onClick={() => setIsPanelsExpanded((prev) => !prev)}
@@ -354,23 +363,10 @@ export function Customer360Page() {
                   'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
                   isPanelsExpanded ? 'text-brand-navy' : 'text-blue-700'
                 )}
-                title={isPanelsExpanded ? 'Hide panels' : 'Show panels'}
+                title={isPanelsExpanded ? 'Focus mode (hide panels)' : 'Restore panels'}
               >
-                <MoveDiagonal2 size={18} />
+                {isPanelsExpanded ? <Maximize2 size={16} /> : <Focus size={16} />}
               </button>
-            </div>
-
-            <div className="shrink-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-                  {TASK_ID}
-                </span>
-                <SecondaryNavSwitcher
-                  items={taskSwitcherItems}
-                  activeId="100"
-                  onSelect={() => {}}
-                />
-              </div>
             </div>
 
             <div className="flex-1" />
@@ -434,7 +430,7 @@ export function Customer360Page() {
                     {data.summary.headline}
                   </h2>
                   <p className="mt-3 text-[13px] text-brand-navy">
-                    Effective: {data.summary.effectiveDate}
+                    Effective: {withRelativeAnnotation(data.summary.effectiveDate)}
                   </p>
                 </section>
 
@@ -512,7 +508,7 @@ export function Customer360Page() {
                       isFlashing={false}
                       commentCount={commentCountsBySection['products']}
                     />
-                    <div className="mt-4">
+                    <div className="mt-6">
                       <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
                     </div>
                   </SectionRow>
@@ -528,13 +524,7 @@ export function Customer360Page() {
                       commentCount={commentCountsBySection['schedule']}
                     />
                     <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <PaymentSchedule
-                        onPreviewClick={(invoiceIndex) => {
-                          setActiveInvoiceIndex(invoiceIndex)
-                          scrollToSection('invoice')
-                        }}
-                        tcv={data.summary.contractValue}
-                      />
+                      <PaymentSchedule tcv={data.summary.contractValue} />
                     </div>
                   </SectionRow>
                 </section>
@@ -543,12 +533,7 @@ export function Customer360Page() {
                 <section ref={setSectionRef('invoice')} className="group/section">
                   <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <InvoicePreview
-                        activeIndex={activeInvoiceIndex}
-                        totalInvoices={4}
-                        onIndexChange={setActiveInvoiceIndex}
-                        isFlashing={false}
-                      />
+                      <InvoicePreview isFlashing={false} />
                     </div>
                   </SectionRow>
                 </section>

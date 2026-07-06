@@ -244,6 +244,7 @@ function CommentCard({
   onDelete,
   onResolve,
   commentStatus = 'open',
+  dense = false,
 }: {
   comment: Comment & { status?: CommentStatus }
   isActive: boolean
@@ -251,7 +252,10 @@ function CommentCard({
   onDelete?: (commentId: string) => void
   onResolve?: (commentId: string) => void
   commentStatus?: CommentStatus
+  /** slightly larger body text (+1px) for full-width comment lists */
+  dense?: boolean
 }) {
+  const bodyTextClass = dense ? 'text-[13px]' : 'text-[12px]'
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
@@ -356,7 +360,7 @@ function CommentCard({
       {/* Body */}
       {isResolved && !isExpanded ? (
         <p
-          className="text-[12px] leading-[1.5] text-brand-navy line-through"
+          className={cn('leading-[1.5] text-brand-navy line-through', bodyTextClass)}
           style={{
             display: '-webkit-box',
             WebkitLineClamp: 2,
@@ -367,7 +371,7 @@ function CommentCard({
           {comment.body}
         </p>
       ) : (
-        <p className="text-[12px] leading-[1.5] text-brand-navy">
+        <p className={cn('leading-[1.5] text-brand-navy', bodyTextClass)}>
           {bodyParts.map((part, idx) =>
             part.type === 'mention' ? (
               <span key={idx} className="font-medium text-blue-700">
@@ -604,6 +608,10 @@ interface CommentsPanelProps {
   showAddNote?: boolean
   onShowAddNoteChange?: (show: boolean) => void
   onClearLinkedSection?: () => void
+  /** suppress the built-in "Add note" + collapse header row */
+  hideHeader?: boolean
+  /** tighter comment stack with +1px body text */
+  dense?: boolean
   /** @deprecated No longer needed — comments are rendered inline */
   sectionOffsets?: Record<string, SectionOffset>
   /** @deprecated No longer needed — comments are rendered inline */
@@ -622,6 +630,8 @@ export function CommentsPanel({
   showAddNote: externalShowAddNote,
   onShowAddNoteChange,
   onClearLinkedSection,
+  hideHeader = false,
+  dense = false,
 }: CommentsPanelProps) {
   const [internalShowAddNote, setInternalShowAddNote] = useState(false)
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
@@ -702,31 +712,33 @@ export function CommentsPanel({
   }
 
   return (
-    <div className="pl-2">
-      <div className="flex items-center justify-between">
-        <button
-          type="button"
-          onClick={() => setShowAddNote(!showAddNote)}
-          className={cn(
-            'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] font-medium transition-colors',
-            showAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
-          )}
-        >
-          <MessageCircleMore size={16} />
-          Add note
-        </button>
-        <button
-          type="button"
-          onClick={onToggleCollapse}
-          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
-          title="Collapse comments"
-        >
-          <ChevronRight size={16} />
-        </button>
-      </div>
+    <div className={cn(!hideHeader && 'pl-2')}>
+      {!hideHeader && (
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setShowAddNote(!showAddNote)}
+            className={cn(
+              'flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1 text-[13px] font-medium transition-colors',
+              showAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
+            )}
+          >
+            <MessageCircleMore size={16} />
+            Add note
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+            title="Collapse comments"
+          >
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
 
       {showAddNote && (
-        <div className="mt-3">
+        <div className={cn(hideHeader ? 'mb-4' : 'mt-3')}>
           <AddNoteTextarea
             onSubmit={handleAddNote}
             onCancel={() => {
@@ -739,7 +751,7 @@ export function CommentsPanel({
         </div>
       )}
 
-      <div className="mt-5 flex flex-col gap-5">
+      <div className={cn('flex flex-col', hideHeader ? 'mt-0' : 'mt-5', dense ? 'gap-3' : 'gap-5')}>
         {localComments.map((comment) => (
           <CommentCard
             key={comment.id}
@@ -749,6 +761,7 @@ export function CommentsPanel({
             onJump={onCommentJump}
             onDelete={handleDeleteComment}
             onResolve={handleResolveComment}
+            dense={dense}
           />
         ))}
         {commentsBySection.unlinked.length > 0 && commentsBySection.unlinked.length !== localComments.length && (

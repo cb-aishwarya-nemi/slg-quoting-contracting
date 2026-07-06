@@ -116,7 +116,7 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
                   onMouseEnter={() => setHoveredId(section.id)}
                   onMouseLeave={() => setHoveredId(null)}
                   className={cn(
-                    'flex w-full cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-left transition-all duration-200 ease-out',
+                    'flex w-fit cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-left transition-all duration-200 ease-out',
                     isActive ? 'bg-brand-navy' : 'hover:bg-neutral-100'
                   )}
                 >

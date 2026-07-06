@@ -6,6 +6,20 @@ export interface SwitcherItem {
   id: string
   label: string
   sublabel?: string
+  /** Optional meta — when provided the row renders a richer list view */
+  taskType?: string
+  status?: string
+  customer?: string
+}
+
+const STATUS_BADGE_STYLES: Record<string, string> = {
+  'Ready for review': 'bg-neutral-100 text-brand-navy',
+  'In review': 'bg-green-50 text-green-700',
+  'Pending approval': 'bg-violet-50 text-violet-700',
+  Blocked: 'bg-red-50 text-red-700',
+  // Sales-order deal tags
+  'NEW DEAL': 'bg-blue-50 text-blue-700',
+  RENEWAL: 'bg-violet-50 text-violet-700',
 }
 
 interface SecondaryNavSwitcherProps {
@@ -65,10 +79,14 @@ export function SecondaryNavSwitcher({
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 top-full z-40 mt-1.5 min-w-[280px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
-          <div className="max-h-[320px] overflow-y-auto">
+        <div className="absolute left-0 top-full z-40 mt-1.5 w-[380px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
+          <div className="max-h-[360px] overflow-y-auto">
             {visibleItems.map((item) => {
               const isActive = item.id === activeId
+              const hasMeta = !!item.taskType
+              const badgeStyle = item.status
+                ? STATUS_BADGE_STYLES[item.status] ?? 'bg-neutral-100 text-brand-navy'
+                : ''
               return (
                 <button
                   key={item.id}
@@ -78,21 +96,40 @@ export function SecondaryNavSwitcher({
                     setIsOpen(false)
                   }}
                   className={cn(
-                    'flex w-full cursor-pointer flex-col gap-0.5 px-3 py-2 text-left transition-colors',
+                    'flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition-colors',
                     isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
                   )}
                 >
-                  <span
-                    className={cn(
-                      'text-[13px] font-semibold uppercase tracking-[-0.25px]',
-                      isActive ? 'text-brand-navy' : 'text-brand-navy'
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+                      {hasMeta ? item.taskType : item.label}
+                    </span>
+                    {item.status && (
+                      <span
+                        className={cn(
+                          'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                          badgeStyle
+                        )}
+                      >
+                        {item.status}
+                      </span>
                     )}
-                  >
-                    {item.label}
-                  </span>
-                  {item.sublabel && (
-                    <span className="truncate text-[12px] text-brand-fog">{item.sublabel}</span>
-                  )}
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[12px]">
+                    {hasMeta ? (
+                      <>
+                        {item.customer && (
+                          <span className="truncate text-brand-fog">{item.customer}</span>
+                        )}
+                        {item.customer && <span className="text-brand-mist">·</span>}
+                        <span className="shrink-0 uppercase text-brand-mist">{item.label}</span>
+                      </>
+                    ) : (
+                      item.sublabel && (
+                        <span className="truncate text-brand-fog">{item.sublabel}</span>
+                      )
+                    )}
+                  </div>
                 </button>
               )
             })}

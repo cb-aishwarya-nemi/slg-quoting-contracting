@@ -1,48 +1,43 @@
 This file is used to give Context to build complex features. Only use this when explicity tagged in the chat. Otherwise, no need to even read this.
 
+<Ignore-This>
+    Contract Processing
+            - Products and pricing finessing is required - Figma options>>
+    Sales Order Processed
+            - Should we approach the sales order details as a proper card like the Invoice 
+            - Task and record should have different flavours
+    Copilot and Nav
+            - How will we differentiat side bar agent with agentic workflows
+            - Side menu -- we need to keep it lean and purposeful. Remove all configurations related stuff and handle it separately. 
 
-@July 2, 2026 - Handover Fixes needed for Contract Ingestion V1.0
-    - The workbench page - The table that is there in the My tasks page -- the table is very contract ingestion specific -- I want that to be generic that the table can be used for a varitety of tasks ( I am thinking Task ID, Task Type (Contract Ingestion), Task Name (New deal, Early Renewal...), Cutomer, Subject (a brief description of the task - summary), Status, Created on)
-    - Remove the Contract Queue tab in the Workbench page and just keep My tasks, and  Approvals. When clicking Approvals, the header that shows My tasks should change to Approvals.
-    - When I drop a contract -- after uploading, take the user directly to the Custoemr Linking page instead of adding a workbench item and then asking the4 user to click it. 
-    - In the Mytasks page -- remove the ellipses icon in each row just retain the arrow on hover state. 
 
-@July 2, 2026 - Customer Linking Page: 
-    - In the title section, In the same font -- rename the label to "Contract processing.." and add a subtitle underneath it saying, Link customer to this contract and and  get started.
-    - In No match found usecase, add some empty space of 120px below the Create New Customer fields to avoid the drop a contract and fields getting cut. 
+@July 2, 2026 - Feedback
 
-@July 2, 2026 - Contract Processing page
-    - The in-page nav in the contract processing page - Right now it's flushed and on page
-        - I am looking at an upgraded in-page nav -- with lines for each navigation menu in brand-navy 2px thickenss and 24px width and gap between them is around 12px.. The Scroll and selected  action  is that the line scales big to the right up to 32px in nice animaiton. The selected state or active state is the menu item is in blue-700 and 32px width.
-        - For the PDF links we have in the page, we don't need a symbolising in the compact view. 
-        - On hover on these lines -- the menu + links we have now is shown inside a popover which will still have the same features we have now. 
-        - This change will make the content area to the centre grow wider -- let it grow but restrict the max-wdith for Billing Schedule content area alone and Invoice Preview content area alone to 780px width like the summary section. (this should not apply to the title unit of these sections only the content units.)
-    - Change the label of Send for approval to "Create Sale Order"
-    - Remove the back button in the secondary nav. 
+    Based on the feedback items above, the feature explanaions are like the following:
 
-@July 2, 2026 - Tabs reorganisation
-    - We need to reorganise the What we should in Contracts tab when a workbench item is clicked to the Tasks tab. Just move the entirety from the secondary nav  to that tab. 
-    - Rename the tab label Contracts to "Sales Order"
-    - When I cick Create Sales Order button -- you will take me to the Sales Order tab with the contract that has just been processed as the content under details page. 
-    
-@July 2, 2026 - Sales Order Details
-    - This is going to be a page with similar approach like Invoice Details
-    - I want the following information covered in the central area -- Comments feature should still be section-wise. Use design philosophy and styles as the Contract processing page. 
-    - Attached screenshot shows the information I want to showcase but the design and stylign and layouts should be from what we have within the repo and not the screenshot.
-    - Sales Order Id (Secdondary nav title in brand-navy + Chevon-up-down icon in blue-700), Subtitle on the left in the secondary nav will house Created on date, ramp details, starts from date. 
-    - On the right of the secondary nav - like in the Invoice Details page - Amend Order will be the primary cta followed by the Ellipses icon. 
-    - The left in-page nav will be like how are updating the Contract Processing page with the lines and on hover showing the menu items in the popover we want it like that (!!IMportant)
-    - Everything in this page is read-only -- The content area has the following sections, Summary ([Source quote label + value], Total contract value, Avg annual value, Contract term, Renewal action), Committed Entitlements, Products and pricing (Needs to be very close to the Contract Processing page but not as a data table but as a read-only list view with tight compact views no need for vertical seperators, only horizontal seperators needed), Upcoming billing schedule, Past invoices (lines view with some status and invoice amount all in singular lines -- no clubbbing of lines)
-    - Each section will have comment feature like how we have in Contract Processing page as is.
+        Workbench Page
+            - Task ID, Task Name, and Task Type -- I want to simplify that. Task Type and Task Name -- can be a single column called Task Type in the format: <Task Name: Task Type>. After that Bring Customer Name as the next column. Then the Task ID. 
+            - In the subject column -- there should be some indication of effective start date like starts in 5 days to show urgency. Remove the PDF names in the subject and stick to valuable context about the ingestion. 
+            - Teh status column needs some work as well --  In Review status should be in green tone. Ready for review in grey tone like the Task Name tag design in the same table. Pending approval stays as it is. Introduce a new status called "Blocked" that should be in the red tone. 
+        
+        Contract Processing Page
+            - Switch position of the chevron up down icon and the expand feature in the secondary nav. For the expand feature use a combination of icons to denote the functionality -- use maximise icon to toggle to full screen mode where panels collapse. and focus mode to swtich back the panels. 
+            - The task switcher in drop down needs to have things like the ones in the workbench columns to be able to make a choise -- Task ID should be of least priority (that can be subtle in grey like the customer name now -- bring back other columns like task type, and status -- The popover can be wider with these information having a sort of list view. 
+            - On the Contract Ingestion page -- wherever dates are used -- we need relative date next to in bracket or something -- that is a useful feature. )
+            -The in-page menu -- the selected state bg needs to hug the content rather than extend fully. 
+            - Add Field button in the Account section and Add item button in the Products and pricing section -- both of these should feel part of the list/table. Now it's a separate button what if we treat as a line item itself which means when hovering the hover state (blue tones) should extend fully to the column. and the button will be tightly sitting as part of the line item. 
+            - In Products and pricing table -- for the ramp denotions (the period information) -- this is an important change -- move the collapse icon (keep it in blue) to the left of the period label - with negative margin like how we have the other icon in the table on the left. The period label should replace the Item label in the table -- that way we don't need another row to denote period -- it can be part of the table -- the collapsed state can stay as is -- expand to see the period information in the place we have Item label. In the collapsed state -- the gap between different periods are high -- tighten them by reducing 50% gap. 
+            - Invoicce Preview -- just show one preview (first invocie preview ) -- change the label to First Invocie preview. 
+            - The preview icon inside the billing schedule details -- on click can open the invoice preview in a new browser window. like how we open contract pdfs. 
+        
+        Sales Order Details Page (After Creating Sales Order)
+            - The secondary nav icon repositioning of expand and and chevron up-down feature should be the same as the Contract Processing page mentioned above. 
+            - Treat the comments as a separate section below the Past Invoices. Maintain the width constraints we have for Past Invoices similarly to the comments. Where we have the number of comments in the previous sections (you can remove all those except for this comments section -- where we need number of comments shown here) -- in the other sections we don't need that denotion since we are cumulatively moving all comments down here. 
+            - This page also needs a note dropped by the AI like in the Contract Procesing page -- the first section. This section in this page will house important information in verbose like Created on, starts on, how many ramps, ramp level amounts, first invoice of so and so amount sent -- things like that. This is critical to denote that the Contract has been processed and this is the summary. 
+            - We need another section below the comments section titled Activity where in a similar fashion we denote the activity happened so far, from quote creation, quote approved, contract signed, contract processed, customer created, sales order created, first invoice generated, and first invoice sent. Keep this simple and give links to traverse to these objects if available using the IDs as part of each activity. This is a timeline based activity and I'd like to draw on a similar UI principles from the Billing Schedule section in the Contract processing page. 
+            - The CTAs in the Sales Order Details Secondary nav -- needs to be more subtle -- We need CTAs that we used before like Add Field button in the Account section of the contract ingestion page -- change the CTAs here to that style -- subtle and lightweight, and show up to two ctas and the rest can sit inside the more button. The more button should have similar styling as well. 
+            - In the past invoices section -- hyperlink the invoive ids like how we did source quote in the Summary section of this page. 
+            - Add 260px free space below the last item in this page. As a standard practice -- do this for contract ingestion page as well. 
 
-@July 2, 2026 - Contract Processing Page Nuances
-    - The label in the seconday nav should be <Task ID> that will come for the workbench task
-    - Remove the label 3 of 4 sections ready in the Secondary nav. 
-    - Add a new label to the top of the Summary section with a magic icon and label "Summary" in AI-gradient color tone to the icon and the label.
- 
- @July 2, 2026 - Global edits
-    - In the customer 360 page -- in the tab bar area -- the left side -- the Breadcrumb above the customer name should just be chevron-back button with lael "Back to customers"
-    - Remove the close button before the customer name. 
-    - In the Secondary nav of all details page, and Contract processing page -- Remove the back button and have the expand icon there in that place which allows for hiding the extras panel for contract processing page. Same way for all the details page -- hide all extras panel and just have the content on the centre expand across the width for better readability.  Add a chevron-up-down icon to the rifht of the ID in the Secondary nav label to help navigate across multiple line-items (bascially to avoid an index within the Customer 360 frame)
-    - This popover should house a compact list of line items to navigate to without having a dedicated index page like All INVOICES page inside the Customer 360 frame for any of the tabs. Show the last 6-8 items and beyond that have a View More button text only in blue-700 -- on hover underlined state --. 
+
 

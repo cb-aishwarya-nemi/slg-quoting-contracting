@@ -1,77 +1,27 @@
-import { ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { scheduledInvoices } from '@/data/contractProcessingMock'
 
-const invoiceIds = ['INV-2026-0042', 'INV-2026-0043', 'INV-2026-0044', 'INV-2026-0045']
+const FIRST_INVOICE_ID = 'INV-2026-0042'
 
 interface InvoicePreviewProps {
-  activeIndex: number
-  totalInvoices: number
-  onIndexChange: (index: number) => void
   isFlashing?: boolean
 }
 
-export function InvoicePreview({ activeIndex, totalInvoices, onIndexChange, isFlashing }: InvoicePreviewProps) {
-  const invoiceId = invoiceIds[activeIndex]
-  const invoice = scheduledInvoices[invoiceId]
-
-  const handlePrevious = () => {
-    if (activeIndex > 0) {
-      onIndexChange(activeIndex - 1)
-    }
-  }
-
-  const handleNext = () => {
-    if (activeIndex < totalInvoices - 1) {
-      onIndexChange(activeIndex + 1)
-    }
-  }
+export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
+  const invoice = scheduledInvoices[FIRST_INVOICE_ID]
 
   return (
     <div className="group/section">
-      {/* Header: Label + Controls + Comment Icon */}
+      {/* Header: Label */}
       <div className="relative mb-4 flex items-center gap-3">
         {isFlashing && (
           <span className="title-sweep-overlay" aria-hidden="true">
             <span className="title-sweep-band" />
           </span>
         )}
-        
+
         <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Invoice preview
+          First Invoice preview
         </span>
-        
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handlePrevious}
-            disabled={activeIndex === 0}
-            className={cn(
-              'flex h-6 w-6 items-center justify-center rounded transition-colors',
-              activeIndex === 0
-                ? 'cursor-not-allowed text-brand-mist'
-                : 'text-brand-navy hover:bg-neutral-100'
-            )}
-          >
-            <ChevronLeft size={16} />
-          </button>
-          <span className="text-[13px] text-brand-navy">
-            {activeIndex + 1} / {totalInvoices}
-          </span>
-          <button
-            type="button"
-            onClick={handleNext}
-            disabled={activeIndex === totalInvoices - 1}
-            className={cn(
-              'flex h-6 w-6 items-center justify-center rounded transition-colors',
-              activeIndex === totalInvoices - 1
-                ? 'cursor-not-allowed text-brand-mist'
-                : 'text-brand-navy hover:bg-neutral-100'
-            )}
-          >
-            <ChevronRight size={16} />
-          </button>
-        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">

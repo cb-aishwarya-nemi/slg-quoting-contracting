@@ -383,12 +383,13 @@ export function LabelValueList({ items, onItemChange, showAddField }: LabelValue
         />
       ))}
       {showAddField && (
-        <div className="relative flex justify-start py-3">
+        <div className="relative">
           <button
             ref={addButtonRef}
             type="button"
             onClick={() => setIsPopoverOpen(prev => !prev)}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+            className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-200 px-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+            style={{ height: 36 }}
           >
             <CirclePlus size={16} className="text-blue-700" />
             Add field

@@ -1,6 +1,6 @@
 import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
 import { sectionSources, type Comment, getContractById } from '@/data/contractProcessingMock'
 import {
@@ -402,7 +402,6 @@ function ContractProcessingView({
 
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
-  const [activeInvoiceIndex, setActiveInvoiceIndex] = useState(0)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
 
   // Comment state lifted to view so all section stacks share one source of truth
@@ -717,7 +716,7 @@ function ContractProcessingView({
                 </h2>
               </div>
               <p className="mt-3 text-[13px] text-theme-primary">
-                Effective: {data.summary.effectiveDate}
+                Effective: {withRelativeAnnotation(data.summary.effectiveDate)}
               </p>
             </section>
 
@@ -791,7 +790,7 @@ function ContractProcessingView({
                   statusLabel="Created 2 items"
                   commentCount={commentCountsBySection['products']}
                 />
-                <div className="mt-4" style={{ width: productsWidth }}>
+                <div className="mt-6" style={{ width: productsWidth }}>
                   <ProductsPricingTable 
                     items={data.products} 
                     periods={data.rampPeriods}
@@ -808,13 +807,7 @@ function ContractProcessingView({
                   commentCount={commentCountsBySection['schedule']}
                 />
                 <div className="mt-6" style={{ maxWidth: bodyWidth }}>
-                  <PaymentSchedule
-                    onPreviewClick={(invoiceIndex) => {
-                      setActiveInvoiceIndex(invoiceIndex)
-                      scrollToSection('invoice')
-                    }}
-                    tcv={data.summary.contractValue}
-                  />
+                  <PaymentSchedule tcv={data.summary.contractValue} />
                 </div>
               </SectionRow>
             </section>
@@ -823,15 +816,13 @@ function ContractProcessingView({
             <section ref={setSectionRef('invoice')} className="group/section">
               <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
                 <div style={{ maxWidth: bodyWidth }}>
-                  <InvoicePreview
-                    activeIndex={activeInvoiceIndex}
-                    totalInvoices={4}
-                    onIndexChange={setActiveInvoiceIndex}
-                    isFlashing={false}
-                  />
+                  <InvoicePreview isFlashing={false} />
                 </div>
               </SectionRow>
             </section>
+
+            {/* Bottom breathing room */}
+            <div aria-hidden="true" style={{ height: 260 }} />
           </div>
         </div>
       </div>

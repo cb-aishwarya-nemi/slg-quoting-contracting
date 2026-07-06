@@ -1,33 +1,36 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { MoveDiagonal2, MoreHorizontal, FilePenLine } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Maximize2, Focus, MoreHorizontal, FilePenLine, Download, MessageCircleMore } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   InPageNav,
   SectionHeader,
-  SectionCommentStack,
+  CommentsPanel,
+  GradientSparkle,
   type NavSection,
 } from '@/components/features/contract-processing'
-import { type Comment } from '@/data/contractProcessingMock'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { STATUS_STYLES, type InvoiceStatus } from '@/data/invoiceListMock'
-import { type SalesOrder } from '@/data/salesOrderMock'
+import { type SalesOrder, type ActivityItem } from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 
-type CommentStatus = 'open' | 'resolved'
-
 const NAV_SECTIONS: NavSection[] = [
-  { id: 'summary', label: 'Summary', status: 'neutral' },
-  { id: 'entitlements', label: 'Committed entitlements', status: 'neutral' },
+  { id: 'summary', label: 'Summary', status: 'ai' },
   { id: 'products', label: 'Products and pricing', status: 'neutral' },
-  { id: 'schedule', label: 'Upcoming billing schedule', status: 'neutral' },
+  { id: 'entitlements', label: 'Committed entitlements', status: 'neutral' },
   { id: 'invoices', label: 'Past invoices', status: 'neutral' },
+  { id: 'schedule', label: 'Upcoming billing schedule', status: 'neutral' },
+  { id: 'comments', label: 'Comments', status: 'neutral' },
+  { id: 'activity', label: 'Activity', status: 'neutral' },
 ]
 
-const CONTENT_COL_WIDTH = 780
-const BODY_COL_WIDTH = 620
-const COMMENTS_COL_WIDTH = 250
 const LEFT_NAV_WIDTH = 48
-const EXPANDED_MAX_WIDTH = 1000
+// Shift the in-page nav rail so it aligns with the SO id label (past the switcher
+// chevron ≈ 20px button + 8px gap), not the switcher icon.
+const NAV_ALIGN_OFFSET = 24
+const CONTENT_MAX_WIDTH = 1040
+const AI_NOTE_WIDTH = 720
+// Body content under the title for sections other than the note + products/pricing
+const SECTION_CONTENT_WIDTH = 720
 
 const SCHEDULE_STATUS_STYLES: Record<BillingStatus, { bg: string; text: string }> = {
   Paid: { bg: 'bg-green-50', text: 'text-green-700' },
@@ -92,6 +95,59 @@ function ReadOnlyLabelValueList({ items }: { items: { label: string; value: stri
   )
 }
 
+/** AI note for the Summary section — mirrors the Contract Processing summary. */
+function AiSummaryNote({ headline, body }: { headline: string; body: string }) {
+  return (
+    <div>
+      <div className="mb-3 flex items-center gap-1.5">
+        <GradientSparkle size={16} />
+        <span className="text-[13px] font-semibold uppercase tracking-[-0.25px] ai-gradient-text">
+          Note
+        </span>
+      </div>
+      <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
+        {headline}
+      </h2>
+      <p className="mt-3 text-[13px] leading-[1.6] text-brand-navy">{body}</p>
+    </div>
+  )
+}
+
+/** Activity timeline reusing the PaymentSchedule dot + vertical-connector look. */
+function ActivityTimeline({ items }: { items: ActivityItem[] }) {
+  return (
+    <div>
+      {items.map((item, idx) => {
+        const isLast = idx === items.length - 1
+        return (
+          <div key={item.id} className="relative flex items-start">
+            <div className="relative z-10 flex w-5 shrink-0 justify-center pt-[6px]">
+              <div className="h-1.5 w-1.5 rounded-full bg-brand-navy/40" />
+            </div>
+            {!isLast && (
+              <div
+                className="pointer-events-none absolute left-[9px] top-[12px] w-px bg-brand-navy/15"
+                style={{ bottom: -6 }}
+              />
+            )}
+            <div className="ml-3 flex-1 pb-4">
+              <p className="text-[12px] text-brand-fog">{item.date}</p>
+              <div className="mt-0.5 flex items-center gap-2">
+                <span className="text-[14px] font-medium text-brand-navy">{item.label}</span>
+                {item.refId && (
+                  <a className="cursor-pointer text-[13px] text-blue-700 hover:underline">
+                    {item.refId}
+                  </a>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 export function SalesOrderDetails({
   order,
   orders,
@@ -101,39 +157,17 @@ export function SalesOrderDetails({
   const [activeSection, setActiveSection] = useState('summary')
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
-  const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
-    () => order.comments.map((c) => ({ ...c, status: 'open' as CommentStatus }))
-  )
+  const [showCommentAddNote, setShowCommentAddNote] = useState(false)
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const scrollTargetRef = useRef<string | null>(null)
 
-  // Reset comments + active section when the order changes
+  // Reset active section + scroll when the order changes
   useEffect(() => {
-    setLocalComments(order.comments.map((c) => ({ ...c, status: 'open' as CommentStatus })))
     setActiveSection('summary')
     if (centerRef.current) centerRef.current.scrollTo({ top: 0 })
   }, [order])
-
-  const commentsBySection = useMemo(() => {
-    const grouped: Record<string, Array<Comment & { status?: CommentStatus }>> = {}
-    for (const comment of localComments) {
-      if (comment.linkedSectionId) {
-        if (!grouped[comment.linkedSectionId]) grouped[comment.linkedSectionId] = []
-        grouped[comment.linkedSectionId].push(comment)
-      }
-    }
-    return grouped
-  }, [localComments])
-
-  const commentCountsBySection = useMemo(() => {
-    const counts: Record<string, number> = {}
-    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
-      counts[sectionId] = comments.length
-    }
-    return counts
-  }, [commentsBySection])
 
   const setSectionRef = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {
@@ -153,37 +187,6 @@ export function SalesOrderDetails({
       scrollTargetRef.current = id
       container.scrollTo({ top: Math.max(top - 12, 0), behavior: 'smooth' })
     }
-  }, [])
-
-  const handleAddComment = useCallback(
-    (sectionId: string, sectionLabel: string, text: string) => {
-      const newComment: Comment & { status: CommentStatus } = {
-        id: `so-c-${Date.now()}`,
-        author: 'Adrian Brody',
-        initials: 'AB',
-        timestamp: 'Just now',
-        body: text,
-        status: 'open',
-        linkedSection: sectionLabel,
-        linkedSectionId: sectionId,
-      }
-      setLocalComments((prev) => [newComment, ...prev])
-    },
-    []
-  )
-
-  const handleDeleteComment = useCallback((commentId: string) => {
-    setLocalComments((prev) => prev.filter((c) => c.id !== commentId))
-  }, [])
-
-  const handleResolveComment = useCallback((commentId: string) => {
-    setLocalComments((prev) =>
-      prev.map((c) =>
-        c.id === commentId
-          ? { ...c, status: c.status === 'resolved' ? 'open' : ('resolved' as CommentStatus) }
-          : c
-      )
-    )
   }, [])
 
   // Scroll spy — runs during smooth programmatic scroll so the nav indicator animates fluidly
@@ -229,87 +232,65 @@ export function SalesOrderDetails({
     }
   }, [showMoreMenu])
 
+  // Rich list-row items — mirrors the Contract Processing task switcher popover
   const switcherItems: SwitcherItem[] = orders.map((o) => ({
     id: o.id,
-    label: o.soId,
-    sublabel: `${o.totalContractValue} · ${o.contractTerm}`,
+    label: o.totalContractValue,
+    taskType: o.soId,
+    status: o.dealTag,
+    customer: o.customerName,
   }))
-
-  const bodyWidth = isPanelsExpanded ? BODY_COL_WIDTH : EXPANDED_MAX_WIDTH
-  const productsWidth = isPanelsExpanded ? CONTENT_COL_WIDTH : EXPANDED_MAX_WIDTH
-
-  const SectionRow = useCallback(
-    ({
-      sectionId,
-      sectionLabel,
-      children,
-    }: {
-      sectionId: string
-      sectionLabel: string
-      children: React.ReactNode
-    }) => (
-      <div className="flex items-start gap-8">
-        <div className="min-w-0 flex-1">{children}</div>
-        {isPanelsExpanded && (
-          <div style={{ width: COMMENTS_COL_WIDTH, flexShrink: 0 }}>
-            <SectionCommentStack
-              sectionId={sectionId}
-              comments={commentsBySection[sectionId] ?? []}
-              linkedSection={sectionLabel}
-              onAddNote={(text) => handleAddComment(sectionId, sectionLabel, text)}
-              onDelete={handleDeleteComment}
-              onResolve={handleResolveComment}
-            />
-          </div>
-        )}
-      </div>
-    ),
-    [isPanelsExpanded, commentsBySection, handleAddComment, handleDeleteComment, handleResolveComment]
-  )
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
       {/* Secondary nav */}
       <div className="flex shrink-0 items-center py-3">
-        <div className="flex shrink-0 items-center" style={{ width: 40 }}>
-          <button
-            type="button"
-            onClick={() => setIsPanelsExpanded((prev) => !prev)}
-            className={cn(
-              'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
-              isPanelsExpanded ? 'text-brand-navy' : 'text-blue-700'
-            )}
-            title={isPanelsExpanded ? 'Hide panels' : 'Show panels'}
-          >
-            <MoveDiagonal2 size={18} />
-          </button>
-        </div>
-
-        <div className="shrink-0">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-              {order.soId}
-            </span>
-            <SecondaryNavSwitcher
-              items={switcherItems}
-              activeId={activeOrderId}
-              onSelect={onSelectOrder}
-            />
-          </div>
-          <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-fog">
-            Created {order.createdOn} · {order.rampDetails} · Starts {order.startDate}
+        <div className="flex items-center gap-2">
+          <SecondaryNavSwitcher
+            items={switcherItems}
+            activeId={activeOrderId}
+            onSelect={onSelectOrder}
+          />
+          <div>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
+                {order.soId}
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsPanelsExpanded((prev) => !prev)}
+                className={cn(
+                  'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
+                  isPanelsExpanded ? 'text-brand-navy' : 'text-blue-700'
+                )}
+                title={isPanelsExpanded ? 'Focus mode (hide panels)' : 'Restore panels'}
+              >
+                {isPanelsExpanded ? <Maximize2 size={16} /> : <Focus size={16} />}
+              </button>
+            </div>
+            <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-fog">
+              Created {order.createdOn} · {order.rampDetails} · Starts {order.startDate}
+            </div>
           </div>
         </div>
 
         <div className="flex-1" />
 
-        <div className="flex items-center gap-2">
+        {/* Subtle, lightweight CTAs — max two inline + a More menu */}
+        <div className="flex items-center gap-1">
           <button
             type="button"
-            className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
+            className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
           >
-            <FilePenLine size={16} />
-            Amend Order
+            <FilePenLine size={15} />
+            Amend order
+          </button>
+          <button
+            type="button"
+            className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+          >
+            <Download size={15} />
+            Download
           </button>
           <div className="relative">
             <button
@@ -318,9 +299,10 @@ export function SalesOrderDetails({
                 e.stopPropagation()
                 setShowMoreMenu((prev) => !prev)
               }}
-              className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg border border-neutral-200 text-brand-navy transition-colors hover:bg-neutral-50"
+              className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
             >
-              <MoreHorizontal size={18} />
+              <MoreHorizontal size={15} />
+              More
             </button>
             {showMoreMenu && (
               <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
@@ -342,17 +324,18 @@ export function SalesOrderDetails({
         </div>
       </div>
 
-      {/* Body: left lines nav + merged content+comments column */}
-      <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
+      {/* Body: absolute left nav + centered content column (mirrors Contract Processing) */}
+      <div className="relative min-h-0 flex-1">
         <aside
-          className="shrink-0 overflow-visible pt-4 transition-all duration-300 ease-out"
-          style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
+          className="absolute top-0 bottom-0 z-10 overflow-visible pt-4 transition-all duration-300 ease-out"
+          style={{ left: NAV_ALIGN_OFFSET, width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
         >
           <div
             className={cn(
               'transition-opacity duration-200',
               isPanelsExpanded ? 'opacity-100 delay-100' : 'opacity-0'
             )}
+            style={{ width: LEFT_NAV_WIDTH }}
           >
             <InPageNav
               sections={NAV_SECTIONS}
@@ -365,141 +348,164 @@ export function SalesOrderDetails({
 
         <div
           ref={centerRef}
-          className="min-w-0 flex-1 overflow-y-auto pb-20 pl-16 pr-4 pt-12"
+          className="h-full overflow-y-auto pb-20 pt-12"
+          style={{ marginLeft: isPanelsExpanded ? LEFT_NAV_WIDTH + NAV_ALIGN_OFFSET : 0 }}
         >
-          <div
-            className={cn('space-y-14', !isPanelsExpanded && 'mx-auto')}
-            style={!isPanelsExpanded ? { maxWidth: EXPANDED_MAX_WIDTH } : undefined}
-          >
-            {/* Summary */}
+          <div className="mx-auto space-y-14" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
+            {/* Summary — AI note first, then key metrics */}
             <section ref={setSectionRef('summary')} className="group/section">
-              <SectionRow sectionId="summary" sectionLabel="Summary">
-                <SectionHeader title="Summary" commentCount={commentCountsBySection['summary']} />
-                <div className="mt-4">
-                  <MetricsRow
-                    metrics={[
-                      { label: 'Source quote', value: order.sourceQuote, link: true },
-                      { label: 'TCV', value: order.totalContractValue },
-                      { label: 'Avg annual value', value: order.avgAnnualValue },
-                      { label: 'Contract term', value: order.contractTerm },
-                      { label: 'Renewal action', value: order.renewalAction },
-                    ]}
-                  />
-                </div>
-              </SectionRow>
+              <div style={{ maxWidth: AI_NOTE_WIDTH }}>
+                <AiSummaryNote headline={order.headline} body={order.aiSummary} />
+              </div>
+              <div className="mt-6">
+                <MetricsRow
+                  metrics={[
+                    { label: 'Source quote', value: order.sourceQuote, link: true },
+                    { label: 'TCV', value: order.totalContractValue },
+                    { label: 'Avg annual value', value: order.avgAnnualValue },
+                    { label: 'Contract term', value: order.contractTerm },
+                    { label: 'Renewal action', value: order.renewalAction },
+                  ]}
+                />
+              </div>
+            </section>
+
+            {/* Products and pricing — ramp view mirroring Contract Processing */}
+            <section ref={setSectionRef('products')} className="group/section">
+              <SectionHeader title="Products and pricing" />
+              <div className="mt-6">
+                <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
+              </div>
             </section>
 
             {/* Committed entitlements */}
             <section ref={setSectionRef('entitlements')} className="group/section">
-              <SectionRow sectionId="entitlements" sectionLabel="Committed entitlements">
-                <SectionHeader
-                  title="Committed entitlements"
-                  commentCount={commentCountsBySection['entitlements']}
-                />
-                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  <ReadOnlyLabelValueList items={order.committedEntitlements} />
-                </div>
-              </SectionRow>
-            </section>
-
-            {/* Products and pricing */}
-            <section ref={setSectionRef('products')} className="group/section">
-              <SectionRow sectionId="products" sectionLabel="Products and pricing">
-                <SectionHeader
-                  title="Products and pricing"
-                  commentCount={commentCountsBySection['products']}
-                />
-                <div className="mt-4" style={{ width: productsWidth }}>
-                  <ReadOnlyProductsList items={order.products} />
-                </div>
-              </SectionRow>
-            </section>
-
-            {/* Upcoming billing schedule */}
-            <section ref={setSectionRef('schedule')} className="group/section">
-              <SectionRow sectionId="schedule" sectionLabel="Upcoming billing schedule">
-                <SectionHeader
-                  title="Upcoming billing schedule"
-                  commentCount={commentCountsBySection['schedule']}
-                />
-                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  {order.upcomingBillingSchedule.length === 0 ? (
-                    <p className="py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
-                  ) : (
-                    order.upcomingBillingSchedule.map((line) => {
-                      const style = SCHEDULE_STATUS_STYLES[line.status]
-                      return (
-                        <div
-                          key={line.id}
-                          className="flex items-center border-b border-neutral-100 py-2.5"
-                        >
-                          <span className="w-[130px] shrink-0 text-[13px] text-brand-navy">
-                            {line.billDate}
-                          </span>
-                          <span className="flex-1 text-[13px] text-brand-fog">
-                            {line.installment}
-                          </span>
-                          <span
-                            className={cn(
-                              'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
-                              style.bg,
-                              style.text
-                            )}
-                          >
-                            {line.status}
-                          </span>
-                          <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
-                            {line.amount}
-                          </span>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </SectionRow>
+              <SectionHeader title="Committed entitlements" />
+              <div className="mt-4" style={{ maxWidth: SECTION_CONTENT_WIDTH }}>
+                <ReadOnlyLabelValueList items={order.committedEntitlements} />
+              </div>
             </section>
 
             {/* Past invoices */}
             <section ref={setSectionRef('invoices')} className="group/section">
-              <SectionRow sectionId="invoices" sectionLabel="Past invoices">
-                <SectionHeader
-                  title="Past invoices"
-                  commentCount={commentCountsBySection['invoices']}
-                />
-                <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  {order.pastInvoices.length === 0 ? (
-                    <p className="py-4 text-[13px] text-brand-fog">No invoices yet.</p>
-                  ) : (
-                    order.pastInvoices.map((inv) => {
-                      const style = STATUS_STYLES[inv.status as InvoiceStatus]
-                      return (
-                        <div
-                          key={inv.id}
-                          className="flex items-center border-b border-neutral-100 py-2.5"
+              <SectionHeader title="Past invoices" />
+              <div className="mt-4" style={{ maxWidth: SECTION_CONTENT_WIDTH }}>
+                {order.pastInvoices.length === 0 ? (
+                  <p className="py-4 text-[13px] text-brand-fog">No invoices yet.</p>
+                ) : (
+                  order.pastInvoices.map((inv) => {
+                    const style = STATUS_STYLES[inv.status as InvoiceStatus]
+                    return (
+                      <div
+                        key={inv.id}
+                        className="flex items-center border-b border-neutral-100 py-2.5"
+                      >
+                        <a className="w-[160px] shrink-0 cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
+                          {inv.invoiceId}
+                        </a>
+                        <span className="flex-1 text-[13px] text-brand-fog">{inv.date}</span>
+                        <span
+                          className={cn(
+                            'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
+                            style.bg,
+                            style.text
+                          )}
                         >
-                          <span className="w-[160px] shrink-0 text-[14px] font-medium text-brand-navy">
-                            {inv.invoiceId}
-                          </span>
-                          <span className="flex-1 text-[13px] text-brand-fog">{inv.date}</span>
-                          <span
-                            className={cn(
-                              'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
-                              style.bg,
-                              style.text
-                            )}
-                          >
-                            {inv.status}
-                          </span>
-                          <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
-                            {inv.amount}
-                          </span>
-                        </div>
-                      )
-                    })
-                  )}
-                </div>
-              </SectionRow>
+                          {inv.status}
+                        </span>
+                        <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
+                          {inv.amount}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
             </section>
+
+            {/* Upcoming billing schedule */}
+            <section ref={setSectionRef('schedule')} className="group/section">
+              <SectionHeader title="Upcoming billing schedule" />
+              <div className="mt-4" style={{ maxWidth: SECTION_CONTENT_WIDTH }}>
+                {order.upcomingBillingSchedule.length === 0 ? (
+                  <p className="py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
+                ) : (
+                  order.upcomingBillingSchedule.map((line) => {
+                    const style = SCHEDULE_STATUS_STYLES[line.status]
+                    return (
+                      <div
+                        key={line.id}
+                        className="flex items-center border-b border-neutral-100 py-2.5"
+                      >
+                        <span className="w-[130px] shrink-0 text-[13px] text-brand-navy">
+                          {line.billDate}
+                        </span>
+                        <span className="flex-1 text-[13px] text-brand-fog">
+                          {line.installment}
+                        </span>
+                        <span
+                          className={cn(
+                            'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
+                            style.bg,
+                            style.text
+                          )}
+                        >
+                          {line.status}
+                        </span>
+                        <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
+                          {line.amount}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </section>
+
+            {/* Comments — Add note lives in the section title area */}
+            <section ref={setSectionRef('comments')} className="group/section">
+              <SectionHeader
+                title="Comments"
+                commentCount={order.comments.length}
+                trailing={
+                  <button
+                    type="button"
+                    onClick={() => setShowCommentAddNote((prev) => !prev)}
+                    className={cn(
+                      'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors',
+                      showCommentAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
+                    )}
+                  >
+                    <MessageCircleMore size={14} />
+                    Add note
+                  </button>
+                }
+              />
+              <div className="mt-4" style={{ maxWidth: SECTION_CONTENT_WIDTH }}>
+                {order.comments.length === 0 && !showCommentAddNote ? (
+                  <p className="py-4 text-[13px] text-brand-fog">No comments yet.</p>
+                ) : (
+                  <CommentsPanel
+                    comments={order.comments}
+                    hideHeader
+                    dense
+                    showAddNote={showCommentAddNote}
+                    onShowAddNoteChange={setShowCommentAddNote}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Activity — timeline of key events (most recent first) */}
+            <section ref={setSectionRef('activity')} className="group/section">
+              <SectionHeader title="Activity" />
+              <div className="mt-4" style={{ maxWidth: SECTION_CONTENT_WIDTH }}>
+                <ActivityTimeline items={order.activity} />
+              </div>
+            </section>
+
+            {/* Bottom breathing room */}
+            <div aria-hidden="true" style={{ height: 260 }} />
           </div>
         </div>
       </div>

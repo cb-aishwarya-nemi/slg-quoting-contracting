@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { CircleCheck, PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +14,8 @@ interface SectionHeaderProps {
   hideLine?: boolean
   /** number of comments linked to this section */
   commentCount?: number
+  /** optional action rendered at the far end, before the comment count */
+  trailing?: ReactNode
 }
 
 /**
@@ -27,6 +30,7 @@ export function SectionHeader({
   minimal = false, 
   hideLine = false,
   commentCount,
+  trailing,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
 
@@ -63,6 +67,9 @@ export function SectionHeader({
         <>
           {/* Spacer / line */}
           <div className={cn('flex-1', !hideLine && 'h-px bg-brand-navy')} />
+
+          {/* Optional trailing action */}
+          {trailing && <div className="shrink-0">{trailing}</div>}
 
           {/* Comment count pill */}
           {hasComments && (

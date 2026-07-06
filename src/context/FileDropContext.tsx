@@ -110,7 +110,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     contractId: "CT-2026-0151",
     startDate: daysAgo(3),
     tcv: "$85,000",
-    status: "Ready for review",
+    status: "Blocked",
     owner: "Priya Malhotra",
   },
   {

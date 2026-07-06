@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { PackagePlus, ChevronDown, ChevronUp, MoreVertical, CirclePlus, Search, X, Circle, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 
 function Separator({ isRowHovered, isRowActive }: { isRowHovered?: boolean; isRowActive?: boolean }) {
@@ -524,30 +524,49 @@ interface PeriodHeaderProps {
   onToggle: () => void
 }
 
-function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
+/** Blue collapse chevron that hangs to the left of the period label. */
+function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle: () => void }) {
   return (
     <button
       type="button"
-      onClick={onToggle}
-      className="flex w-full cursor-pointer items-center justify-between py-3 pl-1 pr-2 transition-colors hover:bg-neutral-50"
+      onClick={(e) => {
+        e.stopPropagation()
+        onToggle()
+      }}
+      className="-ml-6 mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
+      title={isExpanded ? 'Collapse period' : 'Expand period'}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-[13px] font-semibold text-brand-navy">{period.label}</span>
-        <span className="text-[13px] text-brand-fog">·</span>
-        <div className="flex items-center gap-1.5 text-[13px] text-brand-fog">
-          <Calendar size={14} className="text-brand-mist" />
-          <span>{period.startDate}</span>
-          <span>to</span>
-          <Calendar size={14} className="text-brand-mist" />
-          <span>{period.endDate}</span>
-        </div>
-      </div>
-      {isExpanded ? (
-        <ChevronUp size={16} className="text-brand-mist" />
-      ) : (
-        <ChevronDown size={16} className="text-brand-mist" />
-      )}
+      {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
     </button>
+  )
+}
+
+/** Period identity: label + date range (with relative annotation on the start). */
+function PeriodIdentity({ period }: { period: RampPeriod }) {
+  return (
+    <div className="flex min-w-0 items-center gap-2">
+      <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
+      <span className="text-[13px] text-brand-fog">·</span>
+      <div className="flex items-center gap-1.5 text-[12px] text-brand-fog">
+        <Calendar size={14} className="shrink-0 text-brand-mist" />
+        <span className="whitespace-nowrap">{withRelativeAnnotation(period.startDate)}</span>
+        <span>to</span>
+        <span className="whitespace-nowrap">{period.endDate}</span>
+      </div>
+    </div>
+  )
+}
+
+/** Collapsed period row — clicking anywhere expands. */
+function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
+  return (
+    <div
+      onClick={onToggle}
+      className="flex w-full cursor-pointer items-center py-3 pl-1 pr-2 transition-colors hover:bg-neutral-50"
+    >
+      <PeriodChevron isExpanded={isExpanded} onToggle={onToggle} />
+      <PeriodIdentity period={period} />
+    </div>
   )
 }
 
@@ -657,6 +676,33 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     </div>
   )
 
+  // Expanded ramp period header — merges the period identity into the table
+  // header row (the period label replaces the "Item" column label).
+  const renderPeriodTableHeader = (period: RampPeriod, onToggle: () => void) => (
+    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
+      <div className="flex min-w-0 flex-1 items-center">
+        <PeriodChevron isExpanded onToggle={onToggle} />
+        <PeriodIdentity period={period} />
+      </div>
+      <GhostSeparator />
+      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Frequency
+      </div>
+      <GhostSeparator />
+      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Qty
+      </div>
+      <GhostSeparator />
+      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Unit price
+      </div>
+      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Total price
+      </div>
+      <div style={{ width: MENU_W }} className="shrink-0" />
+    </div>
+  )
+
   const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
@@ -734,57 +780,60 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   }
 
   const renderAddLineItemButton = (onClick: () => void) => (
-    <div className="flex justify-start py-3">
-      <button
-        type="button"
-        onClick={onClick}
-        className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-      >
-        <CirclePlus size={16} className="text-blue-700" />
-        Add line item
-      </button>
-    </div>
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-100 py-2 pl-1 pr-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+    >
+      <CirclePlus size={16} className="text-blue-700" />
+      Add line item
+    </button>
   )
 
   // Render with periods (ramp view)
   if (periods && periods.length > 0) {
     return (
-      <div className="space-y-8">
-        {periods.map((period) => {
+      <div className="pl-6">
+        {periods.map((period, idx) => {
           const isExpanded = expandedPeriods.has(period.id)
           const isAddingToThisPeriod = addingToPeriodId === period.id
-          
+          const isLast = idx === periods.length - 1
+          // 24px between expanded tables, 16px between collapsed rows
+          const marginBottom = isLast ? 0 : isExpanded ? 24 : 16
+
+          if (!isExpanded) {
+            return (
+              <div key={period.id} style={{ marginBottom }}>
+                <PeriodHeader
+                  period={period}
+                  isExpanded={false}
+                  onToggle={() => togglePeriod(period.id)}
+                />
+              </div>
+            )
+          }
+
           return (
-            <div key={period.id}>
-              <PeriodHeader
-                period={period}
-                isExpanded={isExpanded}
-                onToggle={() => togglePeriod(period.id)}
-              />
-              
-              {isExpanded && (
-                <div>
-                  {renderTableHeader()}
-                  
-                  {period.items.map((item) => 
-                    renderLineItem(item, (updater) => {
-                      setPeriods(prev => prev?.map(p => 
-                        p.id === period.id 
-                          ? { ...p, items: updater(p.items) }
-                          : p
-                      ))
-                    })
-                  )}
-                  
-                  {isAddingToThisPeriod ? (
-                    <NewLineItemRow
-                      onComplete={(newItem) => handleAddComplete(newItem, period.id)}
-                      onCancel={() => setAddingToPeriodId(null)}
-                    />
-                  ) : (
-                    renderAddLineItemButton(() => setAddingToPeriodId(period.id))
-                  )}
-                </div>
+            <div key={period.id} style={{ marginBottom }}>
+              {renderPeriodTableHeader(period, () => togglePeriod(period.id))}
+
+              {period.items.map((item) =>
+                renderLineItem(item, (updater) => {
+                  setPeriods(prev => prev?.map(p =>
+                    p.id === period.id
+                      ? { ...p, items: updater(p.items) }
+                      : p
+                  ))
+                })
+              )}
+
+              {isAddingToThisPeriod ? (
+                <NewLineItemRow
+                  onComplete={(newItem) => handleAddComplete(newItem, period.id)}
+                  onCancel={() => setAddingToPeriodId(null)}
+                />
+              ) : (
+                renderAddLineItemButton(() => setAddingToPeriodId(period.id))
               )}
             </div>
           )
@@ -795,7 +844,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
 
   // Default single-table view (backward compatible)
   return (
-    <div>
+    <div className="pl-6">
       {renderTableHeader()}
 
       {/* Rows */}
@@ -810,18 +859,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       )}
 
       {/* Add line item button */}
-      {!isAddingNew && (
-        <div className="flex justify-start py-3">
-          <button
-            type="button"
-            onClick={() => setIsAddingNew(true)}
-            className="flex cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-          >
-            <CirclePlus size={16} className="text-blue-700" />
-            Add line item
-          </button>
-        </div>
-      )}
+      {!isAddingNew && renderAddLineItemButton(() => setIsAddingNew(true))}
     </div>
   )
 }
