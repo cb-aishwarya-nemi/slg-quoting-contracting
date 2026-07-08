@@ -1,14 +1,74 @@
 import { useRef, useEffect, useState } from 'react'
-import { Upload, Loader2, Sparkles } from 'lucide-react'
+import { Upload, Loader2, Sparkles, Send } from 'lucide-react'
 import { useFileDrop } from '../../context/FileDropContext'
 import { useNavigation } from '../../context/NavigationContext'
+import { useUseCase } from '../../context/UseCaseContext'
+import { GradientSparkle } from '../features/contract-processing/GradientSparkle'
 import { cn } from '../../lib/utils'
+
+function SalesOrderAskBar() {
+  const [query, setQuery] = useState('')
+  const [isExpanded, setIsExpanded] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  const handleExpand = () => {
+    setIsExpanded(true)
+    inputRef.current?.focus()
+  }
+
+  const handleBlur = () => {
+    if (!query.trim()) {
+      setIsExpanded(false)
+    }
+  }
+
+  return (
+    <div
+      className={cn(
+        'pointer-events-auto rounded-full p-[1.5px] ai-gradient transition-all duration-300 ease-out',
+        isExpanded ? 'w-[560px]' : 'w-[320px]'
+      )}
+    >
+      <div
+        className="flex cursor-text items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm"
+        onClick={handleExpand}
+      >
+        <GradientSparkle size={12} />
+        <input
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onFocus={() => setIsExpanded(true)}
+          onBlur={handleBlur}
+          placeholder="Ask about this sales order"
+          className="min-w-0 flex-1 bg-transparent text-[12px] text-brand-navy outline-none placeholder:text-brand-fog"
+        />
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          className={cn(
+            'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors',
+            query.trim()
+              ? 'bg-brand-navy text-white hover:bg-brand-soft'
+              : 'text-brand-fog hover:bg-neutral-100 hover:text-brand-navy'
+          )}
+          aria-label="Send"
+        >
+          <Send size={12} strokeWidth={2} />
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export function FileDropOverlay() {
   const { isDragging, setIsDragging, addProcessingFile, processingFiles } = useFileDrop()
   const { goToWorkbench } = useNavigation()
+  const { activePage } = useUseCase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
+  const isSalesOrderAskMode = activePage === 'sales-order-details'
 
   useEffect(() => {
     if (isDragging && !hasEverDragged) {
@@ -54,9 +114,8 @@ export function FileDropOverlay() {
   }
 
   const handlePillClick = () => {
-    if (!isProcessing && !isDragging) {
-      fileInputRef.current?.click()
-    }
+    if (isProcessing || isDragging) return
+    fileInputRef.current?.click()
   }
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -66,6 +125,14 @@ export function FileDropOverlay() {
       Array.from(files).forEach((file) => addProcessingFile(file))
       e.target.value = ''
     }
+  }
+
+  if (isSalesOrderAskMode) {
+    return (
+      <div className="fixed z-50 flex justify-center pointer-events-none inset-x-0 bottom-0 pb-6 pl-12">
+        <SalesOrderAskBar />
+      </div>
+    )
   }
 
   return (

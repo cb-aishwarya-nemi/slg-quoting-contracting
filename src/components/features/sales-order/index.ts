@@ -1,2 +1,6 @@
 export { SalesOrderDetails } from './SalesOrderDetails'
+export { SalesOrderDetailsV1 } from './SalesOrderDetailsV1'
+export { SalesOrderDetailsV2 } from './SalesOrderDetailsV2'
+export { SalesOrderPreview } from './SalesOrderPreview'
+export { SalesOrderHorizontalTimeline } from './SalesOrderHorizontalTimeline'
 export { ReadOnlyProductsList } from './ReadOnlyProductsList'

@@ -11,6 +11,8 @@ export interface LabelValue {
   value: string
   /** If provided, renders as a dropdown select instead of text input */
   options?: string[]
+  /** AI could not extract this field from the source document */
+  extractionFailed?: boolean
 }
 
 export interface ProductLineItem {
@@ -135,18 +137,39 @@ export const contractProcessing = {
 
   summary: {
     contractValue: '$492,000.00',
-    headline:
-      ', 36-month MSA with Pioneer Systems covering 5 line items — Growth services (50 seats), Onboarding & Training, and more.',
-    effectiveDate: 'May 1, 2026',
+    termMonths: 24,
+    effectiveDate: 'July 13, 2026',
   },
 
   account: [
     { label: 'Account', value: 'Pioneer Systems' },
-    { label: 'Legal entity', value: 'Pioneer Systems Corp.' },
+    {
+      label: 'Legal entity',
+      value: '',
+      extractionFailed: true,
+      options: [
+        'Pioneer Systems Corp.',
+        'Pioneer Systems LLC',
+        'Pioneer Systems Inc.',
+        'Pioneer Holdings Ltd.',
+      ],
+    },
     { label: 'Contact name', value: 'Alex Nguyen' },
     { label: 'Email', value: 'alex.nguyen@pioneersystems.com' },
     { label: 'Phone', value: '+1 (415) 555 0142' },
-    { label: 'Industry', value: 'Industrial automation' },
+    {
+      label: 'Industry',
+      value: '',
+      extractionFailed: true,
+      options: [
+        'Industrial automation',
+        'Healthcare technology',
+        'Financial services',
+        'Manufacturing',
+        'Data analytics',
+        'Other',
+      ],
+    },
   ] as LabelValue[],
 
   addresses: [
@@ -472,8 +495,7 @@ export const verdantHealthContract: ContractProcessing = {
 
   summary: {
     contractValue: '$720,000.00',
-    headline:
-      ', 3-year Enterprise renewal with Verdant Health covering 8 line items — Enterprise platform (200 seats), Premium Support, and more.',
+    termMonths: 36,
     effectiveDate: 'June 1, 2026',
   },
 
@@ -546,8 +568,7 @@ export const zenithAnalyticsContract: ContractProcessing = {
 
   summary: {
     contractValue: '$255,000.00',
-    headline:
-      ', 24-month platform license with Zenith Analytics covering 4 line items — Growth platform (75 seats), Implementation, and Training.',
+    termMonths: 24,
     effectiveDate: 'July 1, 2026',
   },
 
@@ -620,8 +641,7 @@ export const quantumInnovationsContract: ContractProcessing = {
 
   summary: {
     contractValue: '$1,260,000.00',
-    headline:
-      ', 36-month Enterprise agreement with Quantum Innovations covering 6 line items — Full platform (200 seats), Premium Support, Custom Integrations, and more.',
+    termMonths: 36,
     effectiveDate: 'August 1, 2026',
   },
 
@@ -694,8 +714,7 @@ export const nexusPaymentsContract: ContractProcessing = {
 
   summary: {
     contractValue: '$540,000.00',
-    headline:
-      ', 2-year renewal with Nexus Payments covering 5 line items — Growth platform (100 seats), Premium Support, and API access.',
+    termMonths: 24,
     effectiveDate: 'September 1, 2026',
   },
 

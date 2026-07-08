@@ -13,9 +13,18 @@ export interface SalesOrderMetric {
   link?: boolean
 }
 
-export interface CommittedEntitlement {
+export interface UsageSummaryFeature {
+  feature: string
+  included: string
+  onDemand: string
+  includedTone?: 'default' | 'warning' | 'danger'
+}
+
+export interface UsageSummaryCycle {
+  id: string
   label: string
-  value: string
+  isCurrent?: boolean
+  features: UsageSummaryFeature[]
 }
 
 export interface SalesOrderProduct {
@@ -74,13 +83,18 @@ export interface SalesOrder {
   rampDetails: string
   totalContractValue: string
   avgAnnualValue: string
+  accruedValue: string
   contractTerm: string
   renewalAction: string
+  /** Contract renewal date in mmm yyyy (e.g. Jul 2029) */
+  renewalDate: string
   /** Sora headline for the AI note (leads with the first-invoice-sent fact) */
   headline: string
   /** Verbose supporting text for the AI note */
   aiSummary: string
-  committedEntitlements: CommittedEntitlement[]
+  usageSummary: UsageSummaryFeature[]
+  /** optional per-cycle usage — powers the cycle switcher in Usage summary */
+  usageSummaryCycles?: UsageSummaryCycle[]
   products: SalesOrderProduct[]
   /** optional ramp breakdown — when present the products render as collapsible periods */
   productPeriods?: SalesOrderRampPeriod[]
@@ -109,7 +123,7 @@ const pioneerComments: Comment[] = [
     isAI: true,
     timestamp: '2 min ago',
     body: 'Seat cap ramps from 50 to 75 seats in Year 2. Entitlements provisioned accordingly.',
-    linkedSection: 'Committed entitlements',
+    linkedSection: 'Usage summary',
     linkedSectionId: 'entitlements',
   },
   {
@@ -143,20 +157,80 @@ export const pioneerSalesOrder: SalesOrder = {
   rampDetails: '2 ramp periods',
   totalContractValue: '$492,000.00',
   avgAnnualValue: '$164,000.00',
+  accruedValue: '$95,000.00',
   contractTerm: '36 months',
   renewalAction: 'Manual renewal',
+  renewalDate: 'Jul 2029',
 
-  headline: 'The first invoice of $41,000.00 has been sent to Pioneer Systems.',
+  headline: 'Everything is on track — Pioneer Systems is live and billing on schedule.',
   aiSummary:
-    'Sales order SO-2026-0153 was created on May 1, 2026 and starts on May 1, 2026. The contract runs across 2 ramp periods over a 36-month term — Year 1 bills $41,000.00 per quarter, ramping to $43,050.00 per quarter in Year 2. The total contract value is $492,000.00 with an average annual value of $164,000.00.',
+    '$492K contract over 36 months with two ramp periods. Quarterly billing runs $41K in Year 1, stepping to $43K in Year 2. First invoice sent; entitlements are active.',
 
-  committedEntitlements: [
-    { label: 'Seat cap (ramp)', value: '50 → 75 seats' },
-    { label: 'API allowance', value: '5M calls / month' },
-    { label: 'Environments', value: '3 sandboxes' },
-    { label: 'Support tier', value: 'Premium SLA' },
-    { label: 'Features', value: 'Growth tier' },
-    { label: 'Overage rate', value: '$0.002 / call' },
+  usageSummary: [
+    { feature: 'Image creation', included: '2,273/2,500', onDemand: '0', includedTone: 'warning' },
+    { feature: 'API calls', included: '1.4M/5M', onDemand: '0' },
+    { feature: 'Seat licenses', included: '32/50', onDemand: '0' },
+    { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+    { feature: 'Video storage', included: '95GB/500GB', onDemand: '0' },
+  ],
+
+  usageSummaryCycles: [
+    {
+      id: 'jul-2026',
+      label: 'Jul 2026',
+      isCurrent: true,
+      features: [
+        { feature: 'Image creation', included: '2,273/2,500', onDemand: '0', includedTone: 'warning' },
+        { feature: 'API calls', included: '1.4M/5M', onDemand: '0' },
+        { feature: 'Seat licenses', included: '32/50', onDemand: '0' },
+        { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+        { feature: 'Video storage', included: '95GB/500GB', onDemand: '0' },
+      ],
+    },
+    {
+      id: 'jun-2026',
+      label: 'Jun 2026',
+      features: [
+        { feature: 'Image creation', included: '2,500/2,500', onDemand: '342', includedTone: 'danger' },
+        { feature: 'API calls', included: '1.8M/5M', onDemand: '0' },
+        { feature: 'Seat licenses', included: '34/50', onDemand: '0' },
+        { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+        { feature: 'Video storage', included: '80GB/500GB', onDemand: '0' },
+      ],
+    },
+    {
+      id: 'may-2026',
+      label: 'May 2026',
+      features: [
+        { feature: 'Image creation', included: '1,890/2,500', onDemand: '0' },
+        { feature: 'API calls', included: '1.2M/5M', onDemand: '0' },
+        { feature: 'Seat licenses', included: '30/50', onDemand: '0' },
+        { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+        { feature: 'Video storage', included: '72GB/500GB', onDemand: '0' },
+      ],
+    },
+    {
+      id: 'apr-2026',
+      label: 'Apr 2026',
+      features: [
+        { feature: 'Image creation', included: '1,620/2,500', onDemand: '0' },
+        { feature: 'API calls', included: '1.1M/5M', onDemand: '0' },
+        { feature: 'Seat licenses', included: '28/50', onDemand: '0' },
+        { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+        { feature: 'Video storage', included: '64GB/500GB', onDemand: '0' },
+      ],
+    },
+    {
+      id: 'mar-2026',
+      label: 'Mar 2026',
+      features: [
+        { feature: 'Image creation', included: '1,420/2,500', onDemand: '0' },
+        { feature: 'API calls', included: '980K/5M', onDemand: '0' },
+        { feature: 'Seat licenses', included: '26/50', onDemand: '0' },
+        { feature: 'Sandbox environments', included: '1/3', onDemand: '0' },
+        { feature: 'Video storage', included: '58GB/500GB', onDemand: '0' },
+      ],
+    },
   ],
 
   products: [
@@ -268,18 +342,20 @@ const secondSalesOrder: SalesOrder = {
   rampDetails: 'No ramp',
   totalContractValue: '$144,000.00',
   avgAnnualValue: '$144,000.00',
+  accruedValue: '$144,000.00',
   contractTerm: '12 months',
   renewalAction: 'Auto-renew',
+  renewalDate: 'Aug 2026',
 
   headline: 'The first invoice of $48,000.00 has been sent to Pioneer Systems.',
   aiSummary:
     'Sales order SO-2025-0128 was created on Jan 1, 2025 and starts on Jan 1, 2025. This is a flat 12-month renewal with no ramp — billing $36,000.00 per quarter. The total contract value is $144,000.00 and the order auto-renews unless cancelled 30 days prior to term end.',
 
-  committedEntitlements: [
-    { label: 'Seat cap', value: '40 seats' },
-    { label: 'API allowance', value: '2M calls / month' },
-    { label: 'Environments', value: '1 sandbox' },
-    { label: 'Support tier', value: 'Standard SLA' },
+  usageSummary: [
+    { feature: 'API calls', included: '620K/2M', onDemand: '0' },
+    { feature: 'Seat licenses', included: '28/40', onDemand: '0' },
+    { feature: 'Sandbox environments', included: '1/1', onDemand: '0' },
+    { feature: 'Image creation', included: '890/1,000', onDemand: '0', includedTone: 'warning' },
   ],
 
   products: [
@@ -342,17 +418,19 @@ const thirdSalesOrder: SalesOrder = {
   rampDetails: 'No ramp',
   totalContractValue: '$72,000.00',
   avgAnnualValue: '$72,000.00',
+  accruedValue: '$72,000.00',
   contractTerm: '12 months',
   renewalAction: 'Renewed',
+  renewalDate: 'Oct 2025',
 
   headline: 'The first invoice of $36,000.00 was sent to Pioneer Systems.',
   aiSummary:
     'Sales order SO-2024-0091 was created on Mar 15, 2024 and started on Apr 1, 2024. This 12-month starter contract had no ramp, billing $36,000.00 per half-year. The total contract value was $72,000.00 and the order has since been renewed.',
 
-  committedEntitlements: [
-    { label: 'Seat cap', value: '25 seats' },
-    { label: 'API allowance', value: '1M calls / month' },
-    { label: 'Support tier', value: 'Standard SLA' },
+  usageSummary: [
+    { feature: 'API calls', included: '520K/1M', onDemand: '0' },
+    { feature: 'Seat licenses', included: '18/25', onDemand: '0' },
+    { feature: 'Image creation', included: '640/750', onDemand: '0', includedTone: 'warning' },
   ],
 
   products: [
@@ -392,12 +470,152 @@ const thirdSalesOrder: SalesOrder = {
   ],
 }
 
+const fourthSalesOrder: SalesOrder = {
+  id: 'so-pioneer-0044',
+  soId: 'SO-2023-0044',
+  customerName: 'Pioneer Systems',
+  dealTag: 'RENEWAL',
+  sourceQuote: 'Q-2023-0921',
+  createdOn: 'May 1, 2023',
+  startDate: 'May 1, 2023',
+  rampDetails: 'No ramp',
+  totalContractValue: '$96,000.00',
+  avgAnnualValue: '$96,000.00',
+  accruedValue: '$96,000.00',
+  contractTerm: '12 months',
+  renewalAction: 'Manual renewal',
+  renewalDate: 'Feb 2024',
+
+  headline: 'This sales order expired on Apr 30, 2024 with no renewal in place.',
+  aiSummary:
+    'Sales order SO-2023-0044 ran from May 1, 2023 through Apr 30, 2024. The contract billed $24,000.00 per quarter for a total value of $96,000.00 and has since expired.',
+
+  usageSummary: [
+    { feature: 'API calls', included: '680K/1.5M', onDemand: '0' },
+    { feature: 'Seat licenses', included: '19/30', onDemand: '0' },
+  ],
+
+  products: [
+    {
+      id: 'so4-li-1',
+      name: 'Apex platform - starter services',
+      frequency: 'Yearly',
+      quantity: '30',
+      unitPrice: '$2,400.00',
+      totalPrice: '$72,000.00',
+    },
+    {
+      id: 'so4-li-2',
+      name: 'Standard support SLA',
+      frequency: 'Yearly',
+      quantity: '01',
+      unitPrice: '$6,000.00',
+      totalPrice: '$6,000.00',
+    },
+  ],
+
+  upcomingBillingSchedule: [],
+
+  pastInvoices: [
+    { id: 'so4-pi-1', invoiceId: 'INV-2023-4410', date: 'May 1, 2023', status: 'Paid', amount: '$24,000.00' },
+    { id: 'so4-pi-2', invoiceId: 'INV-2024-1182', date: 'Feb 1, 2024', status: 'Paid', amount: '$24,000.00' },
+  ],
+
+  comments: [],
+
+  activity: [
+    { id: 'so4-a-3', label: 'Sales order created', date: 'May 1, 2023', refId: 'SO-2023-0044' },
+    { id: 'so4-a-2', label: 'Quote approved', date: 'Apr 20, 2023', refId: 'Q-2023-0921' },
+    { id: 'so4-a-1', label: 'Quote created', date: 'Apr 12, 2023', refId: 'Q-2023-0921' },
+  ],
+}
+
+const fifthSalesOrder: SalesOrder = {
+  id: 'so-pioneer-0201',
+  soId: 'SO-2025-0201',
+  customerName: 'Pioneer Systems',
+  dealTag: 'NEW DEAL',
+  sourceQuote: 'Q-2025-2044',
+  createdOn: 'Oct 1, 2025',
+  startDate: 'Oct 1, 2025',
+  rampDetails: 'No ramp',
+  totalContractValue: '$180,000.00',
+  avgAnnualValue: '$180,000.00',
+  accruedValue: '$45,000.00',
+  contractTerm: '12 months',
+  renewalAction: 'Auto-renew',
+  renewalDate: 'Jan 2027',
+
+  headline: 'The next invoice of $45,000.00 is due in 14 days.',
+  aiSummary:
+    'Sales order SO-2025-0201 was created on Oct 1, 2025 and expires on Sep 30, 2026. The contract bills $45,000.00 per quarter with a total value of $180,000.00.',
+
+  usageSummary: [
+    { feature: 'API calls', included: '1.1M/3M', onDemand: '0' },
+    { feature: 'Seat licenses', included: '28/45', onDemand: '0' },
+    { feature: 'Image creation', included: '1,120/1,500', onDemand: '0' },
+    { feature: 'Sandbox environments', included: '1/1', onDemand: '0' },
+  ],
+
+  products: [
+    {
+      id: 'so5-li-1',
+      name: 'Apex platform - growth services',
+      frequency: 'Yearly',
+      quantity: '45',
+      unitPrice: '$2,400.00',
+      totalPrice: '$108,000.00',
+    },
+    {
+      id: 'so5-li-2',
+      name: 'Premium support SLA',
+      frequency: 'Yearly',
+      quantity: '01',
+      unitPrice: '$12,000.00',
+      totalPrice: '$12,000.00',
+    },
+  ],
+
+  upcomingBillingSchedule: [
+    { id: 'so5-bs-1', billDate: 'Jul 15, 2026', installment: 'Year 1 · Q3', amount: '$45,000.00', status: 'Pending' },
+    { id: 'so5-bs-2', billDate: 'Oct 15, 2026', installment: 'Year 1 · Q4', amount: '$45,000.00', status: 'Upcoming' },
+  ],
+
+  pastInvoices: [
+    { id: 'so5-pi-1', invoiceId: 'INV-2025-9102', date: 'Oct 1, 2025', status: 'Paid', amount: '$45,000.00' },
+    { id: 'so5-pi-2', invoiceId: 'INV-2026-2218', date: 'Jan 15, 2026', status: 'Paid', amount: '$45,000.00' },
+  ],
+
+  comments: [],
+
+  activity: [
+    { id: 'so5-a-4', label: 'First invoice sent', date: 'Oct 1, 2025', refId: 'INV-2025-9102' },
+    { id: 'so5-a-3', label: 'Sales order created', date: 'Oct 1, 2025', refId: 'SO-2025-0201' },
+    { id: 'so5-a-2', label: 'Quote approved', date: 'Sep 22, 2025', refId: 'Q-2025-2044' },
+    { id: 'so5-a-1', label: 'Quote created', date: 'Sep 15, 2025', refId: 'Q-2025-2044' },
+  ],
+}
+
 export const salesOrders: SalesOrder[] = [
   pioneerSalesOrder,
   secondSalesOrder,
   thirdSalesOrder,
+  fifthSalesOrder,
+  fourthSalesOrder,
 ]
 
 export function getSalesOrderById(id: string): SalesOrder {
   return salesOrders.find((o) => o.id === id) ?? pioneerSalesOrder
+}
+
+export function getUsageSummaryCycles(order: SalesOrder): UsageSummaryCycle[] {
+  if (order.usageSummaryCycles?.length) return order.usageSummaryCycles
+  return [
+    {
+      id: 'current',
+      label: 'Current cycle',
+      isCurrent: true,
+      features: order.usageSummary,
+    },
+  ]
 }

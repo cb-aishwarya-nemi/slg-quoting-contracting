@@ -3,7 +3,8 @@ import { createContext, useContext, useState, useCallback, type ReactNode } from
 export type View =
   | { name: 'workbench' }
   | { name: 'customers' }
-  | { name: 'customer360'; customerId: string }
+  | { name: 'salesOrders' }
+  | { name: 'customer360'; customerId: string; tab?: string; salesOrderId?: string }
   | { name: 'invoiceDetails'; invoiceId: string }
   | { name: 'allInvoices'; customerId: string }
   | { name: 'allContracts'; customerId: string }
@@ -12,7 +13,11 @@ interface NavigationContextValue {
   view: View
   goToWorkbench: () => void
   goToCustomers: () => void
-  goToCustomer360: (customerId: string) => void
+  goToSalesOrders: () => void
+  goToCustomer360: (
+    customerId: string,
+    options?: { tab?: string; salesOrderId?: string }
+  ) => void
   goToInvoiceDetails: (invoiceId: string) => void
   goToAllInvoices: (customerId: string) => void
   goToAllContracts: (customerId: string) => void
@@ -31,9 +36,21 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
     setView({ name: 'customers' })
   }, [])
 
-  const goToCustomer360 = useCallback((customerId: string) => {
-    setView({ name: 'customer360', customerId })
+  const goToSalesOrders = useCallback(() => {
+    setView({ name: 'salesOrders' })
   }, [])
+
+  const goToCustomer360 = useCallback(
+    (customerId: string, options?: { tab?: string; salesOrderId?: string }) => {
+      setView({
+        name: 'customer360',
+        customerId,
+        ...(options?.tab ? { tab: options.tab } : {}),
+        ...(options?.salesOrderId ? { salesOrderId: options.salesOrderId } : {}),
+      })
+    },
+    []
+  )
 
   const goToInvoiceDetails = useCallback((invoiceId: string) => {
     setView({ name: 'invoiceDetails', invoiceId })
@@ -48,7 +65,7 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   return (
-    <NavigationContext.Provider value={{ view, goToWorkbench, goToCustomers, goToCustomer360, goToInvoiceDetails, goToAllInvoices, goToAllContracts }}>
+    <NavigationContext.Provider value={{ view, goToWorkbench, goToCustomers, goToSalesOrders, goToCustomer360, goToInvoiceDetails, goToAllInvoices, goToAllContracts }}>
       {children}
     </NavigationContext.Provider>
   )

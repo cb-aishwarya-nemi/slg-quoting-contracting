@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type SourceDocument } from '@/data/contractProcessingMock'
+import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 export interface NavSection {
   id: string
@@ -104,9 +105,9 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
           {sections.map((section) => {
             const isActive = section.id === activeId
             const isItemHovered = hoveredId === section.id
-            const showFlag = section.id.toLowerCase().includes('product')
+            const showFlag =
+              section.id === 'account' || section.id.toLowerCase().includes('product')
             const useGradient = section.status === 'attention'
-            const gradientId = `flag-gradient-${section.id}`
 
             return (
               <li key={section.id}>
@@ -137,35 +138,10 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
                     {section.label}
                   </span>
                   {showFlag && (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" className="shrink-0">
-                      <defs>
-                        <linearGradient
-                          id={gradientId}
-                          x1="0"
-                          y1="0"
-                          x2="24"
-                          y2="24"
-                          gradientUnits="userSpaceOnUse"
-                        >
-                          <stop offset="0%" stopColor="#ff3300" />
-                          <stop offset="100%" stopColor="#6d28d9" />
-                        </linearGradient>
-                      </defs>
-                      <path
-                        d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"
-                        stroke={isActive ? '#ffffff' : useGradient ? `url(#${gradientId})` : '#1c1b2e'}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                      <path
-                        d="M4 22v-7"
-                        stroke={isActive ? '#ffffff' : useGradient ? `url(#${gradientId})` : '#1c1b2e'}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
-                    </svg>
+                    <AttentionFlagIcon
+                      id={section.id}
+                      variant={isActive ? 'white' : useGradient ? 'gradient' : 'navy'}
+                    />
                   )}
                 </button>
               </li>

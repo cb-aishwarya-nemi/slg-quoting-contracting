@@ -107,6 +107,9 @@ export function UseCaseSwitcher() {
       case 'all-invoices':
         goToAllInvoices('pioneer-systems')
         break
+      case 'sales-order-details':
+        goToCustomer360('pioneer-systems', { tab: 'sales-order', salesOrderId: 'so-pioneer-0153' })
+        break
       case 'customer-link-modal':
         // Modal - navigate to workbench and trigger modal opening
         goToWorkbench()

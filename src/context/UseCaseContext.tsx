@@ -155,6 +155,23 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
       },
     ],
   },
+  {
+    id: 'sales-order-details',
+    label: 'Sales Order Details',
+    defaultVariant: 'v2',
+    variants: [
+      {
+        id: 'v1',
+        label: 'V1',
+        description: 'AI summary with contextual details',
+      },
+      {
+        id: 'v2',
+        label: 'V2',
+        description: 'Timeline view with surface signals',
+      },
+    ],
+  },
 ]
 
 /**

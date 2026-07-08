@@ -5,3 +5,4 @@ export { InvoiceDetailsPage } from './InvoiceDetailsPage';
 export { AllInvoicesPage } from './AllInvoicesPage';
 export { AllContractsPage } from './AllContractsPage';
 export { ContractIngestionPage } from './ContractIngestionPage';
+export { SalesOrdersPage } from './SalesOrdersPage';

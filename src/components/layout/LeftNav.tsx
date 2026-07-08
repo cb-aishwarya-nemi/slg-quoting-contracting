@@ -91,15 +91,15 @@ interface NavItem {
 export function LeftNav() {
   const [isExpanded, setIsExpanded] = useState(false)
   const [hoveredItem, setHoveredItem] = useState<string | null>(null)
-  const { view, goToWorkbench, goToCustomers } = useNavigation()
+  const { view, goToWorkbench, goToCustomers, goToSalesOrders } = useNavigation()
 
   const navItems: NavItem[] = [
-    { icon: Home,              label: 'Workbench',   href: '/',            onClick: goToWorkbench },
-    { icon: MessageSquarePlus, label: 'New Chat',    href: '/chat',        isAI: true },
-    { icon: History,           label: 'History',     href: '/history',     isAI: true },
-    { icon: Users,             label: 'Customers',   href: '/customers',   onClick: goToCustomers },
+    { icon: Home,              label: 'Workbench',   href: '/',              onClick: goToWorkbench },
+    { icon: MessageSquarePlus, label: 'New Chat',    href: '/chat',          isAI: true },
+    { icon: History,           label: 'History',     href: '/history',       isAI: true },
+    { icon: Users,             label: 'Customers',   href: '/customers',     onClick: goToCustomers },
     { icon: FileText,          label: 'Quotes',      href: '/quotes' },
-    { icon: List,              label: 'Contracts',   href: '/contracts' },
+    { icon: List,              label: 'Sales orders', href: '/sales-orders', onClick: goToSalesOrders },
     { icon: ReceiptText,       label: 'Invoices',    href: '/invoices' },
     { icon: WalletCards,       label: 'Collections', href: '/collections' },
     { icon: BarChart3,         label: 'Reports',     href: '/reports' },
@@ -108,6 +108,7 @@ export function LeftNav() {
   const getIsActive = (item: NavItem): boolean => {
     if (item.href === '/' && view.name === 'workbench') return true
     if (item.href === '/customers' && view.name === 'customers') return true
+    if (item.href === '/sales-orders' && view.name === 'salesOrders') return true
     return false
   }
 

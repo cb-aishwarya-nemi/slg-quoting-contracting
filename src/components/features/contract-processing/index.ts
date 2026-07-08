@@ -1,5 +1,7 @@
 export { GradientSparkle } from './GradientSparkle'
+export { AttentionFlagIcon } from './AttentionFlagIcon'
 export { SectionHeader } from './SectionHeader'
+export { ContractSummaryHeadline } from './ContractSummaryHeadline'
 export { LabelValueList } from './LabelValueList'
 export { ProductsPricingTable } from './ProductsPricingTable'
 export { InvoicePreview } from './InvoicePreview'

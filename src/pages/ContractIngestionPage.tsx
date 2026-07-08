@@ -5,6 +5,7 @@ import { useFileDrop } from '@/context/FileDropContext'
 import { sectionSources, type Comment, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
+  ContractSummaryHeadline,
   LabelValueList,
   ProductsPricingTable,
   InvoicePreview,
@@ -18,7 +19,7 @@ import {
 
 const NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
-  { id: 'account', label: 'Account', status: 'ready' },
+  { id: 'account', label: 'Account', status: 'attention' },
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
@@ -710,10 +711,13 @@ function ContractProcessingView({
                 >
                   {isPanelsExpanded ? <Maximize2 size={16} /> : <Minimize2 size={16} />}
                 </button>
-                <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-theme-primary pr-10">
-                  <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
-                  {data.summary.headline}
-                </h2>
+                <ContractSummaryHeadline
+                  contractValue={data.summary.contractValue}
+                  termMonths={data.summary.termMonths}
+                  effectiveDate={data.summary.effectiveDate}
+                  customerName={data.customerName}
+                  className="pr-10 text-theme-primary"
+                />
               </div>
               <p className="mt-3 text-[13px] text-theme-primary">
                 Effective: {withRelativeAnnotation(data.summary.effectiveDate)}
@@ -729,8 +733,8 @@ function ContractProcessingView({
               <SectionRow sectionId="account" sectionLabel="Account">
                 <SectionHeader
                   title="Account"
-                  status="ready"
-                  statusLabel="Ready"
+                  status="attention"
+                  statusLabel="2 items not found in contract"
                   commentCount={commentCountsBySection['account']}
                 />
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>

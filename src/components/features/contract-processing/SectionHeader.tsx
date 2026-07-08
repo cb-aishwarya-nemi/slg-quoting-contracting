@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CircleCheck, PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 interface SectionHeaderProps {
   title: string
@@ -51,7 +52,12 @@ export function SectionHeader({
         {status === 'ready' && <CircleCheck size={14} className="text-green-600" />}
         {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}
 
-        {statusLabel && (
+        {statusLabel && status === 'attention' ? (
+          <span className="inline-flex items-center gap-1">
+            <AttentionFlagIcon id={title.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
+            <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
+          </span>
+        ) : statusLabel ? (
           <span
             className={cn(
               'text-[12px] font-medium',
@@ -60,7 +66,7 @@ export function SectionHeader({
           >
             {statusLabel}
           </span>
-        )}
+        ) : null}
       </div>
 
       {!minimal && (
@@ -73,7 +79,7 @@ export function SectionHeader({
 
           {/* Comment count pill */}
           {hasComments && (
-            <span className="flex items-center gap-1 rounded-full bg-brand-navy px-2 py-0.5 text-[11px] font-medium text-white">
+            <span className="flex items-center gap-1 rounded-full border border-brand-navy px-2 py-0.5 text-[11px] font-medium text-brand-navy">
               {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
             </span>
           )}

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
-import { withRelativeAnnotation } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { type SalesOrderProduct, type SalesOrderRampPeriod } from '@/data/salesOrderMock'
 
 interface ReadOnlyProductsListProps {
@@ -25,7 +25,7 @@ function PriceChangeBadge({ change }: { change: number }) {
   )
 }
 
-/** Blue collapse chevron that hangs to the left of the period label. */
+/** Collapse chevron in the period header. */
 function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle: () => void }) {
   return (
     <button
@@ -34,7 +34,7 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
         e.stopPropagation()
         onToggle()
       }}
-      className="-ml-6 mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
+      className="mr-2 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
       title={isExpanded ? 'Collapse period' : 'Expand period'}
     >
       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -77,9 +77,14 @@ function ColumnLabels() {
   )
 }
 
-function LineRow({ item }: { item: SalesOrderProduct }) {
+function LineRow({ item, isLast = false }: { item: SalesOrderProduct; isLast?: boolean }) {
   return (
-    <div className="flex items-center border-b border-neutral-100 py-2 pl-1 pr-2">
+    <div
+      className={cn(
+        'flex items-center py-2 pl-1 pr-2',
+        !isLast && 'border-b border-neutral-100'
+      )}
+    >
       <div className="flex flex-1 items-center gap-2 truncate pr-4">
         <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
         {item.rampPriceChange != null && <PriceChangeBadge change={item.rampPriceChange} />}
@@ -100,15 +105,63 @@ function LineRow({ item }: { item: SalesOrderProduct }) {
   )
 }
 
+function PeriodContainer({
+  period,
+  isExpanded,
+  onToggle,
+}: {
+  period: SalesOrderRampPeriod
+  isExpanded: boolean
+  onToggle: () => void
+}) {
+  const containerClass = 'overflow-hidden rounded-lg border border-neutral-200'
+
+  if (!isExpanded) {
+    return (
+      <div className={containerClass}>
+        <div
+          onClick={onToggle}
+          className="flex w-full cursor-pointer items-center px-3 py-3 transition-colors hover:bg-neutral-50"
+        >
+          <PeriodChevron isExpanded={false} onToggle={onToggle} />
+          <PeriodIdentity period={period} />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className={containerClass}>
+      <div className="flex items-center border-b border-neutral-200 px-3 pb-2 pt-3">
+        <div className="flex min-w-0 flex-1 items-center">
+          <PeriodChevron isExpanded onToggle={onToggle} />
+          <PeriodIdentity period={period} />
+        </div>
+        <ColumnLabels />
+      </div>
+      <div className="px-2 pb-1">
+        {period.items.map((item, idx) => (
+          <LineRow
+            key={item.id}
+            item={item}
+            isLast={idx === period.items.length - 1}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /**
  * Compact, read-only view of order line items. When `periods` are supplied it
- * mirrors the Contract Processing ramp layout: collapsible period tables indented
- * 24px on the left, with the collapse chevron hanging into the gutter.
+ * renders each period in a light outlined collapsible container.
  */
 export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListProps) {
-  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(
-    () => new Set(periods?.map((p) => p.id) ?? [])
-  )
+  const [showAdditionalPeriods, setShowAdditionalPeriods] = useState(false)
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
+    const firstPeriodId = periods?.[0]?.id
+    return new Set(firstPeriodId ? [firstPeriodId] : [])
+  })
 
   const togglePeriod = (id: string) => {
     setExpandedPeriods((prev) => {
@@ -119,45 +172,41 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
     })
   }
 
-  // Ramp view — collapsible period tables
+  const revealAdditionalPeriods = () => {
+    setShowAdditionalPeriods(true)
+    setExpandedPeriods((prev) => {
+      const next = new Set(prev)
+      periods?.slice(1).forEach((period) => next.add(period.id))
+      return next
+    })
+  }
+
+  // Ramp view — collapsible period tables with outlined containers
   if (periods && periods.length > 0) {
+    const additionalPeriodCount = periods.length - 1
+    const visiblePeriods = showAdditionalPeriods ? periods : periods.slice(0, 1)
+
     return (
-      <div>
-        {periods.map((period, idx) => {
-          const isExpanded = expandedPeriods.has(period.id)
-          const isLast = idx === periods.length - 1
-          const marginBottom = isLast ? 0 : isExpanded ? 24 : 16
-
-          if (!isExpanded) {
-            return (
-              <div key={period.id} style={{ marginBottom }}>
-                <div
-                  onClick={() => togglePeriod(period.id)}
-                  className="flex w-full cursor-pointer items-center py-3 pl-1 pr-2 transition-colors hover:bg-neutral-50"
-                >
-                  <PeriodChevron isExpanded={false} onToggle={() => togglePeriod(period.id)} />
-                  <PeriodIdentity period={period} />
-                </div>
-              </div>
-            )
-          }
-
-          return (
-            <div key={period.id} style={{ marginBottom }}>
-              {/* Merged period + column header */}
-              <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
-                <div className="flex min-w-0 flex-1 items-center">
-                  <PeriodChevron isExpanded onToggle={() => togglePeriod(period.id)} />
-                  <PeriodIdentity period={period} />
-                </div>
-                <ColumnLabels />
-              </div>
-              {period.items.map((item) => (
-                <LineRow key={item.id} item={item} />
-              ))}
-            </div>
-          )
-        })}
+      <div className="space-y-4">
+        {visiblePeriods.map((period) => (
+          <PeriodContainer
+            key={period.id}
+            period={period}
+            isExpanded={expandedPeriods.has(period.id)}
+            onToggle={() => togglePeriod(period.id)}
+          />
+        ))}
+        {!showAdditionalPeriods && additionalPeriodCount > 0 && (
+          <button
+            type="button"
+            onClick={revealAdditionalPeriods}
+            className="cursor-pointer text-[13px] text-brand-navy underline decoration-brand-mist decoration-1 underline-offset-[3px] transition-colors hover:text-blue-700 hover:decoration-blue-700"
+          >
+            {additionalPeriodCount === 1
+              ? '1 more period'
+              : `${additionalPeriodCount} more periods`}
+          </button>
+        )}
       </div>
     )
   }
@@ -171,8 +220,8 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
         </div>
         <ColumnLabels />
       </div>
-      {items.map((item) => (
-        <LineRow key={item.id} item={item} />
+      {items.map((item, idx) => (
+        <LineRow key={item.id} item={item} isLast={idx === items.length - 1} />
       ))}
     </div>
   )
