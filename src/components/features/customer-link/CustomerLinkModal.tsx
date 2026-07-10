@@ -10,7 +10,6 @@ import {
   getCustomerMatchesByVariant,
 } from '@/data/customerLinkMock'
 import { ContractPreview } from './ContractPreview'
-import { ExtractedMappedRow } from './ExtractedMappedRow'
 import { CustomerLinkContent } from './CustomerLinkContent'
 
 type Mode = 'link' | 'create'
@@ -177,18 +176,6 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
               </div>
             </div>
 
-            {/* Extracted/Mapped Row - Sticky for non no-match variants */}
-            {variant !== 'no-match' && (
-              <div className="shrink-0 bg-white pb-4">
-                <ExtractedMappedRow 
-                  mappedCustomer={selectedCustomer}
-                  mode={mode}
-                  onModeChange={handleModeChange}
-                  onClearSelection={() => setSelectedCustomer(null)}
-                />
-              </div>
-            )}
-            
             {/* Content Area */}
             <div className="min-h-0 flex-1">
               <CustomerLinkContent
@@ -197,18 +184,6 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
                 selectedCustomerId={selectedCustomer?.id ?? null}
                 onSelectCustomer={handleSelectCustomer}
                 variant={variant}
-                extractedMappedRow={
-                  variant === 'no-match' ? (
-                    <div className="pb-4">
-                      <ExtractedMappedRow 
-                        mappedCustomer={selectedCustomer}
-                        mode={mode}
-                        onModeChange={handleModeChange}
-                        onClearSelection={() => setSelectedCustomer(null)}
-                      />
-                    </div>
-                  ) : undefined
-                }
               />
             </div>
           </div>

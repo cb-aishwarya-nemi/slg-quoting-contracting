@@ -2,6 +2,16 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, Pencil, X, CirclePlus, Check } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
+import { AttentionFlagIcon } from './AttentionFlagIcon'
+
+const UNRESOLVED_FIELD_STYLE =
+  'w-full rounded bg-amber-50 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-fog focus:bg-amber-100'
+
+const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
+
+function getUnresolvedMessage(label: string): string {
+  return `Data not found. Enter ${label.toLowerCase()}.`
+}
 
 // Fields available to add to the Account section (excludes fields always present)
 const ACCOUNT_ADDABLE_FIELDS = [
@@ -27,6 +37,7 @@ interface LabelValueRowProps {
 
 function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
   const isSelect = !!item.options
+  const isUnresolved = !!item.extractionFailed && !item.value.trim()
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -36,9 +47,12 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    setEditValue(item.value)
+  }, [item.value])
+
+  useEffect(() => {
     if (isEditing && inputRef.current) {
       inputRef.current.focus()
-      inputRef.current.select()
     }
   }, [isEditing])
 
@@ -82,10 +96,9 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
     }
   }
 
-  const handleBlur = () => {
-    setIsEditing(false)
-    if (onItemChange && editValue !== item.value) {
-      onItemChange(item.label, editValue)
+  const commitValue = (newValue: string) => {
+    if (onItemChange && newValue !== item.value) {
+      onItemChange(item.label, newValue)
     }
   }
 
@@ -94,8 +107,47 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
     if (e.key === 'Escape') {
       setEditValue(item.value)
       setIsEditing(false)
+      setIsOpen(false)
     }
   }
+
+  const handleBlur = () => {
+    setIsEditing(false)
+    commitValue(editValue)
+  }
+
+  const isUnresolvedActive = isUnresolved && (isEditing || isOpen)
+
+  const selectDropdown = isOpen && item.options ? (
+    <div
+      className="absolute left-0 z-50 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      style={{
+        top: dropdownPosition.top as any,
+        bottom: dropdownPosition.bottom as any,
+        marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
+        marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
+      }}
+    >
+      {item.options.map((option) => (
+        <button
+          key={option}
+          type="button"
+          onClick={() => {
+            commitValue(option)
+            setIsOpen(false)
+          }}
+          className={cn(
+            'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
+            option === item.value
+              ? 'bg-neutral-100 font-medium text-brand-navy'
+              : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+          )}
+        >
+          {option}
+        </button>
+      ))}
+    </div>
+  ) : null
 
   return (
     <div
@@ -104,18 +156,74 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2',
         !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
-      style={{ height: 36 }}
+      style={{ minHeight: 36 }}
     >
-      <span className={cn(
-        'w-[210px] shrink-0 text-[12px] uppercase tracking-[-0.25px] text-brand-navy transition-colors',
-        'group-hover:text-white'
-      )}>
-        {item.label}
-      </span>
+      <div
+        className={cn(
+          'relative z-10 flex w-[210px] shrink-0 items-center',
+          !isEditing && !isOpen && 'group-hover:[&_.label-text]:text-white'
+        )}
+      >
+        <span className={FLAG_SLOT}>
+          {isUnresolved && (
+            <AttentionFlagIcon id={item.label.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
+          )}
+        </span>
+        <span
+          className={cn(
+            'label-text min-w-0 flex-1 text-left text-[12px] uppercase tracking-[-0.25px] text-brand-navy transition-colors',
+            (isEditing || isOpen) && 'text-brand-navy'
+          )}
+        >
+          {item.label}
+        </span>
+      </div>
 
       <div className="flex flex-1 items-center justify-between">
-        {isSelect ? (
-          <div ref={dropdownRef} className="relative" onClick={(e) => e.stopPropagation()}>
+        <div className="min-w-0 flex-1 text-left">
+        {isUnresolvedActive && isSelect ? (
+          <div ref={dropdownRef} className="relative w-full" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className={cn(
+                'flex w-full cursor-pointer items-center justify-between',
+                UNRESOLVED_FIELD_STYLE
+              )}
+            >
+              <span className="text-brand-fog">Select…</span>
+              <ChevronDown size={14} className="text-brand-fog" />
+            </button>
+            {selectDropdown}
+          </div>
+        ) : isUnresolvedActive ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={editValue}
+            onChange={(e) => setEditValue(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            onClick={(e) => e.stopPropagation()}
+            placeholder="Enter value…"
+            className={UNRESOLVED_FIELD_STYLE}
+          />
+        ) : isUnresolved ? (
+          isSelect ? (
+            <span className="inline-flex items-center gap-1 text-[14px] font-medium text-brand-fog transition-colors group-hover:text-white">
+              Select {item.label.toLowerCase()}
+              <ChevronDown
+                size={14}
+                className="text-brand-mist transition-colors group-hover:text-white/70"
+              />
+            </span>
+          ) : (
+            <span className="text-[14px] font-medium text-brand-fog transition-colors group-hover:text-white">
+              {getUnresolvedMessage(item.label)}
+            </span>
+          )
+        ) : isSelect ? (
+          <div ref={dropdownRef} className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
             <button
               type="button"
               onClick={() => setIsOpen(!isOpen)}
@@ -130,36 +238,7 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
                 isEditing || isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
-            {isOpen && (
-              <div
-                className="absolute left-0 z-50 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-                style={{
-                  top: dropdownPosition.top as any,
-                  bottom: dropdownPosition.bottom as any,
-                  marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
-                  marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
-                }}
-              >
-                {item.options!.map((option) => (
-                  <button
-                    key={option}
-                    type="button"
-                    onClick={() => {
-                      onItemChange?.(item.label, option)
-                      setIsOpen(false)
-                    }}
-                    className={cn(
-                      'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
-                      option === item.value
-                        ? 'bg-neutral-100 font-medium text-brand-navy'
-                        : 'text-brand-navy hover:bg-brand-navy hover:text-white'
-                    )}
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
-            )}
+            {selectDropdown}
           </div>
         ) : isEditing ? (
           <input
@@ -170,18 +249,19 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="-mx-2 -my-0.5 flex-1 rounded bg-neutral-100 px-2 py-0.5 text-[14px] font-medium text-brand-navy outline-none"
+            className="w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200"
           />
         ) : (
           <span className={cn(
             'text-[14px] font-medium transition-colors',
             item.value
-              ? (isEditing || isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white')
+              ? 'text-blue-700 group-hover:text-white'
               : 'text-brand-mist group-hover:text-white/60'
           )}>
             {item.value || 'Click to add value'}
           </span>
         )}
+        </div>
 
         {!isEditing && !isOpen && (
           onRemove ? (
@@ -349,13 +429,32 @@ interface LabelValueListProps {
 }
 
 export function LabelValueList({ items, onItemChange, showAddField }: LabelValueListProps) {
+  const [itemState, setItemState] = useState<LabelValue[]>(items)
   const [customFields, setCustomFields] = useState<LabelValue[]>([])
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
   const addButtonRef = useRef<HTMLButtonElement>(null)
 
+  useEffect(() => {
+    setItemState(items)
+  }, [items])
+
+  const handleItemChange = useCallback(
+    (label: string, newValue: string) => {
+      setItemState((prev) =>
+        prev.map((item) =>
+          item.label === label
+            ? { ...item, value: newValue, extractionFailed: newValue.trim() ? false : item.extractionFailed }
+            : item
+        )
+      )
+      onItemChange?.(label, newValue)
+    },
+    [onItemChange]
+  )
+
   const alreadyAdded = [
-    ...items.map(i => i.label),
-    ...customFields.map(f => f.label),
+    ...itemState.map((i) => i.label),
+    ...customFields.map((f) => f.label),
   ]
 
   const handleAdd = useCallback((labels: string[]) => {
@@ -369,8 +468,8 @@ export function LabelValueList({ items, onItemChange, showAddField }: LabelValue
 
   return (
     <div>
-      {items.map((item) => (
-        <LabelValueRow key={item.label} item={item} onItemChange={onItemChange} />
+      {itemState.map((item) => (
+        <LabelValueRow key={item.label} item={item} onItemChange={handleItemChange} />
       ))}
       {customFields.map((field) => (
         <LabelValueRow

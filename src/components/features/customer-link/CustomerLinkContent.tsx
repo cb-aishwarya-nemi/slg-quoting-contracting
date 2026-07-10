@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Search, Sparkles, ChevronDown, ChevronUp, Plus, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { 
@@ -20,7 +20,6 @@ interface CustomerLinkContentProps {
   selectedCustomerId: string | null
   onSelectCustomer: (customer: CustomerMatch) => void
   variant?: CustomerLinkVariant
-  extractedMappedRow?: React.ReactNode
 }
 
 export function CustomerLinkContent({
@@ -29,12 +28,14 @@ export function CustomerLinkContent({
   selectedCustomerId,
   onSelectCustomer,
   variant: variantProp,
-  extractedMappedRow,
 }: CustomerLinkContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [showAllCustomers, setShowAllCustomers] = useState(false)
   const [formData, setFormData] = useState<CreateCustomerDefaults>(createCustomerDefaults)
   const [hasAutoSwitched, setHasAutoSwitched] = useState(false)
+  const [searchBarStuck, setSearchBarStuck] = useState(false)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const searchSentinelRef = useRef<HTMLDivElement>(null)
   
   // Get current use case variant from context
   const { activeVariant, activePage, getPage } = useUseCase()
@@ -84,6 +85,24 @@ export function CustomerLinkContent({
     }
   }, [hasNoMatches, mode, onModeChange, hasAutoSwitched])
 
+  useEffect(() => {
+    if (!showAllCustomers || mode !== 'link') {
+      setSearchBarStuck(false)
+      return
+    }
+
+    const root = scrollContainerRef.current
+    const sentinel = searchSentinelRef.current
+    if (!root || !sentinel) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setSearchBarStuck(!entry.isIntersecting),
+      { root, threshold: 0 }
+    )
+    observer.observe(sentinel)
+    return () => observer.disconnect()
+  }, [showAllCustomers, mode])
+
   const displayedCustomers = showAllCustomers ? allCustomers : customerMatches
   
   const filteredCustomers = displayedCustomers.filter(customer =>
@@ -116,21 +135,14 @@ export function CustomerLinkContent({
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="relative flex h-full flex-col">
       {/* Content Area - Scrollable */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {/* Extracted/Mapped Row - for no-match variant only, scrolls with content */}
-        {extractedMappedRow && (
-          <div className="bg-white pb-4">
-            {extractedMappedRow}
-          </div>
-        )}
-
-        {/* Tabs with horizontal line - sticky when scrolling (for no-match), regular otherwise */}
-        <div className={cn(
-          "shrink-0 mb-3 bg-white pt-[2px]",
-          extractedMappedRow && "sticky top-0 z-10"
-        )}>
+      <div
+        ref={scrollContainerRef}
+        className={cn('min-h-0 flex-1 overflow-y-auto', mode === 'link' && showAllCustomers && 'pb-16')}
+      >
+        {/* Tabs with horizontal line */}
+        <div className="mb-3 shrink-0 bg-white pt-[2px]">
           <div className="relative flex items-end justify-center">
             <TrapezoidalTabs
               tabs={TABS}
@@ -178,8 +190,19 @@ export function CustomerLinkContent({
               </div>
             ) : (
               <>
-                {/* Search Bar - Center aligned */}
-                <div className="mb-2 flex items-center justify-center">
+                {showAllCustomers && (
+                  <div ref={searchSentinelRef} className="h-px shrink-0" aria-hidden="true" />
+                )}
+                {/* Search Bar - sticks to top when scrolling all customers */}
+                <div
+                  className={cn(
+                    'mb-2 flex w-full items-center justify-center',
+                    showAllCustomers && 'sticky top-0 z-10 py-2',
+                    showAllCustomers &&
+                      searchBarStuck &&
+                      'border-b border-brand-navy bg-white'
+                  )}
+                >
                   <div className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg bg-white py-2 px-3 transition-colors hover:bg-neutral-100">
                     <Search size={14} className="shrink-0 text-brand-navy" />
                     <input
@@ -334,9 +357,8 @@ export function CustomerLinkContent({
                   </table>
                 </div>
 
-                {/* View all button */}
-                <div className="mt-4 flex justify-center">
-                  {!showAllCustomers && !hasNoMatches && (
+                {!showAllCustomers && !hasNoMatches && (
+                  <div className="mt-4 flex justify-center">
                     <button
                       type="button"
                       onClick={() => setShowAllCustomers(true)}
@@ -345,18 +367,8 @@ export function CustomerLinkContent({
                       View all customers
                       <ChevronDown size={14} />
                     </button>
-                  )}
-                  {showAllCustomers && (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllCustomers(false)}
-                      className="inline-flex cursor-pointer items-center gap-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
-                    >
-                      {hasNoMatches ? 'Back to empty state' : 'Show matches only'}
-                      <ChevronUp size={14} />
-                    </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -475,6 +487,19 @@ export function CustomerLinkContent({
           </div>
         )}
       </div>
+
+      {mode === 'link' && showAllCustomers && (
+        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center">
+          <button
+            type="button"
+            onClick={() => setShowAllCustomers(false)}
+            className="pointer-events-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-blue-700 shadow-lg transition-colors hover:bg-neutral-50 hover:text-blue-800"
+          >
+            {hasNoMatches ? 'Back to empty state' : 'Show matches only'}
+            <ChevronUp size={14} />
+          </button>
+        </div>
+      )}
     </div>
   )
 }

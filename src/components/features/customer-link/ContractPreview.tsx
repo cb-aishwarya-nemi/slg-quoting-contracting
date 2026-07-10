@@ -29,20 +29,20 @@ export function ContractPreview() {
   }, [])
 
   return (
-    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-brand-navy bg-brand-navy">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
       {/* Control Bar */}
-      <div className="flex shrink-0 items-center justify-between bg-brand-navy px-4 py-2">
+      <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 py-2">
         <div className="relative" ref={dropdownRef}>
           <button
             type="button"
             onClick={() => setShowDropdown(!showDropdown)}
-            className="flex items-center gap-2 rounded bg-blue-700 px-2 py-1 transition-colors hover:bg-blue-600"
+            className="flex items-center gap-2 rounded border border-neutral-200 bg-neutral-50 px-2 py-1 transition-colors hover:bg-neutral-100"
           >
-            <FileText size={16} className="text-white" />
-            <span className="text-[13px] font-medium text-white">
+            <FileText size={16} className="text-brand-fog" />
+            <span className="text-[13px] font-medium text-brand-navy">
               {truncateFileName(selectedPdf.name)}
             </span>
-            <ChevronDown size={14} className="text-white/70" />
+            <ChevronDown size={14} className="text-brand-fog" />
           </button>
           
           {showDropdown && (
@@ -73,14 +73,14 @@ export function ContractPreview() {
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="flex h-6 w-6 items-center justify-center rounded text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
             >
               <ZoomOut size={14} />
             </button>
-            <span className="text-[12px] text-white/70">70%</span>
+            <span className="text-[12px] text-brand-fog">70%</span>
             <button
               type="button"
-              className="flex h-6 w-6 items-center justify-center rounded text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+              className="flex h-6 w-6 items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
             >
               <ZoomIn size={14} />
             </button>
@@ -89,7 +89,7 @@ export function ContractPreview() {
           {/* Download */}
           <button
             type="button"
-            className="flex h-6 w-6 items-center justify-center rounded text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="flex h-6 w-6 items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
           >
             <Download size={14} />
           </button>
@@ -100,7 +100,7 @@ export function ContractPreview() {
       <div className="flex-1 overflow-y-auto p-4">
         <div className="space-y-6">
           {/* Page 1 */}
-          <div className="mx-auto max-w-[520px] rounded-lg bg-white p-8 shadow-sm">
+          <div className="mx-auto max-w-[520px] rounded border border-neutral-200 bg-white p-8 shadow-sm">
             {/* Document Header */}
             <div className="mb-6 text-center">
               <h2 className="font-heading text-[18px] font-semibold text-brand-navy">
@@ -118,12 +118,16 @@ export function ContractPreview() {
                 <p className="text-[11px] text-brand-fog">Walnut, CA 91789</p>
               </div>
               <div className="flex-1">
-                <div className="rounded-md border border-green-200 bg-green-50 p-3">
-                  <p className="mb-1 text-[10px] uppercase tracking-wider text-green-700">Customer</p>
-                  <p className="text-[12px] font-medium text-brand-navy">Pioneer Systems Corp.</p>
-                  <p className="text-[11px] text-brand-fog">Pioneer Systems</p>
-                  <p className="mt-1 text-[11px] text-brand-fog">Contact: Alex Nguyen</p>
-                  <p className="text-[11px] text-brand-fog">alex.nguyen@pioneersystems.com</p>
+                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider ai-gradient-text">
+                  Customer
+                </p>
+                <div className="rounded-md p-[1.5px] ai-gradient">
+                  <div className="rounded-[4.5px] bg-white p-3">
+                    <p className="text-[12px] font-semibold text-brand-navy">Pioneer Systems Corp.</p>
+                    <p className="text-[11px] font-medium text-brand-navy">Pioneer Systems</p>
+                    <p className="mt-1 text-[11px] text-brand-fog">Contact: Alex Nguyen</p>
+                    <p className="text-[11px] text-brand-fog">alex.nguyen@pioneersystems.com</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -205,7 +209,7 @@ export function ContractPreview() {
           </div>
 
           {/* Page 2 */}
-          <div className="mx-auto max-w-[520px] rounded-lg bg-white p-8 shadow-sm">
+          <div className="mx-auto max-w-[520px] rounded border border-neutral-200 bg-white p-8 shadow-sm">
             {/* Service Level Agreement */}
             <div className="mb-5">
               <h3 className="mb-2 text-[12px] font-semibold text-brand-navy">4. Service Level Agreement</h3>
@@ -255,7 +259,7 @@ export function ContractPreview() {
           </div>
 
           {/* Page 3 */}
-          <div className="mx-auto max-w-[520px] rounded-lg bg-white p-8 shadow-sm">
+          <div className="mx-auto max-w-[520px] rounded border border-neutral-200 bg-white p-8 shadow-sm">
             {/* Intellectual Property */}
             <div className="mb-5">
               <h3 className="mb-2 text-[12px] font-semibold text-brand-navy">7. Intellectual Property</h3>
@@ -291,11 +295,11 @@ export function ContractPreview() {
             </div>
 
             {/* Signatures */}
-            <div className="border-t border-neutral-200 pt-6">
+            <div className="border-t border-neutral-100 pt-6">
               <div className="grid grid-cols-2 gap-6">
                 <div>
                   <p className="mb-3 text-[10px] uppercase tracking-wider text-brand-fog">Provider</p>
-                  <div className="mb-4 border-b border-neutral-300 pb-1">
+                  <div className="mb-4 border-b border-neutral-200 pb-1">
                     <p className="text-[12px] font-medium text-brand-navy">Sarah Mitchell</p>
                   </div>
                   <p className="text-[11px] text-brand-fog">VP of Sales, Chargebee Inc.</p>
@@ -303,7 +307,7 @@ export function ContractPreview() {
                 </div>
                 <div>
                   <p className="mb-3 text-[10px] uppercase tracking-wider text-brand-fog">Customer</p>
-                  <div className="mb-4 border-b border-neutral-300 pb-1">
+                  <div className="mb-4 border-b border-neutral-200 pb-1">
                     <p className="text-[12px] font-medium text-brand-navy">Alex Nguyen</p>
                   </div>
                   <p className="text-[11px] text-brand-fog">CTO, Pioneer Systems Corp.</p>
@@ -314,7 +318,7 @@ export function ContractPreview() {
           </div>
 
           {/* Page 4 */}
-          <div className="mx-auto max-w-[520px] rounded-lg bg-white p-8 shadow-sm">
+          <div className="mx-auto max-w-[520px] rounded border border-neutral-200 bg-white p-8 shadow-sm">
             {/* Appendix A - Technical Specifications */}
             <div className="mb-6 text-center">
               <h2 className="font-heading text-[16px] font-semibold text-brand-navy">

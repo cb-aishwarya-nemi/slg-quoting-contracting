@@ -1,5 +1,5 @@
 import { AppLayout } from './components/layout'
-import { WorkbenchPage, CustomersPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage, ContractIngestionPage } from './pages'
+import { WorkbenchPage, CustomersPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage, ContractIngestionPage, SalesOrdersPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
 import { UseCaseProvider } from './context/UseCaseContext'
 import { NotificationProvider } from './context/NotificationContext'
@@ -13,6 +13,10 @@ function V1PageRouter() {
 
   if (view.name === 'customers') {
     return <CustomersPage />
+  }
+
+  if (view.name === 'salesOrders') {
+    return <SalesOrdersPage />
   }
 
   if (view.name === 'customer360') {

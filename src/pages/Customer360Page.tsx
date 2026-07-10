@@ -12,6 +12,7 @@ import { SalesOrderDetails } from '@/components/features/sales-order'
 import {
   GradientSparkle,
   SectionHeader,
+  ContractSummaryHeadline,
   LabelValueList,
   ProductsPricingTable,
   InvoicePreview,
@@ -45,7 +46,7 @@ const C360_TABS: TabItem[] = [
 
 const NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
-  { id: 'account', label: 'Account', status: 'ready' },
+  { id: 'account', label: 'Account', status: 'attention' },
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
@@ -58,8 +59,7 @@ const WIDE_CONTENT_WIDTH = 780
 const COMMENTS_COL_WIDTH = 250
 const LEFT_NAV_WIDTH = 48
 const EXPANDED_MAX_WIDTH = 1000
-
-const TASK_ID = 'TSK-2026-0153'
+const ACTIVE_TASK_ID = 100
 
 function StatusUnit({ status }: { status: string }) {
   return (
@@ -95,7 +95,7 @@ function TabPlaceholder({ label }: { label: string }) {
 }
 
 export function Customer360Page() {
-  const { goToCustomers } = useNavigation()
+  const { view, goToCustomers } = useNavigation()
   const { setActivePage } = useUseCase()
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
@@ -147,8 +147,14 @@ export function Customer360Page() {
   }, [commentsBySection])
 
   useEffect(() => {
-    setActivePage('customer360')
-  }, [setActivePage])
+    setActivePage(activeTab === 'sales-order' ? 'sales-order-details' : 'customer360')
+  }, [setActivePage, activeTab])
+
+  useEffect(() => {
+    if (view.name !== 'customer360') return
+    if (view.tab) setActiveTab(view.tab)
+    if (view.salesOrderId) setActiveSalesOrderId(view.salesOrderId)
+  }, [view])
 
   const setSectionRef = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {
@@ -265,6 +271,18 @@ export function Customer360Page() {
     [workbenchItems]
   )
 
+  const activeTask = useMemo(
+    () => workbenchItems.find((item) => item.id === ACTIVE_TASK_ID),
+    [workbenchItems]
+  )
+
+  const taskTitle =
+    activeTask?.taskName && activeTask?.taskType
+      ? `${activeTask.taskName}: ${activeTask.taskType}`
+      : 'New deal: Contract Ingestion'
+
+  const taskId = activeTask?.taskId ?? 'TSK-2026-0153'
+
   // Helper: section row layout (content col + optional comments col)
   const SectionRow = useCallback(
     ({
@@ -353,9 +371,12 @@ export function Customer360Page() {
                 activeId="100"
                 onSelect={() => {}}
               />
-              <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-                {TASK_ID}
-              </span>
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[13px] font-bold tracking-[-0.25px] text-brand-navy">
+                  {taskTitle}
+                </span>
+                <span className="text-[11px] text-brand-fog">{taskId}</span>
+              </div>
               <button
                 type="button"
                 onClick={() => setIsPanelsExpanded((prev) => !prev)}
@@ -425,10 +446,12 @@ export function Customer360Page() {
                       Summary
                     </span>
                   </div>
-                  <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
-                    <span className="font-bold">Contract Value: {data.summary.contractValue}</span>
-                    {data.summary.headline}
-                  </h2>
+                  <ContractSummaryHeadline
+                    contractValue={data.summary.contractValue}
+                    termMonths={data.summary.termMonths}
+                    effectiveDate={data.summary.effectiveDate}
+                    customerName={data.customerName}
+                  />
                   <p className="mt-3 text-[13px] text-brand-navy">
                     Effective: {withRelativeAnnotation(data.summary.effectiveDate)}
                   </p>
@@ -443,8 +466,8 @@ export function Customer360Page() {
                   <SectionRow sectionId="account" sectionLabel="Account">
                     <SectionHeader
                       title="Account"
-                      status="ready"
-                      statusLabel="Ready"
+                      status="attention"
+                      statusLabel="2 items not found in contract"
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                     />
