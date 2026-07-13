@@ -1,4 +1,5 @@
 import { scheduledInvoices } from '@/data/contractProcessingMock'
+import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 
 const FIRST_INVOICE_ID = 'INV-2026-0042'
 
@@ -22,6 +23,7 @@ export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
         <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
           First Invoice preview
         </span>
+        <DownstreamRefreshIndicator label="First Invoice preview" />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">

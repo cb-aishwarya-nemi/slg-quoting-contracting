@@ -69,6 +69,7 @@ export function FileDropOverlay() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
   const isSalesOrderAskMode = activePage === 'sales-order-details'
+  const isCustomer360TasksMode = activePage === 'customer360'
 
   useEffect(() => {
     if (isDragging && !hasEverDragged) {
@@ -133,6 +134,10 @@ export function FileDropOverlay() {
         <SalesOrderAskBar />
       </div>
     )
+  }
+
+  if (isCustomer360TasksMode) {
+    return null
   }
 
   return (

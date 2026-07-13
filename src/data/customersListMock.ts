@@ -1,5 +1,7 @@
 export interface CustomerListItem {
   id: string
+  /** Navigation slug for Customer 360 routing. */
+  customerId?: string
   customer: string
   initials: string
   arr: string
@@ -21,6 +23,21 @@ export const STATUS_STYLES: Record<number, { bg: string; text: string }> = {
 }
 
 export const customersListData: CustomerListItem[] = [
+  {
+    id: 'cust-003',
+    customerId: 'pioneer-systems',
+    customer: 'Pioneer Systems',
+    initials: 'PS',
+    arr: '$890,000',
+    openAr: '$0',
+    contracts: 2,
+    subscriptions: 3,
+    quotes: 0,
+    renewal: 'Feb 10, 2027',
+    risk: 0,
+    owner: 'Sarah Mitchell',
+    nextInvoiceIn: 14,
+  },
   {
     id: 'cust-001',
     customer: 'Echo Corp',
@@ -48,20 +65,6 @@ export const customersListData: CustomerListItem[] = [
     risk: 1,
     owner: 'Alex Nguyen',
     nextInvoiceIn: 'Jun 28, 2026',
-  },
-  {
-    id: 'cust-003',
-    customer: 'Pioneer Systems',
-    initials: 'PS',
-    arr: '$890,000',
-    openAr: '$0',
-    contracts: 2,
-    subscriptions: 3,
-    quotes: 0,
-    renewal: 'Feb 10, 2027',
-    risk: 0,
-    owner: 'Sarah Mitchell',
-    nextInvoiceIn: 14,
   },
   {
     id: 'cust-004',

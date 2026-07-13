@@ -6,7 +6,7 @@ import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
-import { contractProcessing, sectionSources, type Comment } from '@/data/contractProcessingMock'
+import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
 import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
 import { SalesOrderDetails } from '@/components/features/sales-order'
 import {
@@ -21,9 +21,13 @@ import {
   SectionCommentStack,
   SectionSourceThumbnails,
   SourcePreviewDrawer,
+  ViewEditsToggle,
+  getExtractionAttentionStatus,
+  applyFieldValue,
   type NavSection,
 } from '@/components/features/contract-processing'
-import { cn, withRelativeAnnotation } from '@/lib/utils'
+import { FieldEditHistoryProvider } from '@/context/FieldEditHistoryContext'
+import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
   top: number
@@ -44,7 +48,7 @@ const C360_TABS: TabItem[] = [
   { id: 'revrec', label: 'Revrec' },
 ]
 
-const NAV_SECTIONS: NavSection[] = [
+const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
   { id: 'account', label: 'Account', status: 'attention' },
   { id: 'addresses', label: 'Addresses', status: 'ready' },
@@ -106,6 +110,26 @@ export function Customer360Page() {
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
   const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
+  const [accountItems, setAccountItems] = useState<LabelValue[]>(data.account)
+
+  const accountAttention = useMemo(
+    () => getExtractionAttentionStatus(accountItems),
+    [accountItems]
+  )
+
+  const handleAccountItemChange = useCallback((label: string, newValue: string) => {
+    setAccountItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
+  const navSections = useMemo<NavSection[]>(
+    () =>
+      BASE_NAV_SECTIONS.map((section) =>
+        section.id === 'account'
+          ? { ...section, status: accountAttention.status }
+          : section
+      ),
+    [accountAttention.status]
+  )
 
   // Comment state lifted to page so all stacks share the same source of truth
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
@@ -228,8 +252,8 @@ export function Customer360Page() {
 
     const updateActiveSection = () => {
       const containerTop = container.getBoundingClientRect().top
-      let current = NAV_SECTIONS[0].id
-      for (const section of NAV_SECTIONS) {
+      let current = navSections[0].id
+      for (const section of navSections) {
         const el = sectionRefs.current[section.id]
         if (!el) continue
         if (el.getBoundingClientRect().top - containerTop <= 48) {
@@ -254,7 +278,7 @@ export function Customer360Page() {
       container.removeEventListener('scroll', updateActiveSection)
       container.removeEventListener('scrollend', handleScrollEnd)
     }
-  }, [activeTab])
+  }, [activeTab, navSections])
 
   // Switcher: recent ingestion tasks to jump between
   const taskSwitcherItems: SwitcherItem[] = useMemo(
@@ -362,6 +386,7 @@ export function Customer360Page() {
 
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
+        <FieldEditHistoryProvider>
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div className="flex shrink-0 items-center py-3">
@@ -393,6 +418,7 @@ export function Customer360Page() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-3">
+              <ViewEditsToggle />
               <StatusUnit status={contractStatus} />
               <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
             </div>
@@ -412,7 +438,7 @@ export function Customer360Page() {
                 )}
               >
                 <InPageNav
-                  sections={NAV_SECTIONS}
+                  sections={navSections}
                   sourceDocuments={data.sourceDocuments}
                   activeId={activeSection}
                   onNavigate={handleNavigate}
@@ -451,10 +477,8 @@ export function Customer360Page() {
                     termMonths={data.summary.termMonths}
                     effectiveDate={data.summary.effectiveDate}
                     customerName={data.customerName}
+                    lineItemsSummary={data.summary.lineItemsSummary}
                   />
-                  <p className="mt-3 text-[13px] text-brand-navy">
-                    Effective: {withRelativeAnnotation(data.summary.effectiveDate)}
-                  </p>
                 </section>
 
                 {/* Account */}
@@ -466,13 +490,20 @@ export function Customer360Page() {
                   <SectionRow sectionId="account" sectionLabel="Account">
                     <SectionHeader
                       title="Account"
-                      status="attention"
-                      statusLabel="2 items not found in contract"
+                      status={accountAttention.status}
+                      statusLabel={accountAttention.statusLabel}
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                     />
                     <div className="mt-4">
-                      <LabelValueList items={data.account} showAddField />
+                      <LabelValueList
+                        items={accountItems}
+                        sectionId="account"
+                        sectionLabel="Account"
+                        showAddField
+                        controlled
+                        onItemChange={handleAccountItemChange}
+                      />
                     </div>
                   </SectionRow>
                 </section>
@@ -492,7 +523,11 @@ export function Customer360Page() {
                       commentCount={commentCountsBySection['addresses']}
                     />
                     <div className="mt-4">
-                      <LabelValueList items={data.addresses} />
+                      <LabelValueList
+                        items={data.addresses}
+                        sectionId="addresses"
+                        sectionLabel="Addresses"
+                      />
                     </div>
                   </SectionRow>
                 </section>
@@ -512,7 +547,11 @@ export function Customer360Page() {
                       commentCount={commentCountsBySection['terms']}
                     />
                     <div className="mt-4">
-                      <LabelValueList items={data.termsAndBilling} />
+                      <LabelValueList
+                        items={data.termsAndBilling}
+                        sectionId="terms"
+                        sectionLabel="Terms and billing"
+                      />
                     </div>
                   </SectionRow>
                 </section>
@@ -543,6 +582,7 @@ export function Customer360Page() {
                     <SectionHeader
                       title="Billing schedule"
                       hideLine
+                      showRefreshIcon
                       isFlashing={false}
                       commentCount={commentCountsBySection['schedule']}
                     />
@@ -564,6 +604,7 @@ export function Customer360Page() {
             </div>
           </div>
         </div>
+        </FieldEditHistoryProvider>
       )}
 
       {/* Sales Order tab — in-frame read-only details */}

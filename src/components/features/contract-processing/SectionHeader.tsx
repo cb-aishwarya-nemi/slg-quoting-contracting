@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CircleCheck, PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 interface SectionHeaderProps {
@@ -17,6 +18,8 @@ interface SectionHeaderProps {
   commentCount?: number
   /** optional action rendered at the far end, before the comment count */
   trailing?: ReactNode
+  /** show a grey refresh icon beside the title */
+  showRefreshIcon?: boolean
 }
 
 /**
@@ -32,6 +35,7 @@ export function SectionHeader({
   hideLine = false,
   commentCount,
   trailing,
+  showRefreshIcon = false,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
 
@@ -48,6 +52,8 @@ export function SectionHeader({
         <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
           {title}
         </span>
+
+        {showRefreshIcon && <DownstreamRefreshIndicator label={title} />}
 
         {status === 'ready' && <CircleCheck size={14} className="text-green-600" />}
         {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}

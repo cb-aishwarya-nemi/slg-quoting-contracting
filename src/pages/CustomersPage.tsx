@@ -1,10 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Search, ChevronRight, MoreVertical, ArrowRight } from "lucide-react";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn } from "@/lib/utils";
+import { useNavigation } from "@/context/NavigationContext";
 import { customersListData, STATUS_STYLES, type CustomerListItem } from "@/data/customersListMock";
 
+const PIONEER_CUSTOMER_ID = 'pioneer-systems';
+
 export function CustomersPage() {
+  const { goToCustomer360 } = useNavigation();
   const [isHeaderSticky, setIsHeaderSticky] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -72,15 +76,29 @@ export function CustomersPage() {
   };
 
   // Filter customers based on search query and filters
-  const filteredCustomers = applyFilters(customers).filter(customer => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      customer.customer.toLowerCase().includes(query) ||
-      customer.owner.toLowerCase().includes(query) ||
-      customer.arr.toLowerCase().includes(query)
-    );
-  });
+  const filteredCustomers = useMemo(() => {
+    const filtered = applyFilters(customers).filter(customer => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        customer.customer.toLowerCase().includes(query) ||
+        customer.owner.toLowerCase().includes(query) ||
+        customer.arr.toLowerCase().includes(query)
+      );
+    });
+
+    return [...filtered].sort((a, b) => {
+      if (a.customerId === PIONEER_CUSTOMER_ID) return -1;
+      if (b.customerId === PIONEER_CUSTOMER_ID) return 1;
+      return 0;
+    });
+  }, [customers, filters, searchQuery]);
+
+  const handleCustomerClick = (customer: CustomerListItem) => {
+    if (customer.customerId === PIONEER_CUSTOMER_ID) {
+      goToCustomer360(PIONEER_CUSTOMER_ID, { tab: 'tasks' });
+    }
+  };
 
   // Focus search input when opened
   useEffect(() => {
@@ -363,6 +381,7 @@ export function CustomersPage() {
                     <tr
                       key={customer.id}
                       className="group row-hover-trail border-b border-neutral-100 hover:bg-brand-navy cursor-pointer"
+                      onClick={() => handleCustomerClick(customer)}
                     >
                       {/* Customer */}
                       <td className="py-1.5 pl-4 pr-8 relative z-10">

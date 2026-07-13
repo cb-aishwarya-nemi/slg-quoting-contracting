@@ -2,7 +2,8 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { sectionSources, type Comment, getContractById } from '@/data/contractProcessingMock'
+import { FieldEditHistoryProvider } from '@/context/FieldEditHistoryContext'
+import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
   ContractSummaryHeadline,
@@ -14,10 +15,12 @@ import {
   SectionCommentStack,
   SectionSourceThumbnails,
   SourcePreviewDrawer,
+  getExtractionAttentionStatus,
+  applyFieldValue,
   type NavSection,
 } from '@/components/features/contract-processing'
 
-const NAV_SECTIONS: NavSection[] = [
+const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
   { id: 'account', label: 'Account', status: 'attention' },
   { id: 'addresses', label: 'Addresses', status: 'ready' },
@@ -409,11 +412,35 @@ function ContractProcessingView({
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: 'open' | 'resolved' }>>(
     () => data.comments.map((c) => ({ ...c, status: 'open' as const }))
   )
+  const [accountItems, setAccountItems] = useState<LabelValue[]>(data.account)
+
+  const accountAttention = useMemo(
+    () => getExtractionAttentionStatus(accountItems),
+    [accountItems]
+  )
+
+  const handleAccountItemChange = useCallback((label: string, newValue: string) => {
+    setAccountItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
+  const navSections = useMemo<NavSection[]>(
+    () =>
+      BASE_NAV_SECTIONS.map((section) =>
+        section.id === 'account'
+          ? { ...section, status: accountAttention.status }
+          : section
+      ),
+    [accountAttention.status]
+  )
   
   // Reset comments when contract changes
   useEffect(() => {
     setLocalComments(data.comments.map((c) => ({ ...c, status: 'open' as const })))
   }, [data.comments])
+
+  useEffect(() => {
+    setAccountItems(data.account)
+  }, [data.account])
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -521,8 +548,8 @@ function ContractProcessingView({
 
     const updateActiveSection = () => {
       const containerTop = container.getBoundingClientRect().top
-      let current = NAV_SECTIONS[0].id
-      for (const section of NAV_SECTIONS) {
+      let current = navSections[0].id
+      for (const section of navSections) {
         const el = sectionRefs.current[section.id]
         if (!el) continue
         if (el.getBoundingClientRect().top - containerTop <= 48) {
@@ -547,7 +574,7 @@ function ContractProcessingView({
       container.removeEventListener('scroll', updateActiveSection)
       container.removeEventListener('scrollend', handleScrollEnd)
     }
-  }, [])
+  }, [navSections])
 
   const LEFT_NAV_WIDTH = 180
   const CONTENT_COL_WIDTH = 820
@@ -659,6 +686,7 @@ function ContractProcessingView({
         <div className="mt-3 h-px bg-theme-border" />
       </div>
 
+      <FieldEditHistoryProvider>
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}
@@ -674,7 +702,7 @@ function ContractProcessingView({
             style={{ width: LEFT_NAV_WIDTH }}
           >
             <InPageNav
-              sections={NAV_SECTIONS}
+              sections={navSections}
               sourceDocuments={data.sourceDocuments}
               activeId={activeSection}
               onNavigate={handleNavigate}
@@ -716,6 +744,7 @@ function ContractProcessingView({
                   termMonths={data.summary.termMonths}
                   effectiveDate={data.summary.effectiveDate}
                   customerName={data.customerName}
+                  lineItemsSummary={data.summary.lineItemsSummary}
                   className="pr-10 text-theme-primary"
                 />
               </div>
@@ -733,12 +762,19 @@ function ContractProcessingView({
               <SectionRow sectionId="account" sectionLabel="Account">
                 <SectionHeader
                   title="Account"
-                  status="attention"
-                  statusLabel="2 items not found in contract"
+                  status={accountAttention.status}
+                  statusLabel={accountAttention.statusLabel}
                   commentCount={commentCountsBySection['account']}
                 />
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  <LabelValueList items={data.account} showAddField />
+                  <LabelValueList
+                    items={accountItems}
+                    sectionId="account"
+                    sectionLabel="Account"
+                    showAddField
+                    controlled
+                    onItemChange={handleAccountItemChange}
+                  />
                 </div>
               </SectionRow>
             </section>
@@ -808,6 +844,7 @@ function ContractProcessingView({
               <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
                 <SectionHeader
                   title="Billing schedule"
+                  showRefreshIcon
                   commentCount={commentCountsBySection['schedule']}
                 />
                 <div className="mt-6" style={{ maxWidth: bodyWidth }}>
@@ -838,6 +875,7 @@ function ContractProcessingView({
         onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}
       />
+      </FieldEditHistoryProvider>
     </div>
   )
 }

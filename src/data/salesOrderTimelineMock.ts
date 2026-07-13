@@ -1,13 +1,33 @@
 export type EntitlementTone = 'positive' | 'warning' | 'neutral'
 export type BillingMilestoneStatus = 'paid' | 'pending' | 'upcoming'
 
+export interface TimelineConsumptionCard {
+  id: string
+  label: string
+  used: number
+  allocated: number
+  unit?: string
+  tone: EntitlementTone
+}
+
+export interface TimelineRunRatePoint {
+  date: string
+  cumulativePct: number
+}
+
 export interface TimelineEntitlement {
   id: string
   label: string
   barLabel: string
   usagePct?: number
+  /** Display label for consumed amount, e.g. "2.3M". */
+  usedLabel?: string
+  /** Display label for cap, e.g. "5M". */
+  allocatedLabel?: string
   tone: EntitlementTone
   statusLabel: string
+  /** Cumulative usage points for the run-rate chart above the timeline. */
+  runRatePoints?: TimelineRunRatePoint[]
 }
 
 export interface TimelineProductRow {
@@ -34,6 +54,7 @@ export interface SalesOrderTimelinePeriod {
   startDate: string
   endDate: string
   todayDate: string
+  consumptionCards: TimelineConsumptionCard[]
   products: TimelineProductRow[]
   billingMilestones: TimelineBillingMilestone[]
 }
@@ -61,45 +82,50 @@ const PIONEER_TIMELINE_PERIODS: SalesOrderTimelinePeriod[] = [
     startDate: '2026-05-01',
     endDate: '2027-04-30',
     todayDate: '2026-07-09',
+    consumptionCards: [
+      { id: 'seats', label: 'Seats', used: 39, allocated: 50, tone: 'warning' },
+      { id: 'sandboxes', label: 'Sandbox environments', used: 3, allocated: 3, tone: 'positive' },
+    ],
     products: [
       {
         id: 'apex-growth',
         name: 'Apex platform',
         subtitle: 'growth services',
         barLabel: '50 seats · $2,400/seat',
-        entitlementCount: 4,
+        entitlementCount: 2,
         defaultExpanded: true,
         entitlements: [
-          {
-            id: 'seats',
-            label: 'Seats',
-            barLabel: '50 max',
-            usagePct: 78,
-            tone: 'warning',
-            statusLabel: '39/50 · 78%',
-          },
           {
             id: 'api-calls',
             label: 'API calls / month',
             barLabel: '5M calls',
             usagePct: 46,
-            tone: 'positive',
+            usedLabel: '2.3M',
+            allocatedLabel: '5M',
+            tone: 'warning',
             statusLabel: '2.3M · 46%',
+            runRatePoints: [
+              { date: '2026-05-01', cumulativePct: 0 },
+              { date: '2026-05-31', cumulativePct: 10 },
+              { date: '2026-06-30', cumulativePct: 32 },
+              { date: '2026-07-09', cumulativePct: 46 },
+            ],
           },
           {
-            id: 'sandboxes',
-            label: 'Sandbox environments',
-            barLabel: '3 sandboxes',
-            usagePct: 100,
-            tone: 'positive',
-            statusLabel: '3/3 · 100%',
-          },
-          {
-            id: 'feature-tier',
-            label: 'Feature tier',
-            barLabel: 'Growth · all features',
-            tone: 'positive',
-            statusLabel: 'Active',
+            id: 'image-creation',
+            label: 'Image creation',
+            barLabel: '2,500 / month',
+            usagePct: 91,
+            usedLabel: '2,273',
+            allocatedLabel: '2,500',
+            tone: 'warning',
+            statusLabel: '2,273 / 2,500',
+            runRatePoints: [
+              { date: '2026-05-01', cumulativePct: 0 },
+              { date: '2026-05-31', cumulativePct: 28 },
+              { date: '2026-06-30', cumulativePct: 62 },
+              { date: '2026-07-09', cumulativePct: 91 },
+            ],
           },
         ],
       },
@@ -143,23 +169,19 @@ const PIONEER_TIMELINE_PERIODS: SalesOrderTimelinePeriod[] = [
     startDate: '2027-05-01',
     endDate: '2028-04-30',
     todayDate: '2026-07-09',
+    consumptionCards: [
+      { id: 'seats-y2', label: 'Seats', used: 0, allocated: 75, tone: 'neutral' },
+      { id: 'sandboxes-y2', label: 'Sandbox environments', used: 0, allocated: 3, tone: 'neutral' },
+    ],
     products: [
       {
         id: 'apex-growth-y2',
         name: 'Apex platform',
         subtitle: 'growth services · +7% ramp',
         barLabel: '75 seats · $2,568/seat',
-        entitlementCount: 3,
+        entitlementCount: 2,
         defaultExpanded: false,
         entitlements: [
-          {
-            id: 'seats-y2',
-            label: 'Seats',
-            barLabel: '75 max',
-            usagePct: 0,
-            tone: 'neutral',
-            statusLabel: 'Not started',
-          },
           {
             id: 'api-calls-y2',
             label: 'API calls / month',
@@ -168,11 +190,11 @@ const PIONEER_TIMELINE_PERIODS: SalesOrderTimelinePeriod[] = [
             statusLabel: 'Not started',
           },
           {
-            id: 'feature-tier-y2',
-            label: 'Feature tier',
-            barLabel: 'Growth · all features',
+            id: 'image-creation-y2',
+            label: 'Image creation',
+            barLabel: '2,500 / month',
             tone: 'neutral',
-            statusLabel: 'Scheduled',
+            statusLabel: 'Not started',
           },
         ],
       },
@@ -282,4 +304,37 @@ export function getUsageEndPercent(
   if (today < start) return 0
   if (today > end) return 100
   return dateToTimelinePercent(todayDate, startDate, endDate)
+}
+
+/** Human-readable period progress, e.g. "Month 3 of 12". */
+export function formatPeriodProgressLabel(
+  startDate: string,
+  endDate: string,
+  todayDate: string
+): string {
+  const start = parseTimelineDate(startDate)
+  const end = parseTimelineDate(endDate)
+  const today = parseTimelineDate(todayDate)
+
+  const monthIndex = (date: Date) => date.getFullYear() * 12 + date.getMonth()
+  const totalMonths = monthIndex(end) - monthIndex(start) + 1
+  const elapsedMonths = Math.min(
+    totalMonths,
+    Math.max(1, monthIndex(today) - monthIndex(start) + 1)
+  )
+
+  return `Month ${elapsedMonths} of ${totalMonths}`
+}
+
+export function getUsageBasedEntitlements(period: SalesOrderTimelinePeriod): TimelineEntitlement[] {
+  return period.products.flatMap((product) =>
+    product.entitlements.filter(
+      (e) =>
+        e.runRatePoints &&
+        e.runRatePoints.length > 0 &&
+        e.usedLabel &&
+        e.allocatedLabel &&
+        e.usagePct !== undefined
+    )
+  )
 }

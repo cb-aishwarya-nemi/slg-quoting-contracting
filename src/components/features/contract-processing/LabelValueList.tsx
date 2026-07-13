@@ -2,7 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, Pencil, X, CirclePlus, Check } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
+import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
+import { FieldEditValueDisplay } from './FieldEditValueDisplay'
+import { applyFieldValue } from './sectionAttention'
 
 const UNRESOLVED_FIELD_STYLE =
   'w-full rounded bg-amber-50 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-fog focus:bg-amber-100'
@@ -31,13 +34,19 @@ const ACCOUNT_ADDABLE_FIELDS = [
 
 interface LabelValueRowProps {
   item: LabelValue
+  sectionId?: string
+  sectionLabel?: string
   onItemChange?: (label: string, newValue: string) => void
   onRemove?: () => void
 }
 
-function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
+function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }: LabelValueRowProps) {
+  const editHistory = useOptionalFieldEditHistory()
   const isSelect = !!item.options
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
+  const fieldEdits =
+    sectionId && editHistory ? editHistory.getEdits(sectionId, item.label) : []
+  const showEditHistory = !!editHistory?.viewEdits && fieldEdits.length > 0
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -97,7 +106,18 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
   }
 
   const commitValue = (newValue: string) => {
-    if (onItemChange && newValue !== item.value) {
+    const isResolvingExtraction = !!item.extractionFailed && newValue.trim().length > 0
+    const valueChanged = newValue !== item.value
+
+    if (onItemChange && (valueChanged || isResolvingExtraction)) {
+      if (sectionId && sectionLabel && editHistory && valueChanged) {
+        editHistory.recordEdit(
+          sectionId,
+          { sectionLabel, fieldLabel: item.label },
+          item.value,
+          newValue
+        )
+      }
       onItemChange(item.label, newValue)
     }
   }
@@ -132,7 +152,9 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
         <button
           key={option}
           type="button"
-          onClick={() => {
+          onMouseDown={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
             commitValue(option)
             setIsOpen(false)
           }}
@@ -224,20 +246,24 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
           )
         ) : isSelect ? (
           <div ref={dropdownRef} className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => setIsOpen(!isOpen)}
-              className={cn(
-                'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
-                isEditing || isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
-              )}
-            >
-              <span>{item.value}</span>
-              <ChevronDown size={14} className={cn(
-                'transition-colors',
-                isEditing || isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
-              )} />
-            </button>
+            {showEditHistory ? (
+              <FieldEditValueDisplay currentValue={item.value} edits={fieldEdits} />
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsOpen(!isOpen)}
+                className={cn(
+                  'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
+                  isEditing || isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
+                )}
+              >
+                <span>{item.value}</span>
+                <ChevronDown size={14} className={cn(
+                  'transition-colors',
+                  isEditing || isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
+                )} />
+              </button>
+            )}
             {selectDropdown}
           </div>
         ) : isEditing ? (
@@ -251,6 +277,8 @@ function LabelValueRow({ item, onItemChange, onRemove }: LabelValueRowProps) {
             onClick={(e) => e.stopPropagation()}
             className="w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200"
           />
+        ) : showEditHistory ? (
+          <FieldEditValueDisplay currentValue={item.value} edits={fieldEdits} />
         ) : (
           <span className={cn(
             'text-[14px] font-medium transition-colors',
@@ -424,36 +452,64 @@ function AccountFieldPopover({ isOpen, onClose, onAdd, alreadyAdded, anchorRef }
 
 interface LabelValueListProps {
   items: LabelValue[]
+  sectionId?: string
+  sectionLabel?: string
+  /** When true, parent owns items state and must handle onItemChange. */
+  controlled?: boolean
   onItemChange?: (label: string, newValue: string) => void
+  onItemsChange?: (items: LabelValue[]) => void
   showAddField?: boolean
 }
 
-export function LabelValueList({ items, onItemChange, showAddField }: LabelValueListProps) {
-  const [itemState, setItemState] = useState<LabelValue[]>(items)
+export function LabelValueList({
+  items,
+  sectionId,
+  sectionLabel,
+  controlled = false,
+  onItemChange,
+  onItemsChange,
+  showAddField,
+}: LabelValueListProps) {
+  const isControlled = controlled || !!onItemsChange
+  const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
   const [customFields, setCustomFields] = useState<LabelValue[]>([])
   const [isPopoverOpen, setIsPopoverOpen] = useState(false)
   const addButtonRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
-    setItemState(items)
-  }, [items])
+    if (!isControlled) {
+      setUncontrolledItems(items)
+    }
+  }, [items, isControlled])
+
+  const listItems = isControlled ? items : uncontrolledItems
 
   const handleItemChange = useCallback(
     (label: string, newValue: string) => {
-      setItemState((prev) =>
-        prev.map((item) =>
-          item.label === label
-            ? { ...item, value: newValue, extractionFailed: newValue.trim() ? false : item.extractionFailed }
-            : item
-        )
-      )
+      if (controlled) {
+        onItemChange?.(label, newValue)
+        return
+      }
+
+      if (onItemsChange) {
+        onItemsChange(applyFieldValue(listItems, label, newValue))
+      } else {
+        setUncontrolledItems((prev) => applyFieldValue(prev, label, newValue))
+      }
+
       onItemChange?.(label, newValue)
     },
-    [onItemChange]
+    [controlled, listItems, onItemChange, onItemsChange]
   )
 
+  const handleCustomFieldChange = useCallback((label: string, newValue: string) => {
+    setCustomFields((prev) =>
+      prev.map((f) => (f.label === label ? { ...f, value: newValue } : f))
+    )
+  }, [])
+
   const alreadyAdded = [
-    ...itemState.map((i) => i.label),
+    ...listItems.map((i) => i.label),
     ...customFields.map((f) => f.label),
   ]
 
@@ -468,16 +524,22 @@ export function LabelValueList({ items, onItemChange, showAddField }: LabelValue
 
   return (
     <div>
-      {itemState.map((item) => (
-        <LabelValueRow key={item.label} item={item} onItemChange={handleItemChange} />
+      {listItems.map((item) => (
+        <LabelValueRow
+          key={item.label}
+          item={item}
+          sectionId={sectionId}
+          sectionLabel={sectionLabel}
+          onItemChange={handleItemChange}
+        />
       ))}
       {customFields.map((field) => (
         <LabelValueRow
           key={field.label}
           item={field}
-          onItemChange={(label, newValue) =>
-            setCustomFields(prev => prev.map(f => f.label === label ? { ...f, value: newValue } : f))
-          }
+          sectionId={sectionId}
+          sectionLabel={sectionLabel}
+          onItemChange={handleCustomFieldChange}
           onRemove={() => handleRemove(field.label)}
         />
       ))}
