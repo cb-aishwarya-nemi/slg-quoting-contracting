@@ -5,6 +5,7 @@ interface ContractSummaryHeadlineProps {
   termMonths: number
   effectiveDate: string
   customerName: string
+  lineItemsSummary?: string
   className?: string
 }
 
@@ -13,6 +14,7 @@ export function ContractSummaryHeadline({
   termMonths,
   effectiveDate,
   customerName,
+  lineItemsSummary,
   className,
 }: ContractSummaryHeadlineProps) {
   const parsed = new Date(effectiveDate)
@@ -27,7 +29,8 @@ export function ContractSummaryHeadline({
     >
       A <span className="font-bold">{contractValue}</span>, {termMonths} month contract with{' '}
       <span className="whitespace-nowrap">{customerName}</span>
-      {startingPhrase ? ` starting ${startingPhrase}` : ''}.
+      {startingPhrase ? ` starting ${startingPhrase}` : ''}
+      {lineItemsSummary ? ` ${lineItemsSummary}` : ''}.
     </h2>
   )
 }

@@ -1,3 +1,4 @@
+import { SalesOrderRunRateGraphs } from './SalesOrderRunRateGraphs'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -5,13 +6,16 @@ import {
   buildTimelineAxis,
   dateToTimelinePercent,
   getSalesOrderTimelinePeriods,
+  getUsageBasedEntitlements,
   getUsageEndPercent,
+  formatPeriodProgressLabel,
   isTimelinePeriodStarted,
   parseTimelineDate,
   type BillingMilestoneStatus,
   type EntitlementTone,
   type SalesOrderTimelinePeriod,
   type TimelineBillingMilestone,
+  type TimelineConsumptionCard,
   type TimelineEntitlement,
   type TimelineProductRow,
 } from '@/data/salesOrderTimelineMock'
@@ -38,6 +42,57 @@ const BILLING_STATUS_STYLES: Record<BillingMilestoneStatus, { dot: string; text:
   upcoming: { dot: 'bg-brand-mist', text: 'text-brand-fog' },
 }
 
+const CONSUMPTION_TONE_STYLES: Record<
+  EntitlementTone,
+  { fill: string; track: string; value: string }
+> = {
+  positive: { fill: 'bg-green-500', track: 'bg-green-100', value: 'text-green-700' },
+  warning: { fill: 'bg-amber-500', track: 'bg-amber-100', value: 'text-amber-700' },
+  neutral: { fill: 'bg-brand-mist', track: 'bg-neutral-100', value: 'text-brand-fog' },
+}
+
+function consumptionPercent(used: number, allocated: number): number {
+  if (allocated <= 0) return 0
+  return Math.min(100, Math.round((used / allocated) * 100))
+}
+
+function ConsumptionCard({ card }: { card: TimelineConsumptionCard }) {
+  const pct = consumptionPercent(card.used, card.allocated)
+  const styles = CONSUMPTION_TONE_STYLES[card.tone]
+
+  return (
+    <div className="w-[168px] shrink-0 rounded-md border border-neutral-200 px-2.5 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <p className="min-w-0 truncate text-[10px] font-medium uppercase tracking-wider text-brand-fog">
+          {card.label}
+        </p>
+        <div className="flex shrink-0 items-baseline gap-0.5 whitespace-nowrap">
+          <span className={cn('text-[12px] font-semibold tabular-nums', styles.value)}>{card.used}</span>
+          <span className="text-[10px] tabular-nums text-brand-fog">/ {card.allocated}</span>
+        </div>
+      </div>
+      <div className={cn('mt-1.5 h-1 w-full overflow-hidden rounded-full', styles.track)}>
+        <div
+          className={cn('h-full rounded-full', styles.fill)}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
+function ConsumptionCardsRow({ cards }: { cards: TimelineConsumptionCard[] }) {
+  if (cards.length === 0) return null
+
+  return (
+    <div className="mb-4 flex gap-2.5">
+      {cards.map((card) => (
+        <ConsumptionCard key={card.id} card={card} />
+      ))}
+    </div>
+  )
+}
+
 function formatTodayLabel(dateStr: string): string {
   const date = parseTimelineDate(dateStr)
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
@@ -46,12 +101,17 @@ function formatTodayLabel(dateStr: string): string {
 function TimelineGridRow({
   children,
   className,
+  showBorderBottom = true,
 }: {
   children: ReactNode
   className?: string
+  showBorderBottom?: boolean
 }) {
   return (
-    <div className={cn('grid', ROW_DIVIDER, className)} style={{ gridTemplateColumns: GRID_COLUMNS }}>
+    <div
+      className={cn('grid', showBorderBottom && ROW_DIVIDER, className)}
+      style={{ gridTemplateColumns: GRID_COLUMNS }}
+    >
       {children}
     </div>
   )
@@ -92,10 +152,10 @@ function TimelineAxisBar({
     <div className="relative w-full">
       {showToday && (
         <div
-          className="pointer-events-none absolute bottom-0 top-0 z-10 w-px -translate-x-1/2 bg-blue-500/70"
+          className="pointer-events-none absolute bottom-0 top-0 z-20 w-0.5 -translate-x-1/2 bg-blue-600"
           style={{ left: `${todayPercent}%` }}
         >
-          <span className="absolute -top-4 left-1/2 -translate-x-1/2 whitespace-nowrap text-[10px] text-blue-600">
+          <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold text-blue-700">
             Today
           </span>
         </div>
@@ -160,7 +220,7 @@ function TimelineTodayLine({
       <div />
       <div className="relative">
         <div
-          className="absolute bottom-0 top-0 w-px -translate-x-1/2 bg-blue-500/70"
+          className="absolute bottom-0 top-0 z-20 w-0.5 -translate-x-1/2 bg-blue-600"
           style={{ left: `${todayPercent}%` }}
         />
       </div>
@@ -169,42 +229,130 @@ function TimelineTodayLine({
   )
 }
 
+function ConsumptionCapacityBar({
+  usagePct,
+  timePct,
+  usedLabel,
+  allocatedLabel,
+  periodProgressLabel,
+}: {
+  usagePct: number
+  timePct: number
+  usedLabel: string
+  allocatedLabel: string
+  periodProgressLabel: string
+}) {
+  const aheadOfPace = usagePct > timePct
+
+  return (
+    <div className="w-full py-1">
+      <div className="mb-1.5 flex items-center justify-between gap-2 text-[10px] tabular-nums">
+        <span className="font-medium text-brand-navy">
+          {usedLabel}
+          <span className="font-normal text-brand-fog"> / {allocatedLabel}</span>
+        </span>
+        <span className={cn('shrink-0', aheadOfPace ? 'text-amber-700' : 'text-green-700')}>
+          {usagePct}% used · {periodProgressLabel}
+        </span>
+      </div>
+      <div className="relative h-2 w-full overflow-hidden rounded-full bg-neutral-200">
+        <div
+          className={cn(
+            'absolute inset-y-0 left-0 rounded-full',
+            aheadOfPace ? 'bg-amber-500' : 'bg-green-500'
+          )}
+          style={{ width: `${usagePct}%` }}
+        />
+      </div>
+    </div>
+  )
+}
+
 function EntitlementRow({
   entitlement,
   usageEndPercent,
+  isLastInGroup,
+  startDate,
+  endDate,
+  todayDate,
 }: {
   entitlement: TimelineEntitlement
   usageEndPercent: number
+  isLastInGroup: boolean
+  startDate: string
+  endDate: string
+  todayDate: string
 }) {
   const styles = ENTITLEMENT_TONE_STYLES[entitlement.tone]
+  const showUsageVsTime =
+    entitlement.usagePct !== undefined &&
+    entitlement.usagePct > 0 &&
+    entitlement.usedLabel &&
+    entitlement.allocatedLabel
+  const periodProgressLabel = formatPeriodProgressLabel(startDate, endDate, todayDate)
 
   return (
-    <TimelineGridRow>
-      <div className="flex items-center px-3 py-2 pl-6">
+    <TimelineGridRow showBorderBottom={isLastInGroup} className="bg-neutral-50/50">
+      <div className="relative flex items-center px-3 py-2 pl-8">
+        <span
+          aria-hidden="true"
+          className={cn(
+            'pointer-events-none absolute left-4 w-px bg-neutral-200',
+            isLastInGroup ? 'top-0 bottom-1/2' : 'top-0 bottom-0'
+          )}
+        />
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute left-4 top-1/2 h-px w-3 -translate-y-1/2 bg-neutral-200"
+        />
         <p className="truncate text-[12px] text-brand-fog">{entitlement.label}</p>
       </div>
       <div className={cn('flex items-center px-3 py-2', COL_DIVIDER_TRACK)}>
-        <div className="relative h-7 w-full">
-          <div className="absolute inset-0 overflow-hidden rounded bg-neutral-100/80">
-            <span className="relative z-10 flex h-full items-center px-2.5 text-[11px] text-brand-navy">
-              {entitlement.barLabel}
-            </span>
-          </div>
-          {entitlement.usagePct !== undefined && entitlement.usagePct > 0 && (
-            <div
-              className="absolute inset-y-0 left-0 overflow-hidden rounded"
-              style={{ width: `${usageEndPercent}%` }}
-            >
-              <div
-                className={cn('h-full', styles.progress)}
-                style={{ width: `${entitlement.usagePct}%` }}
-              />
+        {showUsageVsTime ? (
+          <ConsumptionCapacityBar
+            usagePct={entitlement.usagePct!}
+            timePct={usageEndPercent}
+            usedLabel={entitlement.usedLabel!}
+            allocatedLabel={entitlement.allocatedLabel!}
+            periodProgressLabel={periodProgressLabel}
+          />
+        ) : (
+          <div className="relative h-7 w-full">
+            <div className="absolute inset-0 overflow-hidden rounded bg-neutral-100/80">
+              <span className="relative z-10 flex h-full items-center px-2.5 text-[11px] text-brand-navy">
+                {entitlement.barLabel}
+              </span>
             </div>
-          )}
-        </div>
+            {entitlement.usagePct !== undefined && entitlement.usagePct > 0 && (
+              <div
+                className="absolute inset-y-0 left-0 overflow-hidden rounded"
+                style={{ width: `${usageEndPercent}%` }}
+              >
+                <div
+                  className={cn('h-full', styles.progress)}
+                  style={{ width: `${entitlement.usagePct}%` }}
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
-      <div className={cn('flex items-center justify-end whitespace-nowrap px-3 py-2', COL_DIVIDER_PILL)}>
-        <span className={cn('whitespace-nowrap text-[11px]', styles.pill)}>{entitlement.statusLabel}</span>
+      <div className={cn('flex flex-col items-end justify-center whitespace-nowrap px-3 py-2', COL_DIVIDER_PILL)}>
+        {showUsageVsTime ? (
+          <>
+            <span
+              className={cn(
+                'text-[11px] font-semibold tabular-nums',
+                entitlement.usagePct! > usageEndPercent ? 'text-amber-700' : 'text-green-700'
+              )}
+            >
+              {entitlement.usagePct}%
+            </span>
+            <span className="mt-0.5 text-[10px] tabular-nums text-brand-fog">of cap used</span>
+          </>
+        ) : (
+          <span className={cn('whitespace-nowrap text-[11px]', styles.pill)}>{entitlement.statusLabel}</span>
+        )}
       </div>
     </TimelineGridRow>
   )
@@ -215,15 +363,21 @@ function ProductRow({
   isExpanded,
   onToggle,
   usageEndPercent,
+  startDate,
+  endDate,
+  todayDate,
 }: {
   product: TimelineProductRow
   isExpanded: boolean
   onToggle: () => void
   usageEndPercent: number
+  startDate: string
+  endDate: string
+  todayDate: string
 }) {
   return (
-    <>
-      <TimelineGridRow>
+    <div className="w-full">
+      <TimelineGridRow showBorderBottom={!isExpanded}>
         <div className="flex min-w-0 items-center px-3 py-3">
           <div className="min-w-0">
             <p className="truncate text-[12px] text-brand-navy">{product.name}</p>
@@ -251,14 +405,18 @@ function ProductRow({
         </div>
       </TimelineGridRow>
       {isExpanded &&
-        product.entitlements.map((entitlement) => (
+        product.entitlements.map((entitlement, index) => (
           <EntitlementRow
             key={entitlement.id}
             entitlement={entitlement}
             usageEndPercent={usageEndPercent}
+            isLastInGroup={index === product.entitlements.length - 1}
+            startDate={startDate}
+            endDate={endDate}
+            todayDate={todayDate}
           />
         ))}
-    </>
+    </div>
   )
 }
 
@@ -286,7 +444,7 @@ function BillingRow({
   }, [milestones, todayDate])
 
   return (
-    <TimelineGridRow className="border-b-0">
+    <TimelineGridRow showBorderBottom={false}>
       <div className="flex items-center px-3 py-3">
         <p className="text-[12px] text-brand-fog">Billing</p>
       </div>
@@ -344,9 +502,26 @@ function PeriodTimelineView({ period }: { period: SalesOrderTimelinePeriod }) {
     period.endDate,
     period.todayDate
   )
+  const usageEntitlements = useMemo(
+    () => getUsageBasedEntitlements(period),
+    [period]
+  )
 
   return (
     <div className="w-full">
+      {periodStarted && period.consumptionCards.length > 0 && (
+        <ConsumptionCardsRow cards={period.consumptionCards} />
+      )}
+
+      {periodStarted && usageEntitlements.length > 0 && (
+        <SalesOrderRunRateGraphs
+          entitlements={usageEntitlements}
+          startDate={period.startDate}
+          endDate={period.endDate}
+          todayDate={period.todayDate}
+        />
+      )}
+
       {periodStarted ? (
         <div className="relative">
           <TimelineTodayLine
@@ -374,6 +549,9 @@ function PeriodTimelineView({ period }: { period: SalesOrderTimelinePeriod }) {
               isExpanded={expandedIds.has(product.id)}
               onToggle={() => toggleProduct(product.id)}
               usageEndPercent={usageEndPercent}
+              startDate={period.startDate}
+              endDate={period.endDate}
+              todayDate={period.todayDate}
             />
           ))}
 
@@ -402,8 +580,8 @@ function PeriodTimelineView({ period }: { period: SalesOrderTimelinePeriod }) {
           </span>
         </div>
         {showToday && (
-          <span>
-            <span className="mr-1 inline-block h-2.5 w-px bg-blue-500/70 align-middle" />
+          <span className="font-medium text-brand-navy">
+            <span className="mr-1.5 inline-block h-3 w-0.5 bg-blue-600 align-middle" />
             Today · {formatTodayLabel(period.todayDate)}
           </span>
         )}

@@ -105,9 +105,14 @@ export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
 
   return (
     <div className="space-y-10">
-      <CollapsibleSection title="Products and pricing">
-        <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
-      </CollapsibleSection>
+      <section>
+        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Products and pricing
+        </h2>
+        <div className="mt-4">
+          <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
+        </div>
+      </section>
 
       <CollapsibleSection title="Past invoices">
         <div className={SECTION_DATA_CONTAINER}>

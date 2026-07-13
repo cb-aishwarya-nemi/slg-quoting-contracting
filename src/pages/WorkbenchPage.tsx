@@ -416,9 +416,6 @@ export function WorkbenchPage() {
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Customer
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 130, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Task ID
-                    </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Subject
                     </th>
@@ -436,7 +433,7 @@ export function WorkbenchPage() {
                   <tbody>
                     {filteredTasks.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center">
+                        <td colSpan={6} className="py-8 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <Search size={24} className="text-brand-mist" />
                             <p className="text-[14px] text-brand-fog">
@@ -496,11 +493,6 @@ export function WorkbenchPage() {
                           {/* Customer */}
                           <td className="py-1.5 pr-4 text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
                             {task.customer}
-                          </td>
-
-                          {/* Task ID */}
-                          <td className="py-1.5 pr-4 text-[13px] uppercase text-brand-fog whitespace-nowrap group-hover:text-white/70 relative z-10">
-                            {task.taskId || "—"}
                           </td>
 
                           {/* Subject */}

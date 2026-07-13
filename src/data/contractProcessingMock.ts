@@ -139,6 +139,8 @@ export const contractProcessing = {
     contractValue: '$492,000.00',
     termMonths: 24,
     effectiveDate: 'July 13, 2026',
+    lineItemsSummary:
+      'covering 5 line items — Growth services (50 seats), Onboarding & Training, and more',
   },
 
   account: [
@@ -478,7 +480,14 @@ export const contractProcessing = {
   ] as Comment[],
 }
 
-export type ContractProcessing = typeof contractProcessing
+export type ContractProcessing = Omit<typeof contractProcessing, 'summary'> & {
+  summary: {
+    contractValue: string
+    termMonths: number
+    effectiveDate: string
+    lineItemsSummary?: string
+  }
+}
 
 // Additional contract data for navigation demo
 export const verdantHealthContract: ContractProcessing = {

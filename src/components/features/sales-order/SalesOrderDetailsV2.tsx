@@ -3,7 +3,7 @@ import { Download, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
-import { SalesOrderHorizontalTimeline } from './SalesOrderHorizontalTimeline'
+import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
 import { type SalesOrder } from '@/data/salesOrderMock'
 import {
@@ -85,7 +85,9 @@ function AiSummaryNote({ order }: { order: SalesOrder }) {
         {order.headline}
       </h2>
       <p className="mt-3 max-w-[720px] text-[13px] leading-[1.6] text-brand-navy">{order.aiSummary}</p>
-      <OrderMetricsRow order={order} />
+      <div className="mt-8">
+        <OrderMetricsRow order={order} />
+      </div>
     </section>
   )
 }
@@ -200,7 +202,7 @@ export function SalesOrderDetailsV2({
         <div className="mx-auto max-w-[1040px] space-y-10">
           <AiSummaryNote order={order} />
 
-          <SalesOrderHorizontalTimeline orderId={order.id} />
+          <SalesOrderFeatureUsageSection orderId={order.id} />
 
           <SalesOrderCollapsedSections order={order} />
 
