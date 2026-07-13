@@ -65,11 +65,22 @@ function SalesOrderAskBar() {
 export function FileDropOverlay() {
   const { isDragging, setIsDragging, addProcessingFile, processingFiles } = useFileDrop()
   const { goToWorkbench } = useNavigation()
-  const { activePage } = useUseCase()
+  const { activePage, activeVariant, getPage } = useUseCase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
-  const isSalesOrderAskMode = activePage === 'sales-order-details'
+  const salesOrderPage = getPage('sales-order-details')
+  const salesOrderVariant =
+    activePage === 'sales-order-details' &&
+    activeVariant &&
+    salesOrderPage?.variants.some((variant) => variant.id === activeVariant)
+      ? activeVariant
+      : (salesOrderPage?.defaultVariant ?? 'v1')
+  const isSalesOrderV1AskMode =
+    activePage === 'sales-order-details' && salesOrderVariant === 'v1'
   const isCustomer360TasksMode = activePage === 'customer360'
+  const hideOverlay =
+    isCustomer360TasksMode ||
+    (activePage === 'sales-order-details' && salesOrderVariant === 'v2')
 
   useEffect(() => {
     if (isDragging && !hasEverDragged) {
@@ -128,16 +139,16 @@ export function FileDropOverlay() {
     }
   }
 
-  if (isSalesOrderAskMode) {
+  if (hideOverlay) {
+    return null
+  }
+
+  if (isSalesOrderV1AskMode) {
     return (
       <div className="fixed z-50 flex justify-center pointer-events-none inset-x-0 bottom-0 pb-6 pl-12">
         <SalesOrderAskBar />
       </div>
     )
-  }
-
-  if (isCustomer360TasksMode) {
-    return null
   }
 
   return (

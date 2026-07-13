@@ -99,7 +99,7 @@ function TabPlaceholder({ label }: { label: string }) {
 }
 
 export function Customer360Page() {
-  const { view, goToCustomers } = useNavigation()
+  const { view, goToCustomers, goToSalesOrders } = useNavigation()
   const { setActivePage } = useUseCase()
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
@@ -120,6 +120,11 @@ export function Customer360Page() {
   const handleAccountItemChange = useCallback((label: string, newValue: string) => {
     setAccountItems((prev) => applyFieldValue(prev, label, newValue))
   }, [])
+
+  const cameFromSalesOrders =
+    view.name === 'customer360' && view.returnTo === 'salesOrders'
+  const handleBack = cameFromSalesOrders ? goToSalesOrders : goToCustomers
+  const backLabel = cameFromSalesOrders ? 'Back to sales orders' : 'Back to customers'
 
   const navSections = useMemo<NavSection[]>(
     () =>
@@ -351,12 +356,12 @@ export function Customer360Page() {
         <div className="absolute left-6 bottom-1 flex flex-col justify-end">
           <button
             type="button"
-            onClick={goToCustomers}
+            onClick={handleBack}
             className="mb-0 flex cursor-pointer items-center gap-0.5 text-brand-fog transition-colors hover:text-brand-navy"
           >
             <ChevronLeft size={12} />
             <span className="text-[10px] font-medium uppercase tracking-[0]">
-              Back to customers
+              {backLabel}
             </span>
           </button>
           <div className="flex items-center gap-3">

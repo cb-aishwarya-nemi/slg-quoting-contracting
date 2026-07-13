@@ -105,6 +105,7 @@ export function SalesOrdersPage() {
     goToCustomer360(order.customerId, {
       tab: 'sales-order',
       salesOrderId: order.id,
+      returnTo: 'salesOrders',
     })
   }
 

@@ -443,8 +443,12 @@ function PaymentAttentionSummary({ order }: { order: SalesOrder }) {
           <AttentionItem
             headline={
               <>
-                Image creation at <span className="font-semibold">91%</span> of monthly cap with{' '}
-                <span className="font-semibold">9 days</span> left in the cycle
+                {usageSignal.featureName} at{' '}
+                <span className="font-semibold">{usageSignal.usageCapPct}%</span> of monthly cap with{' '}
+                {usageSignal.cycleRemainingDays === 1
+                  ? '1 day'
+                  : `${usageSignal.cycleRemainingDays} days`}{' '}
+                ({usageSignal.cycleRemainingPct}%) left in the cycle
               </>
             }
             summary={usageSignal.summary}

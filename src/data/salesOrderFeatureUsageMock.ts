@@ -10,6 +10,8 @@ export interface BillingCycleUsage {
 export interface SalesOrderFeatureUsage {
   id: string
   label: string
+  /** Unit shown beside values in the chart hover tooltip. */
+  valueUnit: string
   capacity: number
   limitLine: number
   yAxisMax: number
@@ -25,6 +27,7 @@ const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
   {
     id: 'api-calls',
     label: 'API calls / month',
+    valueUnit: 'API calls',
     capacity: 12_000_000,
     limitLine: 12_000_000,
     yAxisMax: 12_500_000,
@@ -43,41 +46,68 @@ const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
       { cycle: 10, yearIndex: 0, usage: 2_300_000, poolDecrement: 2_300_000 },
       { cycle: 11, yearIndex: 0, usage: 2_350_000, poolDecrement: 0 },
       { cycle: 12, yearIndex: 0, usage: 2_600_000, poolDecrement: 0 },
-      { cycle: 1, yearIndex: 1, usage: 2_280_000, poolDecrement: 1_000_000 },
-      { cycle: 2, yearIndex: 1, usage: 2_300_000, poolDecrement: 1_000_000 },
-      { cycle: 3, yearIndex: 1, usage: 2_260_000, poolDecrement: 1_000_000 },
     ],
   },
   {
     id: 'image-creation',
     label: 'Image creation',
+    valueUnit: 'images',
     capacity: 2_500,
     limitLine: 2_500,
     yAxisMax: 3_000,
     yAxisStep: 500,
     contractStartDate: PIONEER_CONTRACT_START,
     cycles: [
-      { cycle: 1, yearIndex: 0, usage: 420, poolDecrement: 210 },
-      { cycle: 2, yearIndex: 0, usage: 580, poolDecrement: 210 },
-      { cycle: 3, yearIndex: 0, usage: 710, poolDecrement: 210 },
-      { cycle: 4, yearIndex: 0, usage: 890, poolDecrement: 210 },
-      { cycle: 5, yearIndex: 0, usage: 1_050, poolDecrement: 210 },
-      { cycle: 6, yearIndex: 0, usage: 1_280, poolDecrement: 210 },
-      { cycle: 7, yearIndex: 0, usage: 1_620, poolDecrement: 210 },
-      { cycle: 8, yearIndex: 0, usage: 1_840, poolDecrement: 210 },
-      { cycle: 9, yearIndex: 0, usage: 2_050, poolDecrement: 210 },
-      { cycle: 10, yearIndex: 0, usage: 2_180, poolDecrement: 210 },
-      { cycle: 11, yearIndex: 0, usage: 2_420, poolDecrement: 210 },
-      { cycle: 12, yearIndex: 0, usage: 2_650, poolDecrement: 210 },
-      { cycle: 1, yearIndex: 1, usage: 480, poolDecrement: 210 },
-      { cycle: 2, yearIndex: 1, usage: 620, poolDecrement: 210 },
-      { cycle: 3, yearIndex: 1, usage: 540, poolDecrement: 210 },
+      { cycle: 1, yearIndex: 0, usage: 420, poolDecrement: 36 },
+      { cycle: 2, yearIndex: 0, usage: 580, poolDecrement: 36 },
+      { cycle: 3, yearIndex: 0, usage: 710, poolDecrement: 36 },
+      { cycle: 4, yearIndex: 0, usage: 890, poolDecrement: 36 },
+      { cycle: 5, yearIndex: 0, usage: 1_050, poolDecrement: 36 },
+      { cycle: 6, yearIndex: 0, usage: 1_280, poolDecrement: 36 },
+      { cycle: 7, yearIndex: 0, usage: 1_620, poolDecrement: 36 },
+      { cycle: 8, yearIndex: 0, usage: 1_840, poolDecrement: 36 },
+      { cycle: 9, yearIndex: 0, usage: 2_050, poolDecrement: 32 },
+      { cycle: 10, yearIndex: 0, usage: 2_180, poolDecrement: 2_180 },
+      { cycle: 11, yearIndex: 0, usage: 2_420, poolDecrement: 0 },
+      { cycle: 12, yearIndex: 0, usage: 2_650, poolDecrement: 0 },
     ],
   },
 ]
 
 export function getSalesOrderFeatureUsage(orderId: string): SalesOrderFeatureUsage[] | null {
   if (orderId === 'so-pioneer-0153') return PIONEER_FEATURE_USAGE
+  return null
+}
+
+export interface UsageLimitMetric {
+  id: string
+  label: string
+  used: number
+  allocated: number
+  aiInsight?: string
+}
+
+export function getSalesOrderUsageLimits(orderId: string): UsageLimitMetric[] | null {
+  if (orderId === 'so-pioneer-0153') {
+    return [
+      {
+        id: 'seats',
+        label: 'Seats',
+        used: 45,
+        allocated: 50,
+        aiInsight:
+          'Up from 38 → 45 seats this quarter. At this rate, the cap is reached ~6 weeks before renewal — before the customer has a chance to negotiate.',
+      },
+      {
+        id: 'sandboxes',
+        label: 'Sandboxes',
+        used: 2,
+        allocated: 2,
+        aiInsight:
+          'Provisioned but no activity in 45 days. Customers who don\'t use their sandbox environment in the first 60 days are significantly more likely to churn at renewal.',
+      },
+    ]
+  }
   return null
 }
 
