@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback, useMemo, type ReactNode } from 'react'
+import { useState, useRef, useEffect, useCallback, useMemo, useId, type ReactNode } from 'react'
 import {
   Maximize2,
   Focus,
@@ -208,6 +208,107 @@ function UsagePatternTable({ terms }: { terms: UsageTermRow[] }) {
   )
 }
 
+const METERED_USAGE_FEATURES = new Set([
+  'Image creation',
+  'API calls',
+  'Video storage',
+])
+
+const USAGE_METER_ARC_LENGTH = Math.PI * 5.5
+
+function parseUsageQuantity(raw: string): number | null {
+  const cleaned = raw.trim().replace(/,/g, '')
+  const match = cleaned.match(/^([\d.]+)\s*([kKmMbB]?)/)
+  if (!match) return null
+  const value = Number(match[1])
+  if (!Number.isFinite(value)) return null
+  const suffix = match[2].toUpperCase()
+  const multiplier =
+    suffix === 'K' ? 1_000 : suffix === 'M' ? 1_000_000 : suffix === 'B' ? 1_000_000_000 : 1
+  return value * multiplier
+}
+
+/** Parse included strings like `2,273/2,500`, `1.4M/5M`, `95GB/500GB` into 0–1. */
+function parseUsageRatio(included: string): number {
+  const [usedRaw, totalRaw] = included.split('/')
+  if (!usedRaw || !totalRaw) return 0
+  const used = parseUsageQuantity(usedRaw)
+  const total = parseUsageQuantity(totalRaw)
+  if (used == null || total == null || total <= 0) return 0
+  return Math.min(1, Math.max(0, used / total))
+}
+
+const USAGE_METER_COLORS: Record<
+  'default' | 'warning' | 'danger',
+  { from: string; to: string; needle: string }
+> = {
+  default: { from: '#3b82f6', to: '#8b5cf6', needle: '#1e293b' },
+  warning: { from: '#f59e0b', to: '#ea580c', needle: '#9a3412' },
+  danger: { from: '#ef4444', to: '#dc2626', needle: '#991b1b' },
+}
+
+/** Compact dial meter that fills according to current usage. */
+function UsageMeterIcon({
+  size = 14,
+  ratio,
+  tone = 'default',
+}: {
+  size?: number
+  ratio: number
+  tone?: 'default' | 'warning' | 'danger'
+}) {
+  const id = useId()
+  const pct = Math.min(1, Math.max(0, ratio))
+  const colors = USAGE_METER_COLORS[tone]
+  const cx = 8
+  const cy = 11.5
+  const needleLen = 4.4
+  const angle = Math.PI - pct * Math.PI
+  const needleX = cx + Math.cos(angle) * needleLen
+  const needleY = cy - Math.sin(angle) * needleLen
+  const pctLabel = Math.round(pct * 100)
+
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      aria-label={`${pctLabel}% used`}
+      className="shrink-0"
+    >
+      <defs>
+        <linearGradient id={id} x1="2" y1="12" x2="14" y2="4" gradientUnits="userSpaceOnUse">
+          <stop stopColor={colors.from} />
+          <stop offset="1" stopColor={colors.to} />
+        </linearGradient>
+      </defs>
+      <path
+        d="M2.5 11.5a5.5 5.5 0 0 1 11 0"
+        stroke="#d4d9e3"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      {pct > 0 && (
+        <path
+          d="M2.5 11.5a5.5 5.5 0 0 1 11 0"
+          stroke={`url(#${id})`}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeDasharray={`${pct * USAGE_METER_ARC_LENGTH} ${USAGE_METER_ARC_LENGTH}`}
+        />
+      )}
+      <path
+        d={`M${cx} ${cy} L${needleX.toFixed(2)} ${needleY.toFixed(2)}`}
+        stroke={colors.needle}
+        strokeWidth="1.4"
+        strokeLinecap="round"
+      />
+      <circle cx={cx} cy={cy} r="1.15" fill={colors.needle} />
+    </svg>
+  )
+}
+
 function UsageSummaryTable({ features }: { features: UsageSummaryFeature[] }) {
   const rowGridClass = 'grid grid-cols-[minmax(200px,320px)_1fr] items-center gap-x-16'
 
@@ -230,7 +331,16 @@ function UsageSummaryTable({ features }: { features: UsageSummaryFeature[] }) {
             idx === features.length - 1 && 'border-b-0'
           )}
         >
-          <span className="min-w-0 text-left text-[13px] font-medium text-brand-navy">{row.feature}</span>
+          <span className="flex min-w-0 items-center gap-1.5 text-left text-[13px] font-medium text-brand-navy">
+            {row.feature}
+            {METERED_USAGE_FEATURES.has(row.feature) && (
+              <UsageMeterIcon
+                size={14}
+                ratio={parseUsageRatio(row.included)}
+                tone={row.includedTone ?? 'default'}
+              />
+            )}
+          </span>
           <div className="min-w-0 justify-self-start text-left">
             <UsageAmountDisplay
               included={row.included}
