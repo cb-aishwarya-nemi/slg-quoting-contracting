@@ -1,23 +1,38 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { GradientSparkle } from '@/components/features/contract-processing'
 import {
   formatBillingCyclePeriod,
   formatFeatureUsageAxisValue,
   getCycleConsumptionSplit,
   getRemainingAtCycleStart,
   getSalesOrderFeatureUsage,
+  getSalesOrderUsageLimits,
   type SalesOrderFeatureUsage,
+  type UsageLimitMetric,
 } from '@/data/salesOrderFeatureUsageMock'
 
 const PLOT = { left: 72, right: 16, top: 16, bottom: 52 }
 const YEAR_GAP = 14
 
 const COLORS = {
-  bar: '#15803d',
-  barWarning: '#ea580c',
-  areaFill: 'rgba(74, 222, 128, 0.35)',
-  areaStroke: '#16a34a',
+  bar: '#22863a',
+  barWarning: '#d96138',
+  areaFill: 'rgba(159, 212, 176, 0.32)',
+  areaStroke: '#9fd4b0',
+}
+
+const HOVER_ACCENT = '34, 134, 58'
+
+const BILLING_CYCLE_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+]
+
+function formatBillingCycleAxisLabel(cycle: number): string {
+  if (cycle >= 1 && cycle <= 12) return BILLING_CYCLE_MONTHS[cycle - 1]
+  return String(cycle)
 }
 
 const BAR_WIDTH_RATIO = 0.68
@@ -245,18 +260,23 @@ interface ChartTooltipProps {
   feature: SalesOrderFeatureUsage
 }
 
+function formatTooltipValue(value: number, unit: string): string {
+  return `${formatFeatureUsageAxisValue(value)} ${unit}`
+}
+
 function ChartTooltip({ slot, feature }: ChartTooltipProps) {
   const remaining = getRemainingAtCycleStart(feature, slot.index)
   const { withinQuota, overage } = getCycleConsumptionSplit(feature, slot.index)
+  const unit = feature.valueUnit
 
   return (
-    <div className="min-w-[220px] rounded-lg border border-neutral-200 bg-white px-3 py-2.5 shadow-lg">
+    <div className="w-[280px] shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 shadow-lg">
       <p className="text-[11px] font-semibold text-brand-navy">
         {formatBillingCyclePeriod(slot.cycle, slot.yearIndex, feature.contractStartDate)}
       </p>
       <div className="mt-2 space-y-1.5">
         <div className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5 text-[10px] text-brand-fog">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
             <svg width="14" height="6" aria-hidden className="shrink-0">
               <line
                 x1="0"
@@ -270,32 +290,32 @@ function ChartTooltip({ slot, feature }: ChartTooltipProps) {
             </svg>
             Quota at start of month
           </span>
-          <span className="text-[11px] font-medium tabular-nums text-brand-navy">
-            {formatFeatureUsageAxisValue(remaining)}
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {formatTooltipValue(remaining, unit)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5 text-[10px] text-brand-fog">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
             <span
               className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: COLORS.bar }}
             />
             Included usage
           </span>
-          <span className="text-[11px] font-medium tabular-nums text-brand-navy">
-            {withinQuota > 0 ? formatFeatureUsageAxisValue(withinQuota) : '—'}
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {withinQuota > 0 ? formatTooltipValue(withinQuota, unit) : '—'}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4">
-          <span className="flex items-center gap-1.5 text-[10px] text-brand-fog">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
             <span
               className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
               style={{ backgroundColor: COLORS.barWarning }}
             />
             On-demand usage
           </span>
-          <span className="text-[11px] font-medium tabular-nums text-brand-navy">
-            {overage > 0 ? formatFeatureUsageAxisValue(overage) : '—'}
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {overage > 0 ? formatTooltipValue(overage, unit) : '—'}
           </span>
         </div>
       </div>
@@ -358,6 +378,19 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
 
   const xAxisY = valueToY(0, yAxisMax, innerH)
   const hoveredSlot = hoveredIndex !== null ? slotLayout[hoveredIndex] : null
+  const quotaExhaustionSlot = useMemo(() => {
+    for (const slot of slotLayout) {
+      const remainingStart = getRemainingAtCycleStart(feature, slot.index)
+      if (remainingStart <= 0) return slot
+
+      const remainingEnd = Math.max(
+        0,
+        remainingStart - getPoolDecrement(feature, slot.index)
+      )
+      if (remainingEnd <= 0) return slot
+    }
+    return null
+  }, [slotLayout, feature])
   const hoveredRemaining =
     hoveredIndex !== null ? getRemainingAtCycleStart(feature, hoveredIndex) : 0
   const hoveredQuotaY = valueToY(hoveredRemaining, yAxisMax, innerH)
@@ -370,10 +403,12 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
   )
   const quotaReveal = easeOutCubic(Math.min(entranceProgress / 0.72, 1))
   const chromeReveal = easeOutCubic(Math.min(entranceProgress / 0.35, 1))
+  const annotationReveal = easeOutCubic(Math.max((entranceProgress - 0.55) / 0.45, 0))
+  const tooltipAlignRight = hoveredSlot ? hoveredSlot.centerX / 1000 > 0.72 : false
 
   return (
-    <div ref={chartRef} className="w-full">
-      <div className="relative h-[320px] w-full">
+    <div ref={chartRef} className="w-full overflow-visible">
+      <div className="relative h-[320px] w-full overflow-visible">
         <svg
           viewBox="0 0 1000 320"
           preserveAspectRatio="none"
@@ -477,7 +512,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
               y={PLOT.top}
               width={hoveredSlot.slotRight - hoveredSlot.slotLeft}
               height={xAxisY - PLOT.top}
-              fill="rgba(22, 163, 74, 0.06)"
+              fill={`rgba(${HOVER_ACCENT}, 0.06)`}
               pointerEvents="none"
             />
           )}
@@ -488,7 +523,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
               y1={PLOT.top}
               x2={hoveredSlot.centerX}
               y2={xAxisY}
-              stroke="rgba(22, 163, 74, 0.25)"
+              stroke={`rgba(${HOVER_ACCENT}, 0.25)`}
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
               pointerEvents="none"
@@ -566,6 +601,32 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
             </>
           )}
 
+          {quotaExhaustionSlot && (
+            <g style={{ opacity: annotationReveal }}>
+              <line
+                x1={quotaExhaustionSlot.slotRight}
+                y1={PLOT.top + 8}
+                x2={quotaExhaustionSlot.slotRight}
+                y2={xAxisY}
+                stroke={COLORS.barWarning}
+                strokeWidth="1"
+                strokeDasharray="3 3"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+              <circle
+                cx={quotaExhaustionSlot.slotRight}
+                cy={xAxisY}
+                r="3"
+                fill="white"
+                stroke={COLORS.barWarning}
+                strokeWidth="1.5"
+                vectorEffect="non-scaling-stroke"
+                pointerEvents="none"
+              />
+            </g>
+          )}
+
           {slotLayout.map((slot) => (
             <rect
               key={`hit-${slot.yearIndex}-${slot.cycle}`}
@@ -583,7 +644,10 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
 
         {hoveredSlot && (
           <div
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-[calc(100%+10px)]"
+            className={cn(
+              'pointer-events-none absolute z-10 -translate-y-[calc(100%+10px)]',
+              tooltipAlignRight ? '-translate-x-full' : '-translate-x-1/2'
+            )}
             style={{
               left: `${(hoveredSlot.centerX / 1000) * 100}%`,
               top: `${(tooltipAnchorY / CHART_HEIGHT) * 100}%`,
@@ -615,7 +679,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
             <span
               key={`label-${slot.yearIndex}-${slot.cycle}`}
               className={cn(
-                'absolute -translate-x-1/2 text-[10px] tabular-nums transition-colors duration-150',
+                'absolute -translate-x-1/2 text-[10px] transition-colors duration-150',
                 hoveredIndex === slot.index
                   ? 'font-medium text-brand-navy'
                   : 'text-brand-fog'
@@ -625,9 +689,24 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
                 top: `${((xAxisY + X_AXIS_LABEL_GAP) / CHART_HEIGHT) * 100}%`,
               }}
             >
-              {slot.cycle}
+              {formatBillingCycleAxisLabel(slot.cycle)}
             </span>
           ))}
+
+          {quotaExhaustionSlot && (
+            <div
+              className="pointer-events-none absolute z-[5] -translate-x-1/2 -translate-y-full pb-1"
+              style={{
+                left: `${(quotaExhaustionSlot.slotRight / 1000) * 100}%`,
+                top: `${((PLOT.top + 8) / CHART_HEIGHT) * 100}%`,
+                opacity: annotationReveal,
+              }}
+            >
+              <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fdf0ea] px-2 py-0.5 text-[10px] font-medium text-[#d96138]">
+                Quota exhausted
+              </span>
+            </div>
+          )}
 
           <span
             className="absolute text-center text-[10px] font-medium text-brand-fog"
@@ -647,6 +726,81 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
       >
         <FeatureUsageLegend />
       </div>
+    </div>
+  )
+}
+
+const USAGE_LIMIT_COLORS = {
+  full: COLORS.bar,
+  underusage: '#b8c4d4',
+}
+
+function usageLimitPercent(used: number, allocated: number): number {
+  if (allocated <= 0) return 0
+  return Math.min(100, Math.round((used / allocated) * 100))
+}
+
+function UsageLimitCard({ metric, showInsight }: { metric: UsageLimitMetric; showInsight: boolean }) {
+  const pct = usageLimitPercent(metric.used, metric.allocated)
+  const isFullyUsed = metric.used >= metric.allocated
+  const hasAiInsight = !!metric.aiInsight
+
+  return (
+    <div className="min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="flex items-center gap-1.5 text-[12px] font-medium text-brand-navy">
+          {metric.label}
+          {hasAiInsight && <GradientSparkle size={12} />}
+        </span>
+        <span className="shrink-0 tabular-nums text-[12px]">
+          <span
+            className={cn(
+              'font-semibold',
+              isFullyUsed ? 'text-brand-navy' : 'text-brand-fog'
+            )}
+          >
+            {metric.used}
+          </span>
+          <span className="text-brand-fog"> / {metric.allocated}</span>
+        </span>
+      </div>
+      <div className="mt-2.5 h-1.5 w-full overflow-hidden rounded-full bg-neutral-100">
+        <div
+          className="h-full rounded-full transition-[width] duration-500"
+          style={{
+            width: `${pct}%`,
+            backgroundColor: isFullyUsed ? USAGE_LIMIT_COLORS.full : USAGE_LIMIT_COLORS.underusage,
+          }}
+        />
+      </div>
+      {hasAiInsight && (
+        <p
+          className={cn(
+            'overflow-hidden text-[11px] leading-[1.45] text-brand-fog transition-all duration-200',
+            showInsight ? 'mt-2.5 max-h-40 opacity-100' : 'mt-0 max-h-0 opacity-0'
+          )}
+        >
+          {metric.aiInsight}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function UsageLimitCards({ metrics }: { metrics: UsageLimitMetric[] }) {
+  const [isHovered, setIsHovered] = useState(false)
+
+  if (metrics.length === 0) return null
+
+  return (
+    <div
+      className="grid grid-cols-2 gap-6"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {metrics.map((metric) => (
+        <UsageLimitCard key={metric.id} metric={metric} showInsight={isHovered} />
+      ))}
     </div>
   )
 }
@@ -680,10 +834,10 @@ function FeatureDropdown({
       <button
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex cursor-pointer items-center gap-1.5 text-[12px] font-medium text-brand-navy transition-colors hover:text-brand-navy/80"
+        className="flex cursor-pointer items-center gap-2 text-[15px] font-semibold text-brand-navy transition-colors hover:text-brand-navy/80"
       >
         {selected.label}
-        <ChevronDown size={14} className="text-brand-mist" />
+        <ChevronDown size={16} className="text-brand-mist" />
       </button>
       {isOpen && (
         <div className="absolute left-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
@@ -715,6 +869,7 @@ interface SalesOrderFeatureUsageSectionProps {
 
 export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsageSectionProps) {
   const features = getSalesOrderFeatureUsage(orderId)
+  const usageLimits = getSalesOrderUsageLimits(orderId)
   const [selectedId, setSelectedId] = useState(features?.[0]?.id ?? '')
 
   useEffect(() => {
@@ -731,16 +886,28 @@ export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsag
 
   return (
     <section>
-      <div className="flex items-center gap-3">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Feature usage
-        </h2>
-        <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-        <FeatureDropdown features={features} selectedId={selected.id} onSelect={setSelectedId} />
-      </div>
-      <div className="mt-6 rounded-lg border border-neutral-200 bg-white px-4 pb-4 pt-6">
+      <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+        Feature usage
+      </h2>
+      <div className="mt-6 overflow-visible rounded-lg border border-neutral-200 bg-white px-4 pb-4 pt-4">
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <FeatureDropdown features={features} selectedId={selected.id} onSelect={setSelectedId} />
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-mist transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+            title="Expand"
+            aria-label="Expand chart"
+          >
+            <Maximize2 size={16} />
+          </button>
+        </div>
         <FeatureUsageChart feature={selected} />
       </div>
+      {usageLimits && usageLimits.length > 0 && (
+        <div className="mt-4">
+          <UsageLimitCards metrics={usageLimits} />
+        </div>
+      )}
     </section>
   )
 }

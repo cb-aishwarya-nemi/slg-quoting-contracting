@@ -96,7 +96,7 @@ export function CustomersPage() {
 
   const handleCustomerClick = (customer: CustomerListItem) => {
     if (customer.customerId === PIONEER_CUSTOMER_ID) {
-      goToCustomer360(PIONEER_CUSTOMER_ID, { tab: 'tasks' });
+      goToCustomer360(PIONEER_CUSTOMER_ID, { tab: 'tasks', returnTo: 'customers' });
     }
   };
 

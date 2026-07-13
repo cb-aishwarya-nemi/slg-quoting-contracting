@@ -435,6 +435,10 @@ export interface UsageTermRow {
 }
 
 export interface UsageAttentionSignal {
+  featureName: string
+  usageCapPct: number
+  cycleRemainingPct: number
+  cycleRemainingDays: number
   headline: string
   summary: string
   summaryShort?: string
@@ -442,9 +446,29 @@ export interface UsageAttentionSignal {
   usagePattern: UsageTermRow[]
 }
 
+export function buildUsageAttentionHeadline(
+  signal: Pick<
+    UsageAttentionSignal,
+    'featureName' | 'usageCapPct' | 'cycleRemainingPct' | 'cycleRemainingDays'
+  >
+): string {
+  const daysLabel =
+    signal.cycleRemainingDays === 1 ? '1 day' : `${signal.cycleRemainingDays} days`
+  return `${signal.featureName} at ${signal.usageCapPct}% of monthly cap with ${daysLabel} (${signal.cycleRemainingPct}%) left in the cycle`
+}
+
 const USAGE_ATTENTION_OVERRIDES: Partial<Record<string, UsageAttentionSignal>> = {
   'so-pioneer-0153': {
-    headline: 'Image creation at 91% of monthly cap with 9 days left in the cycle',
+    featureName: 'Image creation',
+    usageCapPct: 91,
+    cycleRemainingPct: 10,
+    cycleRemainingDays: 9,
+    headline: buildUsageAttentionHeadline({
+      featureName: 'Image creation',
+      usageCapPct: 91,
+      cycleRemainingPct: 10,
+      cycleRemainingDays: 9,
+    }),
     summary:
       'Image usage has climbed steadily over the past three billing cycles — from 1,420 to 1,890 to 2,273 images. Pioneer Systems typically consumes 70–85 images per day in the second half of each cycle, with spikes after product launches. This pattern suggests sustained growth, not a one-off burst.',
     summaryShort:

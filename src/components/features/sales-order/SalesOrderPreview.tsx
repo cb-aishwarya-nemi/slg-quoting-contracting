@@ -30,15 +30,18 @@ function AttentionHeadline({ children }: { children: ReactNode }) {
 }
 
 function renderUsageHeadline(headline: string) {
-  return headline.split(/(\d+%|\d+ days)/g).map((part, index) =>
-    /^\d+%$|^\d+ days$/.test(part) ? (
-      <span key={index} className="font-semibold">
-        {part}
-      </span>
-    ) : (
-      part
-    )
-  )
+  let boldedUsageCap = false
+  return headline.split(/(\d+%)/g).map((part, index) => {
+    if (!boldedUsageCap && /^\d+%$/.test(part)) {
+      boldedUsageCap = true
+      return (
+        <span key={index} className="font-semibold">
+          {part}
+        </span>
+      )
+    }
+    return part
+  })
 }
 
 export function SalesOrderPreview({ listItem, onOpenDetails }: SalesOrderPreviewProps) {

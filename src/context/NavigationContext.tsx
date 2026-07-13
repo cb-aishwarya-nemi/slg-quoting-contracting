@@ -4,7 +4,7 @@ export type View =
   | { name: 'workbench' }
   | { name: 'customers' }
   | { name: 'salesOrders' }
-  | { name: 'customer360'; customerId: string; tab?: string; salesOrderId?: string }
+  | { name: 'customer360'; customerId: string; tab?: string; salesOrderId?: string; returnTo?: 'customers' | 'salesOrders' }
   | { name: 'invoiceDetails'; invoiceId: string }
   | { name: 'allInvoices'; customerId: string }
   | { name: 'allContracts'; customerId: string }
@@ -16,7 +16,7 @@ interface NavigationContextValue {
   goToSalesOrders: () => void
   goToCustomer360: (
     customerId: string,
-    options?: { tab?: string; salesOrderId?: string }
+    options?: { tab?: string; salesOrderId?: string; returnTo?: 'customers' | 'salesOrders' }
   ) => void
   goToInvoiceDetails: (invoiceId: string) => void
   goToAllInvoices: (customerId: string) => void
@@ -41,12 +41,13 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const goToCustomer360 = useCallback(
-    (customerId: string, options?: { tab?: string; salesOrderId?: string }) => {
+    (customerId: string, options?: { tab?: string; salesOrderId?: string; returnTo?: 'customers' | 'salesOrders' }) => {
       setView({
         name: 'customer360',
         customerId,
         ...(options?.tab ? { tab: options.tab } : {}),
         ...(options?.salesOrderId ? { salesOrderId: options.salesOrderId } : {}),
+        ...(options?.returnTo ? { returnTo: options.returnTo } : {}),
       })
     },
     []
