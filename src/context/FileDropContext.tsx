@@ -1,10 +1,12 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useRef, type ReactNode } from 'react'
 
 export interface ProcessingFile {
   id: string
   name: string
   progress: number
-  status: 'uploading' | 'processing' | 'complete' | 'error'
+  status: 'uploading' | 'uploaded' | 'processing' | 'complete' | 'error'
+  /** Temporary rows in My tasks only for multi-file uploads */
+  showInTaskTable: boolean
 }
 
 export interface WorkbenchItem {
@@ -33,7 +35,7 @@ interface FileDropContextValue {
   isDragging: boolean
   setIsDragging: (value: boolean) => void
   processingFiles: ProcessingFile[]
-  addProcessingFile: (file: File) => void
+  addProcessingFile: (file: File, options?: { batchSize?: number }) => void
   removeProcessingFile: (fileId: string) => void
   workbenchItems: WorkbenchItem[]
   hasNewItem: boolean
@@ -379,101 +381,145 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
   const [workbenchItems, setWorkbenchItems] = useState<WorkbenchItem[]>(INITIAL_TASKS)
   const [hasNewItem, setHasNewItem] = useState(false)
   const [shouldOpenModal, setShouldOpenModal] = useState(false)
+  const extractionQueueRef = useRef<string[]>([])
+  const isExtractingRef = useRef(false)
+  const processingFilesRef = useRef<ProcessingFile[]>([])
 
-  const addProcessingFile = useCallback((file: File) => {
-    const fileId = `file-${Date.now()}`
-    const processingFile: ProcessingFile = {
-      id: fileId,
-      name: file.name,
-      progress: 0,
-      status: 'uploading',
-    }
+  const promoteFileToWorkbench = useCallback(() => {
+    setWorkbenchItems((prev) => {
+      const existingIndex = prev.findIndex((item) => item.customer === 'Pioneer Systems')
 
-    setProcessingFiles(prev => [...prev, processingFile])
+      if (existingIndex !== -1) {
+        const updatedItems = [...prev]
+        const existingItem = updatedItems[existingIndex]
+        updatedItems.splice(existingIndex, 1)
+        return [
+          {
+            ...existingItem,
+            isNew: true,
+            createdAt: new Date(),
+          },
+          ...updatedItems,
+        ]
+      }
 
-    // Simulate upload progress
-    let progress = 0
-    const uploadInterval = setInterval(() => {
-      progress += Math.random() * 15 + 5
-      if (progress >= 100) {
-        progress = 100
-        clearInterval(uploadInterval)
-        
-        // Move to processing phase
-        setProcessingFiles(prev =>
-          prev.map(f =>
-            f.id === fileId ? { ...f, progress: 100, status: 'processing' as const } : f
+      return [createPioneerSystemsItem(), ...prev]
+    })
+    setHasNewItem(true)
+  }, [])
+
+  const processNextExtraction = useCallback(() => {
+    if (isExtractingRef.current) return
+    const nextId = extractionQueueRef.current[0]
+    if (!nextId) return
+
+    const latest = processingFilesRef.current
+    // Wait until every file has finished uploading so the pill and table
+    // enter "Extracting" from the same state update.
+    if (latest.some((f) => f.status === 'uploading')) return
+
+    const nextFile = latest.find((f) => f.id === nextId)
+    if (!nextFile || nextFile.status !== 'uploaded') return
+
+    extractionQueueRef.current.shift()
+    isExtractingRef.current = true
+
+    const nextFiles = latest.map((f) =>
+      f.id === nextId ? { ...f, status: 'processing' as const } : f
+    )
+    processingFilesRef.current = nextFiles
+    setProcessingFiles(nextFiles)
+
+    const EXTRACTION_MS = 3500
+    setTimeout(() => {
+      const finished = processingFilesRef.current.find((f) => f.id === nextId)
+      const after = processingFilesRef.current.map((f) =>
+        f.id === nextId ? { ...f, status: 'complete' as const } : f
+      )
+      processingFilesRef.current = after
+      setProcessingFiles(after)
+      promoteFileToWorkbench()
+      // Single-file uploads open the customer link modal (multi-file stays on the table)
+      if (finished && !finished.showInTaskTable) {
+        setShouldOpenModal(true)
+      }
+      isExtractingRef.current = false
+      processNextExtraction()
+    }, EXTRACTION_MS)
+  }, [promoteFileToWorkbench])
+
+  const enqueueExtraction = useCallback(
+    (fileId: string) => {
+      extractionQueueRef.current.push(fileId)
+      processNextExtraction()
+    },
+    [processNextExtraction]
+  )
+
+  const addProcessingFile = useCallback(
+    (file: File, options?: { batchSize?: number }) => {
+      const fileId = `file-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
+      const processingFile: ProcessingFile = {
+        id: fileId,
+        name: file.name,
+        progress: 0,
+        status: 'uploading',
+        showInTaskTable: (options?.batchSize ?? 1) >= 2,
+      }
+
+      const withNew = [...processingFilesRef.current, processingFile]
+      processingFilesRef.current = withNew
+      setProcessingFiles(withNew)
+
+      // Simulate upload progress — each file uploads independently
+      let progress = 0
+      const uploadInterval = setInterval(() => {
+        progress += Math.random() * 15 + 5
+        if (progress >= 100) {
+          progress = 100
+          clearInterval(uploadInterval)
+
+          const uploaded = processingFilesRef.current.map((f) =>
+            f.id === fileId ? { ...f, progress: 100, status: 'uploaded' as const } : f
           )
-        )
-
-        // Simulate processing
-        setTimeout(() => {
-          setProcessingFiles(prev =>
-            prev.map(f =>
-              f.id === fileId ? { ...f, status: 'complete' as const } : f
-            )
-          )
-
-          // Add or update Pioneer Systems in workbench (at the top)
-          setWorkbenchItems(prev => {
-            // Check if Pioneer Systems already exists
-            const existingIndex = prev.findIndex(item => item.customer === 'Pioneer Systems')
-            
-            if (existingIndex !== -1) {
-              // Update existing item: mark as new and update timestamp
-              const updatedItems = [...prev]
-              const existingItem = updatedItems[existingIndex]
-              // Remove from current position
-              updatedItems.splice(existingIndex, 1)
-              // Add updated item to the top
-              return [{
-                ...existingItem,
-                isNew: true,
-                createdAt: new Date(),
-              }, ...updatedItems]
-            }
-            
-            // Add new Pioneer Systems item
-            return [createPioneerSystemsItem(), ...prev]
-          })
-          setHasNewItem(true)
-
-          // Direct-to-linking: auto-open the Customer Link modal once processing
-          // completes, skipping the "Open workbench item" step.
-          setShouldOpenModal(true)
-
-          // Keep completed notification persistent - don't auto-remove
-        }, 1500)
-      } else {
-        setProcessingFiles(prev =>
-          prev.map(f =>
+          processingFilesRef.current = uploaded
+          setProcessingFiles(uploaded)
+          enqueueExtraction(fileId)
+        } else {
+          const progressed = processingFilesRef.current.map((f) =>
             f.id === fileId ? { ...f, progress: Math.min(progress, 99) } : f
           )
-        )
-      }
-    }, 200)
-  }, [])
+          processingFilesRef.current = progressed
+          setProcessingFiles(progressed)
+        }
+      }, 200)
+    },
+    [enqueueExtraction]
+  )
 
   const clearNewItemFlag = useCallback(() => {
     setHasNewItem(false)
-    setWorkbenchItems(prev =>
-      prev.map(item => ({ ...item, isNew: false }))
-    )
+    setWorkbenchItems((prev) => prev.map((item) => ({ ...item, isNew: false })))
   }, [])
 
-  const clearItemNewFlag = useCallback((itemId: number) => {
-    setWorkbenchItems(prev =>
-      prev.map(item => item.id === itemId ? { ...item, isNew: false } : item)
-    )
-    // Check if there are any remaining new items
-    setHasNewItem(prev => {
-      const hasOtherNew = prev && workbenchItems.some(item => item.id !== itemId && item.isNew)
-      return hasOtherNew
-    })
-  }, [workbenchItems])
+  const clearItemNewFlag = useCallback(
+    (itemId: number) => {
+      setWorkbenchItems((prev) =>
+        prev.map((item) => (item.id === itemId ? { ...item, isNew: false } : item))
+      )
+      setHasNewItem((prev) => {
+        const hasOtherNew = prev && workbenchItems.some((item) => item.id !== itemId && item.isNew)
+        return hasOtherNew
+      })
+    },
+    [workbenchItems]
+  )
 
   const removeProcessingFile = useCallback((fileId: string) => {
-    setProcessingFiles(prev => prev.filter(f => f.id !== fileId))
+    const next = processingFilesRef.current.filter((f) => f.id !== fileId)
+    processingFilesRef.current = next
+    setProcessingFiles(next)
+    extractionQueueRef.current = extractionQueueRef.current.filter((id) => id !== fileId)
   }, [])
 
   return (

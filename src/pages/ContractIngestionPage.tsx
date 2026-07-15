@@ -48,7 +48,10 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   const [notes, setNotes] = useState('')
   
   const activeFile = processingFiles.find(
-    (f) => f.status === 'uploading' || f.status === 'processing',
+    (f) =>
+      f.status === 'uploading' ||
+      f.status === 'uploaded' ||
+      f.status === 'processing',
   )
   const isAIProcessing = activeFile?.status === 'processing'
   const isProcessing = isAIProcessing || isSubmitting
@@ -143,7 +146,7 @@ function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: num
   const handleProcess = () => {
     if (pendingFiles.length === 0 || isProcessing || isUploading) return
     setIsSubmitting(true)
-    pendingFiles.forEach(file => addProcessingFile(file))
+    pendingFiles.forEach(file => addProcessingFile(file, { batchSize: pendingFiles.length }))
   }
   
   const truncateFileName = (name: string, maxLength = 24) => {

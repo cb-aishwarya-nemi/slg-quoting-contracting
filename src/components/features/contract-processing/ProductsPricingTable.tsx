@@ -22,7 +22,8 @@ function recordProductEdit(
   previousValue: string,
   newValue: string
 ) {
-  if (!editHistory || previousValue === newValue) return
+  if (!editHistory || !previousValue.trim() || previousValue === newValue) return
+  if (previousValue.trim() === '—' || previousValue.trim() === '-') return
 
   editHistory.recordEdit(
     PRODUCTS_SECTION_ID,

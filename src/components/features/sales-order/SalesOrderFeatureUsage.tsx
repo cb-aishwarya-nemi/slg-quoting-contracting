@@ -740,15 +740,21 @@ function usageLimitPercent(used: number, allocated: number): number {
   return Math.min(100, Math.round((used / allocated) * 100))
 }
 
-function UsageLimitCard({ metric, showInsight }: { metric: UsageLimitMetric; showInsight: boolean }) {
+function UsageLimitCard({ metric }: { metric: UsageLimitMetric }) {
+  const [isHovered, setIsHovered] = useState(false)
   const pct = usageLimitPercent(metric.used, metric.allocated)
   const isFullyUsed = metric.used >= metric.allocated
   const hasAiInsight = !!metric.aiInsight
+  const showInsight = hasAiInsight && isHovered
 
   return (
-    <div className="min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-3">
+    <div
+      className="min-w-0 flex-1 rounded-lg border border-neutral-200 bg-white px-4 py-3"
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <div className="flex items-baseline justify-between gap-3">
-        <span className="flex items-center gap-1.5 text-[12px] font-medium text-brand-navy">
+        <span className="flex items-center gap-1.5 text-[15px] font-semibold text-brand-navy">
           {metric.label}
           {hasAiInsight && <GradientSparkle size={12} />}
         </span>
@@ -788,18 +794,12 @@ function UsageLimitCard({ metric, showInsight }: { metric: UsageLimitMetric; sho
 }
 
 function UsageLimitCards({ metrics }: { metrics: UsageLimitMetric[] }) {
-  const [isHovered, setIsHovered] = useState(false)
-
   if (metrics.length === 0) return null
 
   return (
-    <div
-      className="grid grid-cols-2 gap-6"
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
+    <div className="grid grid-cols-2 gap-6">
       {metrics.map((metric) => (
-        <UsageLimitCard key={metric.id} metric={metric} showInsight={isHovered} />
+        <UsageLimitCard key={metric.id} metric={metric} />
       ))}
     </div>
   )
@@ -904,7 +904,7 @@ export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsag
         <FeatureUsageChart feature={selected} />
       </div>
       {usageLimits && usageLimits.length > 0 && (
-        <div className="mt-4">
+        <div className="mt-8">
           <UsageLimitCards metrics={usageLimits} />
         </div>
       )}

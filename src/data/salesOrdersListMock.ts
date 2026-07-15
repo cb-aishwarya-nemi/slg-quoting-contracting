@@ -404,9 +404,9 @@ const PAYMENT_SUMMARY_OVERRIDES: Partial<Record<string, Omit<SalesOrderPaymentSu
     overdueAmount: '$126,000.00',
     overdueInvoiceId: 'INV-2026-9584',
     patternSummary:
-      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months.',
+      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months — Sharath is on top of this, and 4 reminders have already been sent.',
     patternSummaryShort:
-      'First overdue invoice in 14 months — customer typically pays within Net 30.',
+      'First overdue in 14 months — Sharath is on it; 4 reminders already sent.',
     recentInvoices: [
       { invoiceId: 'INV-2026-9584', amount: '$126,000.00', timingLabel: 'Overdue', timingTone: 'danger' },
       { invoiceId: 'INV-2026-8847', amount: '$54,000.00', timingLabel: 'On time', timingTone: 'positive' },
@@ -432,6 +432,8 @@ export interface UsageTermRow {
   included: string
   onDemand: string
   includedTone?: 'default' | 'warning' | 'danger'
+  /** End-of-month projection when the cycle is still in progress. */
+  projected?: number
 }
 
 export interface UsageAttentionSignal {
@@ -475,11 +477,12 @@ const USAGE_ATTENTION_OVERRIDES: Partial<Record<string, UsageAttentionSignal>> =
       'Usage up three cycles in a row — sustained growth, not a one-off spike.',
     ctaLabel: 'View upgrade options',
     usagePattern: [
-      { billingTerm: 'Jul 2026', included: '2,273/2,500', onDemand: '0', includedTone: 'warning' },
+      { billingTerm: 'Jul 2026', included: '2,273/2,500', onDemand: '0', includedTone: 'warning', projected: 3_035 },
       { billingTerm: 'Jun 2026', included: '2,500/2,500', onDemand: '342', includedTone: 'danger' },
       { billingTerm: 'May 2026', included: '1,890/2,500', onDemand: '0' },
       { billingTerm: 'Apr 2026', included: '1,620/2,500', onDemand: '0' },
       { billingTerm: 'Mar 2026', included: '1,420/2,500', onDemand: '0' },
+      { billingTerm: 'Feb 2026', included: '1,180/2,500', onDemand: '0' },
     ],
   },
 }

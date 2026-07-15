@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
+import { Search, Sparkles, ArrowRight, Check, ChevronRight, Loader2 } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
-import { useFileDrop, type WorkbenchItem } from "@/context/FileDropContext";
+import { useFileDrop, type ProcessingFile, type WorkbenchItem } from "@/context/FileDropContext";
 import { useUseCase } from "@/context/UseCaseContext";
 import { CustomerLinkModal } from "@/components/features/customer-link";
 
@@ -31,6 +31,102 @@ const stripFilename = (subject: string): string => {
   return dashIndex !== -1 ? subject.slice(dashIndex + 3) : subject;
 };
 
+function SkeletonBar({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-block h-4 animate-pulse rounded bg-neutral-200",
+        className
+      )}
+      aria-hidden
+    />
+  )
+}
+
+function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
+  const isUploading = file.status === 'uploading'
+  const isUploaded = file.status === 'uploaded'
+  const isExtracting = file.status === 'processing'
+
+  return (
+    <tr className="border-b border-neutral-100">
+      {/* Task Type — skeleton */}
+      <td className="py-2.5 pl-4 pr-4">
+        <SkeletonBar className="w-[140px]" />
+      </td>
+
+      {/* Customer — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="w-[96px]" />
+      </td>
+
+      {/* Subject — PDF name */}
+      <td className="py-2.5 pr-4 max-w-0">
+        <span className="block truncate text-[13px] font-medium text-brand-navy">
+          {file.name}
+        </span>
+      </td>
+
+      {/* Status — Uploading / Uploaded / Extracting data */}
+      <td className="py-2 pl-1 pr-4">
+        <div className="flex min-w-[132px] flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 min-w-0">
+              {isUploading && (
+                <Loader2 size={12} className="shrink-0 animate-spin text-blue-700" />
+              )}
+              {isUploaded && (
+                <Check size={12} className="shrink-0 text-green-700" strokeWidth={2.5} />
+              )}
+              {isExtracting && (
+                <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
+              )}
+              <span
+                className={cn(
+                  "text-[13px] font-medium whitespace-nowrap transition-colors duration-300",
+                  isUploading && "text-blue-700",
+                  isUploaded && "text-green-700",
+                  isExtracting && "ai-gradient-text"
+                )}
+              >
+                {isUploading ? "Uploading" : isUploaded ? "Uploaded" : "Extracting data"}
+              </span>
+            </div>
+            {isUploading && (
+              <span className="shrink-0 text-[12px] tabular-nums text-blue-700/70">
+                {Math.round(file.progress)}%
+              </span>
+            )}
+          </div>
+          {(isUploading || isExtracting) && (
+            <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
+              <div
+                className={cn(
+                  "h-full rounded-full transition-all duration-300",
+                  isExtracting ? "ai-gradient animate-pulse" : "bg-blue-700"
+                )}
+                style={{ width: isExtracting ? "100%" : `${Math.max(file.progress, 8)}%` }}
+              />
+            </div>
+          )}
+          {isUploaded && (
+            <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
+              <div className="h-full w-full rounded-full bg-green-500/70" />
+            </div>
+          )}
+        </div>
+      </td>
+
+      {/* Created on — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="w-[88px]" />
+      </td>
+
+      <td className="py-2.5 pl-2 pr-4" />
+    </tr>
+  )
+}
+
 export function WorkbenchPage() {
   const [activeTab, setActiveTab] = useState("your-tasks");
   const [isHeaderSticky, setIsHeaderSticky] = useState(false);
@@ -43,8 +139,16 @@ export function WorkbenchPage() {
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
-  const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal } = useFileDrop();
+  const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal, processingFiles } = useFileDrop();
   const { setActivePage } = useUseCase();
+
+  const inFlightFiles = processingFiles.filter(
+    (file) =>
+      file.showInTaskTable &&
+      (file.status === "uploading" ||
+        file.status === "uploaded" ||
+        file.status === "processing")
+  );
 
   // Register this page with use case context
   useEffect(() => {
@@ -431,7 +535,10 @@ export function WorkbenchPage() {
 
                   {/* Table Body */}
                   <tbody>
-                    {filteredTasks.length === 0 ? (
+                    {inFlightFiles.map((file) => (
+                      <ProcessingTaskRow key={file.id} file={file} />
+                    ))}
+                    {filteredTasks.length === 0 && inFlightFiles.length === 0 ? (
                       <tr>
                         <td colSpan={6} className="py-8 text-center">
                           <div className="flex flex-col items-center gap-2">

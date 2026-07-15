@@ -103,8 +103,6 @@ export function getSalesOrderUsageLimits(orderId: string): UsageLimitMetric[] | 
         label: 'Sandboxes',
         used: 2,
         allocated: 2,
-        aiInsight:
-          'Provisioned but no activity in 45 days. Customers who don\'t use their sandbox environment in the first 60 days are significantly more likely to churn at renewal.',
       },
     ]
   }

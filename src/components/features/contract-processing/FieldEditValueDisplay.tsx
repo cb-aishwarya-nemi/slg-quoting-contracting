@@ -22,8 +22,14 @@ export function FieldEditValueDisplay({
 
   if (edits.length === 0) return null
 
-  const latest = edits[0]
-  const olderEdits = edits.slice(1)
+  const meaningfulEdits = edits.filter((edit) => {
+    const trimmed = edit.previousValue.trim()
+    return trimmed.length > 0 && trimmed !== '—' && trimmed !== '-'
+  })
+  if (meaningfulEdits.length === 0) return null
+
+  const latest = meaningfulEdits[0]
+  const olderEdits = meaningfulEdits.slice(1)
   const hasOlderEdits = olderEdits.length > 0
 
   const previousValueLine = (
@@ -57,7 +63,7 @@ export function FieldEditValueDisplay({
           variant === 'stacked' ? 'text-[12px]' : 'text-[14px]'
         )}
       >
-        {latest.previousValue || '—'}
+        {latest.previousValue}
       </span>
     </span>
   )
@@ -83,10 +89,12 @@ export function FieldEditValueDisplay({
                 <div className="min-w-0">
                   <p className="text-[12px] text-brand-navy group-hover:text-white/80">
                     <span className="font-medium">{edit.newValue}</span>
-                    <span className="text-brand-fog group-hover:text-white/50">
-                      {' '}
-                      · was {edit.previousValue || '—'}
-                    </span>
+                    {edit.previousValue.trim() && (
+                      <span className="text-brand-fog group-hover:text-white/50">
+                        {' '}
+                        · was {edit.previousValue}
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
@@ -132,7 +140,7 @@ export function FieldEditValueDisplay({
             />
           </button>
           <span className="truncate text-[14px] font-medium text-brand-fog group-hover:text-white/60">
-            {latest.previousValue || '—'}
+            {latest.previousValue}
           </span>
         </span>
       </div>
@@ -145,10 +153,12 @@ export function FieldEditValueDisplay({
               <div className="min-w-0">
                 <p className="text-[12px] text-brand-navy group-hover:text-white/80">
                   <span className="font-medium">{edit.newValue}</span>
-                  <span className="text-brand-fog group-hover:text-white/50">
-                    {' '}
-                    · was {edit.previousValue || '—'}
-                  </span>
+                  {edit.previousValue.trim() && (
+                    <span className="text-brand-fog group-hover:text-white/50">
+                      {' '}
+                      · was {edit.previousValue}
+                    </span>
+                  )}
                 </p>
               </div>
             </div>

@@ -96,9 +96,6 @@ function resolveListItem(order: SalesOrder): SalesOrderListItem {
 const ATTENTION_INVOICE_ROW =
   'grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] items-center gap-x-6 border-b border-neutral-200 py-2.5'
 
-const USAGE_PATTERN_ROW =
-  'flex items-center gap-4 border-b border-neutral-200 py-2.5'
-
 const USAGE_INCLUDED_STYLES: Record<'default' | 'warning' | 'danger', string> = {
   default: 'text-brand-navy',
   warning: 'text-amber-700',
@@ -160,7 +157,7 @@ function AttentionItem({
   showAction = true,
 }: {
   headline: ReactNode
-  summary: string
+  summary: ReactNode
   actionLabel: string
   showAction?: boolean
 }) {
@@ -182,30 +179,446 @@ function AttentionItem({
   )
 }
 
-function UsagePatternTable({ terms }: { terms: UsageTermRow[] }) {
+function UsagePatternTooltip({
+  point,
+}: {
+  point: {
+    key: string
+    month: string
+    included: number
+    onDemand: number
+    cap: number
+    total: number
+    projected?: number
+  }
+}) {
   return (
-    <div className="mt-8 grid grid-cols-2 gap-20">
-      <div className="min-w-0">
-        <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-          Usage pattern
-        </p>
-        <div>
-          {terms.map((row) => (
-            <div key={row.billingTerm} className={USAGE_PATTERN_ROW}>
-              <span className="w-[88px] shrink-0 text-[13px] font-medium text-brand-navy">
-                {row.billingTerm}
-              </span>
-              <UsageAmountDisplay
-                included={row.included}
-                onDemand={row.onDemand}
-                includedTone={row.includedTone}
+    <div className="w-[240px] shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 shadow-lg">
+      <p className="text-[11px] font-semibold text-brand-navy">{point.key}</p>
+      <div className="mt-2 space-y-1.5">
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
+            <svg width="14" height="6" aria-hidden className="shrink-0">
+              <line
+                x1="0"
+                y1="3"
+                x2="14"
+                y2="3"
+                stroke="#94a3b8"
+                strokeWidth="2"
+                strokeDasharray="3 2"
               />
-            </div>
-          ))}
+            </svg>
+            Monthly quota
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {formatUsageChartValue(point.cap)} images
+          </span>
         </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
+            <span
+              className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
+              style={{ backgroundColor: '#22863a' }}
+            />
+            Included usage
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {point.included > 0 ? `${formatUsageChartValue(point.included)} images` : '—'}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
+            <span
+              className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
+              style={{ backgroundColor: '#d96138' }}
+            />
+            On-demand usage
+          </span>
+          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+            {point.onDemand > 0 ? `${formatUsageChartValue(point.onDemand)} images` : '—'}
+          </span>
+        </div>
+        {point.projected != null && (
+          <div className="flex items-center justify-between gap-4">
+            <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
+              <svg width="14" height="6" aria-hidden className="shrink-0">
+                <line
+                  x1="0"
+                  y1="3"
+                  x2="14"
+                  y2="3"
+                  stroke="#22863a"
+                  strokeWidth="2"
+                  strokeDasharray="3 2"
+                />
+              </svg>
+              Projected EOM
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+              {formatUsageChartValue(point.projected)} images
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
+}
+
+function UsagePatternChart({ terms }: { terms: UsageTermRow[] }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  const points = useMemo(() => {
+    return [...terms].reverse().map((row) => {
+      const [usedRaw, capRaw] = row.included.split('/')
+      const included = parseUsageQuantity(usedRaw) ?? 0
+      const cap = parseUsageQuantity(capRaw) ?? 0
+      const onDemand = parseUsageQuantity(row.onDemand) ?? 0
+      const month = row.billingTerm.split(/\s+/)[0] ?? row.billingTerm
+      return {
+        key: row.billingTerm,
+        month,
+        included,
+        onDemand,
+        cap,
+        total: included + onDemand,
+        projected: row.projected,
+      }
+    })
+  }, [terms])
+
+  const cap = points.reduce((max, point) => Math.max(max, point.cap), 0)
+  const peak = points.reduce(
+    (max, point) => Math.max(max, point.total, point.cap, point.projected ?? 0),
+    0
+  )
+  const yMax = (() => {
+    if (peak <= 0) return 1
+    const rough = peak * 1.15
+    const step = rough <= 1000 ? 200 : rough <= 3000 ? 500 : 1000
+    return Math.ceil(rough / step) * step
+  })()
+  const yTickCount = 4
+  const yTicks = Array.from({ length: yTickCount + 1 }, (_, i) => (yMax / yTickCount) * i)
+
+  const plot = { left: 0, right: 168, top: 20, bottom: 32, width: 620, height: 200 }
+  const innerW = plot.width - plot.left - plot.right
+  const innerH = plot.height - plot.top - plot.bottom
+  const axisY = plot.top + innerH
+  const axisX = plot.left
+  const seriesPadLeft = 0
+  const seriesPadRight = 36
+  const seriesW = Math.max(innerW - seriesPadLeft - seriesPadRight, 1)
+
+  const valueToY = (value: number) => plot.top + innerH * (1 - value / yMax)
+  const indexToX = (index: number) =>
+    points.length <= 1
+      ? plot.left + seriesPadLeft + seriesW / 2
+      : plot.left + seriesPadLeft + (seriesW * index) / (points.length - 1)
+
+  const plotted = points.map((point, index) => ({
+    ...point,
+    x: indexToX(index),
+    y: valueToY(point.total),
+    projectedY: point.projected != null ? valueToY(point.projected) : null,
+    index,
+  }))
+  const linePath = plotted
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ')
+  const areaPath =
+    plotted.length > 0
+      ? [
+          `M ${plotted[0].x} ${axisY}`,
+          ...plotted.map((point) => `L ${point.x} ${point.y}`),
+          `L ${plotted[plotted.length - 1].x} ${axisY}`,
+          'Z',
+        ].join(' ')
+      : ''
+  const projectedSegments = plotted.flatMap((point, index) => {
+    if (point.projected == null || point.projectedY == null || index === 0) return []
+    const previous = plotted[index - 1]
+    return [{ point, previous }]
+  })
+  const capY = valueToY(cap)
+  const capLineEnd = plot.left + innerW
+  const quotaLabel = `Monthly quota: ${formatUsageChartValue(cap)} images`
+  const quotaPillWidth = 156
+  const quotaPillX = capLineEnd + 8
+  const quotaStroke = '#94a3b8'
+  const quotaPillFill = '#f1f5f9'
+  const quotaPillText = '#475569'
+  const hoverAccent = '34, 134, 58'
+  const hoveredPoint = hoveredIndex !== null ? plotted[hoveredIndex] : null
+  const slotHalf =
+    plotted.length <= 1 ? seriesW / 2 : seriesW / (2 * Math.max(plotted.length - 1, 1))
+  const tooltipSide =
+    hoveredPoint == null
+      ? 'center'
+      : hoveredPoint.x / plot.width < 0.28
+        ? 'left'
+        : hoveredPoint.x / plot.width > 0.68
+          ? 'right'
+          : 'center'
+
+  return (
+    <div className="relative z-10 mt-8 max-w-[660px] overflow-visible">
+      <div className="relative z-20 w-full overflow-visible">
+        <svg
+          viewBox={`0 0 ${plot.width} ${plot.height}`}
+          className="relative z-0 h-[200px] w-full"
+          role="img"
+          aria-label="Images created in past 6 months"
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {yTicks.map((tick) => {
+            if (tick <= 0) return null
+            const y = valueToY(tick)
+            return (
+              <line
+                key={`ytick-${tick}`}
+                x1={axisX}
+                y1={y}
+                x2={plot.left + innerW}
+                y2={y}
+                stroke="#eef2f6"
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
+
+          {/* Axes */}
+          <line
+            x1={axisX}
+            y1={axisY}
+            x2={plot.left + innerW}
+            y2={axisY}
+            stroke="#d8dee8"
+            strokeWidth="1.25"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          {cap > 0 && (
+            <g>
+              <line
+                x1={axisX}
+                y1={capY}
+                x2={capLineEnd}
+                y2={capY}
+                stroke={quotaStroke}
+                strokeWidth="1.75"
+                strokeDasharray="5 4"
+                vectorEffect="non-scaling-stroke"
+              />
+              <rect
+                x={quotaPillX}
+                y={capY - 9}
+                width={quotaPillWidth}
+                height={18}
+                rx="9"
+                fill={quotaPillFill}
+              />
+              <text
+                x={quotaPillX + quotaPillWidth / 2}
+                y={capY + 3.5}
+                textAnchor="middle"
+                fill={quotaPillText}
+                style={{ fontSize: 10, fontWeight: 600 }}
+              >
+                {quotaLabel}
+              </text>
+            </g>
+          )}
+
+          {areaPath && (
+            <path
+              d={areaPath}
+              fill="rgba(34, 134, 58, 0.1)"
+              className="transition-opacity duration-150"
+              style={{ opacity: hoveredIndex === null ? 1 : 0.55 }}
+            />
+          )}
+          {linePath && (
+            <path
+              d={linePath}
+              fill="none"
+              stroke="#22863a"
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+              className="transition-opacity duration-150"
+              style={{ opacity: hoveredIndex === null ? 1 : 0.7 }}
+            />
+          )}
+
+          {projectedSegments.map(({ point, previous }) => (
+            <g
+              key={`projected-${point.key}`}
+              className="transition-opacity duration-150"
+              style={{
+                opacity:
+                  hoveredIndex === null ||
+                  hoveredIndex === point.index ||
+                  hoveredIndex === previous.index
+                    ? 1
+                    : 0.35,
+              }}
+              pointerEvents="none"
+            >
+              <line
+                x1={previous.x}
+                y1={previous.y}
+                x2={point.x}
+                y2={point.projectedY!}
+                stroke="#22863a"
+                strokeWidth="2"
+                strokeDasharray="4 3"
+                strokeLinecap="round"
+                vectorEffect="non-scaling-stroke"
+              />
+              <circle
+                cx={point.x}
+                cy={point.projectedY!}
+                r="3.5"
+                fill="white"
+                stroke="#22863a"
+                strokeWidth="2"
+                strokeDasharray="2.5 2"
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={point.x}
+                y={point.projectedY! - 10}
+                textAnchor="middle"
+                fill="#64748b"
+                style={{ fontSize: 10, fontWeight: 600 }}
+              >
+                {formatUsageChartValue(point.projected!)} projected
+              </text>
+            </g>
+          ))}
+
+          {hoveredPoint && (
+            <g pointerEvents="none">
+              <rect
+                x={hoveredPoint.x - slotHalf}
+                y={plot.top}
+                width={slotHalf * 2}
+                height={axisY - plot.top}
+                fill={`rgba(${hoverAccent}, 0.06)`}
+              />
+              <line
+                x1={hoveredPoint.x}
+                y1={plot.top}
+                x2={hoveredPoint.x}
+                y2={axisY}
+                stroke={`rgba(${hoverAccent}, 0.25)`}
+                strokeWidth="1"
+                vectorEffect="non-scaling-stroke"
+              />
+            </g>
+          )}
+
+          {plotted.map((point) => {
+            const isHovered = hoveredIndex === point.index
+            const isDimmed = hoveredIndex !== null && !isHovered
+            const hasProjection =
+              point.projected != null && point.projectedY != null
+            return (
+              <g key={point.key} className="pointer-events-none">
+                <circle
+                  cx={point.x}
+                  cy={point.y}
+                  r={isHovered ? 5 : 3.5}
+                  fill="white"
+                  stroke={point.onDemand > 0 ? '#d96138' : '#22863a'}
+                  strokeWidth="2"
+                  vectorEffect="non-scaling-stroke"
+                  className="transition-opacity duration-150"
+                  style={{ opacity: isDimmed ? 0.35 : 1 }}
+                />
+                <text
+                  x={point.x}
+                  y={hasProjection ? point.y + 14 : point.y - 10}
+                  textAnchor={point.index === 0 ? 'start' : 'middle'}
+                  fill="#334155"
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 600,
+                    opacity: isDimmed ? 0.35 : 1,
+                  }}
+                >
+                  {formatUsageChartValue(point.total)}
+                </text>
+                <text
+                  x={point.x}
+                  y={plot.height - 10}
+                  textAnchor={point.index === 0 ? 'start' : 'middle'}
+                  fill={isHovered ? '#1e293b' : '#94a3b8'}
+                  style={{
+                    fontSize: 11,
+                    fontWeight: isHovered ? 600 : 500,
+                    opacity: isDimmed ? 0.4 : 1,
+                  }}
+                >
+                  {point.month}
+                </text>
+              </g>
+            )
+          })}
+
+          {plotted.map((point, index) => {
+            const left =
+              index === 0
+                ? axisX
+                : (plotted[index - 1].x + point.x) / 2
+            const right =
+              index === plotted.length - 1
+                ? plot.left + innerW
+                : (point.x + plotted[index + 1].x) / 2
+            return (
+              <rect
+                key={`hit-${point.key}`}
+                x={left}
+                y={plot.top}
+                width={Math.max(right - left, 1)}
+                height={axisY - plot.top + 20}
+                fill="transparent"
+                className="cursor-pointer"
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
+              />
+            )
+          })}
+        </svg>
+
+        {hoveredPoint && (
+          <div
+            className={cn(
+              'pointer-events-none absolute z-30',
+              tooltipSide === 'right'
+                ? '-translate-x-full -translate-y-[calc(100%+10px)]'
+                : tooltipSide === 'left'
+                  ? '-translate-y-[calc(100%+10px)]'
+                  : '-translate-x-1/2 -translate-y-[calc(100%+10px)]'
+            )}
+            style={{
+              left: `${(hoveredPoint.x / plot.width) * 100}%`,
+              top: `${((hoveredPoint.projectedY ?? hoveredPoint.y) / plot.height) * 100}%`,
+            }}
+          >
+            <UsagePatternTooltip point={hoveredPoint} />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function formatUsageChartValue(value: number): string {
+  return Math.round(value).toLocaleString('en-US')
 }
 
 const METERED_USAGE_FEATURES = new Set([
@@ -457,7 +870,43 @@ function UsageSummarySection({ order }: { order: SalesOrder }) {
 }
 
 /** Payment attention block for the V1 Summary section. */
-function PaymentAttentionSummary({ order }: { order: SalesOrder }) {
+function SubSectionHeader({
+  title,
+  onViewAll,
+}: {
+  title: string
+  onViewAll?: () => void
+}) {
+  return (
+    <div className="group/subhead mb-3 flex items-center gap-3">
+      <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
+        {title}
+      </p>
+      <button
+        type="button"
+        onClick={onViewAll}
+        className={cn(
+          'ml-auto inline-flex shrink-0 cursor-pointer items-center gap-0.5 text-[11px] font-medium text-blue-700 transition-opacity hover:underline',
+          'opacity-0 pointer-events-none group-hover/subhead:pointer-events-auto group-hover/subhead:opacity-100',
+          'group-hover/column:pointer-events-auto group-hover/column:opacity-100'
+        )}
+      >
+        View all
+        <ArrowRight size={12} strokeWidth={2.25} />
+      </button>
+    </div>
+  )
+}
+
+function PaymentAttentionSummary({
+  order,
+  onViewAllInvoices,
+  onViewAllPaymentDetails,
+}: {
+  order: SalesOrder
+  onViewAllInvoices?: () => void
+  onViewAllPaymentDetails?: () => void
+}) {
   const listItem = resolveListItem(order)
   const summary = getSalesOrderPaymentSummary(order.id, listItem)
   const usageSignal = getUsageAttentionSignal(order.id)
@@ -482,16 +931,24 @@ function PaymentAttentionSummary({ order }: { order: SalesOrder }) {
             <span className="font-semibold">{summary.overdueAmount}</span>
           </>
         }
-        summary={summary.patternSummary}
-        actionLabel="Send payment reminder"
+        summary={
+          <>
+            Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due.
+            Four of the last five invoices were on time; the open balance is the first overdue
+            invoice in 14 months —{' '}
+            <span className="mx-0.5 inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[12px] font-medium text-brand-navy align-baseline">
+              Sharath
+            </span>{' '}
+            is on top of this, and 4 reminders have already been sent.
+          </>
+        }
+        actionLabel="View reminders sent"
         showAction={summary.overdueDays > 0}
       />
 
       <div className="mt-8 grid grid-cols-2 gap-20">
-        <div className="min-w-0">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-            Past 5 invoices
-          </p>
+        <div className="group/column min-w-0">
+          <SubSectionHeader title="Past 5 invoices" onViewAll={onViewAllInvoices} />
           <div>
             {summary.recentInvoices.map((row) => (
               <div key={row.invoiceId} className={ATTENTION_INVOICE_ROW}>
@@ -514,10 +971,11 @@ function PaymentAttentionSummary({ order }: { order: SalesOrder }) {
           </div>
         </div>
 
-        <div className="min-w-0">
-          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-            Payment details
-          </p>
+        <div className="group/column min-w-0">
+          <SubSectionHeader
+            title="Payment details"
+            onViewAll={onViewAllPaymentDetails}
+          />
           <div>
             <PaymentDetailRow
               label="Card on file"
@@ -564,7 +1022,7 @@ function PaymentAttentionSummary({ order }: { order: SalesOrder }) {
             summary={usageSignal.summary}
             actionLabel={usageSignal.ctaLabel}
           />
-          <UsagePatternTable terms={usageSignal.usagePattern} />
+          <UsagePatternChart terms={usageSignal.usagePattern} />
         </div>
       )}
     </div>
@@ -813,7 +1271,11 @@ export function SalesOrderDetailsV1({
             {/* Summary */}
             <section ref={setSectionRef('summary')} className="group/section">
               <div style={{ maxWidth: CONTENT_MAX_WIDTH }}>
-                <PaymentAttentionSummary order={order} />
+                <PaymentAttentionSummary
+                  order={order}
+                  onViewAllInvoices={() => scrollToSection('invoices')}
+                  onViewAllPaymentDetails={() => scrollToSection('schedule')}
+                />
               </div>
             </section>
 

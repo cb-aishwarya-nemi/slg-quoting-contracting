@@ -1,86 +1,20 @@
 import { useRef, useEffect, useState } from 'react'
-import { Upload, Loader2, Sparkles, Send } from 'lucide-react'
+import { Upload, Loader2, Sparkles, Check } from 'lucide-react'
 import { useFileDrop } from '../../context/FileDropContext'
 import { useNavigation } from '../../context/NavigationContext'
 import { useUseCase } from '../../context/UseCaseContext'
-import { GradientSparkle } from '../features/contract-processing/GradientSparkle'
 import { cn } from '../../lib/utils'
-
-function SalesOrderAskBar() {
-  const [query, setQuery] = useState('')
-  const [isExpanded, setIsExpanded] = useState(false)
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  const handleExpand = () => {
-    setIsExpanded(true)
-    inputRef.current?.focus()
-  }
-
-  const handleBlur = () => {
-    if (!query.trim()) {
-      setIsExpanded(false)
-    }
-  }
-
-  return (
-    <div
-      className={cn(
-        'pointer-events-auto rounded-full p-[1.5px] ai-gradient transition-all duration-300 ease-out',
-        isExpanded ? 'w-[560px]' : 'w-[320px]'
-      )}
-    >
-      <div
-        className="flex cursor-text items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm"
-        onClick={handleExpand}
-      >
-        <GradientSparkle size={12} />
-        <input
-          ref={inputRef}
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          onFocus={() => setIsExpanded(true)}
-          onBlur={handleBlur}
-          placeholder="Ask about this sales order"
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-brand-navy outline-none placeholder:text-brand-fog"
-        />
-        <button
-          type="button"
-          onMouseDown={(e) => e.preventDefault()}
-          className={cn(
-            'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-full transition-colors',
-            query.trim()
-              ? 'bg-brand-navy text-white hover:bg-brand-soft'
-              : 'text-brand-fog hover:bg-neutral-100 hover:text-brand-navy'
-          )}
-          aria-label="Send"
-        >
-          <Send size={12} strokeWidth={2} />
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export function FileDropOverlay() {
   const { isDragging, setIsDragging, addProcessingFile, processingFiles } = useFileDrop()
   const { goToWorkbench } = useNavigation()
-  const { activePage, activeVariant, getPage } = useUseCase()
+  const { activePage } = useUseCase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
-  const salesOrderPage = getPage('sales-order-details')
-  const salesOrderVariant =
-    activePage === 'sales-order-details' &&
-    activeVariant &&
-    salesOrderPage?.variants.some((variant) => variant.id === activeVariant)
-      ? activeVariant
-      : (salesOrderPage?.defaultVariant ?? 'v1')
-  const isSalesOrderV1AskMode =
-    activePage === 'sales-order-details' && salesOrderVariant === 'v1'
-  const isCustomer360TasksMode = activePage === 'customer360'
   const hideOverlay =
-    isCustomer360TasksMode ||
-    (activePage === 'sales-order-details' && salesOrderVariant === 'v2')
+    activePage === 'customer360' || activePage === 'sales-order-details'
+
+  const [batchIds, setBatchIds] = useState<string[]>([])
 
   useEffect(() => {
     if (isDragging && !hasEverDragged) {
@@ -88,18 +22,83 @@ export function FileDropOverlay() {
     }
   }, [isDragging, hasEverDragged])
 
+  // Track the current drop batch so "Extracting 1/2" keeps the original total
+  useEffect(() => {
+    const activeIds = processingFiles
+      .filter(
+        (f) =>
+          f.status === 'uploading' ||
+          f.status === 'uploaded' ||
+          f.status === 'processing',
+      )
+      .map((f) => f.id)
+
+    if (activeIds.length === 0) {
+      const allBatchDone =
+        batchIds.length > 0 &&
+        batchIds.every((id) => {
+          const file = processingFiles.find((f) => f.id === id)
+          return !file || file.status === 'complete' || file.status === 'error'
+        })
+      if (allBatchDone) {
+        setBatchIds([])
+      }
+      return
+    }
+
+    setBatchIds((prev) => {
+      const stillActive = prev.some((id) => {
+        const file = processingFiles.find((f) => f.id === id)
+        return (
+          file &&
+          (file.status === 'uploading' ||
+            file.status === 'uploaded' ||
+            file.status === 'processing')
+        )
+      })
+      const next = !stillActive
+        ? activeIds
+        : [...new Set([...prev, ...activeIds])]
+      if (
+        next.length === prev.length &&
+        next.every((id, index) => id === prev[index])
+      ) {
+        return prev
+      }
+      return next
+    })
+  }, [processingFiles, batchIds])
+
   const animationClass = !hasEverDragged
     ? ''
     : isDragging
       ? 'animate-pill-expand'
       : 'animate-pill-collapse'
 
-  const activeFile = processingFiles.find(
-    (f) => f.status === 'uploading' || f.status === 'processing',
-  )
-  const isUploading = activeFile?.status === 'uploading'
-  const isAIProcessing = activeFile?.status === 'processing'
-  const isProcessing = isUploading || isAIProcessing
+  const batchFiles = batchIds
+    .map((id) => processingFiles.find((f) => f.id === id))
+    .filter((f): f is NonNullable<typeof f> => Boolean(f))
+  const batchTotal = batchFiles.length
+  const uploadingCount = batchFiles.filter((f) => f.status === 'uploading').length
+  const processingCount = batchFiles.filter((f) => f.status === 'processing').length
+  const completedCount = batchFiles.filter((f) => f.status === 'complete').length
+  const uploadedWaitingCount = batchFiles.filter((f) => f.status === 'uploaded').length
+  // Pill "Extracting" only when a row is in Extracting data — same status flag.
+  const isExtractingPhase = processingCount > 0
+  const isUploadingPhase = uploadingCount > 0 && !isExtractingPhase
+  const isUploadedWaiting =
+    !isExtractingPhase &&
+    !isUploadingPhase &&
+    uploadedWaitingCount > 0 &&
+    completedCount < batchTotal
+  const isProcessing = isUploadingPhase || isExtractingPhase || isUploadedWaiting
+  const extractingIndex = Math.min(completedCount + 1, batchTotal)
+  const uploadProgress =
+    uploadingCount > 0
+      ? batchFiles
+          .filter((f) => f.status === 'uploading')
+          .reduce((sum, f) => sum + f.progress, 0) / uploadingCount
+      : 100
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -121,7 +120,7 @@ export function FileDropOverlay() {
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
       goToWorkbench()
-      files.forEach((file) => addProcessingFile(file))
+      files.forEach((file) => addProcessingFile(file, { batchSize: files.length }))
     }
   }
 
@@ -134,21 +133,14 @@ export function FileDropOverlay() {
     const files = e.target.files
     if (files && files.length > 0) {
       goToWorkbench()
-      Array.from(files).forEach((file) => addProcessingFile(file))
+      const fileList = Array.from(files)
+      fileList.forEach((file) => addProcessingFile(file, { batchSize: fileList.length }))
       e.target.value = ''
     }
   }
 
   if (hideOverlay) {
     return null
-  }
-
-  if (isSalesOrderV1AskMode) {
-    return (
-      <div className="fixed z-50 flex justify-center pointer-events-none inset-x-0 bottom-0 pb-6 pl-12">
-        <SalesOrderAskBar />
-      </div>
-    )
   }
 
   return (
@@ -260,32 +252,52 @@ export function FileDropOverlay() {
               </>
             )}
 
-            {isUploading && activeFile && (
+            {isUploadingPhase && (
               <>
                 <Loader2 className="h-3.5 w-3.5 shrink-0 text-white animate-spin" />
-                <div className="ml-2.5 flex flex-col gap-1" style={{ width: '130px' }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-medium leading-none text-white">Uploading</span>
+                <div className="ml-2.5 flex flex-col gap-1" style={{ width: '148px' }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-medium leading-none text-white">
+                      {batchTotal >= 2
+                        ? `Uploading ${batchTotal} files`
+                        : 'Uploading'}
+                    </span>
                     <span className="text-[11px] leading-none text-white/60">
-                      {Math.round(activeFile.progress)}%
+                      {Math.round(uploadProgress)}%
                     </span>
                   </div>
                   <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/20">
                     <div
                       className="h-full rounded-full bg-white transition-all duration-300"
-                      style={{ width: `${activeFile.progress}%` }}
+                      style={{ width: `${uploadProgress}%` }}
                     />
                   </div>
                 </div>
               </>
             )}
 
-            {isAIProcessing && (
+            {isUploadedWaiting && (
+              <>
+                <Check className="h-3.5 w-3.5 shrink-0 text-white" strokeWidth={2.5} />
+                <div className="ml-2.5 flex flex-col gap-1" style={{ width: '148px' }}>
+                  <span className="text-[11px] font-medium leading-none text-white">
+                    Uploaded
+                  </span>
+                  <div className="h-[2px] w-full overflow-hidden rounded-full bg-white/20">
+                    <div className="h-full w-full rounded-full bg-white/80" />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {isExtractingPhase && (
               <>
                 <Sparkles className="h-3.5 w-3.5 shrink-0 text-white animate-pulse" />
-                <div className="ml-2.5 flex flex-col gap-1" style={{ width: '130px' }}>
+                <div className="ml-2.5 flex flex-col gap-1" style={{ width: batchTotal >= 2 ? '168px' : '148px' }}>
                   <span className="text-[11px] font-medium leading-none text-white">
-                    Processing contract...
+                    {batchTotal >= 2
+                      ? `Extracting data ${extractingIndex}/${batchTotal}`
+                      : 'Extracting data'}
                   </span>
                   <div className="h-[2px] w-full overflow-hidden rounded-full ai-gradient animate-pulse" />
                 </div>

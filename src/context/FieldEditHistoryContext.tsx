@@ -30,6 +30,12 @@ function makeFieldKey(sectionId: string, fieldLabel: string) {
   return `${sectionId}:${fieldLabel}`
 }
 
+/** Empty / missing values are first fills, not edits. */
+function hasPreviousValue(value: string) {
+  const trimmed = value.trim()
+  return trimmed.length > 0 && trimmed !== '—' && trimmed !== '-'
+}
+
 function formatEditTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp
   const diffMin = Math.floor(diffMs / 60_000)
@@ -147,6 +153,7 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
       previousValue: string,
       newValue: string
     ) => {
+      if (!hasPreviousValue(previousValue)) return
       if (previousValue === newValue) return
 
       const fieldKey = makeFieldKey(sectionId, meta.fieldLabel)

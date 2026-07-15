@@ -19,22 +19,29 @@ interface TopNavProps {
 function ProcessingBar({ files }: { files: ProcessingFile[] }) {
   const file = files[0]
   const { removeProcessingFile } = useFileDrop()
-  
+
   if (!file) return null
 
+  const isMulti = files.length > 1 || file.showInTaskTable
+  const count = files.length
   const isComplete = file.status === 'complete'
+  const isUploaded = file.status === 'uploaded'
   const isProcessing = file.status === 'processing'
 
   const handleDismiss = () => {
-    removeProcessingFile(file.id)
+    files.forEach((f) => removeProcessingFile(f.id))
   }
+
+  const successTitle = isMulti
+    ? `${count} contracts processed successfully`
+    : 'Contract processed successfully'
 
   return (
     <div
       className={cn(
         "fixed right-4 top-11 z-30 min-w-[420px] rounded-lg border-2 bg-white p-4",
         "animate-in slide-in-from-top-2 duration-300",
-        isComplete ? "border-brand-navy" : "border-brand-navy"
+        "border-brand-navy"
       )}
     >
       <div className="flex items-start gap-4">
@@ -43,15 +50,19 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             <div>
               <h4 className="text-sm font-semibold text-brand-navy">
                 {isComplete
-                  ? 'Contract processed successfully'
+                  ? successTitle
                   : isProcessing
                   ? 'Processing contract...'
+                  : isUploaded
+                  ? 'Upload complete'
                   : 'Uploading contract...'}
               </h4>
-              <p className="mt-0.5 max-w-[280px] truncate text-sm text-brand-fog">
-                {file.name}
-              </p>
-              {isComplete && (
+              {!isMulti && (
+                <p className="mt-0.5 max-w-[280px] truncate text-sm text-brand-fog">
+                  {file.name}
+                </p>
+              )}
+              {isComplete && !isMulti && (
                 <p className="mt-1 text-[13px] text-brand-fog">
                   Opening customer linking…
                 </p>
@@ -72,10 +83,18 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             <div className="mt-3">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-medium text-brand-navy">
-                  {isProcessing ? 'Extracting contract details' : 'Uploading'}
+                  {isProcessing
+                    ? 'Extracting contract details'
+                    : isUploaded
+                    ? 'Queued for extraction'
+                    : 'Uploading'}
                 </span>
                 <span className="text-brand-fog">
-                  {isProcessing ? 'AI processing' : `${Math.round(file.progress)}%`}
+                  {isProcessing
+                    ? 'AI processing'
+                    : isUploaded
+                    ? 'Waiting'
+                    : `${Math.round(file.progress)}%`}
                 </span>
               </div>
               <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-neutral-100">
@@ -100,10 +119,26 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
   const { processingFiles } = useFileDrop()
   const { view } = useNavigation()
   const { isDark, toggleTheme } = useTheme()
-  const completedFiles = processingFiles.filter((f) => f.status === 'complete')
-  const hasProcessing = completedFiles.length > 0
-  
-  const shouldShowProcessingBar = view.name === 'workbench' || view.name === 'allContracts'
+
+  const multiBatch = processingFiles.filter((f) => f.showInTaskTable)
+  const multiAllDone =
+    multiBatch.length > 0 &&
+    multiBatch.every((f) => f.status === 'complete')
+  const multiCompleted = multiBatch.filter((f) => f.status === 'complete')
+
+  const singleCompleted = processingFiles.filter(
+    (f) => !f.showInTaskTable && f.status === 'complete'
+  )
+
+  const toastFiles = multiAllDone
+    ? multiCompleted
+    : singleCompleted.length > 0
+      ? [singleCompleted[singleCompleted.length - 1]]
+      : []
+
+  const shouldShowProcessingBar =
+    toastFiles.length > 0 &&
+    (view.name === 'workbench' || view.name === 'allContracts')
 
   return (
     <>
@@ -158,7 +193,7 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
         </div>
       </header>
 
-      {hasProcessing && shouldShowProcessingBar && <ProcessingBar files={completedFiles} />}
+      {shouldShowProcessingBar && <ProcessingBar files={toastFiles} />}
       
       <NotificationPanel />
     </>
