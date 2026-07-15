@@ -100,6 +100,36 @@ function CollapsibleSection({
   )
 }
 
+const ORDER_ENTITLEMENTS = [
+  { label: 'Seats', value: '50 seats' },
+  { label: 'Environments', value: '3 sandboxes' },
+  { label: 'Support tier', value: 'Premium SLA' },
+]
+
+function EntitlementRow({
+  label,
+  value,
+  isLast = false,
+}: {
+  label: string
+  value: string
+  isLast?: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'flex items-center py-2.5 pl-1 pr-2',
+        !isLast && 'border-b border-neutral-100'
+      )}
+    >
+      <span className="w-[128px] shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        {label}
+      </span>
+      <span className="text-[14px] font-medium text-brand-navy">{value}</span>
+    </div>
+  )
+}
+
 export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
 
@@ -111,6 +141,67 @@ export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
         </h2>
         <div className="mt-4">
           <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Entitlements
+        </h2>
+        <div className="mt-4 grid grid-cols-2 gap-20">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200">
+            <div className="px-3 py-1">
+              {ORDER_ENTITLEMENTS.map((row, idx) => (
+                <EntitlementRow
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  isLast={idx === ORDER_ENTITLEMENTS.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Upcoming billing schedule
+        </h2>
+        <div className={cn('mt-4', SECTION_DATA_CONTAINER)}>
+          {order.upcomingBillingSchedule.length === 0 ? (
+            <p className="px-4 py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
+          ) : (
+            order.upcomingBillingSchedule.map((line, idx) => {
+              const style = SCHEDULE_STATUS_STYLES[line.status]
+              return (
+                <div
+                  key={line.id}
+                  className={cn(
+                    'flex items-center border-b border-neutral-200 px-4 py-2.5',
+                    idx === order.upcomingBillingSchedule.length - 1 && 'border-b-0'
+                  )}
+                >
+                  <span className="w-[130px] shrink-0 text-[13px] text-brand-navy">
+                    {line.billDate}
+                  </span>
+                  <span className="flex-1 text-[13px] text-brand-fog">{line.installment}</span>
+                  <span
+                    className={cn(
+                      'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
+                      style.bg,
+                      style.text
+                    )}
+                  >
+                    {line.status}
+                  </span>
+                  <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
+                    {line.amount}
+                  </span>
+                </div>
+              )
+            })
+          )}
         </div>
       </section>
 
@@ -144,44 +235,6 @@ export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
                   </span>
                   <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
                     {inv.amount}
-                  </span>
-                </div>
-              )
-            })
-          )}
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Upcoming billing schedule">
-        <div className={SECTION_DATA_CONTAINER}>
-          {order.upcomingBillingSchedule.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
-          ) : (
-            order.upcomingBillingSchedule.map((line, idx) => {
-              const style = SCHEDULE_STATUS_STYLES[line.status]
-              return (
-                <div
-                  key={line.id}
-                  className={cn(
-                    'flex items-center border-b border-neutral-200 px-4 py-2.5',
-                    idx === order.upcomingBillingSchedule.length - 1 && 'border-b-0'
-                  )}
-                >
-                  <span className="w-[130px] shrink-0 text-[13px] text-brand-navy">
-                    {line.billDate}
-                  </span>
-                  <span className="flex-1 text-[13px] text-brand-fog">{line.installment}</span>
-                  <span
-                    className={cn(
-                      'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
-                      style.bg,
-                      style.text
-                    )}
-                  >
-                    {line.status}
-                  </span>
-                  <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
-                    {line.amount}
                   </span>
                 </div>
               )

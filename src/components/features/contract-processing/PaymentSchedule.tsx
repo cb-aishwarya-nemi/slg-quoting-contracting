@@ -57,6 +57,8 @@ function getStatusLabel(status: PaymentScheduleItem['status'], dueDate: string):
 
 interface PaymentScheduleProps {
   tcv?: string
+  /** Year labels expanded on first render, e.g. `['Year 1']`. */
+  defaultExpandedYears?: string[]
 }
 
 /** Open a billing-schedule invoice in a standalone viewer window. */
@@ -224,8 +226,13 @@ function YearAccordion({
   )
 }
 
-export function PaymentSchedule({ tcv }: PaymentScheduleProps) {
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(new Set())
+export function PaymentSchedule({
+  tcv,
+  defaultExpandedYears = [],
+}: PaymentScheduleProps) {
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(
+    () => new Set(defaultExpandedYears)
+  )
   const yearGroups = groupByYear(paymentSchedule)
 
   const toggleYear = (year: string) => {

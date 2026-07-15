@@ -27,18 +27,27 @@ import {
   getUsageSummaryCycles,
 } from '@/data/salesOrderMock'
 import {
-  getSalesOrderPaymentSummary,
   getUsageAttentionSignal,
-  salesOrdersListData,
-  type SalesOrderListItem,
-  type InvoiceTimingTone,
   type UsageTermRow,
 } from '@/data/salesOrdersListMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
+import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 
-const NAV_SECTIONS: NavSection[] = [
+const NAV_SECTIONS_CHART_1: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
-  { id: 'entitlements', label: 'Usage summary', status: 'neutral' },
+  { id: 'usage', label: 'Feature usage', status: 'neutral' },
+  { id: 'products', label: 'Products and pricing', status: 'neutral' },
+  { id: 'invoices', label: 'Past invoices', status: 'neutral' },
+  { id: 'schedule', label: 'Upcoming billing schedule', status: 'neutral' },
+  { id: 'comments', label: 'Comments', status: 'neutral' },
+  { id: 'activity', label: 'Activity', status: 'neutral' },
+]
+
+type UsageSectionView = 'feature' | 'summary'
+
+const NAV_SECTIONS_CHART_2: NavSection[] = [
+  { id: 'summary', label: 'Summary', status: 'ai' },
+  { id: 'entitlements', label: 'Feature usage', status: 'neutral' },
   { id: 'products', label: 'Products and pricing', status: 'neutral' },
   { id: 'invoices', label: 'Past invoices', status: 'neutral' },
   { id: 'schedule', label: 'Upcoming billing schedule', status: 'neutral' },
@@ -66,35 +75,9 @@ interface SalesOrderDetailsProps {
   orders: SalesOrder[]
   activeOrderId: string
   onSelectOrder: (id: string) => void
+  /** Distinguishes UBB chart explorations; both share this page until chart 2 diverges. */
+  chartVariant?: 'ubb-chart-1' | 'ubb-chart-2'
 }
-
-const INVOICE_TIMING_STYLES: Record<InvoiceTimingTone, string> = {
-  positive: 'text-green-700',
-  warning: 'text-amber-700',
-  danger: 'text-red-700',
-  muted: 'text-brand-fog',
-}
-
-function resolveListItem(order: SalesOrder): SalesOrderListItem {
-  return (
-    salesOrdersListData.find((item) => item.id === order.id) ?? {
-      id: order.id,
-      soId: order.soId,
-      customer: order.customerName,
-      customerId: 'pioneer-systems',
-      tcv: order.totalContractValue,
-      dealTag: order.dealTag,
-      createdOn: order.createdOn,
-      nextInvoice: '—',
-      starts: order.startDate,
-      expires: '—',
-      status: 'Active',
-    }
-  )
-}
-
-const ATTENTION_INVOICE_ROW =
-  'grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_auto] items-center gap-x-6 border-b border-neutral-200 py-2.5'
 
 const USAGE_INCLUDED_STYLES: Record<'default' | 'warning' | 'danger', string> = {
   default: 'text-brand-navy',
@@ -125,25 +108,6 @@ function UsageAmountDisplay({
         </>
       )}
     </p>
-  )
-}
-
-function PaymentDetailRow({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className={cn('flex items-center gap-4 border-b border-neutral-200 py-2.5')}>
-      <span className="w-[104px] shrink-0 text-[11px] uppercase tracking-[-0.25px] text-brand-fog">
-        {label}
-      </span>
-      <p className="min-w-0 flex-1 whitespace-nowrap text-[13px] text-brand-navy">
-        <span className="font-medium">{value}</span>
-        {sub && (
-          <>
-            <span className="px-1.5 text-brand-mist">·</span>
-            <span className="font-normal text-brand-fog">{sub}</span>
-          </>
-        )}
-      </p>
-    </div>
   )
 }
 
@@ -483,7 +447,7 @@ function UsagePatternChart({ terms }: { terms: UsageTermRow[] }) {
                 cy={point.projectedY!}
                 r="3.5"
                 fill="white"
-                stroke="#22863a"
+                stroke="#d96138"
                 strokeWidth="2"
                 strokeDasharray="2.5 2"
                 vectorEffect="non-scaling-stroke"
@@ -839,7 +803,633 @@ function UsageCycleDropdown({
   )
 }
 
-function UsageSummarySection({ order }: { order: SalesOrder }) {
+const FEATURE_USAGE_SHELL_PLOT = { left: 72, right: 16, top: 16, bottom: 52 }
+const FEATURE_USAGE_SHELL_HEIGHT = 320
+const FEATURE_USAGE_SHELL_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+] as const
+/** July is current; Aug–Dec are projected. */
+const FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX = 6
+/** Commit ceiling — actual touches this in June; anything above is orange. */
+const FEATURE_USAGE_SHELL_COMMIT = 3_000
+const FEATURE_USAGE_SHELL_COLORS = {
+  ideal: '#94a3b8',
+  actual: '#22863a',
+  overCommit: '#d96138',
+}
+/**
+ * Actual image usage — climbs to the 3,000 commit in June, then exceeds it
+ * through July and the projected months (Aug–Dec).
+ */
+const FEATURE_USAGE_SHELL_ACTUAL = [
+  400, 800, 1_200, 1_800, 2_400, 3_000, 3_250, 3_550, 3_850, 4_150, 4_450, 4_750,
+]
+
+type ShellPoint = { x: number; y: number; index: number; value: number }
+
+function shellPolyline(points: ShellPoint[]): string {
+  if (points.length === 0) return ''
+  return points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ')
+}
+
+/** Split a path at the Jul→Aug boundary so post-July segments can be dashed. */
+function splitAtProjection(
+  points: ShellPoint[],
+  currentIndex: number
+): { solid: ShellPoint[]; projected: ShellPoint[] } {
+  if (points.length === 0) return { solid: [], projected: [] }
+
+  const lastSolidIdx = points.reduce((acc, point, index) => {
+    return point.index <= currentIndex ? index : acc
+  }, -1)
+
+  if (lastSolidIdx < 0) {
+    return { solid: [], projected: points }
+  }
+
+  const solid = points.slice(0, lastSolidIdx + 1)
+  const projected =
+    lastSolidIdx < points.length - 1
+      ? [points[lastSolidIdx], ...points.slice(lastSolidIdx + 1)]
+      : []
+
+  return { solid, projected }
+}
+
+const FEATURE_USAGE_SHELL_FEATURES = [
+  { id: 'image-creation', label: 'Image creation' },
+  { id: 'api-calls', label: 'API calls / month' },
+] as const
+
+function FeatureUsageLineFeatureDropdown({
+  features,
+  selectedId,
+  onSelect,
+}: {
+  features: ReadonlyArray<{ id: string; label: string }>
+  selectedId: string
+  onSelect: (id: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  const selected = features.find((f) => f.id === selectedId) ?? features[0]
+
+  useEffect(() => {
+    if (!isOpen) return
+    const handleClickOutside = (event: MouseEvent) => {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen])
+
+  if (!selected) return null
+
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex cursor-pointer items-center gap-2 text-[15px] font-semibold text-brand-navy transition-colors hover:text-brand-navy/80"
+      >
+        {selected.label}
+        <ChevronDown size={16} className="text-brand-mist" />
+      </button>
+      {isOpen && (
+        <div className="absolute left-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+          {features.map((feature) => (
+            <button
+              key={feature.id}
+              type="button"
+              onClick={() => {
+                onSelect(feature.id)
+                setIsOpen(false)
+              }}
+              className={cn(
+                'w-full cursor-pointer px-3 py-2 text-left text-[13px] transition-colors hover:bg-brand-navy hover:text-white',
+                feature.id === selectedId ? 'font-medium text-brand-navy' : 'text-brand-navy'
+              )}
+            >
+              {feature.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function FeatureUsageLineLegend() {
+  const items = [
+    {
+      key: 'ideal',
+      label: 'Ideal usage',
+      icon: (
+        <svg width="22" height="10" aria-hidden className="shrink-0">
+          <line
+            x1="1"
+            y1="5"
+            x2="21"
+            y2="5"
+            stroke={FEATURE_USAGE_SHELL_COLORS.ideal}
+            strokeWidth="2"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'actual',
+      label: 'Actual usage',
+      icon: (
+        <svg width="22" height="10" aria-hidden className="shrink-0">
+          <line
+            x1="1"
+            y1="5"
+            x2="21"
+            y2="5"
+            stroke={FEATURE_USAGE_SHELL_COLORS.actual}
+            strokeWidth="2"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'over',
+      label: 'Above commit',
+      icon: (
+        <svg width="22" height="10" aria-hidden className="shrink-0">
+          <line
+            x1="1"
+            y1="5"
+            x2="21"
+            y2="5"
+            stroke={FEATURE_USAGE_SHELL_COLORS.overCommit}
+            strokeWidth="2"
+          />
+        </svg>
+      ),
+    },
+    {
+      key: 'projected',
+      label: 'Projected',
+      icon: (
+        <svg width="22" height="10" aria-hidden className="shrink-0">
+          <line
+            x1="1"
+            y1="5"
+            x2="21"
+            y2="5"
+            stroke={FEATURE_USAGE_SHELL_COLORS.actual}
+            strokeWidth="2"
+            strokeDasharray="4 3"
+          />
+        </svg>
+      ),
+    },
+  ]
+
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-end gap-x-5 gap-y-2">
+      {items.map((item) => (
+        <div key={item.key} className="flex items-center gap-1.5 text-[11px] text-brand-fog">
+          {item.icon}
+          <span>{item.label}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function FeatureUsageChartShell() {
+  const [selectedFeatureId, setSelectedFeatureId] = useState<string>(
+    FEATURE_USAGE_SHELL_FEATURES[0].id
+  )
+  const yAxisMax = 5_000
+  const yAxisStep = 1_000
+  const commit = FEATURE_USAGE_SHELL_COMMIT
+  const monthCount = FEATURE_USAGE_SHELL_MONTHS.length
+  const innerW = 1000 - FEATURE_USAGE_SHELL_PLOT.left - FEATURE_USAGE_SHELL_PLOT.right
+  const innerH = FEATURE_USAGE_SHELL_HEIGHT - FEATURE_USAGE_SHELL_PLOT.top - FEATURE_USAGE_SHELL_PLOT.bottom
+  const xAxisY = FEATURE_USAGE_SHELL_PLOT.top + innerH
+  const yTicks = useMemo(() => {
+    const ticks: number[] = []
+    for (let v = 0; v <= yAxisMax; v += yAxisStep) ticks.push(v)
+    return ticks
+  }, [])
+  const slotW = innerW / monthCount
+  const valueToY = (value: number) =>
+    FEATURE_USAGE_SHELL_PLOT.top + innerH * (1 - value / yAxisMax)
+  const indexToX = (index: number) =>
+    FEATURE_USAGE_SHELL_PLOT.left + slotW * index + slotW / 2
+
+  const series = useMemo(() => {
+    const origin: ShellPoint = {
+      x: FEATURE_USAGE_SHELL_PLOT.left,
+      y: valueToY(0),
+      index: -1,
+      value: 0,
+    }
+
+    const points = FEATURE_USAGE_SHELL_ACTUAL.map((value, index) => {
+      const x = indexToX(index)
+      return {
+        index,
+        value,
+        x,
+        yActual: valueToY(value),
+      }
+    })
+
+    // Actual shares the ideal line’s start at the plot origin (0,0).
+    const actualSeries = [
+      { index: -1, value: 0, x: origin.x, yActual: origin.y },
+      ...points,
+    ]
+
+    // Ideal diagonal from origin (0) to the Dec commit (3,000) — always solid.
+    // Chart y-max stays higher so projected actual can exceed the commit.
+    const decemberX = indexToX(monthCount - 1)
+    const idealSpanX = decemberX - FEATURE_USAGE_SHELL_PLOT.left
+    const idealMonthDots = Array.from({ length: monthCount }, (_, index) => {
+      const x = indexToX(index)
+      const value =
+        idealSpanX <= 0
+          ? commit
+          : commit * ((x - FEATURE_USAGE_SHELL_PLOT.left) / idealSpanX)
+      return {
+        x,
+        y: valueToY(value),
+        index,
+        value,
+      }
+    })
+    const idealPoints: ShellPoint[] = [
+      origin,
+      ...idealMonthDots.map((dot) => ({
+        x: dot.x,
+        y: dot.y,
+        index: dot.index,
+        value: dot.value,
+      })),
+    ]
+
+    // Split green/orange at the commit (3,000). June touches commit; later months exceed.
+    const crossIndex = actualSeries.findIndex(
+      (point, index) => index > 0 && point.value >= commit
+    )
+    let underCommit: ShellPoint[] = []
+    let overCommit: ShellPoint[] = []
+
+    if (crossIndex < 0) {
+      underCommit = actualSeries.map((point) => ({
+        x: point.x,
+        y: point.yActual,
+        index: point.index,
+        value: point.value,
+      }))
+    } else if (crossIndex === 0) {
+      overCommit = actualSeries.map((point) => ({
+        x: point.x,
+        y: point.yActual,
+        index: point.index,
+        value: point.value,
+      }))
+    } else {
+      const prev = actualSeries[crossIndex - 1]
+      const next = actualSeries[crossIndex]
+      const t =
+        next.value === prev.value
+          ? 1
+          : Math.min(1, Math.max(0, (commit - prev.value) / (next.value - prev.value)))
+      const crossPoint: ShellPoint = {
+        x: prev.x + (next.x - prev.x) * t,
+        y: valueToY(commit),
+        index: prev.index + t,
+        value: commit,
+      }
+      underCommit = [
+        ...actualSeries.slice(0, crossIndex).map((point) => ({
+          x: point.x,
+          y: point.yActual,
+          index: point.index,
+          value: point.value,
+        })),
+        crossPoint,
+      ]
+      overCommit = [
+        crossPoint,
+        ...actualSeries.slice(crossIndex).map((point) => ({
+          x: point.x,
+          y: point.yActual,
+          index: point.index,
+          value: point.value,
+        })),
+      ]
+    }
+
+    const underSplit = splitAtProjection(underCommit, FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX)
+    const overSplit = splitAtProjection(overCommit, FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX)
+
+    return {
+      points,
+      idealMonthDots,
+      idealPath: shellPolyline(idealPoints),
+      underSolid: shellPolyline(underSplit.solid),
+      underProjected: shellPolyline(underSplit.projected),
+      overSolid: shellPolyline(overSplit.solid),
+      overProjected: shellPolyline(overSplit.projected),
+    }
+    // indexToX / valueToY are stable for fixed layout constants
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [yAxisMax, monthCount, innerW, commit])
+
+  return (
+    <div className="mt-4 overflow-visible rounded-lg border border-neutral-200 bg-white px-4 pb-4 pt-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <FeatureUsageLineFeatureDropdown
+          features={FEATURE_USAGE_SHELL_FEATURES}
+          selectedId={selectedFeatureId}
+          onSelect={setSelectedFeatureId}
+        />
+        <button
+          type="button"
+          className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-mist transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+          title="Expand"
+          aria-label="Expand chart"
+        >
+          <Maximize2 size={16} />
+        </button>
+      </div>
+      <div className="relative h-[320px] w-full overflow-visible">
+        <svg
+          viewBox={`0 0 1000 ${FEATURE_USAGE_SHELL_HEIGHT}`}
+          preserveAspectRatio="none"
+          className="h-full w-full"
+          role="img"
+          aria-label={`${FEATURE_USAGE_SHELL_FEATURES.find((f) => f.id === selectedFeatureId)?.label ?? 'Feature'} usage ideal vs actual line chart`}
+        >
+          {yTicks.map((tick) => (
+            <line
+              key={tick}
+              x1={FEATURE_USAGE_SHELL_PLOT.left}
+              y1={valueToY(tick)}
+              x2={FEATURE_USAGE_SHELL_PLOT.left + innerW}
+              y2={valueToY(tick)}
+              stroke="#e5e7eb"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          <line
+            x1={FEATURE_USAGE_SHELL_PLOT.left}
+            y1={xAxisY}
+            x2={FEATURE_USAGE_SHELL_PLOT.left + innerW}
+            y2={xAxisY}
+            stroke="#d8dee8"
+            strokeWidth="1.25"
+            vectorEffect="non-scaling-stroke"
+          />
+
+          {/* Ideal usage — solid diagonal from 0 (never dashed) */}
+          {series.idealPath && (
+            <path
+              d={series.idealPath}
+              fill="none"
+              stroke={FEATURE_USAGE_SHELL_COLORS.ideal}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {series.idealMonthDots.map((dot) => (
+            <circle
+              key={`ideal-${FEATURE_USAGE_SHELL_MONTHS[dot.index]}`}
+              cx={dot.x}
+              cy={dot.y}
+              r="3.25"
+              fill="white"
+              stroke={FEATURE_USAGE_SHELL_COLORS.ideal}
+              strokeWidth="2"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {/* Actual usage at/under commit */}
+          {series.underSolid && (
+            <path
+              d={series.underSolid}
+              fill="none"
+              stroke={FEATURE_USAGE_SHELL_COLORS.actual}
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {series.underProjected && (
+            <path
+              d={series.underProjected}
+              fill="none"
+              stroke={FEATURE_USAGE_SHELL_COLORS.actual}
+              strokeWidth="2.25"
+              strokeDasharray="5 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {/* Actual usage above commit */}
+          {series.overSolid && (
+            <path
+              d={series.overSolid}
+              fill="none"
+              stroke={FEATURE_USAGE_SHELL_COLORS.overCommit}
+              strokeWidth="2.25"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          {series.overProjected && (
+            <path
+              d={series.overProjected}
+              fill="none"
+              stroke={FEATURE_USAGE_SHELL_COLORS.overCommit}
+              strokeWidth="2.25"
+              strokeDasharray="5 4"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+
+          {series.points.map((point) => {
+            const projected = point.index > FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX
+            const overCommit = point.value > commit
+            const stroke = overCommit
+              ? FEATURE_USAGE_SHELL_COLORS.overCommit
+              : FEATURE_USAGE_SHELL_COLORS.actual
+            return (
+              <circle
+                key={FEATURE_USAGE_SHELL_MONTHS[point.index]}
+                cx={point.x}
+                cy={point.yActual}
+                r="3.25"
+                fill="white"
+                stroke={stroke}
+                strokeWidth="2"
+                strokeDasharray={projected ? '2.5 2' : undefined}
+                vectorEffect="non-scaling-stroke"
+              />
+            )
+          })}
+        </svg>
+
+        <div className="pointer-events-none absolute inset-0">
+          {yTicks.map((tick) => (
+            <span
+              key={tick}
+              className="absolute -translate-y-1/2 text-right text-[10px] tabular-nums text-brand-mist"
+              style={{
+                left: 0,
+                width: FEATURE_USAGE_SHELL_PLOT.left - 8,
+                top: `${(valueToY(tick) / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+              }}
+            >
+              {tick.toLocaleString('en-US')}
+            </span>
+          ))}
+
+          {series.idealMonthDots[monthCount - 1] && (
+            <span
+              className="absolute whitespace-nowrap text-center text-[11px] font-semibold text-slate-500"
+              style={{
+                left: `${(series.idealMonthDots[monthCount - 1].x / 1000) * 100}%`,
+                top: `${(series.idealMonthDots[monthCount - 1].y / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+                transform: 'translate(-50%, calc(-100% - 8px))',
+              }}
+            >
+              {formatUsageChartValue(commit)} committed
+            </span>
+          )}
+
+          {series.points.map((point) => {
+            const isDecember = point.index === monthCount - 1
+            const overCommit = point.value > commit
+            return (
+              <span
+                key={`actual-value-${FEATURE_USAGE_SHELL_MONTHS[point.index]}`}
+                className="absolute whitespace-nowrap text-center text-[10px] font-semibold"
+                style={{
+                  left: `${(point.x / 1000) * 100}%`,
+                  top: `${(point.yActual / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+                  transform: 'translate(-50%, calc(-100% - 8px))',
+                  color: overCommit
+                    ? FEATURE_USAGE_SHELL_COLORS.overCommit
+                    : FEATURE_USAGE_SHELL_COLORS.actual,
+                }}
+              >
+                {isDecember
+                  ? `${formatUsageChartValue(point.value)} projected`
+                  : formatUsageChartValue(point.value)}
+              </span>
+            )
+          })}
+
+          {FEATURE_USAGE_SHELL_MONTHS.map((month, index) => {
+            const centerX = FEATURE_USAGE_SHELL_PLOT.left + slotW * index + slotW / 2
+            const projected = index > FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX
+            return (
+              <span
+                key={month}
+                className={cn(
+                  'absolute -translate-x-1/2 text-[10px]',
+                  projected ? 'text-brand-mist' : 'text-brand-fog'
+                )}
+                style={{
+                  left: `${(centerX / 1000) * 100}%`,
+                  top: `${((xAxisY + 18) / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+                }}
+              >
+                {month}
+              </span>
+            )
+          })}
+
+          <span
+            className="absolute text-center text-[10px] font-medium text-brand-fog"
+            style={{
+              left: `${(FEATURE_USAGE_SHELL_PLOT.left / 1000) * 100}%`,
+              width: `${(innerW / 1000) * 100}%`,
+              top: `${((xAxisY + 38) / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+            }}
+          >
+            Billing cycle
+          </span>
+        </div>
+      </div>
+      <FeatureUsageLineLegend />
+    </div>
+  )
+}
+
+function UsageSectionViewToggle({
+  value,
+  onChange,
+}: {
+  value: UsageSectionView
+  onChange: (view: UsageSectionView) => void
+}) {
+  const options: { id: UsageSectionView; label: string; title: string }[] = [
+    { id: 'feature', label: 'F', title: 'Feature usage' },
+    { id: 'summary', label: 'U', title: 'Usage summary' },
+  ]
+
+  return (
+    <div
+      className="inline-flex rounded-lg border border-neutral-200 bg-neutral-50 p-0.5"
+      role="group"
+      aria-label="Usage view"
+    >
+      {options.map((option) => {
+        const active = value === option.id
+        return (
+          <button
+            key={option.id}
+            type="button"
+            title={option.title}
+            aria-label={option.title}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              'cursor-pointer rounded-md px-2 py-1 text-[12px] font-semibold transition-colors',
+              active
+                ? 'bg-white text-brand-navy shadow-sm'
+                : 'text-brand-fog hover:text-brand-navy'
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function UsageSummarySection({
+  order,
+  hideTitle = false,
+  headerEnd,
+}: {
+  order: SalesOrder
+  hideTitle?: boolean
+  headerEnd?: ReactNode
+}) {
   const cycles = useMemo(() => getUsageSummaryCycles(order), [order])
   const defaultCycleId = cycles.find((cycle) => cycle.isCurrent)?.id ?? cycles[0]?.id ?? ''
   const [selectedCycleId, setSelectedCycleId] = useState(defaultCycleId)
@@ -853,14 +1443,17 @@ function UsageSummarySection({ order }: { order: SalesOrder }) {
   return (
     <div style={{ maxWidth: CONTENT_MAX_WIDTH }}>
       <div className="flex items-center gap-6">
-        <span className="text-[12px] font-semibold uppercase leading-none tracking-[-0.25px] text-brand-navy">
-          Usage summary
-        </span>
+        {!hideTitle && (
+          <span className="text-[12px] font-semibold uppercase leading-none tracking-[-0.25px] text-brand-navy">
+            Usage summary
+          </span>
+        )}
         <UsageCycleDropdown
           cycles={cycles}
           selectedId={selectedCycleId}
           onSelect={setSelectedCycleId}
         />
+        {headerEnd && <div className="ml-auto flex shrink-0 items-center">{headerEnd}</div>}
       </div>
       <div className="mt-4">
         {selectedCycle && <UsageSummaryTable features={selectedCycle.features} />}
@@ -869,162 +1462,40 @@ function UsageSummarySection({ order }: { order: SalesOrder }) {
   )
 }
 
-/** Payment attention block for the V1 Summary section. */
-function SubSectionHeader({
-  title,
-  onViewAll,
-}: {
-  title: string
-  onViewAll?: () => void
-}) {
-  return (
-    <div className="group/subhead mb-3 flex items-center gap-3">
-      <p className="shrink-0 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-        {title}
-      </p>
-      <button
-        type="button"
-        onClick={onViewAll}
-        className={cn(
-          'ml-auto inline-flex shrink-0 cursor-pointer items-center gap-0.5 text-[11px] font-medium text-blue-700 transition-opacity hover:underline',
-          'opacity-0 pointer-events-none group-hover/subhead:pointer-events-auto group-hover/subhead:opacity-100',
-          'group-hover/column:pointer-events-auto group-hover/column:opacity-100'
-        )}
-      >
-        View all
-        <ArrowRight size={12} strokeWidth={2.25} />
-      </button>
-    </div>
-  )
-}
-
 function PaymentAttentionSummary({
   order,
-  onViewAllInvoices,
-  onViewAllPaymentDetails,
+  showUsagePatternChart = true,
 }: {
   order: SalesOrder
-  onViewAllInvoices?: () => void
-  onViewAllPaymentDetails?: () => void
+  showUsagePatternChart?: boolean
 }) {
-  const listItem = resolveListItem(order)
-  const summary = getSalesOrderPaymentSummary(order.id, listItem)
   const usageSignal = getUsageAttentionSignal(order.id)
-  const overdueLabel =
-    summary.overdueDays === 1 ? '1 day' : `${summary.overdueDays} days`
+  if (!usageSignal) return null
 
   return (
     <div>
       <div className="mb-3 flex items-center gap-1.5">
         <GradientSparkle size={16} />
         <span className="text-[13px] font-semibold tracking-[-0.25px] ai-gradient-text">
-          2 items need attention
+          1 item needs attention
         </span>
       </div>
 
       <AttentionItem
         headline={
           <>
-            Last invoice overdue by{' '}
-            <span className="font-semibold text-red-700">{overdueLabel}</span>
-            {' — '}
-            <span className="font-semibold">{summary.overdueAmount}</span>
+            <span className="font-semibold">{usageSignal.usageCapPct}%</span> of{' '}
+            {usageSignal.featureName.toLowerCase()} commit reached in{' '}
+            {usageSignal.cycleRemainingDays === 1
+              ? '1 day'
+              : `${usageSignal.cycleRemainingDays} days`}{' '}
+            ({usageSignal.cycleRemainingPct}% of cycle time)
           </>
         }
-        summary={
-          <>
-            Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due.
-            Four of the last five invoices were on time; the open balance is the first overdue
-            invoice in 14 months —{' '}
-            <span className="mx-0.5 inline-flex items-center rounded-full bg-neutral-100 px-2 py-0.5 text-[12px] font-medium text-brand-navy align-baseline">
-              Sharath
-            </span>{' '}
-            is on top of this, and 4 reminders have already been sent.
-          </>
-        }
-        actionLabel="View reminders sent"
-        showAction={summary.overdueDays > 0}
+        summary={usageSignal.summary}
+        actionLabel={usageSignal.ctaLabel}
       />
-
-      <div className="mt-8 grid grid-cols-2 gap-20">
-        <div className="group/column min-w-0">
-          <SubSectionHeader title="Past 5 invoices" onViewAll={onViewAllInvoices} />
-          <div>
-            {summary.recentInvoices.map((row) => (
-              <div key={row.invoiceId} className={ATTENTION_INVOICE_ROW}>
-                <a className="min-w-0 cursor-pointer truncate text-[13px] font-medium text-blue-700 hover:underline">
-                  {row.invoiceId}
-                </a>
-                <span
-                  className={cn(
-                    'text-left text-[12px] font-medium',
-                    INVOICE_TIMING_STYLES[row.timingTone]
-                  )}
-                >
-                  {row.timingLabel}
-                </span>
-                <span className="text-right text-[13px] font-semibold tabular-nums text-brand-navy whitespace-nowrap">
-                  {row.amount}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="group/column min-w-0">
-          <SubSectionHeader
-            title="Payment details"
-            onViewAll={onViewAllPaymentDetails}
-          />
-          <div>
-            <PaymentDetailRow
-              label="Card on file"
-              value={summary.cardOnFile}
-              sub={summary.cardOnFileSub}
-            />
-            <PaymentDetailRow
-              label="Last payment"
-              value={summary.lastPayment}
-              sub={summary.lastPaymentSub}
-            />
-            <PaymentDetailRow
-              label="Next billing"
-              value={summary.nextBilling}
-              sub={summary.nextBillingSub}
-            />
-            <PaymentDetailRow
-              label="Payment terms"
-              value={summary.paymentTerms}
-              sub={summary.paymentTermsSub}
-            />
-            <PaymentDetailRow
-              label="Billing contact"
-              value={summary.billingContact}
-              sub={summary.billingContactSub}
-            />
-          </div>
-        </div>
-      </div>
-
-      {usageSignal && (
-        <div className="mt-14">
-          <AttentionItem
-            headline={
-              <>
-                {usageSignal.featureName} at{' '}
-                <span className="font-semibold">{usageSignal.usageCapPct}%</span> of monthly cap with{' '}
-                {usageSignal.cycleRemainingDays === 1
-                  ? '1 day'
-                  : `${usageSignal.cycleRemainingDays} days`}{' '}
-                ({usageSignal.cycleRemainingPct}%) left in the cycle
-              </>
-            }
-            summary={usageSignal.summary}
-            actionLabel={usageSignal.ctaLabel}
-          />
-          <UsagePatternChart terms={usageSignal.usagePattern} />
-        </div>
-      )}
+      {showUsagePatternChart && <UsagePatternChart terms={usageSignal.usagePattern} />}
     </div>
   )
 }
@@ -1069,11 +1540,25 @@ export function SalesOrderDetailsV1({
   orders,
   activeOrderId,
   onSelectOrder,
+  chartVariant = 'ubb-chart-1',
 }: SalesOrderDetailsProps) {
   const [activeSection, setActiveSection] = useState('summary')
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
+  const [usageView, setUsageView] = useState<UsageSectionView>('feature')
+  const isChart2 = chartVariant === 'ubb-chart-2'
+  const navSections = useMemo(() => {
+    if (isChart2) return NAV_SECTIONS_CHART_2
+    return NAV_SECTIONS_CHART_1.map((section) =>
+      section.id === 'usage'
+        ? {
+            ...section,
+            label: usageView === 'feature' ? 'Feature usage' : 'Usage summary',
+          }
+        : section
+    )
+  }, [isChart2, usageView])
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -1112,8 +1597,8 @@ export function SalesOrderDetailsV1({
 
     const updateActiveSection = () => {
       const containerTop = container.getBoundingClientRect().top
-      let current = NAV_SECTIONS[0].id
-      for (const section of NAV_SECTIONS) {
+      let current = navSections[0].id
+      for (const section of navSections) {
         const el = sectionRefs.current[section.id]
         if (!el) continue
         if (el.getBoundingClientRect().top - containerTop <= 48) {
@@ -1138,7 +1623,7 @@ export function SalesOrderDetailsV1({
       container.removeEventListener('scroll', updateActiveSection)
       container.removeEventListener('scrollend', handleScrollEnd)
     }
-  }, [])
+  }, [navSections])
 
   useEffect(() => {
     const handleClickOutside = () => setShowMoreMenu(false)
@@ -1254,7 +1739,7 @@ export function SalesOrderDetailsV1({
             style={{ width: LEFT_NAV_WIDTH }}
           >
             <InPageNav
-              sections={NAV_SECTIONS}
+              sections={navSections}
               sourceDocuments={[]}
               activeId={activeSection}
               onNavigate={scrollToSection}
@@ -1268,21 +1753,53 @@ export function SalesOrderDetailsV1({
           style={{ marginLeft: isPanelsExpanded ? LEFT_NAV_WIDTH + NAV_ALIGN_OFFSET : 0 }}
         >
           <div className="mx-auto space-y-14" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
-            {/* Summary */}
+            {/* Summary — on chart 2, Feature usage outline sits directly under the AI copy */}
             <section ref={setSectionRef('summary')} className="group/section">
               <div style={{ maxWidth: CONTENT_MAX_WIDTH }}>
                 <PaymentAttentionSummary
                   order={order}
-                  onViewAllInvoices={() => scrollToSection('invoices')}
-                  onViewAllPaymentDetails={() => scrollToSection('schedule')}
+                  showUsagePatternChart={!isChart2}
                 />
+                {isChart2 && (
+                  <div ref={setSectionRef('entitlements')} className="mt-3">
+                    <SalesOrderFeatureUsageSection
+                      orderId={order.id}
+                      hideTitle
+                      hideAiInsight
+                      hideUsageLimits
+                      defaultFeatureId="image-creation"
+                      usageProfile="attention"
+                    />
+                  </div>
+                )}
               </div>
             </section>
 
-            {/* Usage summary */}
-            <section ref={setSectionRef('entitlements')} className="group/section">
-              <UsageSummarySection order={order} />
-            </section>
+            {/* Feature usage ↔ Usage summary toggle (chart 1 only) */}
+            {!isChart2 && (
+              <section ref={setSectionRef('usage')} className="group/section">
+                <div style={{ maxWidth: CONTENT_MAX_WIDTH }}>
+                  {usageView === 'feature' ? (
+                    <>
+                      <div className="flex items-center justify-between gap-4">
+                        <span className="text-[12px] font-semibold uppercase leading-none tracking-[-0.25px] text-brand-navy">
+                          Feature usage
+                        </span>
+                        <UsageSectionViewToggle value={usageView} onChange={setUsageView} />
+                      </div>
+                      <FeatureUsageChartShell />
+                    </>
+                  ) : (
+                    <UsageSummarySection
+                      order={order}
+                      headerEnd={
+                        <UsageSectionViewToggle value={usageView} onChange={setUsageView} />
+                      }
+                    />
+                  )}
+                </div>
+              </section>
+            )}
 
             {/* Products and pricing — ramp view mirroring Contract Processing */}
             <section ref={setSectionRef('products')} className="group/section">

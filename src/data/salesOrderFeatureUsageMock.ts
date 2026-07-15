@@ -19,11 +19,31 @@ export interface SalesOrderFeatureUsage {
   /** ISO date for the first billing cycle (e.g. 2026-05-01). */
   contractStartDate: string
   cycles: BillingCycleUsage[]
+  /** Optional AI headline shown above the chart for this feature. */
+  aiInsightTitle?: string
+  /** Optional AI note shown below the title (and above the chart). */
+  aiInsight?: string
 }
+
+/** `healthy` = All good; `attention` = UBB chart 2 (usage risk). */
+export type FeatureUsageProfile = 'healthy' | 'attention'
 
 const PIONEER_CONTRACT_START = '2026-05-01'
 
-const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
+/** Flat-ish series kept under monthly commit and inside the green quota band for the full year. */
+function steadyCycles(
+  values: number[],
+  poolDecrement: number
+): BillingCycleUsage[] {
+  return values.map((usage, index) => ({
+    cycle: index + 1,
+    yearIndex: 0,
+    usage,
+    poolDecrement,
+  }))
+}
+
+const PIONEER_FEATURE_USAGE_HEALTHY: SalesOrderFeatureUsage[] = [
   {
     id: 'api-calls',
     label: 'API calls / month',
@@ -33,20 +53,16 @@ const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
     yAxisMax: 12_500_000,
     yAxisStep: 2_500_000,
     contractStartDate: PIONEER_CONTRACT_START,
-    cycles: [
-      { cycle: 1, yearIndex: 0, usage: 2_300_000, poolDecrement: 1_077_778 },
-      { cycle: 2, yearIndex: 0, usage: 2_320_000, poolDecrement: 1_077_778 },
-      { cycle: 3, yearIndex: 0, usage: 2_280_000, poolDecrement: 1_077_778 },
-      { cycle: 4, yearIndex: 0, usage: 2_310_000, poolDecrement: 1_077_778 },
-      { cycle: 5, yearIndex: 0, usage: 2_290_000, poolDecrement: 1_077_778 },
-      { cycle: 6, yearIndex: 0, usage: 2_300_000, poolDecrement: 1_077_778 },
-      { cycle: 7, yearIndex: 0, usage: 2_280_000, poolDecrement: 1_077_778 },
-      { cycle: 8, yearIndex: 0, usage: 2_310_000, poolDecrement: 1_077_778 },
-      { cycle: 9, yearIndex: 0, usage: 2_290_000, poolDecrement: 1_077_776 },
-      { cycle: 10, yearIndex: 0, usage: 2_300_000, poolDecrement: 2_300_000 },
-      { cycle: 11, yearIndex: 0, usage: 2_350_000, poolDecrement: 0 },
-      { cycle: 12, yearIndex: 0, usage: 2_600_000, poolDecrement: 0 },
-    ],
+    aiInsight:
+      'API usage is tracking steadily around 2.0M calls/month — well inside the annual commit with no projected overage through year-end.',
+    // ~2.0M/month bars; even pool burn keeps the green band through December.
+    cycles: steadyCycles(
+      [
+        1_980_000, 2_040_000, 1_960_000, 2_020_000, 1_990_000, 2_010_000, 2_000_000, 2_030_000,
+        1_970_000, 2_020_000, 2_000_000, 2_050_000,
+      ],
+      1_000_000
+    ),
   },
   {
     id: 'image-creation',
@@ -57,6 +73,57 @@ const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
     yAxisMax: 3_000,
     yAxisStep: 500,
     contractStartDate: PIONEER_CONTRACT_START,
+    aiInsight:
+      'Image creation is stable around 1,400–1,500 images/month — comfortably under the 2,500 commit with headroom remaining through the year.',
+    // Steady mid-band usage; light pool burn keeps green quota above every bar.
+    cycles: steadyCycles(
+      [1_380, 1_420, 1_400, 1_450, 1_410, 1_430, 1_420, 1_460, 1_400, 1_440, 1_430, 1_470],
+      60
+    ),
+  },
+]
+
+/** Rising usage that burns/exceeds quota — used by UBB chart 2. */
+const PIONEER_FEATURE_USAGE_ATTENTION: SalesOrderFeatureUsage[] = [
+  {
+    id: 'api-calls',
+    label: 'API calls / month',
+    valueUnit: 'API calls',
+    capacity: 12_000_000,
+    limitLine: 12_000_000,
+    yAxisMax: 12_500_000,
+    yAxisStep: 2_500_000,
+    contractStartDate: PIONEER_CONTRACT_START,
+    aiInsight:
+      'At the current rate of 23K API calls/month, Pioneer Systems will exceed their commit in October — 2 months before contract renewal. Projected annual usage: 276K calls, generating $4,820.00 in overage charges.',
+    cycles: [
+      { cycle: 1, yearIndex: 0, usage: 2_300_000, poolDecrement: 1_000_000 },
+      { cycle: 2, yearIndex: 0, usage: 2_320_000, poolDecrement: 1_000_000 },
+      { cycle: 3, yearIndex: 0, usage: 2_280_000, poolDecrement: 1_000_000 },
+      { cycle: 4, yearIndex: 0, usage: 2_310_000, poolDecrement: 1_000_000 },
+      { cycle: 5, yearIndex: 0, usage: 2_290_000, poolDecrement: 1_000_000 },
+      { cycle: 6, yearIndex: 0, usage: 2_300_000, poolDecrement: 1_000_000 },
+      { cycle: 7, yearIndex: 0, usage: 2_280_000, poolDecrement: 1_000_000 },
+      { cycle: 8, yearIndex: 0, usage: 2_310_000, poolDecrement: 1_000_000 },
+      { cycle: 9, yearIndex: 0, usage: 2_290_000, poolDecrement: 1_000_000 },
+      { cycle: 10, yearIndex: 0, usage: 2_300_000, poolDecrement: 1_000_000 },
+      { cycle: 11, yearIndex: 0, usage: 2_350_000, poolDecrement: 1_000_000 },
+      { cycle: 12, yearIndex: 0, usage: 2_600_000, poolDecrement: 1_000_000 },
+    ],
+  },
+  {
+    id: 'image-creation',
+    label: 'Image creation',
+    valueUnit: 'images',
+    capacity: 2_500,
+    limitLine: 2_500,
+    yAxisMax: 5_000,
+    yAxisStep: 1_000,
+    contractStartDate: PIONEER_CONTRACT_START,
+    aiInsightTitle:
+      '91% of image creation commit reached in 12 days (20% of cycle time)',
+    aiInsight:
+      'Image usage has climbed steadily over the past three billing cycles — from 1,420 to 1,890 to 2,273 images. At the current rate of ~85 images per day, projected end-of-month usage is 3,035 images — about 535 past the 2,500 commit, generating roughly $268.00 in overage charges. This pattern suggests sustained growth, not a one-off burst.',
     cycles: [
       { cycle: 1, yearIndex: 0, usage: 420, poolDecrement: 36 },
       { cycle: 2, yearIndex: 0, usage: 580, poolDecrement: 36 },
@@ -67,16 +134,19 @@ const PIONEER_FEATURE_USAGE: SalesOrderFeatureUsage[] = [
       { cycle: 7, yearIndex: 0, usage: 1_620, poolDecrement: 36 },
       { cycle: 8, yearIndex: 0, usage: 1_840, poolDecrement: 36 },
       { cycle: 9, yearIndex: 0, usage: 2_050, poolDecrement: 32 },
-      { cycle: 10, yearIndex: 0, usage: 2_180, poolDecrement: 2_180 },
-      { cycle: 11, yearIndex: 0, usage: 2_420, poolDecrement: 0 },
-      { cycle: 12, yearIndex: 0, usage: 2_650, poolDecrement: 0 },
+      { cycle: 10, yearIndex: 0, usage: 2_180, poolDecrement: 400 },
+      { cycle: 11, yearIndex: 0, usage: 2_650, poolDecrement: 1_350 },
+      { cycle: 12, yearIndex: 0, usage: 3_350, poolDecrement: 426 },
     ],
   },
 ]
 
-export function getSalesOrderFeatureUsage(orderId: string): SalesOrderFeatureUsage[] | null {
-  if (orderId === 'so-pioneer-0153') return PIONEER_FEATURE_USAGE
-  return null
+export function getSalesOrderFeatureUsage(
+  orderId: string,
+  profile: FeatureUsageProfile = 'healthy'
+): SalesOrderFeatureUsage[] | null {
+  if (orderId !== 'so-pioneer-0153') return null
+  return profile === 'attention' ? PIONEER_FEATURE_USAGE_ATTENTION : PIONEER_FEATURE_USAGE_HEALTHY
 }
 
 export interface UsageLimitMetric {
@@ -95,8 +165,6 @@ export function getSalesOrderUsageLimits(orderId: string): UsageLimitMetric[] | 
         label: 'Seats',
         used: 45,
         allocated: 50,
-        aiInsight:
-          'Up from 38 → 45 seats this quarter. At this rate, the cap is reached ~6 weeks before renewal — before the customer has a chance to negotiate.',
       },
       {
         id: 'sandboxes',
@@ -155,6 +223,10 @@ export function getCycleConsumptionSplit(
 
   if (remainingStart <= 0) {
     return { withinQuota: 0, overage: usage }
+  }
+
+  if (usage > remainingStart) {
+    return { withinQuota: remainingStart, overage: usage - remainingStart }
   }
 
   return { withinQuota: usage, overage: 0 }

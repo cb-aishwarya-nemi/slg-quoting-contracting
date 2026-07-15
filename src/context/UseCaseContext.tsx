@@ -158,17 +158,27 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'sales-order-details',
     label: 'Sales Order Details',
-    defaultVariant: 'v2',
+    defaultVariant: 'ubb-chart-1',
     variants: [
       {
-        id: 'v1',
-        label: 'V1',
-        description: 'AI summary with contextual details',
+        id: 'non-ubb',
+        label: 'Non-UBB',
+        description: 'Flat subscription — no usage meters or UBB alerts',
       },
       {
-        id: 'v2',
-        label: 'V2',
-        description: 'Timeline view with surface signals',
+        id: 'ubb-chart-1',
+        label: 'UBB chart 1',
+        description: 'Usage-based billing with attention signals (chart exploration 1)',
+      },
+      {
+        id: 'ubb-chart-2',
+        label: 'UBB chart 2',
+        description: 'Usage-based billing with attention signals (chart exploration 2)',
+      },
+      {
+        id: 'all-good',
+        label: 'All good',
+        description: 'Healthy account — nothing needs attention',
       },
     ],
   },

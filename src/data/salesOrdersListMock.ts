@@ -198,10 +198,10 @@ const PREVIEW_OVERRIDES: Partial<Record<string, Partial<SalesOrderPreviewContext
     nextInvoiceAmount: '$41,000',
     nextInvoiceDate: 'Aug 31, 2026',
     openBalance: '$126,000',
-    openBalanceSub: 'Due Jul 10 · 4 days overdue',
-    paymentTermsSub: '26 days outstanding',
+    openBalanceSub: 'Due Jul 13 · 2 days overdue',
+    paymentTermsSub: '2 days outstanding',
     paymentMethod: 'Visa ····4291',
-    paymentMethodSub: 'Expires Jul 2026',
+    paymentMethodSub: 'Expires Jul 2050',
     lastPayment: 'May 1, 2026',
     lastPaymentSub: 'On time · cleared in 3 days',
     contractEnd: 'Jul 2029',
@@ -400,11 +400,12 @@ function getDaysOverdue(dueDateStr: string): number {
 
 const PAYMENT_SUMMARY_OVERRIDES: Partial<Record<string, Omit<SalesOrderPaymentSummary, 'overdueDays'> & { overdueDueDate?: string; overdueDays?: number }>> = {
   'so-pioneer-0153': {
-    overdueDueDate: 'July 1, 2026',
+    overdueDueDate: 'July 13, 2026',
+    overdueDays: 2,
     overdueAmount: '$126,000.00',
     overdueInvoiceId: 'INV-2026-9584',
     patternSummary:
-      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months — Sharath is on top of this, and 4 reminders have already been sent.',
+      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after invoice is posted. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months — Sharath is on top of this, and 4 reminders have already been sent.',
     patternSummaryShort:
       'First overdue in 14 months — Sharath is on it; 4 reminders already sent.',
     recentInvoices: [
@@ -412,16 +413,16 @@ const PAYMENT_SUMMARY_OVERRIDES: Partial<Record<string, Omit<SalesOrderPaymentSu
       { invoiceId: 'INV-2026-8847', amount: '$54,000.00', timingLabel: 'On time', timingTone: 'positive' },
       { invoiceId: 'INV-2026-0042', amount: '$41,000.00', timingLabel: 'On time', timingTone: 'positive' },
       { invoiceId: 'INV-2026-0312', amount: '$41,000.00', timingLabel: 'On time', timingTone: 'positive' },
-      { invoiceId: 'INV-2025-9910', amount: '$38,500.00', timingLabel: 'Late · 2 days', timingTone: 'warning' },
+      { invoiceId: 'INV-2025-9910', amount: '$38,500.00', timingLabel: 'On time', timingTone: 'positive' },
     ],
     cardOnFile: 'Visa ····4291',
-    cardOnFileSub: 'Expires Jul 2026',
+    cardOnFileSub: 'Expires Jul 2050',
     lastPayment: 'May 1, 2026',
     lastPaymentSub: 'On time · cleared in 3 days',
     nextBilling: '$41,000.00',
     nextBillingSub: 'Aug 31, 2026',
     paymentTerms: 'Net 30',
-    paymentTermsSub: '26 days outstanding on open invoice',
+    paymentTermsSub: 'Payment due Jun 12, 2026',
     billingContact: 'Alex Nguyen',
     billingContactSub: 'alex.nguyen@pioneersystems.com',
   },
@@ -463,18 +464,14 @@ const USAGE_ATTENTION_OVERRIDES: Partial<Record<string, UsageAttentionSignal>> =
   'so-pioneer-0153': {
     featureName: 'Image creation',
     usageCapPct: 91,
-    cycleRemainingPct: 10,
-    cycleRemainingDays: 9,
-    headline: buildUsageAttentionHeadline({
-      featureName: 'Image creation',
-      usageCapPct: 91,
-      cycleRemainingPct: 10,
-      cycleRemainingDays: 9,
-    }),
+    cycleRemainingPct: 20,
+    cycleRemainingDays: 12,
+    headline:
+      '91% of image creation commit reached in 12 days (20% of cycle time)',
     summary:
-      'Image usage has climbed steadily over the past three billing cycles — from 1,420 to 1,890 to 2,273 images. Pioneer Systems typically consumes 70–85 images per day in the second half of each cycle, with spikes after product launches. This pattern suggests sustained growth, not a one-off burst.',
+      'Image usage has climbed steadily over the past three billing cycles — from 1,420 to 1,890 to 2,273 images. At the current rate of ~85 images per day, projected end-of-month usage is 3,035 images — about 535 past the 2,500 commit, generating roughly $268.00 in overage charges. This pattern suggests sustained growth, not a one-off burst.',
     summaryShort:
-      'Usage up three cycles in a row — sustained growth, not a one-off spike.',
+      'Usage up three cycles in a row — projects ~3,035 images EOM / ~$268 overage.',
     ctaLabel: 'View upgrade options',
     usagePattern: [
       { billingTerm: 'Jul 2026', included: '2,273/2,500', onDemand: '0', includedTone: 'warning', projected: 3_035 },

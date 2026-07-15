@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronDown, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
@@ -9,6 +9,7 @@ import {
   getRemainingAtCycleStart,
   getSalesOrderFeatureUsage,
   getSalesOrderUsageLimits,
+  type FeatureUsageProfile,
   type SalesOrderFeatureUsage,
   type UsageLimitMetric,
 } from '@/data/salesOrderFeatureUsageMock'
@@ -30,9 +31,16 @@ const BILLING_CYCLE_MONTHS = [
   'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
 ]
 
+/** Assume current month is July — later months render as projections. */
+const CURRENT_MONTH_CYCLE = 7
+
 function formatBillingCycleAxisLabel(cycle: number): string {
   if (cycle >= 1 && cycle <= 12) return BILLING_CYCLE_MONTHS[cycle - 1]
   return String(cycle)
+}
+
+function isProjectedCycle(cycle: number): boolean {
+  return cycle > CURRENT_MONTH_CYCLE
 }
 
 const BAR_WIDTH_RATIO = 0.68
@@ -56,43 +64,17 @@ function staggeredProgress(global: number, index: number, total: number): number
   return easeOutCubic((global - slotStart) / (slotEnd - slotStart))
 }
 
-function useChartEntrance(
-  animationKey: string,
-  containerRef: RefObject<HTMLDivElement | null>
-): number {
+/** Plays the bar/chart entrance when the chart mounts or the selected feature changes — not on scroll. */
+function useChartEntrance(animationKey: string): number {
   const [progress, setProgress] = useState(0)
-  const [isInView, setIsInView] = useState(false)
-  const hasStartedRef = useRef(false)
 
   useEffect(() => {
-    const el = containerRef.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => setIsInView(entry.isIntersecting),
-      { threshold: 0.8 }
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [containerRef])
-
-  useEffect(() => {
-    hasStartedRef.current = false
-    setProgress(0)
-  }, [animationKey])
-
-  useEffect(() => {
-    if (!isInView || hasStartedRef.current) return
-
     const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     if (reducedMotion) {
-      hasStartedRef.current = true
       setProgress(1)
       return
     }
 
-    hasStartedRef.current = true
     setProgress(0)
     let frame = 0
     let start: number | null = null
@@ -108,7 +90,7 @@ function useChartEntrance(
 
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
-  }, [isInView, animationKey])
+  }, [animationKey])
 
   return progress
 }
@@ -170,9 +152,9 @@ function buildYearStepPaths(
   let lastRightTopY = firstTopY
   for (const slot of slots) {
     const remainingStart = getRemainingAtCycleStart(feature, slot.index)
-    if (remainingStart <= 0) break
-
-    const remainingEnd = Math.max(0, remainingStart - getPoolDecrement(feature, slot.index))
+    const decrement =
+      remainingStart > 0 ? getPoolDecrement(feature, slot.index) : 0
+    const remainingEnd = Math.max(0, remainingStart - decrement)
     const topStart = valueToY(remainingStart, yAxisMax, innerH)
     const topEnd = valueToY(remainingEnd, yAxisMax, innerH)
 
@@ -180,8 +162,6 @@ function buildYearStepPaths(
     linePath += ` L ${slot.slotRight} ${topStart} L ${slot.slotRight} ${topEnd}`
     lastQuotaSlot = slot
     lastRightTopY = topStart
-
-    if (remainingEnd <= 0) break
   }
 
   areaPath += ` L ${lastQuotaSlot.slotRight} ${bottomY} Z`
@@ -230,6 +210,33 @@ function FeatureUsageLegend() {
         />
       ),
     },
+    {
+      key: 'projected',
+      label: 'Projected',
+      icon: (
+        <svg width="14" height="10" aria-hidden className="shrink-0">
+          <rect
+            x="0"
+            y="0"
+            width="14"
+            height="10"
+            rx="2"
+            fill={COLORS.bar}
+            fillOpacity="0.22"
+          />
+          <line
+            x1="1"
+            y1="9"
+            x2="13"
+            y2="1"
+            stroke={COLORS.bar}
+            strokeWidth="1.5"
+            strokeDasharray="2 1.5"
+            opacity="0.75"
+          />
+        </svg>
+      ),
+    },
   ]
 
   return (
@@ -268,12 +275,20 @@ function ChartTooltip({ slot, feature }: ChartTooltipProps) {
   const remaining = getRemainingAtCycleStart(feature, slot.index)
   const { withinQuota, overage } = getCycleConsumptionSplit(feature, slot.index)
   const unit = feature.valueUnit
+  const projected = isProjectedCycle(slot.cycle)
 
   return (
     <div className="w-[280px] shrink-0 rounded-lg border border-neutral-200 bg-white px-3 py-2.5 shadow-lg">
-      <p className="text-[11px] font-semibold text-brand-navy">
-        {formatBillingCyclePeriod(slot.cycle, slot.yearIndex, feature.contractStartDate)}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11px] font-semibold text-brand-navy">
+          {formatBillingCyclePeriod(slot.cycle, slot.yearIndex, feature.contractStartDate)}
+        </p>
+        {projected && (
+          <span className="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-medium text-brand-fog">
+            Projected
+          </span>
+        )}
+      </div>
       <div className="mt-2 space-y-1.5">
         <div className="flex items-center justify-between gap-4">
           <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
@@ -325,8 +340,7 @@ function ChartTooltip({ slot, feature }: ChartTooltipProps) {
 
 function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-  const chartRef = useRef<HTMLDivElement>(null)
-  const entranceProgress = useChartEntrance(feature.id, chartRef)
+  const entranceProgress = useChartEntrance(feature.id)
   const innerW = 1000 - PLOT.left - PLOT.right
   const innerH = 320 - PLOT.top - PLOT.bottom
   const { yAxisMax, cycles } = feature
@@ -391,6 +405,13 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
     }
     return null
   }, [slotLayout, feature])
+  const decemberSlot = slotLayout[slotLayout.length - 1]
+  const decemberOverage =
+    decemberSlot != null
+      ? getCycleConsumptionSplit(feature, decemberSlot.index).overage
+      : 0
+  const exceedCommitSlot =
+    decemberSlot != null && decemberOverage > 0 ? decemberSlot : quotaExhaustionSlot
   const hoveredRemaining =
     hoveredIndex !== null ? getRemainingAtCycleStart(feature, hoveredIndex) : 0
   const hoveredQuotaY = valueToY(hoveredRemaining, yAxisMax, innerH)
@@ -407,7 +428,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
   const tooltipAlignRight = hoveredSlot ? hoveredSlot.centerX / 1000 > 0.72 : false
 
   return (
-    <div ref={chartRef} className="w-full overflow-visible">
+    <div className="w-full overflow-visible">
       <div className="relative h-[320px] w-full overflow-visible">
         <svg
           viewBox="0 0 1000 320"
@@ -425,6 +446,42 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
                 height={CHART_HEIGHT - PLOT.top}
               />
             </clipPath>
+            <pattern
+              id={`projected-bar-${feature.id}`}
+              patternUnits="userSpaceOnUse"
+              width="6"
+              height="6"
+              patternTransform="rotate(45)"
+            >
+              <rect width="6" height="6" fill={COLORS.bar} fillOpacity="0.14" />
+              <line
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="6"
+                stroke={COLORS.bar}
+                strokeWidth="2.5"
+                strokeOpacity="0.55"
+              />
+            </pattern>
+            <pattern
+              id={`projected-bar-warning-${feature.id}`}
+              patternUnits="userSpaceOnUse"
+              width="6"
+              height="6"
+              patternTransform="rotate(45)"
+            >
+              <rect width="6" height="6" fill={COLORS.barWarning} fillOpacity="0.14" />
+              <line
+                x1="0"
+                y1="0"
+                x2="0"
+                y2="6"
+                stroke={COLORS.barWarning}
+                strokeWidth="2.5"
+                strokeOpacity="0.55"
+              />
+            </pattern>
           </defs>
 
           {yTicks.map((tick) => (
@@ -535,6 +592,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
             const barBottom = valueToY(0, yAxisMax, innerH)
             const isHovered = hoveredIndex === slot.index
             const isDimmed = hoveredIndex !== null && !isHovered
+            const projected = isProjectedCycle(slot.cycle)
             const bars: Array<{ value: number; color: string; key: string }> = []
 
             if (withinQuota > 0) {
@@ -560,14 +618,31 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
               const pathD = isTopSegment
                 ? topRoundedBarPath(slot.left, barTop, slot.barW, barHeight, BAR_RADIUS)
                 : rectBarPath(slot.left, barTop, slot.barW, barHeight)
+              const fill = projected
+                ? `url(#${
+                    bar.key === 'overage'
+                      ? `projected-bar-warning-${feature.id}`
+                      : `projected-bar-${feature.id}`
+                  })`
+                : bar.color
 
               const segment = (
                 <path
                   key={`${slot.yearIndex}-${slot.cycle}-${bar.key}`}
                   d={pathD}
-                  fill={bar.color}
+                  fill={fill}
+                  stroke={projected ? bar.color : undefined}
+                  strokeWidth={projected ? 1 : undefined}
+                  strokeDasharray={projected ? '3 2' : undefined}
+                  vectorEffect={projected ? 'non-scaling-stroke' : undefined}
                   className="transition-opacity duration-150"
-                  style={{ opacity: isDimmed ? 0.35 : 0.92 + slotProgress * 0.08 }}
+                  style={{
+                    opacity: isDimmed
+                      ? 0.28
+                      : projected
+                        ? 0.85 + slotProgress * 0.1
+                        : 0.92 + slotProgress * 0.08,
+                  }}
                 />
               )
               stackTop = barTop
@@ -675,35 +750,40 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
             </span>
           ))}
 
-          {slotLayout.map((slot) => (
-            <span
-              key={`label-${slot.yearIndex}-${slot.cycle}`}
-              className={cn(
-                'absolute -translate-x-1/2 text-[10px] transition-colors duration-150',
-                hoveredIndex === slot.index
-                  ? 'font-medium text-brand-navy'
-                  : 'text-brand-fog'
-              )}
-              style={{
-                left: `${(slot.centerX / 1000) * 100}%`,
-                top: `${((xAxisY + X_AXIS_LABEL_GAP) / CHART_HEIGHT) * 100}%`,
-              }}
-            >
-              {formatBillingCycleAxisLabel(slot.cycle)}
-            </span>
-          ))}
+          {slotLayout.map((slot) => {
+            const projected = isProjectedCycle(slot.cycle)
+            return (
+              <span
+                key={`label-${slot.yearIndex}-${slot.cycle}`}
+                className={cn(
+                  'absolute -translate-x-1/2 text-[10px] transition-colors duration-150',
+                  hoveredIndex === slot.index
+                    ? 'font-medium text-brand-navy'
+                    : projected
+                      ? 'text-brand-mist'
+                      : 'text-brand-fog'
+                )}
+                style={{
+                  left: `${(slot.centerX / 1000) * 100}%`,
+                  top: `${((xAxisY + X_AXIS_LABEL_GAP) / CHART_HEIGHT) * 100}%`,
+                }}
+              >
+                {formatBillingCycleAxisLabel(slot.cycle)}
+              </span>
+            )
+          })}
 
-          {quotaExhaustionSlot && (
+          {exceedCommitSlot && (
             <div
               className="pointer-events-none absolute z-[5] -translate-x-1/2 -translate-y-full pb-1"
               style={{
-                left: `${(quotaExhaustionSlot.slotRight / 1000) * 100}%`,
+                left: `${(exceedCommitSlot.centerX / 1000) * 100}%`,
                 top: `${((PLOT.top + 8) / CHART_HEIGHT) * 100}%`,
                 opacity: annotationReveal,
               }}
             >
               <span className="inline-flex items-center whitespace-nowrap rounded-full bg-[#fdf0ea] px-2 py-0.5 text-[10px] font-medium text-[#d96138]">
-                Quota exhausted
+                Exceed commit
               </span>
             </div>
           )}
@@ -865,16 +945,37 @@ function FeatureDropdown({
 
 interface SalesOrderFeatureUsageSectionProps {
   orderId: string
+  /** Hide the “Feature usage” heading (e.g. UBB chart 2). */
+  hideTitle?: boolean
+  /** Hide the AI insight block above the chart (e.g. UBB chart 2). */
+  hideAiInsight?: boolean
+  /** Hide seats/sandbox usage-limit cards (e.g. UBB chart 2). */
+  hideUsageLimits?: boolean
+  /** Prefer this feature when the section mounts / order changes. */
+  defaultFeatureId?: string
+  /** `healthy` for All good; `attention` for UBB chart 2. */
+  usageProfile?: FeatureUsageProfile
 }
 
-export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsageSectionProps) {
-  const features = getSalesOrderFeatureUsage(orderId)
-  const usageLimits = getSalesOrderUsageLimits(orderId)
-  const [selectedId, setSelectedId] = useState(features?.[0]?.id ?? '')
+export function SalesOrderFeatureUsageSection({
+  orderId,
+  hideTitle = false,
+  hideAiInsight = false,
+  hideUsageLimits = false,
+  defaultFeatureId,
+  usageProfile = 'healthy',
+}: SalesOrderFeatureUsageSectionProps) {
+  const features = getSalesOrderFeatureUsage(orderId, usageProfile)
+  const usageLimits = hideUsageLimits ? null : getSalesOrderUsageLimits(orderId)
+  const preferredFeatureId =
+    (defaultFeatureId && features?.some((f) => f.id === defaultFeatureId)
+      ? defaultFeatureId
+      : features?.[0]?.id) ?? ''
+  const [selectedId, setSelectedId] = useState(preferredFeatureId)
 
   useEffect(() => {
-    if (features?.[0]) setSelectedId(features[0].id)
-  }, [orderId, features])
+    setSelectedId(preferredFeatureId)
+  }, [orderId, preferredFeatureId])
 
   if (!features || features.length === 0) {
     return (
@@ -886,11 +987,18 @@ export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsag
 
   return (
     <section>
-      <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-        Feature usage
-      </h2>
-      <div className="mt-6 overflow-visible rounded-lg border border-neutral-200 bg-white px-4 pb-4 pt-4">
-        <div className="mb-8 flex items-center justify-between gap-3">
+      {!hideTitle && (
+        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Feature usage
+        </h2>
+      )}
+      <div
+        className={cn(
+          'overflow-visible rounded-lg border border-neutral-200 bg-white px-4 pb-4 pt-4',
+          !hideTitle && 'mt-6'
+        )}
+      >
+        <div className="mb-4 flex items-center justify-between gap-3">
           <FeatureDropdown features={features} selectedId={selected.id} onSelect={setSelectedId} />
           <button
             type="button"
@@ -901,6 +1009,30 @@ export function SalesOrderFeatureUsageSection({ orderId }: SalesOrderFeatureUsag
             <Maximize2 size={16} />
           </button>
         </div>
+        {!hideAiInsight && (selected.aiInsightTitle || selected.aiInsight) && (
+          <div className="mb-6 flex items-start gap-2">
+            <span className="mt-1 shrink-0">
+              <GradientSparkle size={14} />
+            </span>
+            <div className="min-w-0 max-w-[720px]">
+              {selected.aiInsightTitle && (
+                <p className="font-heading text-[18px] font-normal leading-[1.4] tracking-[-0.25px] text-brand-navy">
+                  {selected.aiInsightTitle}
+                </p>
+              )}
+              {selected.aiInsight && (
+                <p
+                  className={cn(
+                    'text-[12px] leading-[1.5] text-brand-fog',
+                    selected.aiInsightTitle && 'mt-2'
+                  )}
+                >
+                  {selected.aiInsight}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
         <FeatureUsageChart feature={selected} />
       </div>
       {usageLimits && usageLimits.length > 0 && (
