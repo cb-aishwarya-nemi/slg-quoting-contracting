@@ -984,7 +984,7 @@ function FeatureUsageLineLegend() {
             y1="5"
             x2="21"
             y2="5"
-            stroke={FEATURE_USAGE_SHELL_COLORS.actual}
+            stroke={FEATURE_USAGE_SHELL_COLORS.overCommit}
             strokeWidth="2"
             strokeDasharray="4 3"
           />
