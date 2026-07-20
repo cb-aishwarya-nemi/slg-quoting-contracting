@@ -3,6 +3,10 @@ import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizo
 import { cn } from '@/lib/utils'
 import { type Comment } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
+import {
+  useOptionalFieldEditHistory,
+  commentMatchesViewEditsFocus,
+} from '@/context/FieldEditHistoryContext'
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
@@ -27,6 +31,37 @@ function parseCommentBody(text: string) {
   }
 
   return parts.length > 0 ? parts : [{ type: 'text', content: text }]
+}
+
+function FieldEditCommentBody({
+  fieldEdit,
+  bodyClassName,
+}: {
+  fieldEdit: NonNullable<Comment['fieldEdit']>
+  bodyClassName: string
+}) {
+  const sep = ' · '
+  const sepIdx = fieldEdit.fieldLabel.lastIndexOf(sep)
+  const fieldLabel =
+    sepIdx >= 0 ? fieldEdit.fieldLabel.slice(sepIdx + sep.length) : fieldEdit.fieldLabel
+  const hasPrevious =
+    fieldEdit.previousValue.trim().length > 0 &&
+    fieldEdit.previousValue.trim() !== '—' &&
+    fieldEdit.previousValue.trim() !== '-'
+
+  if (hasPrevious) {
+    return (
+      <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
+        Updated {fieldLabel} from "{fieldEdit.previousValue}" to "{fieldEdit.newValue}"
+      </p>
+    )
+  }
+
+  return (
+    <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
+      Set {fieldLabel} to "{fieldEdit.newValue}"
+    </p>
+  )
 }
 
 function AddNoteTextarea({
@@ -245,6 +280,9 @@ function CommentCard({
   onResolve,
   commentStatus = 'open',
   dense = false,
+  isEntering = false,
+  isFocusedEdit = false,
+  isDimmed = false,
 }: {
   comment: Comment & { status?: CommentStatus }
   isActive: boolean
@@ -254,6 +292,12 @@ function CommentCard({
   commentStatus?: CommentStatus
   /** slightly larger body text (+1px) for full-width comment lists */
   dense?: boolean
+  /** play entrance animation for newly added comments */
+  isEntering?: boolean
+  /** Soft focus ring when this comment matches View edits */
+  isFocusedEdit?: boolean
+  /** Soften non-matching comments while viewing edits */
+  isDimmed?: boolean
 }) {
   const bodyTextClass = dense ? 'text-[13px]' : 'text-[12px]'
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
@@ -322,9 +366,12 @@ function CommentCard({
           : undefined
       }
       className={cn(
-        'group relative rounded-lg px-2 py-2 transition-[background-color] duration-300 ease-out',
+        'group relative rounded-lg px-2 py-2 transition-[background-color,opacity] duration-300 ease-out',
         isLinked && !isResolved && 'cursor-pointer hover:bg-neutral-50',
-        isResolved && 'cursor-pointer opacity-60'
+        isResolved && 'cursor-pointer opacity-60',
+        isEntering && 'animate-comment-appear',
+        isFocusedEdit && 'bg-amber-50 ring-1 ring-amber-200/80',
+        isDimmed && 'opacity-35'
       )}
     >
       {/* Active-section accent */}
@@ -370,6 +417,11 @@ function CommentCard({
         >
           {comment.body}
         </p>
+      ) : comment.fieldEdit ? (
+        <FieldEditCommentBody
+          fieldEdit={comment.fieldEdit}
+          bodyClassName={bodyTextClass}
+        />
       ) : (
         <p className={cn('leading-[1.5] text-brand-navy', bodyTextClass)}>
           {bodyParts.map((part, idx) =>
@@ -431,42 +483,138 @@ export interface SectionCommentStackProps {
 }
 
 export function SectionCommentStack({
+  sectionId,
   comments,
   linkedSection,
   onAddNote,
   onDelete,
   onResolve,
 }: SectionCommentStackProps) {
+  const editHistory = useOptionalFieldEditHistory()
+  const viewEditsFocus = editHistory?.viewEditsFocus ?? null
+  const isViewingEdits = viewEditsFocus?.sectionId === sectionId
+
   const [isExpanded, setIsExpanded] = useState(false)
   const [isStackHovered, setIsStackHovered] = useState(false)
   const [showAddNote, setShowAddNote] = useState(false)
+  const [enteringIds, setEnteringIds] = useState<Set<string>>(() => new Set())
   const stackRef = useRef<HTMLDivElement>(null)
+  const knownIdsRef = useRef<Set<string> | null>(null)
+
+  // Seed known IDs on first render so initial comments don't animate in
+  if (knownIdsRef.current === null) {
+    knownIdsRef.current = new Set(comments.map((c) => c.id))
+  }
+
+  const orderedComments = useMemo(() => {
+    if (!isViewingEdits || !viewEditsFocus) return comments
+    const matching: typeof comments = []
+    const rest: typeof comments = []
+    for (const comment of comments) {
+      if (commentMatchesViewEditsFocus(comment, viewEditsFocus)) matching.push(comment)
+      else rest.push(comment)
+    }
+    return [...matching, ...rest]
+  }, [comments, isViewingEdits, viewEditsFocus])
+
+  // Expand + focus when "View edits" is clicked for this section
+  useEffect(() => {
+    if (!isViewingEdits) return
+    setIsExpanded(true)
+    setShowAddNote(false)
+    stackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [isViewingEdits, viewEditsFocus?.fieldLabel])
 
   // Collapse on outside click
   useEffect(() => {
-    if (!isExpanded && !showAddNote) return
+    if (!isExpanded && !showAddNote && !isViewingEdits) return
     const handleClickOutside = (e: MouseEvent) => {
       if (stackRef.current && !stackRef.current.contains(e.target as Node)) {
         setIsExpanded(false)
         setShowAddNote(false)
         setIsStackHovered(false)
+        if (isViewingEdits) editHistory?.clearViewEditsFocus()
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isExpanded, showAddNote])
+  }, [isExpanded, showAddNote, isViewingEdits, editHistory])
 
-  // Reset expansion when comment list changes (e.g. a new comment is added)
+  // Animate newly added comments; collapse stack so the new top comment is visible
   useEffect(() => {
-    setIsExpanded(false)
-  }, [comments.length])
+    const known = knownIdsRef.current!
+    const currentIds = comments.map((c) => c.id)
+    const newIds = currentIds.filter((id) => !known.has(id))
+    if (newIds.length === 0) return
 
-  const commentCount = comments.length
-  const topComment = comments[0]
+    // Bulk replace (e.g. switching contracts) — reseed without animating
+    if (newIds.length > 1) {
+      for (const id of newIds) known.add(id)
+      return
+    }
+
+    for (const id of newIds) known.add(id)
+    if (!isViewingEdits) setIsExpanded(false)
+    setEnteringIds((prev) => {
+      const next = new Set(prev)
+      for (const id of newIds) next.add(id)
+      return next
+    })
+
+    const timer = setTimeout(() => {
+      setEnteringIds((prev) => {
+        const next = new Set(prev)
+        for (const id of newIds) next.delete(id)
+        return next
+      })
+    }, 500)
+
+    return () => clearTimeout(timer)
+  }, [comments, isViewingEdits])
+
+  const commentCount = orderedComments.length
+  const topComment = orderedComments[0]
   const hasStack = commentCount > 1
+  const matchingCount = isViewingEdits
+    ? orderedComments.filter((c) => commentMatchesViewEditsFocus(c, viewEditsFocus)).length
+    : 0
+
+  const renderCommentCard = (comment: Comment & { status?: CommentStatus }) => {
+    const isMatch = commentMatchesViewEditsFocus(comment, viewEditsFocus)
+    return (
+      <CommentCard
+        key={comment.id}
+        comment={comment}
+        commentStatus={comment.status}
+        isActive={false}
+        onDelete={onDelete}
+        onResolve={onResolve}
+        isEntering={enteringIds.has(comment.id)}
+        isFocusedEdit={isViewingEdits && isMatch}
+        isDimmed={isViewingEdits && !isMatch}
+      />
+    )
+  }
 
   return (
     <div ref={stackRef} className="pt-0.5">
+      {isViewingEdits && (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span className="text-[11px] font-semibold uppercase tracking-[0.04em] text-amber-800">
+            {matchingCount > 0
+              ? `${matchingCount} edit${matchingCount === 1 ? '' : 's'}`
+              : 'No edit notes'}
+          </span>
+          <button
+            type="button"
+            onClick={() => editHistory?.clearViewEditsFocus()}
+            className="cursor-pointer text-[11px] font-medium text-brand-fog transition-colors hover:text-brand-navy"
+          >
+            Done
+          </button>
+        </div>
+      )}
+
       {/* Add note CTA – always visible at top */}
       <button
         type="button"
@@ -484,7 +632,7 @@ export function SectionCommentStack({
 
       {/* Add note textarea – pushes content down when open */}
       {showAddNote && (
-        <div className="mb-3">
+        <div className="mb-3 animate-comment-appear">
           <AddNoteTextarea
             onSubmit={(text, status) => {
               onAddNote(text, status)
@@ -500,20 +648,11 @@ export function SectionCommentStack({
       {/* Comment stack */}
       {commentCount > 0 && (
         <>
-          {isExpanded ? (
+          {isExpanded || isViewingEdits ? (
             // Expanded: all comments with internal scroll capped at ~320px
             <div className="relative">
               <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1">
-                {comments.map((comment) => (
-                  <CommentCard
-                    key={comment.id}
-                    comment={comment}
-                    commentStatus={comment.status}
-                    isActive={false}
-                    onDelete={onDelete}
-                    onResolve={onResolve}
-                  />
-                ))}
+                {orderedComments.map((comment) => renderCommentCard(comment))}
               </div>
               {/* Fade at bottom */}
               <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
@@ -540,15 +679,7 @@ export function SectionCommentStack({
               onMouseLeave={() => setIsStackHovered(false)}
               className={cn('relative', hasStack && 'cursor-pointer')}
             >
-              {topComment && (
-                <CommentCard
-                  comment={topComment}
-                  commentStatus={topComment.status}
-                  isActive={false}
-                  onDelete={onDelete}
-                  onResolve={onResolve}
-                />
-              )}
+              {topComment && renderCommentCard(topComment)}
 
               {/* Stack indicator: label always visible, lines cascade on hover */}
               {hasStack && (

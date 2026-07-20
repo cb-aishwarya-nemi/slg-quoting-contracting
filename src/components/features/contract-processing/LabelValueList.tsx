@@ -47,6 +47,8 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   const fieldEdits =
     sectionId && editHistory ? editHistory.getEdits(sectionId, item.label) : []
   const showEditHistory = !!editHistory?.viewEdits && fieldEdits.length > 0
+  const isEdited =
+    !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -175,7 +177,8 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
     <div
       onClick={handleRowClick}
       className={cn(
-        'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2',
+        'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
+        isEdited && !isEditing && !isOpen && 'bg-amber-50',
         !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
@@ -201,7 +204,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </span>
       </div>
 
-      <div className="flex flex-1 items-center justify-between">
+      <div className="flex flex-1 items-center justify-between gap-2">
         <div className="min-w-0 flex-1 text-left">
         {isUnresolvedActive && isSelect ? (
           <div ref={dropdownRef} className="relative w-full" onClick={(e) => e.stopPropagation()}>
@@ -291,22 +294,43 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         )}
         </div>
 
-        {!isEditing && !isOpen && (
-          onRemove ? (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {isEdited && sectionId && !isEditing && !isOpen && (
             <button
               type="button"
-              onClick={(e) => { e.stopPropagation(); onRemove() }}
-              className="ml-2 flex h-5 w-5 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+              onClick={(e) => {
+                e.stopPropagation()
+                editHistory?.focusViewEdits({ sectionId, fieldLabel: item.label })
+              }}
+              className={cn(
+                'inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors',
+                editHistory?.viewEditsFocus?.sectionId === sectionId &&
+                  editHistory?.viewEditsFocus?.fieldLabel === item.label
+                  ? 'bg-amber-200 text-amber-900 group-hover:bg-white/25 group-hover:text-white'
+                  : 'bg-amber-100 text-amber-800 group-hover:bg-white/20 group-hover:text-white'
+              )}
             >
-              <X size={14} className="text-white" />
+              <span className="group-hover:hidden">Edited</span>
+              <span className="hidden group-hover:inline">View edits</span>
             </button>
-          ) : (
-            <Pencil
-              size={14}
-              className="ml-2 opacity-0 text-white transition-opacity group-hover:opacity-100"
-            />
-          )
-        )}
+          )}
+          {!isEditing && !isOpen && (
+            onRemove ? (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRemove() }}
+                className="flex h-5 w-5 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
+              >
+                <X size={14} className="text-white" />
+              </button>
+            ) : (
+              <Pencil
+                size={14}
+                className="opacity-0 text-white transition-opacity group-hover:opacity-100"
+              />
+            )
+          )}
+        </div>
       </div>
     </div>
   )

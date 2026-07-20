@@ -47,6 +47,12 @@ export interface Comment {
   linkedSection?: string
   /** in-page section id this comment maps to (drives scroll + active-section peek) */
   linkedSectionId?: string
+  /** Present when this comment was generated from a field edit */
+  fieldEdit?: {
+    fieldLabel: string
+    previousValue: string
+    newValue: string
+  }
   actions?: { label: string; primary?: boolean }[]
 }
 

@@ -207,6 +207,35 @@ body {
   background-color: #1c1b2e !important;
 }
 
+/* Comment appearance — slide + fade with soft highlight */
+@keyframes comment-appear {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+    background-color: rgba(219, 234, 254, 0.9);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    background-color: rgba(239, 246, 255, 0.7);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    background-color: transparent;
+  }
+}
+
+.animate-comment-appear {
+  animation: comment-appear 480ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-comment-appear {
+    animation: none;
+  }
+}
+
 /* Sweep animation for new row - bolder and longer */
 @keyframes row-sweep {
   0% {

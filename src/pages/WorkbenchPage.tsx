@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, Check, ChevronRight, Loader2 } from "lucide-react";
+import { Search, Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
@@ -44,10 +44,6 @@ function SkeletonBar({ className }: { className?: string }) {
 }
 
 function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
-  const isUploading = file.status === 'uploading'
-  const isUploaded = file.status === 'uploaded'
-  const isExtracting = file.status === 'processing'
-
   return (
     <tr className="border-b border-neutral-100">
       {/* Task Type — skeleton */}
@@ -67,53 +63,18 @@ function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
         </span>
       </td>
 
-      {/* Status — Uploading / Uploaded / Extracting data */}
+      {/* Status — Extracting data (shown only after upload completes) */}
       <td className="py-2 pl-1 pr-4">
         <div className="flex min-w-[132px] flex-col gap-1.5">
-          <div className="flex items-center justify-between gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              {isUploading && (
-                <Loader2 size={12} className="shrink-0 animate-spin text-blue-700" />
-              )}
-              {isUploaded && (
-                <Check size={12} className="shrink-0 text-green-700" strokeWidth={2.5} />
-              )}
-              {isExtracting && (
-                <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
-              )}
-              <span
-                className={cn(
-                  "text-[13px] font-medium whitespace-nowrap transition-colors duration-300",
-                  isUploading && "text-blue-700",
-                  isUploaded && "text-green-700",
-                  isExtracting && "ai-gradient-text"
-                )}
-              >
-                {isUploading ? "Uploading" : isUploaded ? "Uploaded" : "Extracting data"}
-              </span>
-            </div>
-            {isUploading && (
-              <span className="shrink-0 text-[12px] tabular-nums text-blue-700/70">
-                {Math.round(file.progress)}%
-              </span>
-            )}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
+            <span className="text-[13px] font-medium whitespace-nowrap ai-gradient-text">
+              Extracting data
+            </span>
           </div>
-          {(isUploading || isExtracting) && (
-            <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
-              <div
-                className={cn(
-                  "h-full rounded-full transition-all duration-300",
-                  isExtracting ? "ai-gradient animate-pulse" : "bg-blue-700"
-                )}
-                style={{ width: isExtracting ? "100%" : `${Math.max(file.progress, 8)}%` }}
-              />
-            </div>
-          )}
-          {isUploaded && (
-            <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
-              <div className="h-full w-full rounded-full bg-green-500/70" />
-            </div>
-          )}
+          <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
+            <div className="h-full w-full rounded-full ai-gradient animate-pulse" />
+          </div>
         </div>
       </td>
 
@@ -142,12 +103,11 @@ export function WorkbenchPage() {
   const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal, processingFiles } = useFileDrop();
   const { setActivePage } = useUseCase();
 
+  // Multi-file rows appear only after upload finishes — never while Uploading
   const inFlightFiles = processingFiles.filter(
     (file) =>
       file.showInTaskTable &&
-      (file.status === "uploading" ||
-        file.status === "uploaded" ||
-        file.status === "processing")
+      (file.status === "uploaded" || file.status === "processing")
   );
 
   // Register this page with use case context

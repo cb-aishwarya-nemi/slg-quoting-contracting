@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { FieldEditHistoryProvider } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
@@ -523,6 +523,25 @@ function ContractProcessingView({
     []
   )
 
+  const handleFieldEditComment = useCallback((event: FieldEditEvent) => {
+    const newComment: Comment & { status: 'open' } = {
+      id: `c-${Date.now()}`,
+      author: 'John Doe',
+      initials: 'JD',
+      timestamp: 'Just now',
+      body: formatFieldEditCommentBody(event),
+      status: 'open',
+      linkedSection: event.sectionLabel,
+      linkedSectionId: event.sectionId,
+      fieldEdit: {
+        fieldLabel: event.fieldLabel,
+        previousValue: event.previousValue,
+        newValue: event.newValue,
+      },
+    }
+    setLocalComments((prev) => [newComment, ...prev])
+  }, [])
+
   const handleDeleteComment = useCallback((commentId: string) => {
     setLocalComments((prev) => prev.filter((c) => c.id !== commentId))
   }, [])
@@ -689,7 +708,8 @@ function ContractProcessingView({
         <div className="mt-3 h-px bg-theme-border" />
       </div>
 
-      <FieldEditHistoryProvider>
+      <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
+      <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}

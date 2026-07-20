@@ -26,7 +26,7 @@ import {
   applyFieldValue,
   type NavSection,
 } from '@/components/features/contract-processing'
-import { FieldEditHistoryProvider } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
@@ -236,6 +236,25 @@ export function Customer360Page() {
     []
   )
 
+  const handleFieldEditComment = useCallback((event: FieldEditEvent) => {
+    const newComment: Comment & { status: CommentStatus } = {
+      id: `c-${Date.now()}`,
+      author: 'John Doe',
+      initials: 'JD',
+      timestamp: 'Just now',
+      body: formatFieldEditCommentBody(event),
+      status: 'open',
+      linkedSection: event.sectionLabel,
+      linkedSectionId: event.sectionId,
+      fieldEdit: {
+        fieldLabel: event.fieldLabel,
+        previousValue: event.previousValue,
+        newValue: event.newValue,
+      },
+    }
+    setLocalComments((prev) => [newComment, ...prev])
+  }, [])
+
   const handleDeleteComment = useCallback((commentId: string) => {
     setLocalComments((prev) => prev.filter((c) => c.id !== commentId))
   }, [])
@@ -391,7 +410,8 @@ export function Customer360Page() {
 
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
-        <FieldEditHistoryProvider>
+        <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
+        <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div className="flex shrink-0 items-center py-3">

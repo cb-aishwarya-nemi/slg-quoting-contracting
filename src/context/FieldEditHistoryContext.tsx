@@ -86,6 +86,22 @@ const SEED_EDITS: FieldEditRecord[] = [
   },
 ]
 
+export interface FieldEditEvent {
+  sectionId: string
+  sectionLabel: string
+  fieldLabel: string
+  previousValue: string
+  newValue: string
+}
+
+export interface ViewEditsFocus {
+  sectionId: string
+  /** Exact field label, or a product line-item id prefix (matched via itemPrefix) */
+  fieldLabel: string
+  /** When true, matches any field edit whose label starts with `${fieldLabel} ·` */
+  itemPrefix?: boolean
+}
+
 interface FieldEditHistoryContextValue {
   viewEdits: boolean
   setViewEdits: (value: boolean) => void
@@ -98,6 +114,11 @@ interface FieldEditHistoryContextValue {
   ) => void
   getEdits: (sectionId: string, fieldLabel: string) => FieldEditRecord[]
   hasEdits: (sectionId: string, fieldLabel: string) => boolean
+  /** True when the user has changed this field in the current session */
+  isFieldEdited: (sectionId: string, fieldLabel: string) => boolean
+  viewEditsFocus: ViewEditsFocus | null
+  focusViewEdits: (focus: ViewEditsFocus) => void
+  clearViewEditsFocus: () => void
   editedFieldCount: number
   editCount: number
   isDownstreamRefreshing: boolean
@@ -108,7 +129,16 @@ interface FieldEditHistoryContextValue {
 
 const FieldEditHistoryContext = createContext<FieldEditHistoryContextValue | null>(null)
 
-export function FieldEditHistoryProvider({ children }: { children: ReactNode }) {
+export function FieldEditHistoryProvider({
+  children,
+  onFieldEdit,
+}: {
+  children: ReactNode
+  /** Fired on every committed field change (including first fills). */
+  onFieldEdit?: (event: FieldEditEvent) => void
+}) {
+  const onFieldEditRef = useRef(onFieldEdit)
+  onFieldEditRef.current = onFieldEdit
   const [viewEdits, setViewEdits] = useState(false)
   const [isDownstreamRefreshing, setIsDownstreamRefreshing] = useState(false)
   const [downstreamUpdatedAt, setDownstreamUpdatedAt] = useState<number | null>(null)
@@ -124,6 +154,9 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
     }
     return grouped
   })
+  /** Session-only: fields the user has changed (excludes seed history) */
+  const [editedFieldKeys, setEditedFieldKeys] = useState<Set<string>>(() => new Set())
+  const [viewEditsFocus, setViewEditsFocus] = useState<ViewEditsFocus | null>(null)
 
   const triggerDownstreamRefresh = useCallback(() => {
     setIsDownstreamRefreshing(true)
@@ -153,10 +186,28 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
       previousValue: string,
       newValue: string
     ) => {
-      if (!hasPreviousValue(previousValue)) return
       if (previousValue === newValue) return
 
       const fieldKey = makeFieldKey(sectionId, meta.fieldLabel)
+
+      onFieldEditRef.current?.({
+        sectionId,
+        sectionLabel: meta.sectionLabel,
+        fieldLabel: meta.fieldLabel,
+        previousValue,
+        newValue,
+      })
+
+      setEditedFieldKeys((prev) => {
+        if (prev.has(fieldKey)) return prev
+        const next = new Set(prev)
+        next.add(fieldKey)
+        return next
+      })
+
+      // Empty / missing values are first fills — notify + badge only, don't store edit history
+      if (!hasPreviousValue(previousValue)) return
+
       const record: FieldEditRecord = {
         id: `edit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         fieldKey,
@@ -196,6 +247,31 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
     [editsByField]
   )
 
+  const isFieldEdited = useCallback(
+    (sectionId: string, fieldLabel: string) => {
+      return editedFieldKeys.has(makeFieldKey(sectionId, fieldLabel))
+    },
+    [editedFieldKeys]
+  )
+
+  const focusViewEdits = useCallback((focus: ViewEditsFocus) => {
+    setViewEditsFocus((prev) => {
+      if (
+        prev &&
+        prev.sectionId === focus.sectionId &&
+        prev.fieldLabel === focus.fieldLabel &&
+        !!prev.itemPrefix === !!focus.itemPrefix
+      ) {
+        return null
+      }
+      return focus
+    })
+  }, [])
+
+  const clearViewEditsFocus = useCallback(() => {
+    setViewEditsFocus(null)
+  }, [])
+
   const editedFieldCount = useMemo(
     () => Object.values(editsByField).filter((records) => records.length > 0).length,
     [editsByField]
@@ -225,6 +301,10 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
       recordEdit,
       getEdits,
       hasEdits,
+      isFieldEdited,
+      viewEditsFocus,
+      focusViewEdits,
+      clearViewEditsFocus,
       editedFieldCount,
       editCount,
       isDownstreamRefreshing,
@@ -232,7 +312,7 @@ export function FieldEditHistoryProvider({ children }: { children: ReactNode }) 
       refreshDownstream: triggerDownstreamRefresh,
       formatEditTime,
     }),
-    [viewEdits, toggleViewEdits, recordEdit, getEdits, hasEdits, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
+    [viewEdits, toggleViewEdits, recordEdit, getEdits, hasEdits, isFieldEdited, viewEditsFocus, focusViewEdits, clearViewEditsFocus, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
   )
 
   return (
@@ -250,4 +330,38 @@ export function useFieldEditHistory() {
 
 export function useOptionalFieldEditHistory() {
   return useContext(FieldEditHistoryContext)
+}
+
+/** Expands comment panels when the user clicks "View edits" on a field row. */
+export function EnsurePanelsOnViewEdits({ onNeedPanels }: { onNeedPanels: () => void }) {
+  const history = useOptionalFieldEditHistory()
+  useEffect(() => {
+    if (history?.viewEditsFocus) onNeedPanels()
+  }, [history?.viewEditsFocus, onNeedPanels])
+  return null
+}
+
+export function formatFieldEditCommentBody(event: FieldEditEvent): string {
+  const sep = ' · '
+  const sepIdx = event.fieldLabel.lastIndexOf(sep)
+  const fieldLabel = sepIdx >= 0 ? event.fieldLabel.slice(sepIdx + sep.length) : event.fieldLabel
+  if (hasPreviousValue(event.previousValue)) {
+    return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`
+  }
+  return `Set ${fieldLabel} to "${event.newValue}"`
+}
+
+export function commentMatchesViewEditsFocus(
+  comment: { linkedSectionId?: string; fieldEdit?: { fieldLabel: string } },
+  focus: ViewEditsFocus | null
+): boolean {
+  if (!focus || !comment.fieldEdit) return false
+  if (comment.linkedSectionId !== focus.sectionId) return false
+  if (focus.itemPrefix) {
+    return (
+      comment.fieldEdit.fieldLabel === focus.fieldLabel ||
+      comment.fieldEdit.fieldLabel.startsWith(`${focus.fieldLabel} ·`)
+    )
+  }
+  return comment.fieldEdit.fieldLabel === focus.fieldLabel
 }

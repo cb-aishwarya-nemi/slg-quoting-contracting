@@ -22,8 +22,7 @@ function recordProductEdit(
   previousValue: string,
   newValue: string
 ) {
-  if (!editHistory || !previousValue.trim() || previousValue === newValue) return
-  if (previousValue.trim() === '—' || previousValue.trim() === '-') return
+  if (!editHistory || previousValue === newValue) return
 
   editHistory.recordEdit(
     PRODUCTS_SECTION_ID,
@@ -826,6 +825,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const showItemEditHistory = !!editHistory?.viewEdits && itemEdits.length > 0
     const showUnitPriceEditHistory = !!editHistory?.viewEdits && unitPriceEdits.length > 0
     const showRowEditHistory = showItemEditHistory || showUnitPriceEditHistory
+    const isEdited =
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
     
     return (
       <div
@@ -833,11 +835,14 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         onMouseEnter={() => setHoveredRowId(item.id)}
         onMouseLeave={() => setHoveredRowId(null)}
         className={cn(
-          "group row-hover-trail flex border-b py-1.5 pl-1 pr-2",
+          "group row-hover-trail flex border-b py-1.5 pl-1 pr-2 transition-colors",
           showRowEditHistory ? "items-start" : "items-center",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
-            : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+            : cn(
+                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
+                isEdited && "bg-amber-50"
+              )
         )}
       >
         {/* Item */}
@@ -915,7 +920,35 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           {item.totalPrice}
         </div>
 
-        <div style={{ width: MENU_W }} className={cn("flex shrink-0 justify-end", showRowEditHistory && "self-start")}>
+        <div
+          className={cn("flex shrink-0 items-center justify-end gap-1.5", showRowEditHistory && "self-start")}
+          style={{ width: isEdited && !isActive ? 88 : MENU_W }}
+        >
+          {isEdited && !isActive && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                editHistory?.focusViewEdits({
+                  sectionId: PRODUCTS_SECTION_ID,
+                  fieldLabel: item.id,
+                  itemPrefix: true,
+                })
+              }}
+              className={cn(
+                'inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors',
+                isHovered
+                  ? 'bg-white/20 text-white'
+                  : editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
+                      editHistory?.viewEditsFocus?.fieldLabel === item.id
+                    ? 'bg-amber-200 text-amber-900'
+                    : 'bg-amber-100 text-amber-800'
+              )}
+            >
+              <span className={isHovered ? 'hidden' : 'inline'}>Edited</span>
+              <span className={isHovered ? 'inline' : 'hidden'}>View edits</span>
+            </button>
+          )}
           <button
             type="button"
             className={cn(
