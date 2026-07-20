@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, ArrowDown, Maximize2, Focus } from 'lucide-react'
+import { ChevronLeft, ArrowDown, Maximize2, Focus, ChevronDown, Sparkles } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -21,12 +21,12 @@ import {
   SectionCommentStack,
   SectionSourceThumbnails,
   SourcePreviewDrawer,
-  ViewEditsToggle,
   getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
 } from '@/components/features/contract-processing'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { CustomerMatchDrawer } from '@/components/features/customer-link/CustomerMatchDrawer'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
@@ -110,17 +110,61 @@ export function Customer360Page() {
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
   const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
-  const [accountItems, setAccountItems] = useState<LabelValue[]>(data.account)
+  const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
+    data.account.map((item) => ({ ...item }))
+  )
+  const [customerName, setCustomerName] = useState(data.customerName)
+  const [matchMenuOpen, setMatchMenuOpen] = useState(false)
+  const [matchDrawerOpen, setMatchDrawerOpen] = useState(false)
+  const matchMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    setAccountItems(data.account.map((item) => ({ ...item })))
+  }, [data.account])
+
+  useEffect(() => {
+    if (!matchMenuOpen) return
+    const handleClickOutside = (e: MouseEvent) => {
+      if (matchMenuRef.current && !matchMenuRef.current.contains(e.target as Node)) {
+        setMatchMenuOpen(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMatchMenuOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [matchMenuOpen])
 
   const accountAttention = useMemo(
     () => getExtractionAttentionStatus(accountItems),
     [accountItems]
   )
 
+  const accountOptions = useMemo(() => {
+    const accountField = accountItems.find((item) => item.label === 'Account')
+    return accountField?.options ?? []
+  }, [accountItems])
+
+  const accountValue =
+    accountItems.find((item) => item.label === 'Account')?.value ?? customerName
+
   const handleAccountItemChange = useCallback((label: string, newValue: string) => {
     setAccountItems((prev) => applyFieldValue(prev, label, newValue))
+    if (label === 'Account') setCustomerName(newValue)
   }, [])
 
+  const handleMatchSelect = useCallback(
+    (option: string) => {
+      handleAccountItemChange('Account', option)
+      setMatchMenuOpen(false)
+    },
+    [handleAccountItemChange]
+  )
   const cameFromSalesOrders =
     view.name === 'customer360' && view.returnTo === 'salesOrders'
   const handleBack = cameFromSalesOrders ? goToSalesOrders : goToCustomers
@@ -385,11 +429,71 @@ export function Customer360Page() {
           </button>
           <div className="flex items-center gap-3">
             <h1
-              className="font-heading text-[16px] font-semibold text-brand-navy"
+              className="font-heading text-[16px] font-semibold ai-gradient-text"
               style={{ letterSpacing: '-0.5px' }}
             >
-              {data.customerName}
+              {customerName}
             </h1>
+            <div ref={matchMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setMatchMenuOpen((open) => !open)}
+                className="inline-flex cursor-pointer items-center gap-1"
+              >
+                <Sparkles size={12} className="shrink-0 text-violet-500" />
+                <span className="text-[12px] font-medium text-brand-navy">
+                  Best of 5 matches
+                </span>
+                <ChevronDown size={12} className="text-brand-mist" />
+              </button>
+              {matchMenuOpen && accountOptions.length > 0 && (
+                <div className="absolute left-0 top-full z-50 mt-1 min-w-[220px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                  <div className="flex items-center justify-end px-2 pb-0.5 pt-1">
+                    <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        setMatchMenuOpen(false)
+                        setMatchDrawerOpen(true)
+                      }}
+                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+                      title="Expand to drawer"
+                    >
+                      <Maximize2 size={13} />
+                    </button>
+                  </div>
+                  {accountOptions.map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault()
+                        handleMatchSelect(option)
+                      }}
+                      className={cn(
+                        'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
+                        option === accountValue
+                          ? 'bg-neutral-100 font-medium text-brand-navy'
+                          : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+                      )}
+                    >
+                      {option}
+                    </button>
+                  ))}
+                  <div className="my-1 h-px bg-neutral-200" />
+                  <button
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      setMatchMenuOpen(false)
+                    }}
+                    className="w-full cursor-pointer px-3 py-2 text-left text-[14px] font-medium text-blue-700 transition-colors hover:bg-brand-navy hover:text-white"
+                  >
+                    + Create new customer
+                  </button>
+                </div>
+              )}
+            </div>
             <span className="inline-flex items-center rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.04em] text-green-700">
               {data.dealTag}
             </span>
@@ -408,10 +512,16 @@ export function Customer360Page() {
         <div className="absolute bottom-0 left-6 right-4 h-px bg-brand-navy" />
       </div>
 
+      <CustomerMatchDrawer
+        open={matchDrawerOpen}
+        options={accountOptions}
+        value={accountValue}
+        onSelect={handleMatchSelect}
+        onClose={() => setMatchDrawerOpen(false)}
+      />
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
         <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
-        <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div className="flex shrink-0 items-center py-3">
@@ -443,7 +553,6 @@ export function Customer360Page() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-3">
-              <ViewEditsToggle />
               <StatusUnit status={contractStatus} />
               <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
             </div>

@@ -4,9 +4,7 @@ import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 import {
   useOptionalFieldEditHistory,
-  type FieldEditRecord,
 } from '@/context/FieldEditHistoryContext'
-import { FieldEditValueDisplay } from './FieldEditValueDisplay'
 
 const PRODUCTS_SECTION_ID = 'products'
 const PRODUCTS_SECTION_LABEL = 'Products and pricing'
@@ -331,8 +329,6 @@ interface ItemNameButtonProps {
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
   isRowHovered?: boolean
-  showEditHistory?: boolean
-  itemEdits?: FieldEditRecord[]
 }
 
 function ItemNameButton({
@@ -341,8 +337,6 @@ function ItemNameButton({
   onSelect,
   onOpenChange,
   isRowHovered,
-  showEditHistory,
-  itemEdits = [],
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -353,12 +347,7 @@ function ItemNameButton({
   }
 
   return (
-    <div
-      className={cn(
-        'relative flex min-w-0 flex-1 group/item',
-        showEditHistory && itemEdits.length > 0 ? 'items-start' : 'items-center'
-      )}
-    >
+    <div className="relative flex min-w-0 flex-1 items-center group/item">
       {/* Icon with negative margin — sits outside the table column for alignment */}
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
@@ -370,76 +359,33 @@ function ItemNameButton({
           )}
         </div>
       )}
-      {showEditHistory && itemEdits.length > 0 ? (
-        <div className="min-w-0 flex-1 flex flex-col gap-0.5">
-          <button
-            ref={buttonRef}
-            type="button"
-            onClick={() => handleOpenChange(!isOpen)}
-            className={cn(
-              'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
-              (isOpen || isRowHovered)
-                ? 'text-white'
-                : 'text-brand-navy'
-            )}
-          >
-            <span className="truncate">{name}</span>
-            <ChevronDown
-              size={14}
-              className={cn(
-                'shrink-0 transition-colors',
-                isOpen || isRowHovered ? 'text-white/70' : 'text-brand-mist'
-              )}
-            />
-          </button>
-          <FieldEditValueDisplay
-            currentValue={name}
-            edits={itemEdits}
-            variant="stacked"
-            showCurrentValue={false}
-          />
-          <LineItemPopover
-            isOpen={isOpen}
-            onClose={() => handleOpenChange(false)}
-            onSelect={(item) => {
-              onSelect(item)
-              handleOpenChange(false)
-            }}
-            anchorRef={buttonRef}
-            currentName={name}
-          />
-        </div>
-      ) : (
-        <>
-          <button
-            ref={buttonRef}
-            type="button"
-            onClick={() => handleOpenChange(!isOpen)}
-            className={cn(
-              'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
-              (isOpen || isRowHovered)
-                ? 'text-white'
-                : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
-            )}
-          >
-            <span className="truncate">{name}</span>
-            <ChevronDown size={14} className={cn(
-              "shrink-0 transition-colors",
-              (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
-            )} />
-          </button>
-          <LineItemPopover
-            isOpen={isOpen}
-            onClose={() => handleOpenChange(false)}
-            onSelect={(item) => {
-              onSelect(item)
-              handleOpenChange(false)
-            }}
-            anchorRef={buttonRef}
-            currentName={name}
-          />
-        </>
-      )}
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => handleOpenChange(!isOpen)}
+        className={cn(
+          'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
+          (isOpen || isRowHovered)
+            ? 'text-white'
+            : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
+        )}
+      >
+        <span className="truncate">{name}</span>
+        <ChevronDown size={14} className={cn(
+          "shrink-0 transition-colors",
+          (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
+        )} />
+      </button>
+      <LineItemPopover
+        isOpen={isOpen}
+        onClose={() => handleOpenChange(false)}
+        onSelect={(item) => {
+          onSelect(item)
+          handleOpenChange(false)
+        }}
+        anchorRef={buttonRef}
+        currentName={name}
+      />
     </div>
   )
 }
@@ -819,15 +765,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
-    const itemEdits = editHistory?.getEdits(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ?? []
-    const unitPriceEdits =
-      editHistory?.getEdits(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price')) ?? []
-    const showItemEditHistory = !!editHistory?.viewEdits && itemEdits.length > 0
-    const showUnitPriceEditHistory = !!editHistory?.viewEdits && unitPriceEdits.length > 0
-    const showRowEditHistory = showItemEditHistory || showUnitPriceEditHistory
-    const isEdited =
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
     
     return (
       <div
@@ -835,14 +772,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         onMouseEnter={() => setHoveredRowId(item.id)}
         onMouseLeave={() => setHoveredRowId(null)}
         className={cn(
-          "group row-hover-trail flex border-b py-1.5 pl-1 pr-2 transition-colors",
-          showRowEditHistory ? "items-start" : "items-center",
+          "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
-            : cn(
-                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
-                isEdited && "bg-amber-50"
-              )
+            : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
         )}
       >
         {/* Item */}
@@ -850,8 +783,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           name={item.name}
           isAttention={isAttention}
           isRowHovered={isHovered && !isActive}
-          showEditHistory={showItemEditHistory}
-          itemEdits={itemEdits}
           onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
           onSelect={(catalogItem) => {
             recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
@@ -873,11 +804,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           }}
         />
 
-        <Separator isRowHovered={isHovered} isRowActive={isActive} alignTop={showRowEditHistory} />
-        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} alignTop={showRowEditHistory} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} alignTop={showRowEditHistory} />
-        <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} alignTop={showRowEditHistory} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} alignTop={showRowEditHistory} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} />
 
         <div
           style={{ width: UNIT_W }}
@@ -887,68 +818,27 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             {item.rampPriceChange && !isActive && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
-            {showUnitPriceEditHistory ? (
-              <span className="text-right text-[14px] font-medium text-brand-navy group-hover:text-white">
-                {item.unitPrice}
-              </span>
-            ) : (
-              <span
-                className={cn(
-                  'text-right text-[14px] font-medium transition-colors',
-                  isActive || isHovered ? 'text-white' : 'text-brand-navy'
-                )}
-              >
-                {item.unitPrice}
-              </span>
-            )}
+            <span
+              className={cn(
+                'text-right text-[14px] font-medium transition-colors',
+                isActive || isHovered ? 'text-white' : 'text-brand-navy'
+              )}
+            >
+              {item.unitPrice}
+            </span>
           </div>
-          {showUnitPriceEditHistory && (
-            <FieldEditValueDisplay
-              currentValue={item.unitPrice}
-              edits={unitPriceEdits}
-              variant="stacked"
-              showCurrentValue={false}
-              align="right"
-            />
-          )}
         </div>
         <div style={{ width: TOTAL_W }} className={cn(
           "shrink-0 text-right text-[14px] font-medium transition-colors",
-          showRowEditHistory && "self-start",
           (isActive || isHovered) ? "text-white" : "text-brand-navy"
         )}>
           {item.totalPrice}
         </div>
 
         <div
-          className={cn("flex shrink-0 items-center justify-end gap-1.5", showRowEditHistory && "self-start")}
-          style={{ width: isEdited && !isActive ? 88 : MENU_W }}
+          className="flex shrink-0 items-center justify-end gap-1.5"
+          style={{ width: MENU_W }}
         >
-          {isEdited && !isActive && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                editHistory?.focusViewEdits({
-                  sectionId: PRODUCTS_SECTION_ID,
-                  fieldLabel: item.id,
-                  itemPrefix: true,
-                })
-              }}
-              className={cn(
-                'inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors',
-                isHovered
-                  ? 'bg-white/20 text-white'
-                  : editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
-                      editHistory?.viewEditsFocus?.fieldLabel === item.id
-                    ? 'bg-amber-200 text-amber-900'
-                    : 'bg-amber-100 text-amber-800'
-              )}
-            >
-              <span className={isHovered ? 'hidden' : 'inline'}>Edited</span>
-              <span className={isHovered ? 'inline' : 'hidden'}>View edits</span>
-            </button>
-          )}
           <button
             type="button"
             className={cn(

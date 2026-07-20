@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
@@ -415,7 +415,9 @@ function ContractProcessingView({
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: 'open' | 'resolved' }>>(
     () => data.comments.map((c) => ({ ...c, status: 'open' as const }))
   )
-  const [accountItems, setAccountItems] = useState<LabelValue[]>(data.account)
+  const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
+    data.account.map((item) => ({ ...item }))
+  )
 
   const accountAttention = useMemo(
     () => getExtractionAttentionStatus(accountItems),
@@ -442,7 +444,7 @@ function ContractProcessingView({
   }, [data.comments])
 
   useEffect(() => {
-    setAccountItems(data.account)
+    setAccountItems(data.account.map((item) => ({ ...item })))
   }, [data.account])
 
   const centerRef = useRef<HTMLDivElement>(null)
@@ -709,7 +711,6 @@ function ContractProcessingView({
       </div>
 
       <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
-      <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}

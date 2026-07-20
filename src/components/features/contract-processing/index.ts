@@ -11,6 +11,4 @@ export { CommentsPanel, SectionCommentStack, type SectionCommentStackProps } fro
 export { PdfThumbnail } from './PdfThumbnail'
 export { SectionSourceThumbnails } from './SectionSourceThumbnails'
 export { SourcePreviewDrawer } from './SourcePreviewDrawer'
-export { ViewEditsToggle } from './ViewEditsToggle'
 export { getExtractionAttentionStatus, countUnresolvedExtractionItems, applyFieldValue } from './sectionAttention'
-export { FieldEditValueDisplay } from './FieldEditValueDisplay'

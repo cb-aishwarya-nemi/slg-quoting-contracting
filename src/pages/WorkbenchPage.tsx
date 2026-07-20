@@ -5,8 +5,9 @@ import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
 import { useFileDrop, type ProcessingFile, type WorkbenchItem } from "@/context/FileDropContext";
 import { useUseCase } from "@/context/UseCaseContext";
-import { CustomerLinkModal } from "@/components/features/customer-link";
+import { useNavigation } from "@/context/NavigationContext";
 
+const PIONEER_CUSTOMER_ID = "pioneer-systems";
 const WORKBENCH_TABS: TabItem[] = [
   { id: "your-tasks", label: "My tasks" },
   { id: "approvals", label: "Approvals" },
@@ -65,16 +66,11 @@ function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
 
       {/* Status — Extracting data (shown only after upload completes) */}
       <td className="py-2 pl-1 pr-4">
-        <div className="flex min-w-[132px] flex-col gap-1.5">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
-            <span className="text-[13px] font-medium whitespace-nowrap ai-gradient-text">
-              Extracting data
-            </span>
-          </div>
-          <div className="h-[2px] w-full overflow-hidden rounded-full bg-neutral-100">
-            <div className="h-full w-full rounded-full ai-gradient animate-pulse" />
-          </div>
+        <div className="flex min-w-[132px] items-center gap-1.5 min-w-0">
+          <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
+          <span className="text-gradient-shine text-[13px] font-medium whitespace-nowrap">
+            Extracting data
+          </span>
         </div>
       </td>
 
@@ -91,7 +87,6 @@ function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
 export function WorkbenchPage() {
   const [activeTab, setActiveTab] = useState("your-tasks");
   const [isHeaderSticky, setIsHeaderSticky] = useState(false);
-  const [linkTask, setLinkTask] = useState<WorkbenchItem | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([]);
@@ -102,6 +97,11 @@ export function WorkbenchPage() {
   const tableRef = useRef<HTMLTableElement>(null);
   const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal, processingFiles } = useFileDrop();
   const { setActivePage } = useUseCase();
+  const { goToCustomer360 } = useNavigation();
+
+  const openCustomerTasks = () => {
+    goToCustomer360(PIONEER_CUSTOMER_ID, { tab: "tasks" });
+  };
 
   // Multi-file rows appear only after upload finishes — never while Uploading
   const inFlightFiles = processingFiles.filter(
@@ -221,46 +221,31 @@ export function WorkbenchPage() {
     }
   }, [isSearchOpen]);
 
-  // Auto-open modal for new item when flag is set
+  // After single-file processing, go straight to Customer Tasks
   useEffect(() => {
     if (shouldOpenModal) {
-      const pioneerTask = ingestionTasks.find(item => item.id === 100);
-      if (pioneerTask) {
-        setLinkTask(pioneerTask);
-        setShouldOpenModal(false);
-      }
+      setShouldOpenModal(false);
+      openCustomerTasks();
     }
-  }, [shouldOpenModal, ingestionTasks, setShouldOpenModal]);
+  }, [shouldOpenModal, setShouldOpenModal, goToCustomer360]);
 
-  // Auto-open modal when URL param is set (for use case switcher)
+  // Deep-link from use case switcher — open Customer Tasks instead of the link modal
   useEffect(() => {
     const checkUrlParam = () => {
       const params = new URLSearchParams(window.location.search);
       if (params.get('openModal') === 'customer-link') {
-        console.log('Opening modal from URL param...');
-        console.log('Workbench items:', ingestionTasks.length);
-        const pioneerTask = ingestionTasks.find(item => item.id === 100);
-        console.log('Found Pioneer task:', pioneerTask);
-        
-        if (pioneerTask) {
-          console.log('Setting linkTask to open modal');
-          setLinkTask(pioneerTask);
-        }
-        
-        // Clean up URL param
         params.delete('openModal');
         const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
         window.history.replaceState({}, '', newUrl);
+        openCustomerTasks();
       }
     };
     
-    // Check on mount and when workbench items change
     checkUrlParam();
     
-    // Listen for custom event from use case switcher
     window.addEventListener('openModalParam', checkUrlParam);
     return () => window.removeEventListener('openModalParam', checkUrlParam);
-  }, [ingestionTasks]);
+  }, [goToCustomer360]);
 
   // Dynamic stats based on ingestion tasks only
   const totalTCV = ingestionTasks.reduce((sum, task) => {
@@ -530,9 +515,7 @@ export function WorkbenchPage() {
                             if (task.isNew) {
                               clearItemNewFlag(task.id);
                             }
-                            if (task.id === 100) {
-                              setLinkTask(task);
-                            }
+                            openCustomerTasks();
                           }}
                           className={cn(
                             "group row-hover-trail border-b border-neutral-100 hover:bg-brand-navy cursor-pointer",
@@ -633,17 +616,6 @@ export function WorkbenchPage() {
           )}
         </div>
       </div>
-
-      {/* Customer Link Modal */}
-      {linkTask && (
-        <CustomerLinkModal
-          task={linkTask}
-          onClose={() => {
-            console.log('Closing modal');
-            setLinkTask(null);
-          }}
-        />
-      )}
     </div>
   );
 }

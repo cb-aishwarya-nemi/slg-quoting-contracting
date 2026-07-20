@@ -22,8 +22,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
 
   if (!file) return null
 
-  const isMulti = files.length > 1 || file.showInTaskTable
-  const count = files.length
   const isComplete = file.status === 'complete'
   const isUploaded = file.status === 'uploaded'
   const isProcessing = file.status === 'processing'
@@ -31,10 +29,6 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
   const handleDismiss = () => {
     files.forEach((f) => removeProcessingFile(f.id))
   }
-
-  const successTitle = isMulti
-    ? `${count} contracts processed successfully`
-    : 'Contract processed successfully'
 
   return (
     <div
@@ -50,21 +44,19 @@ function ProcessingBar({ files }: { files: ProcessingFile[] }) {
             <div>
               <h4 className="text-sm font-semibold text-brand-navy">
                 {isComplete
-                  ? successTitle
+                  ? 'Contract processed successfully'
                   : isProcessing
                   ? 'Processing contract...'
                   : isUploaded
                   ? 'Upload complete'
                   : 'Uploading contract...'}
               </h4>
-              {!isMulti && (
-                <p className="mt-0.5 max-w-[280px] truncate text-sm text-brand-fog">
-                  {file.name}
-                </p>
-              )}
-              {isComplete && !isMulti && (
+              <p className="mt-0.5 max-w-[280px] truncate text-sm text-brand-fog">
+                {file.name}
+              </p>
+              {isComplete && (
                 <p className="mt-1 text-[13px] text-brand-fog">
-                  Opening customer linking…
+                  Opening customer…
                 </p>
               )}
             </div>
@@ -120,19 +112,13 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
   const { view } = useNavigation()
   const { isDark, toggleTheme } = useTheme()
 
-  const multiBatch = processingFiles.filter((f) => f.showInTaskTable)
-  const multiAllDone =
-    multiBatch.length > 0 &&
-    multiBatch.every((f) => f.status === 'complete')
-  const multiCompleted = multiBatch.filter((f) => f.status === 'complete')
-
+  // Multi-file batches stay on the task table — no completion toast / modal prompt
   const singleCompleted = processingFiles.filter(
     (f) => !f.showInTaskTable && f.status === 'complete'
   )
 
-  const toastFiles = multiAllDone
-    ? multiCompleted
-    : singleCompleted.length > 0
+  const toastFiles =
+    singleCompleted.length > 0
       ? [singleCompleted[singleCompleted.length - 1]]
       : []
 

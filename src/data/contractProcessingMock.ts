@@ -150,7 +150,20 @@ export const contractProcessing = {
   },
 
   account: [
-    { label: 'Account', value: 'Pioneer Systems' },
+    {
+      label: 'Account',
+      value: 'Pioneer Systems',
+      options: [
+        'Pioneer Systems',
+        'Pioneer systems',
+        'Pioneer System',
+        'Pioneers Systems',
+        'Pinoeer Systems',
+        'Atlas BioSystems',
+        'Cascade Networks',
+        'Horizon Analytics',
+      ],
+    },
     {
       label: 'Legal entity',
       value: '',
@@ -515,7 +528,17 @@ export const verdantHealthContract: ContractProcessing = {
   },
 
   account: [
-    { label: 'Account', value: 'Verdant Health' },
+    {
+      label: 'Account',
+      value: 'Verdant Health',
+      options: [
+        'Verdant Health',
+        'Verdant Health Systems',
+        'Verdant Care Group',
+        'Pioneer Systems',
+        'Zenith Analytics Inc.',
+      ],
+    },
     { label: 'Legal entity', value: 'Verdant Health Systems Inc.' },
     { label: 'Contact name', value: 'Dr. Sarah Chen' },
     { label: 'Email', value: 'sarah.chen@verdanthealth.com' },
@@ -588,7 +611,17 @@ export const zenithAnalyticsContract: ContractProcessing = {
   },
 
   account: [
-    { label: 'Account', value: 'Zenith Analytics Inc.' },
+    {
+      label: 'Account',
+      value: 'Zenith Analytics Inc.',
+      options: [
+        'Zenith Analytics Inc.',
+        'Zenith Analytics',
+        'Zenith Data Corp',
+        'Pioneer Systems',
+        'Verdant Health',
+      ],
+    },
     { label: 'Legal entity', value: 'Zenith Analytics Corporation' },
     { label: 'Contact name', value: 'Marcus Webb' },
     { label: 'Email', value: 'marcus.webb@zenithanalytics.io' },
@@ -661,7 +694,17 @@ export const quantumInnovationsContract: ContractProcessing = {
   },
 
   account: [
-    { label: 'Account', value: 'Quantum Innovations' },
+    {
+      label: 'Account',
+      value: 'Quantum Innovations',
+      options: [
+        'Quantum Innovations',
+        'Quantum Innovations LLC',
+        'Quantum Tech Group',
+        'Pioneer Systems',
+        'Nexus Payments',
+      ],
+    },
     { label: 'Legal entity', value: 'Quantum Innovations Ltd.' },
     { label: 'Contact name', value: 'Elena Rodriguez' },
     { label: 'Email', value: 'elena.rodriguez@quantuminnovations.com' },
@@ -734,7 +777,17 @@ export const nexusPaymentsContract: ContractProcessing = {
   },
 
   account: [
-    { label: 'Account', value: 'Nexus Payments' },
+    {
+      label: 'Account',
+      value: 'Nexus Payments',
+      options: [
+        'Nexus Payments',
+        'Nexus Payments Inc.',
+        'Nexus Financial',
+        'Pioneer Systems',
+        'Quantum Innovations',
+      ],
+    },
     { label: 'Legal entity', value: 'Nexus Payments Corp.' },
     { label: 'Contact name', value: 'James Park' },
     { label: 'Email', value: 'james.park@nexuspayments.io' },

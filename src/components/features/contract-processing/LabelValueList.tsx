@@ -1,10 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, Pencil, X, CirclePlus, Check } from 'lucide-react'
+import { ChevronDown, Pencil, X, CirclePlus, Check, Maximize2 } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
-import { FieldEditValueDisplay } from './FieldEditValueDisplay'
+import { CustomerMatchDrawer } from '@/components/features/customer-link/CustomerMatchDrawer'
 import { applyFieldValue } from './sectionAttention'
 
 const UNRESOLVED_FIELD_STYLE =
@@ -32,6 +32,18 @@ const ACCOUNT_ADDABLE_FIELDS = [
   'Renewal owner',
 ]
 
+/** Fallback so Account stays a dropdown even if page state is stale. */
+const ACCOUNT_NAME_OPTIONS = [
+  'Pioneer Systems',
+  'Pioneer systems',
+  'Pioneer System',
+  'Pioneers Systems',
+  'Pinoeer Systems',
+  'Atlas BioSystems',
+  'Cascade Networks',
+  'Horizon Analytics',
+]
+
 interface LabelValueRowProps {
   item: LabelValue
   sectionId?: string
@@ -42,16 +54,18 @@ interface LabelValueRowProps {
 
 function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
-  const isSelect = !!item.options
+  const options =
+    item.options?.length
+      ? item.options
+      : item.label === 'Account'
+        ? ACCOUNT_NAME_OPTIONS
+        : undefined
+  const isSelect = !!options
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
-  const fieldEdits =
-    sectionId && editHistory ? editHistory.getEdits(sectionId, item.label) : []
-  const showEditHistory = !!editHistory?.viewEdits && fieldEdits.length > 0
-  const isEdited =
-    !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editValue, setEditValue] = useState(item.value)
   const [dropdownPosition, setDropdownPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
   const inputRef = useRef<HTMLInputElement>(null)
@@ -60,6 +74,11 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   useEffect(() => {
     setEditValue(item.value)
   }, [item.value])
+
+  // Dropdown fields never use the text-input edit path.
+  useEffect(() => {
+    if (isSelect) setIsEditing(false)
+  }, [isSelect])
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -140,9 +159,9 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
 
   const isUnresolvedActive = isUnresolved && (isEditing || isOpen)
 
-  const selectDropdown = isOpen && item.options ? (
+  const selectDropdown = isOpen && options ? (
     <div
-      className="absolute left-0 z-50 min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      className="absolute left-0 z-50 min-w-[220px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
       style={{
         top: dropdownPosition.top as any,
         bottom: dropdownPosition.bottom as any,
@@ -150,7 +169,24 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
       }}
     >
-      {item.options.map((option) => (
+      {item.label === 'Account' && (
+        <div className="flex items-center justify-end px-2 pb-0.5 pt-1">
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsOpen(false)
+              setIsDrawerOpen(true)
+            }}
+            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+            title="Expand to drawer"
+          >
+            <Maximize2 size={13} />
+          </button>
+        </div>
+      )}
+      {options.map((option) => (
         <button
           key={option}
           type="button"
@@ -170,15 +206,42 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
           {option}
         </button>
       ))}
+      {item.label === 'Account' && (
+        <>
+          <div className="my-1 h-px bg-neutral-200" />
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              setIsOpen(false)
+            }}
+            className="w-full cursor-pointer px-3 py-2 text-left text-[14px] font-medium text-blue-700 transition-colors hover:bg-brand-navy hover:text-white"
+          >
+            + Create new customer
+          </button>
+        </>
+      )}
     </div>
   ) : null
 
+  const accountDrawer =
+    item.label === 'Account' && options ? (
+      <CustomerMatchDrawer
+        open={isDrawerOpen}
+        options={options}
+        value={item.value}
+        onSelect={commitValue}
+        onClose={() => setIsDrawerOpen(false)}
+      />
+    ) : null
+
   return (
+    <>
     <div
       onClick={handleRowClick}
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
-        isEdited && !isEditing && !isOpen && 'bg-amber-50',
         !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
@@ -248,25 +311,21 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             </span>
           )
         ) : isSelect ? (
-          <div ref={dropdownRef} className="relative inline-flex items-center" onClick={(e) => e.stopPropagation()}>
-            {showEditHistory ? (
-              <FieldEditValueDisplay currentValue={item.value} edits={fieldEdits} />
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsOpen(!isOpen)}
-                className={cn(
-                  'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
-                  isEditing || isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
-                )}
-              >
-                <span>{item.value}</span>
-                <ChevronDown size={14} className={cn(
-                  'transition-colors',
-                  isEditing || isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
-                )} />
-              </button>
-            )}
+          <div ref={dropdownRef} className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            <button
+              type="button"
+              onClick={() => setIsOpen(!isOpen)}
+              className={cn(
+                'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
+                isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
+              )}
+            >
+              <span>{item.value}</span>
+              <ChevronDown size={14} className={cn(
+                'transition-colors',
+                isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
+              )} />
+            </button>
             {selectDropdown}
           </div>
         ) : isEditing ? (
@@ -280,8 +339,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             onClick={(e) => e.stopPropagation()}
             className="w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200"
           />
-        ) : showEditHistory ? (
-          <FieldEditValueDisplay currentValue={item.value} edits={fieldEdits} />
         ) : (
           <span className={cn(
             'text-[14px] font-medium transition-colors',
@@ -295,25 +352,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {isEdited && sectionId && !isEditing && !isOpen && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                editHistory?.focusViewEdits({ sectionId, fieldLabel: item.label })
-              }}
-              className={cn(
-                'inline-flex cursor-pointer items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] transition-colors',
-                editHistory?.viewEditsFocus?.sectionId === sectionId &&
-                  editHistory?.viewEditsFocus?.fieldLabel === item.label
-                  ? 'bg-amber-200 text-amber-900 group-hover:bg-white/25 group-hover:text-white'
-                  : 'bg-amber-100 text-amber-800 group-hover:bg-white/20 group-hover:text-white'
-              )}
-            >
-              <span className="group-hover:hidden">Edited</span>
-              <span className="hidden group-hover:inline">View edits</span>
-            </button>
-          )}
           {!isEditing && !isOpen && (
             onRemove ? (
               <button
@@ -333,6 +371,8 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
       </div>
     </div>
+    {accountDrawer}
+    </>
   )
 }
 
