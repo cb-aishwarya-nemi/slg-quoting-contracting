@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown } from 'lucide-react'
+import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type Comment } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
+import {
+  commentMatchesViewEditsFocus,
+  useOptionalFieldEditHistory,
+} from '@/context/FieldEditHistoryContext'
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
@@ -277,6 +281,8 @@ function CommentCard({
   commentStatus = 'open',
   dense = false,
   isEntering = false,
+  isFocusedEdit = false,
+  isDimmed = false,
 }: {
   comment: Comment & { status?: CommentStatus }
   isActive: boolean
@@ -288,6 +294,10 @@ function CommentCard({
   dense?: boolean
   /** play entrance animation for newly added comments */
   isEntering?: boolean
+  /** Soft focus ring when this comment matches View edits */
+  isFocusedEdit?: boolean
+  /** Soften non-matching comments while viewing edits */
+  isDimmed?: boolean
 }) {
   const bodyTextClass = dense ? 'text-[13px]' : 'text-[12px]'
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
@@ -359,7 +369,9 @@ function CommentCard({
         'group relative rounded-lg px-2 py-2 transition-[background-color,opacity] duration-300 ease-out',
         isLinked && !isResolved && 'cursor-pointer hover:bg-neutral-50',
         isResolved && 'cursor-pointer opacity-60',
-        isEntering && 'animate-comment-appear'
+        isEntering && 'animate-comment-appear',
+        isFocusedEdit && 'bg-amber-50',
+        isDimmed && 'opacity-35'
       )}
     >
       {/* Active-section accent */}
@@ -478,6 +490,10 @@ export function SectionCommentStack({
   onDelete,
   onResolve,
 }: SectionCommentStackProps) {
+  const editHistory = useOptionalFieldEditHistory()
+  const viewEditsFocus = editHistory?.viewEditsFocus ?? null
+  const isViewingEdits = viewEditsFocus?.sectionId === sectionId
+
   const [isExpanded, setIsExpanded] = useState(false)
   const [isStackHovered, setIsStackHovered] = useState(false)
   const [showAddNote, setShowAddNote] = useState(false)
@@ -490,19 +506,39 @@ export function SectionCommentStack({
     knownIdsRef.current = new Set(comments.map((c) => c.id))
   }
 
+  const orderedComments = useMemo(() => {
+    if (!isViewingEdits || !viewEditsFocus) return comments
+    const matching: typeof comments = []
+    const rest: typeof comments = []
+    for (const comment of comments) {
+      if (commentMatchesViewEditsFocus(comment, viewEditsFocus)) matching.push(comment)
+      else rest.push(comment)
+    }
+    return [...matching, ...rest]
+  }, [comments, isViewingEdits, viewEditsFocus])
+
+  // Expand + focus when "View edits" is clicked for this section
+  useEffect(() => {
+    if (!isViewingEdits) return
+    setIsExpanded(true)
+    setShowAddNote(false)
+    stackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [isViewingEdits, viewEditsFocus?.fieldLabel])
+
   // Collapse on outside click
   useEffect(() => {
-    if (!isExpanded && !showAddNote) return
+    if (!isExpanded && !showAddNote && !isViewingEdits) return
     const handleClickOutside = (e: MouseEvent) => {
       if (stackRef.current && !stackRef.current.contains(e.target as Node)) {
         setIsExpanded(false)
         setShowAddNote(false)
         setIsStackHovered(false)
+        if (isViewingEdits) editHistory?.clearViewEditsFocus()
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isExpanded, showAddNote])
+  }, [isExpanded, showAddNote, isViewingEdits, editHistory])
 
   // Animate newly added comments; collapse stack so the new top comment is visible
   useEffect(() => {
@@ -518,7 +554,7 @@ export function SectionCommentStack({
     }
 
     for (const id of newIds) known.add(id)
-    setIsExpanded(false)
+    if (!isViewingEdits) setIsExpanded(false)
     setEnteringIds((prev) => {
       const next = new Set(prev)
       for (const id of newIds) next.add(id)
@@ -534,13 +570,28 @@ export function SectionCommentStack({
     }, 500)
 
     return () => clearTimeout(timer)
-  }, [comments])
+  }, [comments, isViewingEdits])
 
-  const commentCount = comments.length
-  const topComment = comments[0]
+  const commentCount = orderedComments.length
+  const topComment = orderedComments[0]
   const hasStack = commentCount > 1
+  const matchingCount = isViewingEdits
+    ? orderedComments.filter((c) => commentMatchesViewEditsFocus(c, viewEditsFocus)).length
+    : 0
+
+  const focusFieldLabel = (() => {
+    if (!viewEditsFocus) return ''
+    if (!viewEditsFocus.itemPrefix) return viewEditsFocus.fieldLabel
+    const match = orderedComments.find((c) => commentMatchesViewEditsFocus(c, viewEditsFocus))
+    const raw = match?.fieldEdit?.fieldLabel
+    if (!raw) return 'line item'
+    const sep = ' · '
+    const sepIdx = raw.lastIndexOf(sep)
+    return sepIdx >= 0 ? raw.slice(sepIdx + sep.length).toLowerCase() : raw
+  })()
 
   const renderCommentCard = (comment: Comment & { status?: CommentStatus }) => {
+    const isMatch = commentMatchesViewEditsFocus(comment, viewEditsFocus)
     return (
       <CommentCard
         key={comment.id}
@@ -550,12 +601,33 @@ export function SectionCommentStack({
         onDelete={onDelete}
         onResolve={onResolve}
         isEntering={enteringIds.has(comment.id)}
+        isFocusedEdit={isViewingEdits && isMatch}
+        isDimmed={isViewingEdits && !isMatch}
       />
     )
   }
 
   return (
     <div ref={stackRef} className="pt-0.5">
+      {isViewingEdits && (
+        <div className="mb-2 flex items-center justify-between gap-2 px-1">
+          <span className="min-w-0 truncate text-[11px] font-medium text-amber-800/80">
+            {matchingCount > 0
+              ? `${matchingCount} edit${matchingCount === 1 ? '' : 's'} to ${focusFieldLabel.toLowerCase()}`
+              : `No edit notes for ${focusFieldLabel.toLowerCase()}`}
+          </span>
+          <button
+            type="button"
+            onClick={() => editHistory?.clearViewEditsFocus()}
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+            title="Close"
+            aria-label="Close"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Add note CTA – always visible at top */}
       <button
         type="button"
@@ -593,7 +665,7 @@ export function SectionCommentStack({
             // Expanded: all comments with internal scroll capped at ~320px
             <div className="relative">
               <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1">
-                {comments.map((comment) => renderCommentCard(comment))}
+                {orderedComments.map((comment) => renderCommentCard(comment))}
               </div>
               {/* Fade at bottom */}
               <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />

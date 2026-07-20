@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
@@ -711,6 +711,7 @@ function ContractProcessingView({
       </div>
 
       <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
+      <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}

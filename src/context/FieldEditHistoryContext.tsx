@@ -94,6 +94,14 @@ export interface FieldEditEvent {
   newValue: string
 }
 
+export interface ViewEditsFocus {
+  sectionId: string
+  /** Exact field label, or a product line-item id prefix (matched via itemPrefix) */
+  fieldLabel: string
+  /** When true, matches any field edit whose label starts with `${fieldLabel} ·` */
+  itemPrefix?: boolean
+}
+
 interface FieldEditHistoryContextValue {
   recordEdit: (
     sectionId: string,
@@ -105,6 +113,9 @@ interface FieldEditHistoryContextValue {
   hasEdits: (sectionId: string, fieldLabel: string) => boolean
   /** True when the user has changed this field in the current session */
   isFieldEdited: (sectionId: string, fieldLabel: string) => boolean
+  viewEditsFocus: ViewEditsFocus | null
+  focusViewEdits: (focus: ViewEditsFocus) => void
+  clearViewEditsFocus: () => void
   editedFieldCount: number
   editCount: number
   isDownstreamRefreshing: boolean
@@ -141,6 +152,7 @@ export function FieldEditHistoryProvider({
   })
   /** Session-only: fields the user has changed (excludes seed history) */
   const [editedFieldKeys, setEditedFieldKeys] = useState<Set<string>>(() => new Set())
+  const [viewEditsFocus, setViewEditsFocus] = useState<ViewEditsFocus | null>(null)
 
   const triggerDownstreamRefresh = useCallback(() => {
     setIsDownstreamRefreshing(true)
@@ -238,6 +250,24 @@ export function FieldEditHistoryProvider({
     [editedFieldKeys]
   )
 
+  const focusViewEdits = useCallback((focus: ViewEditsFocus) => {
+    setViewEditsFocus((prev) => {
+      if (
+        prev &&
+        prev.sectionId === focus.sectionId &&
+        prev.fieldLabel === focus.fieldLabel &&
+        !!prev.itemPrefix === !!focus.itemPrefix
+      ) {
+        return null
+      }
+      return focus
+    })
+  }, [])
+
+  const clearViewEditsFocus = useCallback(() => {
+    setViewEditsFocus(null)
+  }, [])
+
   const editedFieldCount = useMemo(
     () => Object.values(editsByField).filter((records) => records.length > 0).length,
     [editsByField]
@@ -257,6 +287,9 @@ export function FieldEditHistoryProvider({
       getEdits,
       hasEdits,
       isFieldEdited,
+      viewEditsFocus,
+      focusViewEdits,
+      clearViewEditsFocus,
       editedFieldCount,
       editCount,
       isDownstreamRefreshing,
@@ -264,7 +297,7 @@ export function FieldEditHistoryProvider({
       refreshDownstream: triggerDownstreamRefresh,
       formatEditTime,
     }),
-    [recordEdit, getEdits, hasEdits, isFieldEdited, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
+    [recordEdit, getEdits, hasEdits, isFieldEdited, viewEditsFocus, focusViewEdits, clearViewEditsFocus, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
   )
 
   return (
@@ -284,6 +317,15 @@ export function useOptionalFieldEditHistory() {
   return useContext(FieldEditHistoryContext)
 }
 
+/** Expands comment panels when the user clicks "View edits" on a field row. */
+export function EnsurePanelsOnViewEdits({ onNeedPanels }: { onNeedPanels: () => void }) {
+  const history = useOptionalFieldEditHistory()
+  useEffect(() => {
+    if (history?.viewEditsFocus) onNeedPanels()
+  }, [history?.viewEditsFocus, onNeedPanels])
+  return null
+}
+
 export function formatFieldEditCommentBody(event: FieldEditEvent): string {
   const sep = ' · '
   const sepIdx = event.fieldLabel.lastIndexOf(sep)
@@ -292,4 +334,19 @@ export function formatFieldEditCommentBody(event: FieldEditEvent): string {
     return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`
   }
   return `Set ${fieldLabel} to "${event.newValue}"`
+}
+
+export function commentMatchesViewEditsFocus(
+  comment: { linkedSectionId?: string; fieldEdit?: { fieldLabel: string } },
+  focus: ViewEditsFocus | null
+): boolean {
+  if (!focus || !comment.fieldEdit) return false
+  if (comment.linkedSectionId !== focus.sectionId) return false
+  if (focus.itemPrefix) {
+    return (
+      comment.fieldEdit.fieldLabel === focus.fieldLabel ||
+      comment.fieldEdit.fieldLabel.startsWith(`${focus.fieldLabel} ·`)
+    )
+  }
+  return comment.fieldEdit.fieldLabel === focus.fieldLabel
 }

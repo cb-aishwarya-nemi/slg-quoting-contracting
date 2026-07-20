@@ -26,7 +26,7 @@ import {
   type NavSection,
 } from '@/components/features/contract-processing'
 import { CustomerMatchDrawer } from '@/components/features/customer-link/CustomerMatchDrawer'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
@@ -522,6 +522,7 @@ export function Customer360Page() {
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
         <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
+        <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div className="flex shrink-0 items-center py-3">

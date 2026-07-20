@@ -765,6 +765,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
+    const isEdited =
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
     
     return (
       <div
@@ -775,7 +778,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
-            : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+            : cn(
+                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
+                isEdited && "bg-amber-50"
+              )
         )}
       >
         {/* Item */}
@@ -837,8 +843,33 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
 
         <div
           className="flex shrink-0 items-center justify-end gap-1.5"
-          style={{ width: MENU_W }}
+          style={{ width: isEdited && !isActive ? 88 : MENU_W }}
         >
+          {isEdited && !isActive && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                editHistory?.focusViewEdits({
+                  sectionId: PRODUCTS_SECTION_ID,
+                  fieldLabel: item.id,
+                  itemPrefix: true,
+                })
+              }}
+              className={cn(
+                'inline-flex cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+                isHovered
+                  ? 'bg-white/15 text-white/80'
+                  : editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
+                      editHistory?.viewEditsFocus?.fieldLabel === item.id
+                    ? 'bg-amber-100/70 text-amber-800/80'
+                    : 'bg-amber-50 text-amber-700/70'
+              )}
+            >
+              <span className={isHovered ? 'hidden' : 'inline'}>Edited</span>
+              <span className={isHovered ? 'inline' : 'hidden'}>View edits</span>
+            </button>
+          )}
           <button
             type="button"
             className={cn(

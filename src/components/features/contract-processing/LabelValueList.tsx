@@ -62,6 +62,8 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         : undefined
   const isSelect = !!options
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
+  const isEdited =
+    !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -242,6 +244,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
       onClick={handleRowClick}
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
+        isEdited && !isEditing && !isOpen && 'bg-amber-50',
         !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
@@ -352,6 +355,25 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {isEdited && sectionId && !isEditing && !isOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                editHistory?.focusViewEdits({ sectionId, fieldLabel: item.label })
+              }}
+              className={cn(
+                'inline-flex cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+                editHistory?.viewEditsFocus?.sectionId === sectionId &&
+                  editHistory?.viewEditsFocus?.fieldLabel === item.label
+                  ? 'bg-amber-100/70 text-amber-800/80 group-hover:bg-white/20 group-hover:text-white'
+                  : 'bg-amber-50 text-amber-700/70 group-hover:bg-white/15 group-hover:text-white/80'
+              )}
+            >
+              <span className="group-hover:hidden">Edited</span>
+              <span className="hidden group-hover:inline">View edits</span>
+            </button>
+          )}
           {!isEditing && !isOpen && (
             onRemove ? (
               <button
