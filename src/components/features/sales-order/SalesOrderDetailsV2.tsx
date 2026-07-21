@@ -5,6 +5,7 @@ import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
+import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 import { type SalesOrder } from '@/data/salesOrderMock'
 import {
   getSalesOrderPaymentSummary,
@@ -50,26 +51,124 @@ function formatRenewalDisplay(order: SalesOrder): string {
   return `${type} · ${order.renewalDate}`
 }
 
+function formatOrdinal(n: number): string {
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 13) return `${n}th`
+  switch (n % 10) {
+    case 1:
+      return `${n}st`
+    case 2:
+      return `${n}nd`
+    case 3:
+      return `${n}rd`
+    default:
+      return `${n}th`
+  }
+}
+
+function getContractTermProgress(order: SalesOrder): string | undefined {
+  const start = new Date(order.startDate)
+  if (isNaN(start.getTime())) return undefined
+
+  const termMatch = order.contractTerm.match(/(\d+)\s*months?/i)
+  const termMonths = termMatch ? Number(termMatch[1]) : null
+
+  const now = new Date()
+  const monthsElapsed =
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth())
+
+  if (monthsElapsed < 0) return undefined
+
+  let nth = monthsElapsed + 1
+  if (termMonths != null) nth = Math.min(nth, termMonths)
+
+  return `in ${formatOrdinal(nth)} month`
+}
+
+function getRenewalRelativeMonths(renewalDate: string): string | undefined {
+  const parsed = new Date(renewalDate)
+  if (isNaN(parsed.getTime())) return undefined
+
+  const now = new Date()
+  const months =
+    (parsed.getFullYear() - now.getFullYear()) * 12 + (parsed.getMonth() - now.getMonth())
+
+  if (months === 0) return 'this month'
+  if (months === 1) return 'in 1 month'
+  if (months > 1) return `in ${months} months`
+  if (months === -1) return '1 month ago'
+  return `${Math.abs(months)} months ago`
+}
+
+function getNextBillingLine(order: SalesOrder): { date: string; relative?: string } {
+  const next = order.upcomingBillingSchedule.find(
+    (line) => line.status === 'Pending' || line.status === 'Upcoming'
+  )
+  if (!next) return { date: '—' }
+
+  const parsed = new Date(next.billDate)
+  if (isNaN(parsed.getTime())) return { date: next.billDate }
+
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfTarget = new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+  const diffDays = Math.round(
+    (startOfTarget.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24)
+  )
+
+  let relative: string
+  if (diffDays === 0) relative = 'today'
+  else if (diffDays === 1) relative = 'in 1 day'
+  else if (diffDays > 1) relative = `in ${diffDays} days`
+  else if (diffDays === -1) relative = '1 day ago'
+  else relative = `${Math.abs(diffDays)} days ago`
+
+  return { date: next.billDate, relative }
+}
+
 function OrderMetricsRow({ order }: { order: SalesOrder }) {
-  const metrics = [
+  const nextBilling = getNextBillingLine(order)
+  const metrics: Array<{ label: string; value: string; suffix?: string }> = [
     { label: 'TCV', value: order.totalContractValue },
+    {
+      label: 'Contract term',
+      value: order.contractTerm,
+      suffix: getContractTermProgress(order),
+    },
+    {
+      label: 'Renewal',
+      value: formatRenewalDisplay(order),
+      suffix: getRenewalRelativeMonths(order.renewalDate),
+    },
     { label: 'Accrued', value: order.accruedValue },
-    { label: 'Contract term', value: order.contractTerm },
-    { label: 'Renewal', value: formatRenewalDisplay(order) },
+    {
+      label: 'Next billing',
+      value: nextBilling.date,
+      suffix: nextBilling.relative,
+    },
   ]
 
   return (
     <div className="flex">
       {metrics.map((metric, idx) => (
-        <div key={metric.label} className="flex flex-1 items-start">
-          <div className="flex-1 py-3">
+        <div key={metric.label} className="flex min-w-0 flex-1 items-start">
+          <div className="min-w-0 flex-1 py-3">
             <p className="text-[11px] font-medium uppercase tracking-wider text-brand-fog">
               {metric.label}
             </p>
-            <p className="mt-1 text-[15px] font-semibold text-brand-navy">{metric.value}</p>
+            <div className="mt-1">
+              <p className="whitespace-nowrap text-[15px] font-semibold text-brand-navy">
+                {metric.value}
+              </p>
+              {metric.suffix && (
+                <p className="mt-0.5 whitespace-nowrap text-[12px] font-normal text-brand-fog">
+                  {metric.suffix}
+                </p>
+              )}
+            </div>
           </div>
           {idx < metrics.length - 1 && (
-            <div className="mx-4 h-12 w-px self-center bg-neutral-200" />
+            <div className="mx-3 h-12 w-px shrink-0 self-center bg-neutral-200" />
           )}
         </div>
       ))}
@@ -378,7 +477,10 @@ export function SalesOrderDetailsV2({
           <AiSummaryNote order={order} scenario={scenario} />
 
           {scenario === 'all-good' && (
-            <SalesOrderFeatureUsageSection orderId={order.id} hideUsageLimits />
+            <>
+              <SalesOrderHeaderTimeline orderId={order.id} />
+              <SalesOrderFeatureUsageSection orderId={order.id} hideUsageLimits />
+            </>
           )}
 
           <SalesOrderCollapsedSections order={order} />
