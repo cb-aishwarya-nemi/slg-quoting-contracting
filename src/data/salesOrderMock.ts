@@ -62,6 +62,23 @@ export interface PastInvoiceLine {
   amount: string
 }
 
+export type CreditNoteStatus = 'Applied' | 'Refunded' | 'Pending'
+
+export interface PastCreditNoteLine {
+  id: string
+  creditNoteId: string
+  date: string
+  status: CreditNoteStatus
+  amount: string
+}
+
+export interface LinkedRecord {
+  label: string
+  value: string
+  /** When false, value renders as plain text (e.g. empty renewal). Defaults to true. */
+  href?: boolean
+}
+
 export interface ActivityItem {
   id: string
   /** Human-readable event, e.g. "First invoice sent" */
@@ -100,6 +117,8 @@ export interface SalesOrder {
   productPeriods?: SalesOrderRampPeriod[]
   upcomingBillingSchedule: BillingScheduleLine[]
   pastInvoices: PastInvoiceLine[]
+  pastCreditNotes: PastCreditNoteLine[]
+  linkedRecords: LinkedRecord[]
   /** section-wise comments keyed via linkedSectionId */
   comments: Comment[]
   /** chronological account activity for the Activity timeline */
@@ -317,6 +336,17 @@ export const pioneerSalesOrder: SalesOrder = {
     { id: 'so-pi-3', invoiceId: 'INV-2026-9584', date: 'Jun 15, 2026', status: 'Pending', amount: '$126,000.00' },
   ],
 
+  pastCreditNotes: [
+    { id: 'so-cn-1', creditNoteId: 'CN-2026-0112', date: 'May 12, 2026', status: 'Applied', amount: '-$2,400.00' },
+    { id: 'so-cn-2', creditNoteId: 'CN-2026-0188', date: 'Jun 3, 2026', status: 'Refunded', amount: '-$850.00' },
+  ],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2026-1847' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2026.pdf' },
+  ],
+
   comments: pioneerComments,
 
   activity: [
@@ -384,6 +414,14 @@ const secondSalesOrder: SalesOrder = {
   pastInvoices: [
     { id: 'so2-pi-1', invoiceId: 'INV-2025-6421', date: 'Jan 1, 2026', status: 'Paid', amount: '$48,000.00' },
     { id: 'so2-pi-2', invoiceId: 'INV-2025-5890', date: 'Nov 1, 2025', status: 'Paid', amount: '$42,000.00' },
+  ],
+
+  pastCreditNotes: [],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2025-0921' },
+    { label: 'Contracts', value: 'Pioneer_Systems_Renewal_2025.pdf' },
   ],
 
   comments: [
@@ -459,6 +497,14 @@ const thirdSalesOrder: SalesOrder = {
     { id: 'so3-pi-2', invoiceId: 'INV-2024-2851', date: 'Jul 1, 2024', status: 'Cancelled', amount: '$36,000.00' },
   ],
 
+  pastCreditNotes: [],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2024-1188' },
+    { label: 'Contracts', value: 'Pioneer_Systems_Order_Form_2024.pdf' },
+  ],
+
   comments: [],
 
   activity: [
@@ -519,6 +565,14 @@ const fourthSalesOrder: SalesOrder = {
   pastInvoices: [
     { id: 'so4-pi-1', invoiceId: 'INV-2023-4410', date: 'May 1, 2023', status: 'Paid', amount: '$24,000.00' },
     { id: 'so4-pi-2', invoiceId: 'INV-2024-1182', date: 'Feb 1, 2024', status: 'Paid', amount: '$24,000.00' },
+  ],
+
+  pastCreditNotes: [],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2023-0921' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2023.pdf' },
   ],
 
   comments: [],
@@ -584,6 +638,14 @@ const fifthSalesOrder: SalesOrder = {
   pastInvoices: [
     { id: 'so5-pi-1', invoiceId: 'INV-2025-9102', date: 'Oct 1, 2025', status: 'Paid', amount: '$45,000.00' },
     { id: 'so5-pi-2', invoiceId: 'INV-2026-2218', date: 'Jan 15, 2026', status: 'Paid', amount: '$45,000.00' },
+  ],
+
+  pastCreditNotes: [],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2025-2044' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2025.pdf' },
   ],
 
   comments: [],

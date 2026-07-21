@@ -180,6 +180,11 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
         label: 'All good',
         description: 'Healthy account — nothing needs attention',
       },
+      {
+        id: 'all-good-2',
+        label: 'All good-2',
+        description: 'Healthy account — exploration variant 2',
+      },
     ],
   },
 ]

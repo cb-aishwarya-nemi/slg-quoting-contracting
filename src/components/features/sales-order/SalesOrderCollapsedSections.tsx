@@ -1,9 +1,10 @@
 import { useState, type ReactNode } from 'react'
-import { ChevronDown, MessageCircleMore } from 'lucide-react'
+import { ArrowRight, ChevronDown, Maximize2, MessageCircleMore } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { CommentsPanel } from '@/components/features/contract-processing'
 import { STATUS_STYLES, type InvoiceStatus } from '@/data/invoiceListMock'
-import { type ActivityItem, type SalesOrder } from '@/data/salesOrderMock'
+import { AMENDMENT_HISTORY_VERSIONS } from '@/data/salesOrderAmendmentHistoryMock'
+import { type ActivityItem, type CreditNoteStatus, type SalesOrder } from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 
 const SECTION_DATA_CONTAINER = 'overflow-hidden rounded-lg border border-neutral-200'
@@ -12,6 +13,12 @@ const SCHEDULE_STATUS_STYLES: Record<'Paid' | 'Pending' | 'Upcoming', { bg: stri
   Paid: { bg: 'bg-green-50', text: 'text-green-700' },
   Pending: { bg: 'bg-amber-50', text: 'text-amber-700' },
   Upcoming: { bg: 'bg-neutral-100', text: 'text-brand-fog' },
+}
+
+const CREDIT_NOTE_STATUS_STYLES: Record<CreditNoteStatus, { bg: string; text: string }> = {
+  Applied: { bg: 'bg-green-50', text: 'text-green-700' },
+  Refunded: { bg: 'bg-blue-50', text: 'text-blue-700' },
+  Pending: { bg: 'bg-amber-50', text: 'text-amber-700' },
 }
 
 function ActivityTimeline({ items }: { items: ActivityItem[] }) {
@@ -48,18 +55,75 @@ function ActivityTimeline({ items }: { items: ActivityItem[] }) {
   )
 }
 
+const AMENDMENT_PREVIEW = AMENDMENT_HISTORY_VERSIONS
+
+function AmendmentHistoryTimeline({
+  onSelectVersion,
+}: {
+  onSelectVersion?: (versionId: string) => void
+}) {
+  return (
+    <div>
+      {AMENDMENT_PREVIEW.map((version, idx) => {
+        const isLast = idx === AMENDMENT_PREVIEW.length - 1
+        return (
+          <button
+            key={version.id}
+            type="button"
+            onClick={() => onSelectVersion?.(version.id)}
+            className={cn(
+              'relative flex w-full items-start text-left',
+              onSelectVersion && 'cursor-pointer rounded-md hover:bg-neutral-50'
+            )}
+          >
+            <div className="relative z-10 flex w-5 shrink-0 justify-center pt-[6px]">
+              <div
+                className={cn(
+                  'h-1.5 w-1.5 rounded-full',
+                  version.current ? 'bg-blue-600' : 'bg-brand-navy/40'
+                )}
+              />
+            </div>
+            {!isLast && (
+              <div
+                className="pointer-events-none absolute left-[9px] top-[12px] w-px bg-brand-navy/15"
+                style={{ bottom: -6 }}
+              />
+            )}
+            <div className="ml-3 flex-1 pb-4">
+              <p className="text-[12px] text-brand-fog">{version.date}</p>
+              <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                <span className="text-[14px] font-medium text-brand-navy">{version.title}</span>
+                <span className="text-[13px] text-blue-700">{version.version}</span>
+                {version.current && (
+                  <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-blue-700">
+                    Current
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[13px] text-brand-fog">{version.detail}</p>
+            </div>
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 function CollapsibleSection({
   title,
   commentCount,
   trailing,
+  defaultOpen = false,
   children,
 }: {
   title: string
   commentCount?: number
   trailing?: ReactNode
+  defaultOpen?: boolean
   children: ReactNode
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
 
   return (
     <section>
@@ -100,6 +164,31 @@ function CollapsibleSection({
   )
 }
 
+/** Always-open section; chevron replaced by hover “View all →”. */
+function ViewAllSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="group/section">
+      <div className="flex items-center gap-3">
+        <h2 className="shrink-0 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          {title}
+        </h2>
+        <div className="flex-1" />
+        <button
+          type="button"
+          className={cn(
+            'inline-flex shrink-0 cursor-pointer items-center gap-0.5 text-[12px] font-medium text-blue-700 transition-opacity hover:underline',
+            'opacity-0 pointer-events-none group-hover/section:pointer-events-auto group-hover/section:opacity-100'
+          )}
+        >
+          View all
+          <ArrowRight size={12} strokeWidth={2.25} />
+        </button>
+      </div>
+      <div className="mt-4">{children}</div>
+    </section>
+  )
+}
+
 const ORDER_ENTITLEMENTS = [
   { label: 'Seats', value: '50 seats' },
   { label: 'Environments', value: '3 sandboxes' },
@@ -130,7 +219,46 @@ function EntitlementRow({
   )
 }
 
-export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
+function LinkedRecordRow({
+  label,
+  value,
+  isLast = false,
+}: {
+  label: string
+  value: string
+  isLast?: boolean
+}) {
+  const isEmpty = value === '—' || value === ''
+  return (
+    <div
+      className={cn(
+        'flex items-center py-2.5 pl-1 pr-2',
+        !isLast && 'border-b border-neutral-100'
+      )}
+    >
+      <span className="w-[148px] shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        {label}
+      </span>
+      {isEmpty ? (
+        <span className="text-[14px] text-brand-fog">—</span>
+      ) : (
+        <a className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
+          {value}
+        </a>
+      )}
+    </div>
+  )
+}
+
+export function SalesOrderCollapsedSections({
+  order,
+  showAmendmentHistory = false,
+  onExpandAmendmentHistory,
+}: {
+  order: SalesOrder
+  showAmendmentHistory?: boolean
+  onExpandAmendmentHistory?: (versionId?: string) => void
+}) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
 
   return (
@@ -205,7 +333,7 @@ export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
         </div>
       </section>
 
-      <CollapsibleSection title="Past invoices">
+      <ViewAllSection title="Past invoices">
         <div className={SECTION_DATA_CONTAINER}>
           {order.pastInvoices.length === 0 ? (
             <p className="px-4 py-4 text-[13px] text-brand-fog">No invoices yet.</p>
@@ -241,7 +369,88 @@ export function SalesOrderCollapsedSections({ order }: { order: SalesOrder }) {
             })
           )}
         </div>
-      </CollapsibleSection>
+      </ViewAllSection>
+
+      <ViewAllSection title="Past credit notes">
+        <div className={SECTION_DATA_CONTAINER}>
+          {order.pastCreditNotes.length === 0 ? (
+            <p className="px-4 py-4 text-[13px] text-brand-fog">No credit notes yet.</p>
+          ) : (
+            order.pastCreditNotes.map((note, idx) => {
+              const style = CREDIT_NOTE_STATUS_STYLES[note.status]
+              return (
+                <div
+                  key={note.id}
+                  className={cn(
+                    'flex items-center border-b border-neutral-200 px-4 py-2.5',
+                    idx === order.pastCreditNotes.length - 1 && 'border-b-0'
+                  )}
+                >
+                  <a className="w-[160px] shrink-0 cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
+                    {note.creditNoteId}
+                  </a>
+                  <span className="flex-1 text-[13px] text-brand-fog">{note.date}</span>
+                  <span
+                    className={cn(
+                      'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
+                      style.bg,
+                      style.text
+                    )}
+                  >
+                    {note.status}
+                  </span>
+                  <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
+                    {note.amount}
+                  </span>
+                </div>
+              )
+            })
+          )}
+        </div>
+      </ViewAllSection>
+
+      {showAmendmentHistory && (
+        <section>
+          <div className="flex items-center gap-2">
+            <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+              Amendment history
+            </h2>
+            {onExpandAmendmentHistory && (
+              <button
+                type="button"
+                onClick={() => onExpandAmendmentHistory()}
+                aria-label="Expand amendment history"
+                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded-md text-brand-fog transition-colors hover:bg-neutral-100 hover:text-blue-700"
+              >
+                <Maximize2 size={14} strokeWidth={2.25} />
+              </button>
+            )}
+          </div>
+          <div className="mt-4">
+            <AmendmentHistoryTimeline onSelectVersion={onExpandAmendmentHistory} />
+          </div>
+        </section>
+      )}
+
+      <section>
+        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Linked records
+        </h2>
+        <div className="mt-4 grid grid-cols-2 gap-20">
+          <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200">
+            <div className="px-3 py-1">
+              {order.linkedRecords.map((row, idx) => (
+                <LinkedRecordRow
+                  key={row.label}
+                  label={row.label}
+                  value={row.value}
+                  isLast={idx === order.linkedRecords.length - 1}
+                />
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <CollapsibleSection
         title="Comments"

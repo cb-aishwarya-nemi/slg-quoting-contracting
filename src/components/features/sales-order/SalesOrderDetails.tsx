@@ -4,7 +4,7 @@ import { SalesOrderDetailsV1 } from './SalesOrderDetailsV1'
 import { SalesOrderDetailsV2 } from './SalesOrderDetailsV2'
 
 export type UbbChartVariant = 'ubb-chart-1' | 'ubb-chart-2'
-export type SalesOrderScenario = 'non-ubb' | UbbChartVariant | 'all-good'
+export type SalesOrderScenario = 'non-ubb' | UbbChartVariant | 'all-good' | 'all-good-2'
 
 export interface SalesOrderDetailsProps {
   order: SalesOrder
@@ -17,6 +17,7 @@ export interface SalesOrderDetailsProps {
 export function resolveSalesOrderScenario(variantId: string | null | undefined): SalesOrderScenario {
   if (variantId === 'non-ubb') return 'non-ubb'
   if (variantId === 'all-good' || variantId === 'v2') return 'all-good'
+  if (variantId === 'all-good-2') return 'all-good-2'
   if (variantId === 'ubb-chart-2') return 'ubb-chart-2'
   // `ubb-chart-1`, legacy `ubb` / `v1`, and unknown → UBB chart 1
   return 'ubb-chart-1'
@@ -24,6 +25,12 @@ export function resolveSalesOrderScenario(variantId: string | null | undefined):
 
 function isUbbChartScenario(scenario: SalesOrderScenario): scenario is UbbChartVariant {
   return scenario === 'ubb-chart-1' || scenario === 'ubb-chart-2'
+}
+
+export function isAllGoodScenario(
+  scenario: SalesOrderScenario
+): scenario is 'all-good' | 'all-good-2' {
+  return scenario === 'all-good' || scenario === 'all-good-2'
 }
 
 export function SalesOrderDetails(props: SalesOrderDetailsProps) {

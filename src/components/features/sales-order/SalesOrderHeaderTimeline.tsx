@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   dateToTimelinePercent,
@@ -10,248 +11,330 @@ interface SalesOrderHeaderTimelineProps {
   onVersionSelect?: (versionId: string) => void
 }
 
-type VersionStatus = 'complete' | 'current' | 'upcoming'
-
-interface VersionMarker {
+interface AmendmentMarker {
   id: string
   version: string
   title: string
-  subtitle: string
+  detail: string
   date: string
-  status: VersionStatus
+  dateLabel: string
 }
 
-interface AxisMonth {
-  label: string
-  startPercent: number
+interface ContractPeriod {
+  /** 1-based period index within the 3-year contract */
+  index: number
+  rangeLabel: string
+  startDate: string
+  endDate: string
+  amendments: AmendmentMarker[]
 }
-
-/** Pioneer 36-month contract: May 2026 → Apr 2029. */
-const HEADER_TIMELINE = {
-  startDate: '2026-05-01',
-  endDate: '2029-04-30',
-  /** Between v4 (Feb 2027) and v5 (pending). */
-  todayDate: '2027-02-10',
-} as const
 
 /**
- * Contract versions — labels from product reference; placed on the 3-year axis.
+ * Three periods across the Pioneer term.
+ * Default (Period 2/3) matches the attached reference: Jan–Dec 2026.
  */
-const VERSION_MARKERS: VersionMarker[] = [
+const CONTRACT_PERIODS: ContractPeriod[] = [
   {
-    id: 'v1',
-    version: 'v1',
-    title: 'Original',
-    subtitle: 'May 2026',
-    date: '2026-05-01',
-    status: 'complete',
+    index: 1,
+    rangeLabel: 'May - Dec 2025',
+    startDate: '2025-05-01',
+    endDate: '2025-12-31',
+    amendments: [
+      {
+        id: 'a1',
+        version: 'v1',
+        title: 'Amendment 1',
+        detail: 'Original',
+        date: '2025-05-01',
+        dateLabel: "May 01 '25",
+      },
+      {
+        id: 'a1b',
+        version: 'v2',
+        title: 'Amendment 1b',
+        detail: 'Ramp adjust',
+        date: '2025-09-15',
+        dateLabel: "Sep 15 '25",
+      },
+    ],
   },
   {
-    id: 'v2',
-    version: 'v2',
-    title: '+25 seats',
-    subtitle: 'Aug 2026',
-    date: '2026-08-01',
-    status: 'complete',
+    index: 2,
+    rangeLabel: 'Jan - Dec 2026',
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+    amendments: [
+      {
+        id: 'a2',
+        version: 'v3',
+        title: 'Amendment 2',
+        detail: '+ 25 seats',
+        date: '2026-03-01',
+        dateLabel: "Mar 01 '26",
+      },
+      {
+        id: 'a3',
+        version: 'v4',
+        title: 'Amendment 3',
+        detail: 'Extended term',
+        date: '2026-07-09',
+        dateLabel: "Jul 09 '26",
+      },
+    ],
   },
   {
-    id: 'v3',
-    version: 'v3',
-    title: 'Extended',
-    subtitle: 'Nov 2026',
-    date: '2026-11-01',
-    status: 'complete',
-  },
-  {
-    id: 'v4',
-    version: 'v4',
-    title: 'Price freeze',
-    subtitle: 'Feb 2027',
-    date: '2027-02-01',
-    status: 'current',
-  },
-  {
-    id: 'v5',
-    version: 'v5',
-    title: 'In progress',
-    subtitle: 'Pending sig.',
-    date: '2027-02-22',
-    status: 'upcoming',
+    index: 3,
+    rangeLabel: 'Jan - Apr 2029',
+    startDate: '2029-01-01',
+    endDate: '2029-04-30',
+    amendments: [
+      {
+        id: 'a4',
+        version: 'v5',
+        title: 'Amendment 4',
+        detail: 'Price freeze',
+        date: '2029-02-01',
+        dateLabel: "Feb 01 '29",
+      },
+    ],
   },
 ]
 
-/** Quarterly month ticks across a multi-year contract (keeps the strip readable). */
-function buildContractAxis(startDate: string, endDate: string): AxisMonth[] {
+const DEFAULT_PERIOD_INDEX = 2
+const TOTAL_PERIODS = 3
+/** Prototype “today” — falls in Period 2 (after Amendment 3). */
+const TODAY_DATE = '2026-07-21'
+/** Leading gutter before the first month tick. */
+const AXIS_PAD_LEFT = 4
+const AXIS_PAD_RIGHT = 1
+
+/** Map a 0–100 calendar percent into the padded axis. */
+function toAxisPercent(calendarPercent: number): number {
+  const span = 100 - AXIS_PAD_LEFT - AXIS_PAD_RIGHT
+  return AXIS_PAD_LEFT + (calendarPercent / 100) * span
+}
+
+function formatMonthLabel(date: Date, isEdge: boolean): string {
+  const month = date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+  if (!isEdge) return month
+  const yy = String(date.getFullYear()).slice(-2)
+  return `${month} '${yy}`
+}
+
+function buildMonthTicks(startDate: string, endDate: string) {
   const start = parseTimelineDate(startDate)
   const end = parseTimelineDate(endDate)
-  const rangeMs = end.getTime() - start.getTime()
-  const toPercent = (date: Date) =>
-    Math.max(0, Math.min(100, ((date.getTime() - start.getTime()) / rangeMs) * 100))
+  const months: { date: Date; startPercent: number }[] = []
 
-  const months: AxisMonth[] = []
   let cursor = new Date(start.getFullYear(), start.getMonth(), 1)
-  while (cursor <= end) {
-    const month = cursor.getMonth()
-    const isYearStart = month === 0
-    const isQuarter = month % 3 === 0
-    const isFirst = months.length === 0
+  const last = new Date(end.getFullYear(), end.getMonth(), 1)
 
-    if (isFirst || isYearStart || isQuarter) {
-      const monthName = cursor.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
-      const label =
-        isFirst || isYearStart ? `${monthName} ${cursor.getFullYear()}` : monthName
-      const segmentStart = new Date(Math.max(cursor.getTime(), start.getTime()))
-      months.push({ label, startPercent: toPercent(segmentStart) })
-    }
-
+  while (cursor <= last) {
+    const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-01`
+    months.push({
+      date: new Date(cursor),
+      startPercent: toAxisPercent(dateToTimelinePercent(iso, startDate, endDate)),
+    })
     cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
   }
 
-  return months
+  return months.map((month, index) => ({
+    ...month,
+    label: formatMonthLabel(month.date, index === 0 || index === months.length - 1),
+  }))
 }
 
 export function SalesOrderHeaderTimeline({
   orderId: _orderId,
   onVersionSelect,
 }: SalesOrderHeaderTimelineProps) {
-  const { startDate, endDate, todayDate } = HEADER_TIMELINE
+  const [periodIndex, setPeriodIndex] = useState(DEFAULT_PERIOD_INDEX)
+  const period =
+    CONTRACT_PERIODS.find((p) => p.index === periodIndex) ?? CONTRACT_PERIODS[1]
 
-  const months = useMemo(() => buildContractAxis(startDate, endDate), [startDate, endDate])
-  const todayPercent = dateToTimelinePercent(todayDate, startDate, endDate)
-  const showToday =
-    parseTimelineDate(todayDate) >= parseTimelineDate(startDate) &&
-    parseTimelineDate(todayDate) <= parseTimelineDate(endDate)
+  const defaultSelected =
+    period.amendments[period.amendments.length - 1]?.id ?? period.amendments[0]?.id
+  const [selectedId, setSelectedId] = useState<string | undefined>(defaultSelected)
 
-  const defaultId =
-    VERSION_MARKERS.find((m) => m.status === 'current')?.id ?? VERSION_MARKERS[0].id
-  const [selectedId, setSelectedId] = useState(defaultId)
+  const months = useMemo(
+    () => buildMonthTicks(period.startDate, period.endDate),
+    [period.startDate, period.endDate]
+  )
 
-  const current = VERSION_MARKERS.find((m) => m.status === 'current')
-  const progressEnd = current
-    ? dateToTimelinePercent(current.date, startDate, endDate)
-    : todayPercent
+  const todayInPeriod =
+    parseTimelineDate(TODAY_DATE) >= parseTimelineDate(period.startDate) &&
+    parseTimelineDate(TODAY_DATE) <= parseTimelineDate(period.endDate)
+  const todayPercent = todayInPeriod
+    ? toAxisPercent(dateToTimelinePercent(TODAY_DATE, period.startDate, period.endDate))
+    : null
 
-  const handleSelect = (marker: VersionMarker) => {
+  const pastAmendmentCount = CONTRACT_PERIODS.filter((p) => p.index < periodIndex).reduce(
+    (sum, p) => sum + p.amendments.length,
+    0
+  )
+  const pastAmendmentsLabel =
+    pastAmendmentCount === 1
+      ? '← 1 past amendment'
+      : pastAmendmentCount > 1
+        ? `← ${pastAmendmentCount} past amendments`
+        : null
+
+  const handlePeriodChange = (next: number) => {
+    if (next < 1 || next > TOTAL_PERIODS) return
+    setPeriodIndex(next)
+    const nextPeriod = CONTRACT_PERIODS.find((p) => p.index === next)
+    const nextSelected =
+      nextPeriod?.amendments[nextPeriod.amendments.length - 1]?.id ??
+      nextPeriod?.amendments[0]?.id
+    setSelectedId(nextSelected)
+  }
+
+  const handleSelect = (marker: AmendmentMarker) => {
     setSelectedId(marker.id)
     onVersionSelect?.(marker.id)
   }
 
   return (
-    <div className="relative w-full border-y border-neutral-200 px-1 pb-2 pt-8">
-      <div className="relative w-full">
-        {/* Version chips on the axis */}
-        {VERSION_MARKERS.map((marker) => {
-          const left = dateToTimelinePercent(marker.date, startDate, endDate)
-          const isUpcoming = marker.status === 'upcoming'
-          const isCurrent = marker.status === 'current'
-          const isComplete = marker.status === 'complete'
-          const isSelected = selectedId === marker.id
-
-          return (
-            <button
-              key={marker.id}
-              type="button"
-              onClick={() => handleSelect(marker)}
-              aria-pressed={isSelected}
-              aria-label={`${marker.version}: ${marker.title}, ${marker.subtitle}`}
-              className={cn(
-                'absolute top-[-22px] z-20 flex -translate-x-1/2 cursor-pointer flex-col items-center',
-                isSelected && 'z-30'
-              )}
-              style={{ left: `${left}%` }}
-            >
-              <span
-                className={cn(
-                  'flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold transition-shadow',
-                  isUpcoming &&
-                    'border border-dashed border-amber-500 bg-white text-amber-600',
-                  isCurrent && 'bg-blue-600 text-white',
-                  isComplete && 'bg-neutral-300 text-brand-fog',
-                  isSelected && !isUpcoming && 'ring-2 ring-blue-200',
-                  isSelected && isUpcoming && 'ring-2 ring-amber-200'
-                )}
-              >
-                {marker.version}
-              </span>
-            </button>
-          )
-        })}
-
-        {/* Progress through current version */}
-        <div
-          className="pointer-events-none absolute left-0 top-[11px] z-[1] h-px bg-neutral-300"
-          style={{ width: `${progressEnd}%` }}
-        />
-
-        {/* Today */}
-        {showToday && (
-          <div
-            className="pointer-events-none absolute bottom-0 top-0 z-10 w-0.5 -translate-x-1/2 bg-blue-600"
-            style={{ left: `${todayPercent}%` }}
+    <div className="w-full px-1 pb-4 pt-3">
+      {/* Period navigator */}
+      <div className="mb-3 flex flex-col items-center">
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            aria-label="Previous period"
+            disabled={periodIndex <= 1}
+            onClick={() => handlePeriodChange(periodIndex - 1)}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition-colors',
+              periodIndex <= 1
+                ? 'cursor-not-allowed opacity-30'
+                : 'cursor-pointer hover:bg-blue-50'
+            )}
           >
-            <span className="absolute -top-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-blue-700">
-              Today
-            </span>
-          </div>
+            <ChevronLeft size={16} strokeWidth={2.25} />
+          </button>
+          <p className="text-[13px] font-medium text-brand-navy">
+            Period {periodIndex}/{TOTAL_PERIODS}
+          </p>
+          <button
+            type="button"
+            aria-label="Next period"
+            disabled={periodIndex >= TOTAL_PERIODS}
+            onClick={() => handlePeriodChange(periodIndex + 1)}
+            className={cn(
+              'flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition-colors',
+              periodIndex >= TOTAL_PERIODS
+                ? 'cursor-not-allowed opacity-30'
+                : 'cursor-pointer hover:bg-blue-50'
+            )}
+          >
+            <ChevronRight size={16} strokeWidth={2.25} />
+          </button>
+        </div>
+        <p className="mt-0.5 text-[12px] text-brand-fog">{period.rangeLabel}</p>
+      </div>
+
+      {/* Axis + amendments */}
+      <div className="relative mx-2 pt-5">
+        {pastAmendmentsLabel && (
+          <button
+            type="button"
+            onClick={() => handlePeriodChange(periodIndex - 1)}
+            disabled={periodIndex <= 1}
+            className={cn(
+              'mb-2 block text-left text-[12px] font-medium text-brand-navy',
+              periodIndex <= 1
+                ? 'cursor-default'
+                : 'cursor-pointer hover:text-blue-700'
+            )}
+          >
+            {pastAmendmentsLabel}
+          </button>
         )}
 
-        {/* Quarterly month labels across the 3-year term */}
-        <div className="relative h-[22px] border-b border-neutral-200/80">
+        {/* Month ticks hang below the axis; circles sit on the line */}
+        <div className="relative h-5">
+          <div className="absolute inset-x-0 top-0 h-px bg-neutral-300" />
           {months.map((month, index) => (
-            <div key={`${month.label}-${index}`}>
-              <div
-                className="absolute top-0 h-full w-px bg-neutral-200/80"
-                style={{ left: `${month.startPercent}%` }}
-              />
-              <span
-                className="absolute top-1 whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.04em] text-brand-fog"
-                style={{
-                  left: `${month.startPercent}%`,
-                  paddingLeft: index === 0 ? 8 : 6,
-                }}
-              >
-                {month.label}
-              </span>
-            </div>
+            <div
+              key={`${month.label}-${index}`}
+              className="absolute top-0 w-px bg-neutral-300"
+              style={{ left: `${month.startPercent}%`, height: 8 }}
+            />
           ))}
-        </div>
 
-        {/* Version captions under the axis */}
-        <div className="relative mt-3 h-11">
-          {VERSION_MARKERS.map((marker) => {
-            const left = dateToTimelinePercent(marker.date, startDate, endDate)
-            const isUpcoming = marker.status === 'upcoming'
-            const isCurrent = marker.status === 'current'
+          {/* Today marker */}
+          {todayPercent != null && (
+            <div
+              className="pointer-events-none absolute top-0 z-10 -translate-x-1/2"
+              style={{ left: `${todayPercent}%` }}
+            >
+              <span className="absolute bottom-full left-1/2 mb-1 -translate-x-1/2 whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-blue-700">
+                Today
+              </span>
+              <div className="h-5 w-0.5 bg-blue-600" />
+            </div>
+          )}
+
+          {period.amendments.map((marker) => {
+            const left = toAxisPercent(
+              dateToTimelinePercent(marker.date, period.startDate, period.endDate)
+            )
             const isSelected = selectedId === marker.id
 
             return (
               <button
-                key={`caption-${marker.id}`}
+                key={marker.id}
                 type="button"
                 onClick={() => handleSelect(marker)}
-                className={cn(
-                  'absolute flex -translate-x-1/2 cursor-pointer flex-col items-center rounded-md px-1 transition-opacity',
-                  !isSelected && 'opacity-70 hover:opacity-100'
-                )}
+                aria-pressed={isSelected}
+                aria-label={`${marker.version}: ${marker.title}, ${marker.detail}, ${marker.dateLabel}`}
+                className="group/marker absolute top-0 z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
                 style={{ left: `${left}%` }}
               >
-                <p
+                <span
                   className={cn(
-                    'whitespace-nowrap text-[11px] font-semibold',
-                    isUpcoming ? 'text-amber-600' : 'text-brand-navy'
+                    'flex h-5 w-5 items-center justify-center rounded-full border-2 border-blue-500 text-[9px] font-bold shadow-sm transition-colors',
+                    isSelected
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-blue-100 text-blue-700',
+                    'group-hover/marker:bg-blue-500 group-hover/marker:text-white'
                   )}
                 >
-                  {marker.title}
-                </p>
-                <p className="whitespace-nowrap text-[10px] text-brand-fog">{marker.subtitle}</p>
-                {isCurrent && (
-                  <span className="mt-0.5 rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-blue-700">
-                    Current
+                  {marker.version}
+                </span>
+                {/* Amendment details — visible on hover */}
+                <span className="pointer-events-none absolute left-1/2 top-full z-30 mt-2 hidden -translate-x-1/2 flex-col items-center group-hover/marker:flex">
+                  <span className="mb-2 h-5 w-px border-l border-dashed border-blue-300" />
+                  <span className="whitespace-nowrap text-[12px] font-medium text-brand-navy">
+                    {marker.title}
                   </span>
-                )}
+                  <span className="whitespace-nowrap text-[12px] text-brand-navy">
+                    {marker.detail}
+                  </span>
+                  <span className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
+                    {marker.dateLabel}
+                  </span>
+                </span>
               </button>
             )
           })}
+        </div>
+
+        {/* Month labels — under each month-start tick */}
+        <div className="relative mt-1.5 h-4">
+          {months.map((month, index) => (
+            <span
+              key={`label-${month.label}-${index}`}
+              className={cn(
+                'absolute whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.04em] text-brand-fog',
+                index === 0 ? 'translate-x-0' : '-translate-x-1/2'
+              )}
+              style={{ left: `${month.startPercent}%` }}
+            >
+              {month.label}
+            </span>
+          ))}
         </div>
       </div>
     </div>

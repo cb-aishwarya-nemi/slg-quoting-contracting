@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, Download, FilePenLine, MoreHorizontal } from 'lucide-react'
+import { ArrowRight, ChevronDown, Download, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
+import { SalesOrderAmendmentHistoryView } from './SalesOrderAmendmentHistoryView'
 import { type SalesOrder } from '@/data/salesOrderMock'
 import {
   getSalesOrderPaymentSummary,
@@ -82,7 +83,7 @@ function getContractTermProgress(order: SalesOrder): string | undefined {
   let nth = monthsElapsed + 1
   if (termMonths != null) nth = Math.min(nth, termMonths)
 
-  return `in ${formatOrdinal(nth)} month`
+  return `${formatOrdinal(nth)} month running`
 }
 
 function getRenewalRelativeMonths(renewalDate: string): string | undefined {
@@ -330,6 +331,104 @@ function OverdueAttentionItem({ order }: { order: SalesOrder }) {
   )
 }
 
+/** Contract versions from three amendments over the past 2 years. */
+const CONTRACT_VERSIONS = [
+  {
+    id: 'v1',
+    version: 'v1',
+    title: 'Original',
+    detail: 'Initial signed order',
+    dateLabel: 'May 1, 2025',
+  },
+  {
+    id: 'v2',
+    version: 'v2',
+    title: 'Amendment 1',
+    detail: 'Ramp adjust',
+    dateLabel: 'Sep 15, 2025',
+  },
+  {
+    id: 'v3',
+    version: 'v3',
+    title: 'Amendment 2',
+    detail: '+ 25 seats',
+    dateLabel: 'Mar 1, 2026',
+  },
+  {
+    id: 'v4',
+    version: 'v4',
+    title: 'Amendment 3',
+    detail: 'Extended term',
+    dateLabel: 'Jul 9, 2026',
+    current: true,
+  },
+] as const
+
+function ContractAmendmentsNote() {
+  const [expanded, setExpanded] = useState(false)
+
+  return (
+    <div className="mt-4 max-w-[720px]">
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className="group flex w-full cursor-pointer items-start gap-2 text-left"
+      >
+        <ChevronDown
+          size={16}
+          className={cn(
+            'mt-0.5 shrink-0 text-brand-fog transition-transform duration-200',
+            expanded && 'rotate-180'
+          )}
+        />
+        <p className="text-[13px] leading-[1.6] text-brand-navy group-hover:text-blue-700">
+          This contract has been amended thrice in the past 2 years.
+        </p>
+      </button>
+
+      {expanded && (
+        <div className="mt-3 ml-6 overflow-hidden rounded-lg border border-neutral-200">
+          {CONTRACT_VERSIONS.map((version, idx) => (
+            <div
+              key={version.id}
+              className={cn(
+                'flex items-center gap-3 px-4 py-2.5',
+                idx < CONTRACT_VERSIONS.length - 1 && 'border-b border-neutral-200'
+              )}
+            >
+              <span
+                className={cn(
+                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
+                  version.current
+                    ? 'bg-blue-500 text-white'
+                    : 'border border-blue-500 bg-blue-50 text-blue-700'
+                )}
+              >
+                {version.version}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <p className="text-[13px] font-medium text-brand-navy">{version.title}</p>
+                  {version.current && (
+                    <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-blue-700">
+                      Current
+                    </span>
+                  )}
+                </div>
+                <p className="text-[12px] text-brand-fog">{version.detail}</p>
+              </div>
+              <span className="shrink-0 text-[12px] tabular-nums text-brand-fog">
+                {version.dateLabel}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function AiSummaryNote({
   order,
   scenario,
@@ -348,6 +447,32 @@ function AiSummaryNote({
     )
   }
 
+  const aiNote = (
+    <>
+      <div className="mb-3 flex items-center gap-1.5">
+        <GradientSparkle size={16} />
+        <span className="text-[13px] font-semibold uppercase tracking-[-0.25px] ai-gradient-text">
+          Note
+        </span>
+      </div>
+      <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.25px] text-brand-navy">
+        {order.headline}
+      </h2>
+      <p className="mt-3 max-w-[720px] text-[13px] leading-[1.6] text-brand-navy">{order.aiSummary}</p>
+    </>
+  )
+
+  if (scenario === 'all-good-2') {
+    return (
+      <section>
+        {aiNote}
+        <div className="mt-8">
+          <OrderMetricsRow order={order} />
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section>
       <OrderMetricsRow order={order} />
@@ -361,6 +486,7 @@ function AiSummaryNote({
         {order.headline}
       </h2>
       <p className="mt-3 max-w-[720px] text-[13px] leading-[1.6] text-brand-navy">{order.aiSummary}</p>
+      {scenario === 'all-good' && <ContractAmendmentsNote />}
     </section>
   )
 }
@@ -373,6 +499,10 @@ export function SalesOrderDetailsV2({
   scenario = 'all-good',
 }: SalesOrderDetailsV2Props) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [amendmentHistory, setAmendmentHistory] = useState<{
+    open: boolean
+    versionId?: string
+  }>({ open: false })
 
   const listItem = resolveListItem(order)
   const statusStyle = SALES_ORDER_STATUS_STYLES[listItem.status]
@@ -392,6 +522,15 @@ export function SalesOrderDetailsV2({
       return () => document.removeEventListener('click', handleClickOutside)
     }
   }, [showMoreMenu])
+
+  if (scenario === 'all-good-2' && amendmentHistory.open) {
+    return (
+      <SalesOrderAmendmentHistoryView
+        initialVersionId={amendmentHistory.versionId}
+        onClose={() => setAmendmentHistory({ open: false })}
+      />
+    )
+  }
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
@@ -483,7 +622,15 @@ export function SalesOrderDetailsV2({
             </>
           )}
 
-          <SalesOrderCollapsedSections order={order} />
+          <SalesOrderCollapsedSections
+            order={order}
+            showAmendmentHistory={scenario === 'all-good-2'}
+            onExpandAmendmentHistory={
+              scenario === 'all-good-2'
+                ? (versionId) => setAmendmentHistory({ open: true, versionId })
+                : undefined
+            }
+          />
 
           <div aria-hidden="true" style={{ height: 120 }} />
         </div>
