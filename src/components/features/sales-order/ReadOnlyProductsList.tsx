@@ -7,6 +7,8 @@ interface ReadOnlyProductsListProps {
   items: SalesOrderProduct[]
   /** optional ramp breakdown — renders collapsible period tables */
   periods?: SalesOrderRampPeriod[]
+  /** When set, this period is shown first (collapsed view); expand reveals all in order. */
+  primaryPeriodId?: string
 }
 
 const PERIOD_W = 96
@@ -156,12 +158,16 @@ function PeriodContainer({
  * Compact, read-only view of order line items. When `periods` are supplied it
  * renders each period in a light outlined collapsible container.
  */
-export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListProps) {
+export function ReadOnlyProductsList({
+  items,
+  periods,
+  primaryPeriodId,
+}: ReadOnlyProductsListProps) {
+  const primaryId = primaryPeriodId ?? periods?.[0]?.id
   const [showAdditionalPeriods, setShowAdditionalPeriods] = useState(false)
-  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
-    const firstPeriodId = periods?.[0]?.id
-    return new Set(firstPeriodId ? [firstPeriodId] : [])
-  })
+  const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(
+    () => new Set(primaryId ? [primaryId] : [])
+  )
 
   const togglePeriod = (id: string) => {
     setExpandedPeriods((prev) => {
@@ -176,7 +182,7 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
     setShowAdditionalPeriods(true)
     setExpandedPeriods((prev) => {
       const next = new Set(prev)
-      periods?.slice(1).forEach((period) => next.add(period.id))
+      periods?.forEach((period) => next.add(period.id))
       return next
     })
   }
@@ -184,7 +190,9 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
   // Ramp view — collapsible period tables with outlined containers
   if (periods && periods.length > 0) {
     const additionalPeriodCount = periods.length - 1
-    const visiblePeriods = showAdditionalPeriods ? periods : periods.slice(0, 1)
+    const primaryPeriod =
+      periods.find((period) => period.id === primaryId) ?? periods[0]
+    const visiblePeriods = showAdditionalPeriods ? periods : [primaryPeriod]
 
     return (
       <div className="space-y-4">

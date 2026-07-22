@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import { CommentsPanel } from '@/components/features/contract-processing'
 import { STATUS_STYLES, type InvoiceStatus } from '@/data/invoiceListMock'
 import { AMENDMENT_HISTORY_VERSIONS } from '@/data/salesOrderAmendmentHistoryMock'
-import { type ActivityItem, type CreditNoteStatus, type SalesOrder } from '@/data/salesOrderMock'
+import { type ActivityItem, type CreditNoteStatus, type SalesOrder, getSalesOrderProductsForPeriod } from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 
 const SECTION_DATA_CONTAINER = 'overflow-hidden rounded-lg border border-neutral-200'
@@ -254,12 +254,21 @@ export function SalesOrderCollapsedSections({
   order,
   showAmendmentHistory = false,
   onExpandAmendmentHistory,
+  periodIndex,
 }: {
   order: SalesOrder
   showAmendmentHistory?: boolean
   onExpandAmendmentHistory?: (versionId?: string) => void
+  /** When set (All good period switcher), products & pricing follow the selected period. */
+  periodIndex?: number
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
+
+  const periodProducts =
+    periodIndex != null ? getSalesOrderProductsForPeriod(order.id, periodIndex) : null
+  const productItems = periodProducts?.items ?? order.products
+  const productPeriods = periodProducts?.periods ?? order.productPeriods
+  const primaryPeriodId = periodProducts?.primaryPeriodId
 
   return (
     <div className="space-y-10">
@@ -268,7 +277,12 @@ export function SalesOrderCollapsedSections({
           Products and pricing
         </h2>
         <div className="mt-4">
-          <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
+          <ReadOnlyProductsList
+            key={periodIndex != null ? `period-${periodIndex}` : 'default'}
+            items={productItems}
+            periods={productPeriods}
+            primaryPeriodId={primaryPeriodId}
+          />
         </div>
       </section>
 

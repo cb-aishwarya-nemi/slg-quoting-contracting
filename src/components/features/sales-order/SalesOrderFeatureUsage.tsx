@@ -171,7 +171,7 @@ function buildYearStepPaths(
   return { areaPath, linePath, leftEdgePath, rightEdgePath }
 }
 
-function FeatureUsageLegend() {
+function FeatureUsageLegend({ showOnDemand = true }: { showOnDemand?: boolean }) {
   const items = [
     {
       key: 'quota',
@@ -200,16 +200,20 @@ function FeatureUsageLegend() {
         />
       ),
     },
-    {
-      key: 'on-demand',
-      label: 'On-demand usage',
-      icon: (
-        <span
-          className="inline-block h-2.5 w-3.5 shrink-0 rounded-sm"
-          style={{ backgroundColor: COLORS.barWarning }}
-        />
-      ),
-    },
+    ...(showOnDemand
+      ? [
+          {
+            key: 'on-demand',
+            label: 'On-demand usage',
+            icon: (
+              <span
+                className="inline-block h-2.5 w-3.5 shrink-0 rounded-sm"
+                style={{ backgroundColor: COLORS.barWarning }}
+              />
+            ),
+          },
+        ]
+      : []),
     {
       key: 'projected',
       label: 'Projected',
@@ -271,9 +275,16 @@ function formatTooltipValue(value: number, unit: string): string {
   return `${formatFeatureUsageAxisValue(value)} ${unit}`
 }
 
-function ChartTooltip({ slot, feature }: ChartTooltipProps) {
+function ChartTooltip({
+  slot,
+  feature,
+  showExceedCommit = false,
+}: ChartTooltipProps & { showExceedCommit?: boolean }) {
   const remaining = getRemainingAtCycleStart(feature, slot.index)
   const { withinQuota, overage } = getCycleConsumptionSplit(feature, slot.index)
+  const usage = feature.cycles[slot.index].usage
+  const included = showExceedCommit ? withinQuota : usage
+  const onDemand = showExceedCommit ? overage : 0
   const unit = feature.valueUnit
   const projected = isProjectedCycle(slot.cycle)
 
@@ -318,27 +329,36 @@ function ChartTooltip({ slot, feature }: ChartTooltipProps) {
             Included usage
           </span>
           <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
-            {withinQuota > 0 ? formatTooltipValue(withinQuota, unit) : '—'}
+            {included > 0 ? formatTooltipValue(included, unit) : '—'}
           </span>
         </div>
-        <div className="flex items-center justify-between gap-4">
-          <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
-            <span
-              className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
-              style={{ backgroundColor: COLORS.barWarning }}
-            />
-            On-demand usage
-          </span>
-          <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
-            {overage > 0 ? formatTooltipValue(overage, unit) : '—'}
-          </span>
-        </div>
+        {showExceedCommit && (
+          <div className="flex items-center justify-between gap-4">
+            <span className="flex min-w-0 items-center gap-1.5 text-[10px] text-brand-fog">
+              <span
+                className="inline-block h-2 w-2.5 shrink-0 rounded-sm"
+                style={{ backgroundColor: COLORS.barWarning }}
+              />
+              On-demand usage
+            </span>
+            <span className="shrink-0 whitespace-nowrap text-right text-[11px] font-medium tabular-nums text-brand-navy">
+              {onDemand > 0 ? formatTooltipValue(onDemand, unit) : '—'}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
 }
 
-function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
+function FeatureUsageChart({
+  feature,
+  showExceedCommit = false,
+}: {
+  feature: SalesOrderFeatureUsage
+  /** Only UBB attention charts show the exceed-commit marker (all-good never goes on-demand). */
+  showExceedCommit?: boolean
+}) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const entranceProgress = useChartEntrance(feature.id)
   const innerW = 1000 - PLOT.left - PLOT.right
@@ -410,8 +430,12 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
     decemberSlot != null
       ? getCycleConsumptionSplit(feature, decemberSlot.index).overage
       : 0
-  const exceedCommitSlot =
-    decemberSlot != null && decemberOverage > 0 ? decemberSlot : quotaExhaustionSlot
+  const exceedCommitSlot = !showExceedCommit
+    ? null
+    : decemberSlot != null && decemberOverage > 0
+      ? decemberSlot
+      : quotaExhaustionSlot
+  const quotaExhaustionMarker = showExceedCommit ? quotaExhaustionSlot : null
   const hoveredRemaining =
     hoveredIndex !== null ? getRemainingAtCycleStart(feature, hoveredIndex) : 0
   const hoveredQuotaY = valueToY(hoveredRemaining, yAxisMax, innerH)
@@ -589,17 +613,23 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
 
           {slotLayout.map((slot) => {
             const { withinQuota, overage } = getCycleConsumptionSplit(feature, slot.index)
+            const usage = feature.cycles[slot.index].usage
             const barBottom = valueToY(0, yAxisMax, innerH)
             const isHovered = hoveredIndex === slot.index
             const isDimmed = hoveredIndex !== null && !isHovered
             const projected = isProjectedCycle(slot.cycle)
             const bars: Array<{ value: number; color: string; key: string }> = []
 
-            if (withinQuota > 0) {
-              bars.push({ value: withinQuota, color: COLORS.bar, key: 'quota' })
-            }
-            if (overage > 0) {
-              bars.push({ value: overage, color: COLORS.barWarning, key: 'overage' })
+            if (showExceedCommit) {
+              if (withinQuota > 0) {
+                bars.push({ value: withinQuota, color: COLORS.bar, key: 'quota' })
+              }
+              if (overage > 0) {
+                bars.push({ value: overage, color: COLORS.barWarning, key: 'overage' })
+              }
+            } else if (usage > 0) {
+              // All good never goes on-demand — always render the full bar as included usage.
+              bars.push({ value: usage, color: COLORS.bar, key: 'quota' })
             }
 
             let stackTop = barBottom
@@ -676,12 +706,12 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
             </>
           )}
 
-          {quotaExhaustionSlot && (
+          {quotaExhaustionMarker && (
             <g style={{ opacity: annotationReveal }}>
               <line
-                x1={quotaExhaustionSlot.slotRight}
+                x1={quotaExhaustionMarker.slotRight}
                 y1={PLOT.top + 8}
-                x2={quotaExhaustionSlot.slotRight}
+                x2={quotaExhaustionMarker.slotRight}
                 y2={xAxisY}
                 stroke={COLORS.barWarning}
                 strokeWidth="1"
@@ -690,7 +720,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
                 pointerEvents="none"
               />
               <circle
-                cx={quotaExhaustionSlot.slotRight}
+                cx={quotaExhaustionMarker.slotRight}
                 cy={xAxisY}
                 r="3"
                 fill="white"
@@ -728,7 +758,11 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
               top: `${(tooltipAnchorY / CHART_HEIGHT) * 100}%`,
             }}
           >
-            <ChartTooltip slot={hoveredSlot} feature={feature} />
+            <ChartTooltip
+              slot={hoveredSlot}
+              feature={feature}
+              showExceedCommit={showExceedCommit}
+            />
           </div>
         )}
 
@@ -804,7 +838,7 @@ function FeatureUsageChart({ feature }: { feature: SalesOrderFeatureUsage }) {
         className="mt-3 transition-opacity duration-500"
         style={{ opacity: easeOutCubic(Math.max((entranceProgress - 0.45) / 0.55, 0)) }}
       >
-        <FeatureUsageLegend />
+        <FeatureUsageLegend showOnDemand={showExceedCommit} />
       </div>
     </div>
   )
@@ -955,6 +989,8 @@ interface SalesOrderFeatureUsageSectionProps {
   defaultFeatureId?: string
   /** `healthy` for All good; `attention` for UBB chart 2. */
   usageProfile?: FeatureUsageProfile
+  /** 1-based contract period — switches chart data with the amendments period navigator. */
+  periodIndex?: number
 }
 
 export function SalesOrderFeatureUsageSection({
@@ -964,8 +1000,9 @@ export function SalesOrderFeatureUsageSection({
   hideUsageLimits = false,
   defaultFeatureId,
   usageProfile = 'healthy',
+  periodIndex = 2,
 }: SalesOrderFeatureUsageSectionProps) {
-  const features = getSalesOrderFeatureUsage(orderId, usageProfile)
+  const features = getSalesOrderFeatureUsage(orderId, usageProfile, periodIndex)
   const usageLimits = hideUsageLimits ? null : getSalesOrderUsageLimits(orderId)
   const preferredFeatureId =
     (defaultFeatureId && features?.some((f) => f.id === defaultFeatureId)
@@ -975,7 +1012,7 @@ export function SalesOrderFeatureUsageSection({
 
   useEffect(() => {
     setSelectedId(preferredFeatureId)
-  }, [orderId, preferredFeatureId])
+  }, [orderId, preferredFeatureId, periodIndex])
 
   if (!features || features.length === 0) {
     return (
@@ -1033,7 +1070,11 @@ export function SalesOrderFeatureUsageSection({
             </div>
           </div>
         )}
-        <FeatureUsageChart feature={selected} />
+        <FeatureUsageChart
+          key={`${selected.id}-p${periodIndex}`}
+          feature={selected}
+          showExceedCommit={usageProfile === 'attention'}
+        />
       </div>
       {usageLimits && usageLimits.length > 0 && (
         <div className="mt-8">

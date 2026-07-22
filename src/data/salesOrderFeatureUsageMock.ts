@@ -28,9 +28,7 @@ export interface SalesOrderFeatureUsage {
 /** `healthy` = All good; `attention` = UBB chart 2 (usage risk). */
 export type FeatureUsageProfile = 'healthy' | 'attention'
 
-const PIONEER_CONTRACT_START = '2026-05-01'
-
-/** Flat-ish series kept under monthly commit and inside the green quota band for the full year. */
+/** Flat-ish series kept under monthly commit and inside the green quota band. */
 function steadyCycles(
   values: number[],
   poolDecrement: number
@@ -43,7 +41,8 @@ function steadyCycles(
   }))
 }
 
-const PIONEER_FEATURE_USAGE_HEALTHY: SalesOrderFeatureUsage[] = [
+/** Period 1 · May–Dec 2025 — early contract, lighter usage, 8 billing months. */
+const PIONEER_FEATURE_USAGE_HEALTHY_P1: SalesOrderFeatureUsage[] = [
   {
     id: 'api-calls',
     label: 'API calls / month',
@@ -52,16 +51,12 @@ const PIONEER_FEATURE_USAGE_HEALTHY: SalesOrderFeatureUsage[] = [
     limitLine: 12_000_000,
     yAxisMax: 12_500_000,
     yAxisStep: 2_500_000,
-    contractStartDate: PIONEER_CONTRACT_START,
+    contractStartDate: '2025-05-01',
     aiInsight:
-      'API usage is tracking steadily around 2.0M calls/month — well inside the annual commit with no projected overage through year-end.',
-    // ~2.0M/month bars; even pool burn keeps the green band through December.
+      'In Period 1, API usage ramped from ~1.2M to ~1.7M calls/month after go-live — well under commit with plenty of headroom.',
     cycles: steadyCycles(
-      [
-        1_980_000, 2_040_000, 1_960_000, 2_020_000, 1_990_000, 2_010_000, 2_000_000, 2_030_000,
-        1_970_000, 2_020_000, 2_000_000, 2_050_000,
-      ],
-      1_000_000
+      [1_180_000, 1_260_000, 1_340_000, 1_420_000, 1_510_000, 1_580_000, 1_650_000, 1_720_000],
+      1_200_000
     ),
   },
   {
@@ -72,10 +67,45 @@ const PIONEER_FEATURE_USAGE_HEALTHY: SalesOrderFeatureUsage[] = [
     limitLine: 2_500,
     yAxisMax: 3_000,
     yAxisStep: 500,
-    contractStartDate: PIONEER_CONTRACT_START,
+    contractStartDate: '2025-05-01',
+    aiInsight:
+      'Image creation started light in Period 1 (~900–1,200 images/month) as teams onboarded — comfortably under the 2,500 commit.',
+    cycles: steadyCycles([920, 980, 1_040, 1_090, 1_140, 1_180, 1_210, 1_250], 80),
+  },
+]
+
+/** Period 2 · Jan–Dec 2026 — current year, steady healthy usage (default). */
+const PIONEER_FEATURE_USAGE_HEALTHY_P2: SalesOrderFeatureUsage[] = [
+  {
+    id: 'api-calls',
+    label: 'API calls / month',
+    valueUnit: 'API calls',
+    capacity: 12_000_000,
+    limitLine: 12_000_000,
+    yAxisMax: 12_500_000,
+    yAxisStep: 2_500_000,
+    contractStartDate: '2026-01-01',
+    aiInsight:
+      'API usage is tracking steadily around 2.0M calls/month — well inside the annual commit with no projected overage through year-end.',
+    cycles: steadyCycles(
+      [
+        1_980_000, 2_040_000, 1_960_000, 2_020_000, 1_990_000, 2_010_000, 2_000_000, 2_030_000,
+        1_970_000, 2_020_000, 2_000_000, 2_050_000,
+      ],
+      800_000
+    ),
+  },
+  {
+    id: 'image-creation',
+    label: 'Image creation',
+    valueUnit: 'images',
+    capacity: 2_500,
+    limitLine: 2_500,
+    yAxisMax: 3_000,
+    yAxisStep: 500,
+    contractStartDate: '2026-01-01',
     aiInsight:
       'Image creation is stable around 1,400–1,500 images/month — comfortably under the 2,500 commit with headroom remaining through the year.',
-    // Steady mid-band usage; light pool burn keeps green quota above every bar.
     cycles: steadyCycles(
       [1_380, 1_420, 1_400, 1_450, 1_410, 1_430, 1_420, 1_460, 1_400, 1_440, 1_430, 1_470],
       60
@@ -83,7 +113,47 @@ const PIONEER_FEATURE_USAGE_HEALTHY: SalesOrderFeatureUsage[] = [
   },
 ]
 
+/** Period 3 · Jan–Dec 2027 — future period; no consumption yet. */
+const PIONEER_FEATURE_USAGE_HEALTHY_P3: SalesOrderFeatureUsage[] = [
+  {
+    id: 'api-calls',
+    label: 'API calls / month',
+    valueUnit: 'API calls',
+    capacity: 12_000_000,
+    limitLine: 12_000_000,
+    yAxisMax: 12_500_000,
+    yAxisStep: 2_500_000,
+    contractStartDate: '2027-01-01',
+    aiInsight:
+      'Period 3 has not started yet. Usage tracking for this year begins January 2027 — commit and entitlements carry forward from the current term.',
+    cycles: steadyCycles(Array.from({ length: 12 }, () => 0), 0),
+  },
+  {
+    id: 'image-creation',
+    label: 'Image creation',
+    valueUnit: 'images',
+    capacity: 2_500,
+    limitLine: 2_500,
+    yAxisMax: 3_000,
+    yAxisStep: 500,
+    contractStartDate: '2027-01-01',
+    aiInsight:
+      'No image creation usage in Period 3 yet — this billing year opens in January 2027.',
+    cycles: steadyCycles(Array.from({ length: 12 }, () => 0), 0),
+  },
+]
+
+const PIONEER_FEATURE_USAGE_HEALTHY_BY_PERIOD: Record<number, SalesOrderFeatureUsage[]> = {
+  1: PIONEER_FEATURE_USAGE_HEALTHY_P1,
+  2: PIONEER_FEATURE_USAGE_HEALTHY_P2,
+  3: PIONEER_FEATURE_USAGE_HEALTHY_P3,
+}
+
+const PIONEER_FEATURE_USAGE_HEALTHY = PIONEER_FEATURE_USAGE_HEALTHY_P2
+
 /** Rising usage that burns/exceeds quota — used by UBB chart 2. */
+const PIONEER_CONTRACT_START = '2026-05-01'
+
 const PIONEER_FEATURE_USAGE_ATTENTION: SalesOrderFeatureUsage[] = [
   {
     id: 'api-calls',
@@ -143,10 +213,15 @@ const PIONEER_FEATURE_USAGE_ATTENTION: SalesOrderFeatureUsage[] = [
 
 export function getSalesOrderFeatureUsage(
   orderId: string,
-  profile: FeatureUsageProfile = 'healthy'
+  profile: FeatureUsageProfile = 'healthy',
+  /** 1-based contract period for All good period switcher; defaults to current (2). */
+  periodIndex = 2
 ): SalesOrderFeatureUsage[] | null {
   if (orderId !== 'so-pioneer-0153') return null
-  return profile === 'attention' ? PIONEER_FEATURE_USAGE_ATTENTION : PIONEER_FEATURE_USAGE_HEALTHY
+  if (profile === 'attention') return PIONEER_FEATURE_USAGE_ATTENTION
+  return (
+    PIONEER_FEATURE_USAGE_HEALTHY_BY_PERIOD[periodIndex] ?? PIONEER_FEATURE_USAGE_HEALTHY
+  )
 }
 
 export interface UsageLimitMetric {

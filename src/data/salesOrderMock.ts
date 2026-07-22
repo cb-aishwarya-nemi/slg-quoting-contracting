@@ -670,6 +670,157 @@ export function getSalesOrderById(id: string): SalesOrder {
   return salesOrders.find((o) => o.id === id) ?? pioneerSalesOrder
 }
 
+/**
+ * Products & pricing for the All good period switcher (calendar periods 1–3).
+ * Reflects the amendment evolution: original → seat expansion → Year 2 ramp.
+ * Always returns all three periods; the selected one is listed first so the
+ * table shows it with a “2 more periods” link underneath.
+ */
+const PIONEER_PERIOD_PRODUCTS: SalesOrderRampPeriod[] = [
+  {
+    id: 'so-switch-period-1',
+    label: 'Period 1',
+    startDate: '1 May 2025',
+    endDate: '31 Dec 2025',
+    items: [
+      {
+        id: 'so-p1-1',
+        name: 'Apex platform - growth services',
+        frequency: 'Yearly',
+        quantity: '50',
+        unitPrice: '$2,400.00',
+        totalPrice: '$120,000.00',
+      },
+      {
+        id: 'so-p1-2',
+        name: 'Implementation services',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$18,000.00',
+        totalPrice: '$18,000.00',
+      },
+      {
+        id: 'so-p1-3',
+        name: 'Onboarding & Training',
+        frequency: 'One-time',
+        quantity: '01',
+        unitPrice: '$9,500.00',
+        totalPrice: '$9,500.00',
+      },
+      {
+        id: 'so-p1-4',
+        name: 'Premium support SLA',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$12,000.00',
+        totalPrice: '$12,000.00',
+      },
+      {
+        id: 'so-p1-5',
+        name: 'Sandbox environments',
+        frequency: 'Yearly',
+        quantity: '02',
+        unitPrice: '$1,500.00',
+        totalPrice: '$3,000.00',
+      },
+    ],
+  },
+  {
+    id: 'so-switch-period-2',
+    label: 'Period 2',
+    startDate: '1 Jan 2026',
+    endDate: '31 Dec 2026',
+    items: [
+      {
+        id: 'so-p2-1',
+        name: 'Apex platform - growth services',
+        frequency: 'Yearly',
+        quantity: '75',
+        unitPrice: '$2,400.00',
+        totalPrice: '$180,000.00',
+      },
+      {
+        id: 'so-p2-2',
+        name: 'Implementation services',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$18,000.00',
+        totalPrice: '$18,000.00',
+      },
+      {
+        id: 'so-p2-3',
+        name: 'Premium support SLA',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$12,000.00',
+        totalPrice: '$12,000.00',
+      },
+      {
+        id: 'so-p2-4',
+        name: 'Sandbox environments',
+        frequency: 'Yearly',
+        quantity: '03',
+        unitPrice: '$1,500.00',
+        totalPrice: '$4,500.00',
+      },
+    ],
+  },
+  {
+    id: 'so-switch-period-3',
+    label: 'Period 3',
+    startDate: '1 Jan 2027',
+    endDate: '31 Dec 2027',
+    items: [
+      {
+        id: 'so-p3-1',
+        name: 'Apex platform - growth services',
+        frequency: 'Yearly',
+        quantity: '75',
+        unitPrice: '$2,568.00',
+        totalPrice: '$192,600.00',
+        rampPriceChange: 7,
+      },
+      {
+        id: 'so-p3-2',
+        name: 'Premium support SLA',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$12,840.00',
+        totalPrice: '$12,840.00',
+        rampPriceChange: 7,
+      },
+      {
+        id: 'so-p3-3',
+        name: 'Sandbox environments',
+        frequency: 'Yearly',
+        quantity: '03',
+        unitPrice: '$1,605.00',
+        totalPrice: '$4,815.00',
+        rampPriceChange: 7,
+      },
+    ],
+  },
+]
+
+export function getSalesOrderProductsForPeriod(
+  orderId: string,
+  periodIndex: number
+): { items: SalesOrderProduct[]; periods: SalesOrderRampPeriod[]; primaryPeriodId: string } | null {
+  if (orderId !== 'so-pioneer-0153') return null
+
+  const selectedIdx = Math.max(
+    0,
+    Math.min(PIONEER_PERIOD_PRODUCTS.length - 1, periodIndex - 1)
+  )
+  const selected = PIONEER_PERIOD_PRODUCTS[selectedIdx]
+
+  return {
+    items: selected.items,
+    periods: PIONEER_PERIOD_PRODUCTS,
+    primaryPeriodId: selected.id,
+  }
+}
+
 export function getUsageSummaryCycles(order: SalesOrder): UsageSummaryCycle[] {
   if (order.usageSummaryCycles?.length) return order.usageSummaryCycles
   return [

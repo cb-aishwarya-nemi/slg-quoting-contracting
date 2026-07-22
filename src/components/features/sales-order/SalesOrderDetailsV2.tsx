@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
-import { ArrowRight, ChevronDown, Download, FilePenLine, MoreHorizontal } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Download, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
-import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 import { SalesOrderAmendmentHistoryView } from './SalesOrderAmendmentHistoryView'
 import { type SalesOrder } from '@/data/salesOrderMock'
+import {
+  dateToTimelinePercent,
+  parseTimelineDate,
+} from '@/data/salesOrderTimelineMock'
 import {
   getSalesOrderPaymentSummary,
   SALES_ORDER_STATUS_STYLES,
@@ -338,6 +341,7 @@ const CONTRACT_VERSIONS = [
     version: 'v1',
     title: 'Original',
     detail: 'Initial signed order',
+    date: '2025-05-01',
     dateLabel: 'May 1, 2025',
   },
   {
@@ -345,6 +349,7 @@ const CONTRACT_VERSIONS = [
     version: 'v2',
     title: 'Amendment 1',
     detail: 'Ramp adjust',
+    date: '2025-09-15',
     dateLabel: 'Sep 15, 2025',
   },
   {
@@ -352,6 +357,7 @@ const CONTRACT_VERSIONS = [
     version: 'v3',
     title: 'Amendment 2',
     detail: '+ 25 seats',
+    date: '2026-03-01',
     dateLabel: 'Mar 1, 2026',
   },
   {
@@ -359,16 +365,137 @@ const CONTRACT_VERSIONS = [
     version: 'v4',
     title: 'Amendment 3',
     detail: 'Extended term',
+    date: '2026-07-09',
     dateLabel: 'Jul 9, 2026',
     current: true,
   },
 ] as const
 
-function ContractAmendmentsNote() {
+const AMENDMENT_PERIODS = [
+  {
+    index: 1,
+    rangeLabel: 'May - Dec 2025',
+    startDate: '2025-05-01',
+    endDate: '2025-12-31',
+  },
+  {
+    index: 2,
+    rangeLabel: 'Jan - Dec 2026',
+    startDate: '2026-01-01',
+    endDate: '2026-12-31',
+  },
+  {
+    index: 3,
+    rangeLabel: 'Jan - Dec 2027',
+    startDate: '2027-01-01',
+    endDate: '2027-12-31',
+  },
+] as const
+
+const TODAY_DATE = '2026-07-21'
+const DEFAULT_PERIOD_INDEX = 2
+const TOTAL_PERIODS = AMENDMENT_PERIODS.length
+
+const AXIS_PAD_LEFT = 3
+const AXIS_PAD_RIGHT = 3
+
+function toAxisPercent(calendarPercent: number): number {
+  const span = 100 - AXIS_PAD_LEFT - AXIS_PAD_RIGHT
+  return AXIS_PAD_LEFT + (calendarPercent / 100) * span
+}
+
+function buildMonthTicks(startDate: string, endDate: string) {
+  const start = parseTimelineDate(startDate)
+  const end = parseTimelineDate(endDate)
+  const months: { label: string; startPercent: number }[] = []
+
+  let cursor = new Date(start.getFullYear(), start.getMonth(), 1)
+  const last = new Date(end.getFullYear(), end.getMonth(), 1)
+
+  while (cursor <= last) {
+    const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-01`
+    const month = cursor.toLocaleDateString('en-US', { month: 'short' }).toUpperCase()
+    const isEdge = months.length === 0 || cursor.getTime() === last.getTime()
+    const yy = String(cursor.getFullYear()).slice(-2)
+    months.push({
+      label: isEdge || cursor.getMonth() === 0 ? `${month} '${yy}` : month,
+      startPercent: toAxisPercent(dateToTimelinePercent(iso, startDate, endDate)),
+    })
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+  }
+
+  return months
+}
+
+function versionsInPeriod(startDate: string, endDate: string) {
+  const start = parseTimelineDate(startDate)
+  const end = parseTimelineDate(endDate)
+  return CONTRACT_VERSIONS.filter((v) => {
+    const d = parseTimelineDate(v.date)
+    return d >= start && d <= end
+  })
+}
+
+/** Amendments only — excludes the original signed order (v1). */
+function amendmentsInPeriod(startDate: string, endDate: string) {
+  return versionsInPeriod(startDate, endDate).filter((v) => v.version !== 'v1')
+}
+
+function ContractAmendmentsNote({
+  periodIndex,
+  onPeriodChange,
+}: {
+  periodIndex: number
+  onPeriodChange: (next: number) => void
+}) {
   const [expanded, setExpanded] = useState(false)
 
+  const period =
+    AMENDMENT_PERIODS.find((p) => p.index === periodIndex) ?? AMENDMENT_PERIODS[1]
+  const { startDate, endDate } = period
+
+  const months = useMemo(() => buildMonthTicks(startDate, endDate), [startDate, endDate])
+  const versions = useMemo(
+    () => versionsInPeriod(startDate, endDate),
+    [startDate, endDate]
+  )
+
+  const todayInPeriod =
+    parseTimelineDate(TODAY_DATE) >= parseTimelineDate(startDate) &&
+    parseTimelineDate(TODAY_DATE) <= parseTimelineDate(endDate)
+  const todayPercent = todayInPeriod
+    ? toAxisPercent(dateToTimelinePercent(TODAY_DATE, startDate, endDate))
+    : null
+
+  const pastAmendmentCount = AMENDMENT_PERIODS.filter((p) => p.index < periodIndex).reduce(
+    (sum, p) => sum + amendmentsInPeriod(p.startDate, p.endDate).length,
+    0
+  )
+  const pastAmendmentsLabel =
+    pastAmendmentCount === 1
+      ? '← 1 amendment'
+      : pastAmendmentCount > 1
+        ? `← ${pastAmendmentCount} amendments`
+        : null
+
+  const futureAmendmentCount = AMENDMENT_PERIODS.filter((p) => p.index > periodIndex).reduce(
+    (sum, p) => sum + amendmentsInPeriod(p.startDate, p.endDate).length,
+    0
+  )
+  const futureAmendmentsLabel =
+    futureAmendmentCount === 1
+      ? '1 amendment →'
+      : futureAmendmentCount > 1
+        ? `${futureAmendmentCount} amendments →`
+        : null
+
+  const handlePeriodChange = (next: number) => {
+    if (next < 1 || next > TOTAL_PERIODS) return
+    onPeriodChange(next)
+  }
+
   return (
-    <div className="mt-4 max-w-[720px]">
+    <div className="mt-4 w-full max-w-[960px]">
       <button
         type="button"
         onClick={() => setExpanded((prev) => !prev)}
@@ -388,41 +515,178 @@ function ContractAmendmentsNote() {
       </button>
 
       {expanded && (
-        <div className="mt-3 ml-6 overflow-hidden rounded-lg border border-neutral-200">
-          {CONTRACT_VERSIONS.map((version, idx) => (
-            <div
-              key={version.id}
-              className={cn(
-                'flex items-center gap-3 px-4 py-2.5',
-                idx < CONTRACT_VERSIONS.length - 1 && 'border-b border-neutral-200'
-              )}
-            >
-              <span
-                className={cn(
-                  'flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[10px] font-bold',
-                  version.current
-                    ? 'bg-blue-500 text-white'
-                    : 'border border-blue-500 bg-blue-50 text-blue-700'
-                )}
-              >
-                {version.version}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-medium text-brand-navy">{version.title}</p>
-                  {version.current && (
-                    <span className="rounded-full bg-blue-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.04em] text-blue-700">
-                      Current
-                    </span>
+        <div className="mt-5 ml-6">
+          {/* Period navigator — past amendments left, switcher centered */}
+          <div className="mb-5 grid grid-cols-[1fr_auto_1fr] items-center">
+            <div className="justify-self-start">
+              {pastAmendmentsLabel && (
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange(periodIndex - 1)}
+                  disabled={periodIndex <= 1}
+                  className={cn(
+                    'text-[12px] font-medium text-brand-navy',
+                    periodIndex <= 1
+                      ? 'cursor-default'
+                      : 'cursor-pointer hover:text-blue-700'
                   )}
-                </div>
-                <p className="text-[12px] text-brand-fog">{version.detail}</p>
-              </div>
-              <span className="shrink-0 text-[12px] tabular-nums text-brand-fog">
-                {version.dateLabel}
-              </span>
+                >
+                  {pastAmendmentsLabel}
+                </button>
+              )}
             </div>
-          ))}
+            <div className="flex flex-col items-center">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Previous period"
+                  disabled={periodIndex <= 1}
+                  onClick={() => handlePeriodChange(periodIndex - 1)}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition-colors',
+                    periodIndex <= 1
+                      ? 'cursor-not-allowed opacity-30'
+                      : 'cursor-pointer hover:bg-blue-50'
+                  )}
+                >
+                  <ChevronLeft size={16} strokeWidth={2.25} />
+                </button>
+                <p className="text-[13px] font-medium text-brand-navy">
+                  Period {periodIndex}/{TOTAL_PERIODS}
+                </p>
+                <button
+                  type="button"
+                  aria-label="Next period"
+                  disabled={periodIndex >= TOTAL_PERIODS}
+                  onClick={() => handlePeriodChange(periodIndex + 1)}
+                  className={cn(
+                    'flex h-6 w-6 items-center justify-center rounded-md text-blue-600 transition-colors',
+                    periodIndex >= TOTAL_PERIODS
+                      ? 'cursor-not-allowed opacity-30'
+                      : 'cursor-pointer hover:bg-blue-50'
+                  )}
+                >
+                  <ChevronRight size={16} strokeWidth={2.25} />
+                </button>
+              </div>
+              <p className="mt-0.5 text-[12px] text-brand-fog">{period.rangeLabel}</p>
+            </div>
+            <div className="justify-self-end">
+              {futureAmendmentsLabel && (
+                <button
+                  type="button"
+                  onClick={() => handlePeriodChange(periodIndex + 1)}
+                  disabled={periodIndex >= TOTAL_PERIODS}
+                  className={cn(
+                    'text-[12px] font-medium text-brand-navy',
+                    periodIndex >= TOTAL_PERIODS
+                      ? 'cursor-default'
+                      : 'cursor-pointer hover:text-blue-700'
+                  )}
+                >
+                  {futureAmendmentsLabel}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="relative">
+            {/* Axis + month ticks; version circles sit on the line */}
+            <div className="relative h-5">
+              <div className="absolute inset-x-0 top-[13px] h-px bg-neutral-300" />
+              {months.map((month, index) => (
+                <div key={`${month.label}-${index}`}>
+                  <div
+                    className="absolute top-[13px] w-px bg-neutral-300"
+                    style={{ left: `${month.startPercent}%`, height: 8 }}
+                  />
+                  <span
+                    className={cn(
+                      'absolute top-[26px] whitespace-nowrap text-[10px] font-medium uppercase tracking-[0.04em] text-brand-fog',
+                      index === 0 ? 'translate-x-0' : '-translate-x-1/2'
+                    )}
+                    style={{ left: `${month.startPercent}%` }}
+                  >
+                    {month.label}
+                  </span>
+                </div>
+              ))}
+
+              {todayPercent != null && (
+                <div
+                  className="pointer-events-none absolute top-0 z-10 -translate-x-1/2"
+                  style={{ left: `${todayPercent}%` }}
+                >
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-blue-700">
+                    Today
+                  </span>
+                  <div
+                    className="absolute top-[13px] h-5 w-0.5 -translate-x-1/2 bg-blue-600"
+                    style={{ left: '50%' }}
+                  />
+                </div>
+              )}
+
+              {versions.map((version) => {
+                const left = toAxisPercent(
+                  dateToTimelinePercent(version.date, startDate, endDate)
+                )
+                return (
+                  <div
+                    key={version.id}
+                    className="absolute top-[13px] z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    style={{ left: `${left}%` }}
+                  >
+                    <span
+                      className={cn(
+                        'flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold shadow-sm',
+                        version.current
+                          ? 'bg-blue-500 text-white'
+                          : 'border-2 border-blue-500 bg-white text-blue-700'
+                      )}
+                    >
+                      {version.version}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Captions under markers */}
+            <div className="relative mt-8 h-[72px]">
+              {versions.length === 0 ? (
+                <p className="text-[12px] text-brand-fog">No amendments in this period.</p>
+              ) : (
+                versions.map((version) => {
+                  const left = toAxisPercent(
+                    dateToTimelinePercent(version.date, startDate, endDate)
+                  )
+                  return (
+                    <div
+                      key={`caption-${version.id}`}
+                      className="absolute flex -translate-x-1/2 flex-col items-center"
+                      style={{ left: `${left}%` }}
+                    >
+                      <p className="whitespace-nowrap text-[12px] font-medium text-brand-navy">
+                        {version.title}
+                      </p>
+                      <p className="whitespace-nowrap text-[11px] text-brand-fog">
+                        {version.detail}
+                      </p>
+                      <p className="mt-0.5 whitespace-nowrap text-[11px] tabular-nums text-brand-fog">
+                        {version.dateLabel}
+                      </p>
+                      {version.current && (
+                        <span className="mt-1 rounded-full bg-blue-50 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-[0.04em] text-blue-700">
+                          Current
+                        </span>
+                      )}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -432,9 +696,13 @@ function ContractAmendmentsNote() {
 function AiSummaryNote({
   order,
   scenario,
+  periodIndex,
+  onPeriodChange,
 }: {
   order: SalesOrder
   scenario: Exclude<SalesOrderScenario, 'ubb-chart-1' | 'ubb-chart-2'>
+  periodIndex: number
+  onPeriodChange: (next: number) => void
 }) {
   if (scenario === 'non-ubb') {
     return (
@@ -486,7 +754,9 @@ function AiSummaryNote({
         {order.headline}
       </h2>
       <p className="mt-3 max-w-[720px] text-[13px] leading-[1.6] text-brand-navy">{order.aiSummary}</p>
-      {scenario === 'all-good' && <ContractAmendmentsNote />}
+      {scenario === 'all-good' && (
+        <ContractAmendmentsNote periodIndex={periodIndex} onPeriodChange={onPeriodChange} />
+      )}
     </section>
   )
 }
@@ -499,6 +769,7 @@ export function SalesOrderDetailsV2({
   scenario = 'all-good',
 }: SalesOrderDetailsV2Props) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [periodIndex, setPeriodIndex] = useState(DEFAULT_PERIOD_INDEX)
   const [amendmentHistory, setAmendmentHistory] = useState<{
     open: boolean
     versionId?: string
@@ -613,17 +884,24 @@ export function SalesOrderDetailsV2({
 
       <div className="min-h-0 flex-1 overflow-y-auto pb-20 pt-8">
         <div className="mx-auto max-w-[1040px] space-y-10">
-          <AiSummaryNote order={order} scenario={scenario} />
+          <AiSummaryNote
+            order={order}
+            scenario={scenario}
+            periodIndex={periodIndex}
+            onPeriodChange={setPeriodIndex}
+          />
 
           {scenario === 'all-good' && (
-            <>
-              <SalesOrderHeaderTimeline orderId={order.id} />
-              <SalesOrderFeatureUsageSection orderId={order.id} hideUsageLimits />
-            </>
+            <SalesOrderFeatureUsageSection
+              orderId={order.id}
+              hideUsageLimits
+              periodIndex={periodIndex}
+            />
           )}
 
           <SalesOrderCollapsedSections
             order={order}
+            periodIndex={scenario === 'all-good' ? periodIndex : undefined}
             showAmendmentHistory={scenario === 'all-good-2'}
             onExpandAmendmentHistory={
               scenario === 'all-good-2'
