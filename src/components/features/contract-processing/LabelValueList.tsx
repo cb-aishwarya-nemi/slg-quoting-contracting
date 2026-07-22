@@ -1,10 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, Pencil, X, CirclePlus, Check, Maximize2 } from 'lucide-react'
+import { ChevronDown, Pencil, X, CirclePlus, Check } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
-import { CustomerMatchDrawer } from '@/components/features/customer-link/CustomerMatchDrawer'
 import { applyFieldValue } from './sectionAttention'
 
 const UNRESOLVED_FIELD_STYLE =
@@ -67,7 +66,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editValue, setEditValue] = useState(item.value)
   const [dropdownPosition, setDropdownPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
   const inputRef = useRef<HTMLInputElement>(null)
@@ -171,23 +169,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
       }}
     >
-      {item.label === 'Account' && (
-        <div className="flex items-center justify-end px-2 pb-0.5 pt-1">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setIsOpen(false)
-              setIsDrawerOpen(true)
-            }}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-            title="Expand to drawer"
-          >
-            <Maximize2 size={13} />
-          </button>
-        </div>
-      )}
       {options.map((option) => (
         <button
           key={option}
@@ -208,38 +189,10 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
           {option}
         </button>
       ))}
-      {item.label === 'Account' && (
-        <>
-          <div className="my-1 h-px bg-neutral-200" />
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setIsOpen(false)
-            }}
-            className="w-full cursor-pointer px-3 py-2 text-left text-[14px] font-medium text-blue-700 transition-colors hover:bg-brand-navy hover:text-white"
-          >
-            + Create new customer
-          </button>
-        </>
-      )}
     </div>
   ) : null
 
-  const accountDrawer =
-    item.label === 'Account' && options ? (
-      <CustomerMatchDrawer
-        open={isDrawerOpen}
-        options={options}
-        value={item.value}
-        onSelect={commitValue}
-        onClose={() => setIsDrawerOpen(false)}
-      />
-    ) : null
-
   return (
-    <>
     <div
       onClick={handleRowClick}
       className={cn(
@@ -393,8 +346,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
       </div>
     </div>
-    {accountDrawer}
-    </>
   )
 }
 

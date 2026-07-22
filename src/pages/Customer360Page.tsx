@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, ArrowDown, Maximize2, Focus } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -64,19 +64,6 @@ const LEFT_NAV_WIDTH = 48
 const EXPANDED_MAX_WIDTH = 1000
 const ACTIVE_TASK_ID = 100
 
-function StatusUnit({ status }: { status: string }) {
-  return (
-    <button
-      type="button"
-      className="flex cursor-pointer items-center gap-1.5 rounded-lg border border-brand-navy bg-white px-3 py-2 transition-colors hover:bg-neutral-50"
-    >
-      <span className="text-[13px] text-brand-navy">Status:</span>
-      <span className="text-[13px] font-bold text-blue-700">{status}</span>
-      <ArrowDown size={15} className="text-blue-700" />
-    </button>
-  )
-}
-
 function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -107,7 +94,6 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
-  const [contractStatus, setContractStatus] = useState<string>('In progress')
   const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
@@ -225,7 +211,7 @@ export function Customer360Page() {
 
   // Comment CRUD – shared across all section stacks
   const handleAddComment = useCallback(
-    (sectionId: string, sectionLabel: string, text: string, status: ContractStatus) => {
+    (sectionId: string, sectionLabel: string, text: string, _status: ContractStatus) => {
       const newComment: Comment & { status: CommentStatus } = {
         id: `c-${Date.now()}`,
         author: 'Adrian Brody',
@@ -237,7 +223,6 @@ export function Customer360Page() {
         linkedSectionId: sectionId,
       }
       setLocalComments((prev) => [newComment, ...prev])
-      setContractStatus(status)
     },
     []
   )
@@ -446,7 +431,6 @@ export function Customer360Page() {
             <div className="flex-1" />
 
             <div className="flex items-center gap-3">
-              <StatusUnit status={contractStatus} />
               <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
             </div>
           </div>
@@ -506,6 +490,31 @@ export function Customer360Page() {
                     customerName={data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
+                  {data.sourceDocuments.length > 0 && (
+                    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                      <span className="text-brand-fog">Source Docs:</span>
+                      {data.sourceDocuments.map((doc, index) => (
+                        <span key={doc.id} className="inline-flex items-center gap-2">
+                          {index > 0 && (
+                            <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              window.open(
+                                `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
+                                `pdf-${doc.id}`,
+                                'popup,width=680,height=800'
+                              )
+                            }}
+                            className="cursor-pointer text-blue-700 hover:underline"
+                          >
+                            {doc.name}
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </section>
 
                 {/* Account */}
