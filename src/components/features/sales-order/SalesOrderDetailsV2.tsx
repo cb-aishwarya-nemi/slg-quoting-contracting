@@ -441,12 +441,24 @@ function amendmentsInPeriod(startDate: string, endDate: string) {
   return versionsInPeriod(startDate, endDate).filter((v) => v.version !== 'v1')
 }
 
+function defaultVersionIdForPeriod(periodIndex: number): string | undefined {
+  const period = AMENDMENT_PERIODS.find((p) => p.index === periodIndex)
+  if (!period) return undefined
+  const versions = versionsInPeriod(period.startDate, period.endDate)
+  const current = versions.find((v) => v.current)
+  return current?.id ?? versions[versions.length - 1]?.id
+}
+
 function ContractAmendmentsNote({
   periodIndex,
   onPeriodChange,
+  selectedVersionId,
+  onVersionSelect,
 }: {
   periodIndex: number
   onPeriodChange: (next: number) => void
+  selectedVersionId?: string
+  onVersionSelect?: (versionId: string) => void
 }) {
   const [expanded, setExpanded] = useState(false)
 
@@ -631,23 +643,28 @@ function ContractAmendmentsNote({
                 const left = toAxisPercent(
                   dateToTimelinePercent(version.date, startDate, endDate)
                 )
+                const isSelected = selectedVersionId === version.id
                 return (
-                  <div
+                  <button
                     key={version.id}
-                    className="absolute top-[13px] z-20 flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    type="button"
+                    onClick={() => onVersionSelect?.(version.id)}
+                    aria-pressed={isSelected}
+                    aria-label={`${version.version}: ${version.title}, ${version.detail}`}
+                    className="absolute top-[13px] z-20 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center"
                     style={{ left: `${left}%` }}
                   >
                     <span
                       className={cn(
-                        'flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold shadow-sm',
-                        version.current
+                        'flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold shadow-sm transition-colors',
+                        isSelected
                           ? 'bg-blue-500 text-white'
-                          : 'border-2 border-blue-500 bg-white text-blue-700'
+                          : 'border-2 border-blue-500 bg-white text-blue-700 hover:bg-blue-100'
                       )}
                     >
                       {version.version}
                     </span>
-                  </div>
+                  </button>
                 )
               })}
             </div>
@@ -661,10 +678,16 @@ function ContractAmendmentsNote({
                   const left = toAxisPercent(
                     dateToTimelinePercent(version.date, startDate, endDate)
                   )
+                  const isSelected = selectedVersionId === version.id
                   return (
-                    <div
+                    <button
                       key={`caption-${version.id}`}
-                      className="absolute flex -translate-x-1/2 flex-col items-center"
+                      type="button"
+                      onClick={() => onVersionSelect?.(version.id)}
+                      className={cn(
+                        'absolute flex -translate-x-1/2 cursor-pointer flex-col items-center rounded-md px-1.5 py-1 transition-colors',
+                        isSelected ? 'bg-blue-50' : 'hover:bg-neutral-50'
+                      )}
                       style={{ left: `${left}%` }}
                     >
                       <p className="whitespace-nowrap text-[12px] font-medium text-brand-navy">
@@ -681,7 +704,7 @@ function ContractAmendmentsNote({
                           Current
                         </span>
                       )}
-                    </div>
+                    </button>
                   )
                 })
               )}
@@ -698,11 +721,15 @@ function AiSummaryNote({
   scenario,
   periodIndex,
   onPeriodChange,
+  selectedVersionId,
+  onVersionSelect,
 }: {
   order: SalesOrder
   scenario: Exclude<SalesOrderScenario, 'ubb-chart-1' | 'ubb-chart-2'>
   periodIndex: number
   onPeriodChange: (next: number) => void
+  selectedVersionId?: string
+  onVersionSelect?: (versionId: string) => void
 }) {
   if (scenario === 'non-ubb') {
     return (
@@ -755,7 +782,12 @@ function AiSummaryNote({
       </h2>
       <p className="mt-3 max-w-[720px] text-[13px] leading-[1.6] text-brand-navy">{order.aiSummary}</p>
       {scenario === 'all-good' && (
-        <ContractAmendmentsNote periodIndex={periodIndex} onPeriodChange={onPeriodChange} />
+        <ContractAmendmentsNote
+          periodIndex={periodIndex}
+          onPeriodChange={onPeriodChange}
+          selectedVersionId={selectedVersionId}
+          onVersionSelect={onVersionSelect}
+        />
       )}
     </section>
   )
@@ -770,10 +802,33 @@ export function SalesOrderDetailsV2({
 }: SalesOrderDetailsV2Props) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [periodIndex, setPeriodIndex] = useState(DEFAULT_PERIOD_INDEX)
+  const [selectedVersionId, setSelectedVersionId] = useState<string | undefined>(
+    () => defaultVersionIdForPeriod(DEFAULT_PERIOD_INDEX)
+  )
+  /** Period nav keeps ramp pricing; version clicks show that snapshot. */
+  const [productSource, setProductSource] = useState<'period' | 'version'>('period')
   const [amendmentHistory, setAmendmentHistory] = useState<{
     open: boolean
     versionId?: string
   }>({ open: false })
+
+  const handlePeriodChange = (next: number) => {
+    setPeriodIndex(next)
+    setSelectedVersionId(defaultVersionIdForPeriod(next))
+    setProductSource('period')
+  }
+
+  const handleVersionSelect = (versionId: string) => {
+    setSelectedVersionId(versionId)
+    setProductSource('version')
+    const version = CONTRACT_VERSIONS.find((v) => v.id === versionId)
+    if (!version) return
+    const matchingPeriod = AMENDMENT_PERIODS.find((p) => {
+      const d = parseTimelineDate(version.date)
+      return d >= parseTimelineDate(p.startDate) && d <= parseTimelineDate(p.endDate)
+    })
+    if (matchingPeriod) setPeriodIndex(matchingPeriod.index)
+  }
 
   const listItem = resolveListItem(order)
   const statusStyle = SALES_ORDER_STATUS_STYLES[listItem.status]
@@ -888,7 +943,9 @@ export function SalesOrderDetailsV2({
             order={order}
             scenario={scenario}
             periodIndex={periodIndex}
-            onPeriodChange={setPeriodIndex}
+            onPeriodChange={handlePeriodChange}
+            selectedVersionId={scenario === 'all-good' ? selectedVersionId : undefined}
+            onVersionSelect={scenario === 'all-good' ? handleVersionSelect : undefined}
           />
 
           {scenario === 'all-good' && (
@@ -902,6 +959,11 @@ export function SalesOrderDetailsV2({
           <SalesOrderCollapsedSections
             order={order}
             periodIndex={scenario === 'all-good' ? periodIndex : undefined}
+            versionId={
+              scenario === 'all-good' && productSource === 'version'
+                ? selectedVersionId
+                : undefined
+            }
             showAmendmentHistory={scenario === 'all-good-2'}
             onExpandAmendmentHistory={
               scenario === 'all-good-2'

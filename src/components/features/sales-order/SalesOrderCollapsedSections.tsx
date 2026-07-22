@@ -255,20 +255,34 @@ export function SalesOrderCollapsedSections({
   showAmendmentHistory = false,
   onExpandAmendmentHistory,
   periodIndex,
+  versionId,
 }: {
   order: SalesOrder
   showAmendmentHistory?: boolean
   onExpandAmendmentHistory?: (versionId?: string) => void
   /** When set (All good period switcher), products & pricing follow the selected period. */
   periodIndex?: number
+  /** When set, products & pricing show that contract version’s snapshot. */
+  versionId?: string
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
 
+  const versionSnapshot = versionId
+    ? AMENDMENT_HISTORY_VERSIONS.find((v) => v.id === versionId)
+    : undefined
   const periodProducts =
-    periodIndex != null ? getSalesOrderProductsForPeriod(order.id, periodIndex) : null
-  const productItems = periodProducts?.items ?? order.products
-  const productPeriods = periodProducts?.periods ?? order.productPeriods
-  const primaryPeriodId = periodProducts?.primaryPeriodId
+    !versionSnapshot && periodIndex != null
+      ? getSalesOrderProductsForPeriod(order.id, periodIndex)
+      : null
+
+  const productItems = versionSnapshot?.products ?? periodProducts?.items ?? order.products
+  const productPeriods = versionSnapshot ? undefined : periodProducts?.periods ?? order.productPeriods
+  const primaryPeriodId = versionSnapshot ? undefined : periodProducts?.primaryPeriodId
+  const productsKey = versionId
+    ? `version-${versionId}`
+    : periodIndex != null
+      ? `period-${periodIndex}`
+      : 'default'
 
   return (
     <div className="space-y-10">
@@ -278,7 +292,7 @@ export function SalesOrderCollapsedSections({
         </h2>
         <div className="mt-4">
           <ReadOnlyProductsList
-            key={periodIndex != null ? `period-${periodIndex}` : 'default'}
+            key={productsKey}
             items={productItems}
             periods={productPeriods}
             primaryPeriodId={primaryPeriodId}
