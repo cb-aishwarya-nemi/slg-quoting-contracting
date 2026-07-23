@@ -335,7 +335,17 @@ function OverdueAttentionItem({ order }: { order: SalesOrder }) {
 }
 
 /** Contract versions from three amendments over the past 2 years. */
-const CONTRACT_VERSIONS = [
+type ContractVersion = {
+  id: string
+  version: string
+  title: string
+  detail: string
+  date: string
+  dateLabel: string
+  current?: boolean
+}
+
+const CONTRACT_VERSIONS: ContractVersion[] = [
   {
     id: 'v1',
     version: 'v1',
@@ -369,7 +379,7 @@ const CONTRACT_VERSIONS = [
     dateLabel: 'Jul 9, 2026',
     current: true,
   },
-] as const
+]
 
 const AMENDMENT_PERIODS = [
   {
