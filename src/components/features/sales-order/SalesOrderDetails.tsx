@@ -1,13 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Download, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import {
-  GradientSparkle,
-  InPageNav,
-  type NavSection,
-} from '@/components/features/contract-processing'
+import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
+import {
+  ASK_CHAT_RAIL_WIDTH,
+  SalesOrderAskBar,
+  SalesOrderAskChatPanel,
+} from './SalesOrderAskChatPanel'
 import { type SalesOrder } from '@/data/salesOrderMock'
 import {
   SALES_ORDER_STATUS_STYLES,
@@ -22,21 +23,6 @@ export interface SalesOrderDetailsProps {
   onSelectOrder: (id: string) => void
 }
 
-const NAV_SECTIONS: NavSection[] = [
-  { id: 'summary', label: 'Note', status: 'ai' },
-  { id: 'products', label: 'Products and pricing', status: 'neutral' },
-  { id: 'entitlements', label: 'Entitlements', status: 'neutral' },
-  { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
-  { id: 'invoices', label: 'Past invoices', status: 'neutral' },
-  { id: 'configurations', label: 'Configurations', status: 'neutral' },
-  { id: 'linked', label: 'Linked records', status: 'neutral' },
-  { id: 'comments', label: 'Comments', status: 'neutral' },
-  { id: 'activity', label: 'Activity', status: 'neutral' },
-]
-
-const LEFT_NAV_WIDTH = 48
-/** Align the jumper with the SO id label (past the switcher chevron). */
-const NAV_ALIGN_OFFSET = 24
 const CONTENT_MAX_WIDTH = 1040
 
 function resolveListItem(order: SalesOrder): SalesOrderListItem {
@@ -139,9 +125,9 @@ export function SalesOrderDetails({
   onSelectOrder,
 }: SalesOrderDetailsProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
-  const [activeSection, setActiveSection] = useState('summary')
-  const centerRef = useRef<HTMLDivElement>(null)
-  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+  const [chatOpen, setChatOpen] = useState(false)
+  const [chatPrompt, setChatPrompt] = useState<string | null>(null)
+  const [askLeaving, setAskLeaving] = useState(false)
 
   const listItem = resolveListItem(order)
   const statusStyle = SALES_ORDER_STATUS_STYLES[listItem.status]
@@ -154,40 +140,6 @@ export function SalesOrderDetails({
     customer: o.customerName,
   }))
 
-  const setSectionRef = useCallback(
-    (id: string) => (el: HTMLElement | null) => {
-      sectionRefs.current[id] = el
-    },
-    []
-  )
-
-  const scrollToSection = useCallback((id: string) => {
-    const el = sectionRefs.current[id]
-    const container = centerRef.current
-    if (!el || !container) return
-    const top = el.offsetTop - 24
-    container.scrollTo({ top, behavior: 'smooth' })
-    setActiveSection(id)
-  }, [])
-
-  useEffect(() => {
-    const container = centerRef.current
-    if (!container) return
-
-    const handleScroll = () => {
-      const scrollTop = container.scrollTop + 48
-      let current = NAV_SECTIONS[0].id
-      for (const section of NAV_SECTIONS) {
-        const el = sectionRefs.current[section.id]
-        if (el && el.offsetTop <= scrollTop) current = section.id
-      }
-      setActiveSection(current)
-    }
-
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [])
-
   useEffect(() => {
     const handleClickOutside = () => setShowMoreMenu(false)
     if (showMoreMenu) {
@@ -196,114 +148,159 @@ export function SalesOrderDetails({
     }
   }, [showMoreMenu])
 
+  const openChat = (prompt: string) => {
+    setAskLeaving(true)
+    setChatPrompt(prompt)
+    window.setTimeout(() => {
+      setChatOpen(true)
+      setAskLeaving(false)
+    }, 180)
+  }
+
+  const closeChat = () => {
+    setChatOpen(false)
+    window.setTimeout(() => setChatPrompt(null), 420)
+  }
+
   return (
-    <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
-      <div className="flex shrink-0 items-center py-3">
-        <div className="flex items-center gap-2">
-          <SecondaryNavSwitcher
-            items={switcherItems}
-            activeId={activeOrderId}
-            onSelect={onSelectOrder}
-          />
-          <div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
-                {order.soId}
-              </span>
-              <span
-                className={cn(
-                  'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[-0.25px]',
-                  statusStyle.bg,
-                  statusStyle.text
-                )}
-              >
-                {listItem.status}
-              </span>
-            </div>
-            <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-fog">
-              {order.customerName} · {order.totalContractValue} · {order.startDate} - {listItem.expires}
+    <div className="flex min-h-0 w-full flex-1 overflow-hidden">
+      <div
+        className={cn(
+          'relative mx-auto flex min-h-0 min-w-0 flex-1 flex-col transition-[padding,max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          chatOpen ? 'max-w-none px-8' : 'max-w-[1560px] px-12',
+        )}
+      >
+        <div className="flex shrink-0 items-center py-3">
+          <div className="flex items-center gap-2">
+            <SecondaryNavSwitcher
+              items={switcherItems}
+              activeId={activeOrderId}
+              onSelect={onSelectOrder}
+            />
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[13px] font-bold uppercase tracking-[-0.25px] text-brand-navy">
+                  {order.soId}
+                </span>
+                <span
+                  className={cn(
+                    'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-[-0.25px]',
+                    statusStyle.bg,
+                    statusStyle.text
+                  )}
+                >
+                  {listItem.status}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[12px] tracking-[-0.25px] text-brand-fog">
+                {order.customerName} · {order.totalContractValue} · {order.startDate} -{' '}
+                {listItem.expires}
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex-1" />
+          <div className="flex-1" />
 
-        <div className="flex items-center gap-1">
-          <button
-            type="button"
-            className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-          >
-            <FilePenLine size={15} />
-            Amend order
-          </button>
-          <button
-            type="button"
-            className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-          >
-            <Download size={15} />
-            Download
-          </button>
-          <div className="relative">
+          <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                setShowMoreMenu((prev) => !prev)
-              }}
               className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
             >
-              <MoreHorizontal size={15} />
-              More
+              <FilePenLine size={15} />
+              Amend order
             </button>
-            {showMoreMenu && (
-              <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Download order form
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Cancel order
-                </button>
-              </div>
-            )}
+            <button
+              type="button"
+              className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+            >
+              <Download size={15} />
+              Download
+            </button>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setShowMoreMenu((prev) => !prev)
+                }}
+                className="flex cursor-pointer items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+              >
+                <MoreHorizontal size={15} />
+                More
+              </button>
+              {showMoreMenu && (
+                <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                  >
+                    Download order form
+                  </button>
+                  <button
+                    type="button"
+                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                  >
+                    Cancel order
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <div className="relative min-h-0 flex-1">
-        <aside
-          className="absolute top-0 bottom-0 z-10 overflow-visible pt-12"
-          style={{ left: NAV_ALIGN_OFFSET, width: LEFT_NAV_WIDTH }}
-        >
-          <InPageNav
-            sections={NAV_SECTIONS}
-            sourceDocuments={[]}
-            activeId={activeSection}
-            onNavigate={scrollToSection}
-          />
-        </aside>
-
-        <div
-          ref={centerRef}
-          className="h-full overflow-y-auto pb-20 pt-12"
-          style={{ marginLeft: LEFT_NAV_WIDTH + NAV_ALIGN_OFFSET }}
-        >
-          <div className="mx-auto space-y-10" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
-            <section ref={setSectionRef('summary')} className="group/section">
+        <div className="min-h-0 flex-1 overflow-y-auto pb-24 pt-12">
+          <div
+            className="mx-auto space-y-10 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+            style={{ maxWidth: chatOpen ? 880 : CONTENT_MAX_WIDTH }}
+          >
+            <section className="group/section">
               <AiSummaryNote order={order} />
             </section>
 
-            <SalesOrderCollapsedSections order={order} setSectionRef={setSectionRef} />
+            <SalesOrderCollapsedSections order={order} />
 
             <div aria-hidden="true" style={{ height: 120 }} />
           </div>
         </div>
+
+        {!chatOpen && (
+          <div
+            className={cn(
+              'pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-6 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
+              askLeaving
+                ? 'translate-x-[28%] translate-y-2 scale-[1.04] opacity-0'
+                : 'translate-x-0 translate-y-0 scale-100 opacity-100',
+            )}
+          >
+            <SalesOrderAskBar onAsk={openChat} />
+          </div>
+        )}
       </div>
+
+      <aside
+        className={cn(
+          'relative shrink-0 overflow-hidden border-neutral-200 bg-white transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]',
+          chatOpen ? 'border-l' : 'border-l-0',
+        )}
+        style={{ width: chatOpen ? ASK_CHAT_RAIL_WIDTH : 0 }}
+        aria-hidden={!chatOpen}
+      >
+        <div
+          className={cn(
+            'absolute inset-y-0 right-0 flex h-full flex-col transition-opacity duration-300',
+            chatOpen ? 'opacity-100 delay-150' : 'opacity-0',
+          )}
+          style={{ width: ASK_CHAT_RAIL_WIDTH }}
+        >
+          {chatPrompt && (
+            <SalesOrderAskChatPanel
+              prompt={chatPrompt}
+              onAsk={(next) => setChatPrompt(next)}
+              onClose={closeChat}
+            />
+          )}
+        </div>
+      </aside>
     </div>
   )
 }
