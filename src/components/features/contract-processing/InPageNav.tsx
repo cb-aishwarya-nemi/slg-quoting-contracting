@@ -106,7 +106,8 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
             const isActive = section.id === activeId
             const isItemHovered = hoveredId === section.id
             const showFlag =
-              section.id === 'account' || section.id.toLowerCase().includes('product')
+              section.status === 'attention' &&
+              (section.id === 'account' || section.id.toLowerCase().includes('product'))
             const useGradient = section.status === 'attention'
 
             return (

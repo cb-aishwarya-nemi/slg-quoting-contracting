@@ -1,8 +1,3 @@
 export { SalesOrderDetails } from './SalesOrderDetails'
-export { SalesOrderDetailsV1 } from './SalesOrderDetailsV1'
-export { SalesOrderDetailsV2 } from './SalesOrderDetailsV2'
 export { SalesOrderPreview } from './SalesOrderPreview'
-export { SalesOrderHorizontalTimeline } from './SalesOrderHorizontalTimeline'
-export { SalesOrderRunRateGraphs } from './SalesOrderRunRateGraphs'
-export { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 export { ReadOnlyProductsList } from './ReadOnlyProductsList'

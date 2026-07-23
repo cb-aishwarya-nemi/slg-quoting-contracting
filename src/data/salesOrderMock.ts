@@ -52,6 +52,12 @@ export interface BillingScheduleLine {
   installment: string
   amount: string
   status: 'Paid' | 'Pending' | 'Upcoming'
+  /** Optional invoice id for preview in the timeline */
+  invoiceId?: string
+  /** Overrides the relative date parentheses, e.g. "sent 2m ago" */
+  dateAnnotation?: string
+  /** When set, status uses this date instead of billDate for due/overdue copy */
+  dueDate?: string
 }
 
 export interface PastInvoiceLine {
@@ -60,6 +66,13 @@ export interface PastInvoiceLine {
   date: string
   status: InvoiceStatus
   amount: string
+}
+
+export interface LinkedRecord {
+  label: string
+  value: string
+  /** When false, value renders as plain text (e.g. empty renewal). Defaults to true. */
+  href?: boolean
 }
 
 export interface ActivityItem {
@@ -78,6 +91,8 @@ export interface SalesOrder {
   customerName: string
   dealTag: string
   sourceQuote: string
+  /** Signed contract PDF name shown as a link in metrics */
+  sourceContract: string
   createdOn: string
   startDate: string
   rampDetails: string
@@ -100,6 +115,7 @@ export interface SalesOrder {
   productPeriods?: SalesOrderRampPeriod[]
   upcomingBillingSchedule: BillingScheduleLine[]
   pastInvoices: PastInvoiceLine[]
+  linkedRecords: LinkedRecord[]
   /** section-wise comments keyed via linkedSectionId */
   comments: Comment[]
   /** chronological account activity for the Activity timeline */
@@ -141,7 +157,7 @@ const pioneerComments: Comment[] = [
     initials: 'AB',
     timestamp: '12 min ago',
     body: 'Quarterly billing schedule looks correct — first invoice already issued.',
-    linkedSection: 'Upcoming billing schedule',
+    linkedSection: 'Billing schedule',
     linkedSectionId: 'schedule',
   },
 ]
@@ -152,6 +168,7 @@ export const pioneerSalesOrder: SalesOrder = {
   customerName: 'Pioneer Systems',
   dealTag: 'NEW DEAL',
   sourceQuote: 'Q-2026-1847',
+  sourceContract: 'MSA_2026_PS_001.pdf',
   createdOn: 'May 1, 2026',
   startDate: 'May 1, 2026',
   rampDetails: '2 ramp periods',
@@ -162,9 +179,9 @@ export const pioneerSalesOrder: SalesOrder = {
   renewalAction: 'Manual renewal',
   renewalDate: 'Jul 2029',
 
-  headline: 'Everything is on track — Pioneer Systems is live and billing on schedule.',
+  headline: 'The first invoice of $41,000.00 has been sent to Pioneer Systems.',
   aiSummary:
-    '$492K contract over 36 months with two ramp periods. Quarterly billing runs $41K in Year 1, stepping to $43K in Year 2. First invoice sent; entitlements are active.',
+    'Sales order SO-2026-0153 was created on May 1, 2026 and starts on May 1, 2026. The contract runs across 2 ramp periods over a 36-month term — Year 1 bills $41,000.00 per quarter, ramping to $43,050.00 per quarter in Year 2. The total contract value is $492,000.00 with an average annual value of $164,000.00.',
 
   usageSummary: [
     { feature: 'Image creation', included: '2,273/2,500', onDemand: '0', includedTone: 'warning' },
@@ -304,17 +321,28 @@ export const pioneerSalesOrder: SalesOrder = {
   ],
 
   upcomingBillingSchedule: [
-    { id: 'so-bs-1', billDate: 'Aug 31, 2026', installment: 'Year 1 · Q2', amount: '$41,000.00', status: 'Pending' },
-    { id: 'so-bs-2', billDate: 'Nov 30, 2026', installment: 'Year 1 · Q3', amount: '$41,000.00', status: 'Upcoming' },
-    { id: 'so-bs-3', billDate: 'Feb 28, 2027', installment: 'Year 1 · Q4', amount: '$41,000.00', status: 'Upcoming' },
-    { id: 'so-bs-4', billDate: 'May 31, 2027', installment: 'Year 2 · Q1', amount: '$43,050.00', status: 'Upcoming' },
-    { id: 'so-bs-5', billDate: 'Aug 31, 2027', installment: 'Year 2 · Q2', amount: '$43,050.00', status: 'Upcoming' },
+    { id: 'so-bs-1', billDate: 'May 31, 2026', installment: 'Year 1 · Q1', amount: '$41,000.00', status: 'Pending', invoiceId: 'INV-2026-0042', dateAnnotation: 'sent 2m ago', dueDate: 'Jul 14, 2026' },
+    { id: 'so-bs-2', billDate: 'Aug 31, 2026', installment: 'Year 1 · Q2', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-0043' },
+    { id: 'so-bs-3', billDate: 'Nov 30, 2026', installment: 'Year 1 · Q3', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-0044' },
+    { id: 'so-bs-4', billDate: 'Feb 28, 2027', installment: 'Year 1 · Q4', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-0045' },
+    { id: 'so-bs-5', billDate: 'May 31, 2027', installment: 'Year 2 · Q1', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-0046' },
+    { id: 'so-bs-6', billDate: 'Aug 31, 2027', installment: 'Year 2 · Q2', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-0047' },
+    { id: 'so-bs-7', billDate: 'Nov 30, 2027', installment: 'Year 2 · Q3', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-0048' },
+    { id: 'so-bs-8', billDate: 'Feb 28, 2028', installment: 'Year 2 · Q4', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-0049' },
+    { id: 'so-bs-9', billDate: 'May 31, 2028', installment: 'Year 3 · Q1', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2028-0050' },
+    { id: 'so-bs-10', billDate: 'Aug 31, 2028', installment: 'Year 3 · Q2', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2028-0051' },
+    { id: 'so-bs-11', billDate: 'Nov 30, 2028', installment: 'Year 3 · Q3', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2028-0052' },
+    { id: 'so-bs-12', billDate: 'Feb 28, 2029', installment: 'Year 3 · Q4', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2028-0053' },
   ],
 
   pastInvoices: [
-    { id: 'so-pi-1', invoiceId: 'INV-2026-0042', date: 'May 1, 2026', status: 'Paid', amount: '$41,000.00' },
-    { id: 'so-pi-2', invoiceId: 'INV-2026-8847', date: 'May 1, 2026', status: 'Paid', amount: '$54,000.00' },
-    { id: 'so-pi-3', invoiceId: 'INV-2026-9584', date: 'Jun 15, 2026', status: 'Pending', amount: '$126,000.00' },
+    { id: 'so-pi-1', invoiceId: 'INV-2026-0042', date: 'May 1, 2026', status: 'Pending', amount: '$41,000.00' },
+  ],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2026-1847' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2026.pdf' },
   ],
 
   comments: pioneerComments,
@@ -337,6 +365,7 @@ const secondSalesOrder: SalesOrder = {
   customerName: 'Pioneer Systems',
   dealTag: 'RENEWAL',
   sourceQuote: 'Q-2025-1602',
+  sourceContract: 'MSA_2025_PS_002.pdf',
   createdOn: 'Jan 1, 2025',
   startDate: 'Jan 1, 2025',
   rampDetails: 'No ramp',
@@ -386,6 +415,12 @@ const secondSalesOrder: SalesOrder = {
     { id: 'so2-pi-2', invoiceId: 'INV-2025-5890', date: 'Nov 1, 2025', status: 'Paid', amount: '$42,000.00' },
   ],
 
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2025-0921' },
+    { label: 'Contracts', value: 'Pioneer_Systems_Renewal_2025.pdf' },
+  ],
+
   comments: [
     {
       id: 'so2-c-1',
@@ -413,6 +448,7 @@ const thirdSalesOrder: SalesOrder = {
   customerName: 'Pioneer Systems',
   dealTag: 'NEW DEAL',
   sourceQuote: 'Q-2024-1188',
+  sourceContract: 'MSA_2024_PS_003.pdf',
   createdOn: 'Mar 15, 2024',
   startDate: 'Apr 1, 2024',
   rampDetails: 'No ramp',
@@ -459,6 +495,12 @@ const thirdSalesOrder: SalesOrder = {
     { id: 'so3-pi-2', invoiceId: 'INV-2024-2851', date: 'Jul 1, 2024', status: 'Cancelled', amount: '$36,000.00' },
   ],
 
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2024-1188' },
+    { label: 'Contracts', value: 'Pioneer_Systems_Order_Form_2024.pdf' },
+  ],
+
   comments: [],
 
   activity: [
@@ -476,6 +518,7 @@ const fourthSalesOrder: SalesOrder = {
   customerName: 'Pioneer Systems',
   dealTag: 'RENEWAL',
   sourceQuote: 'Q-2023-0921',
+  sourceContract: 'MSA_2023_PS_004.pdf',
   createdOn: 'May 1, 2023',
   startDate: 'May 1, 2023',
   rampDetails: 'No ramp',
@@ -521,6 +564,12 @@ const fourthSalesOrder: SalesOrder = {
     { id: 'so4-pi-2', invoiceId: 'INV-2024-1182', date: 'Feb 1, 2024', status: 'Paid', amount: '$24,000.00' },
   ],
 
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2023-0921' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2023.pdf' },
+  ],
+
   comments: [],
 
   activity: [
@@ -536,6 +585,7 @@ const fifthSalesOrder: SalesOrder = {
   customerName: 'Pioneer Systems',
   dealTag: 'NEW DEAL',
   sourceQuote: 'Q-2025-2044',
+  sourceContract: 'MSA_2025_PS_005.pdf',
   createdOn: 'Oct 1, 2025',
   startDate: 'Oct 1, 2025',
   rampDetails: 'No ramp',
@@ -584,6 +634,12 @@ const fifthSalesOrder: SalesOrder = {
   pastInvoices: [
     { id: 'so5-pi-1', invoiceId: 'INV-2025-9102', date: 'Oct 1, 2025', status: 'Paid', amount: '$45,000.00' },
     { id: 'so5-pi-2', invoiceId: 'INV-2026-2218', date: 'Jan 15, 2026', status: 'Paid', amount: '$45,000.00' },
+  ],
+
+  linkedRecords: [
+    { label: 'CRM Account', value: 'Pioneer Systems' },
+    { label: 'CRM Opportunity', value: 'OPP-2025-2044' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2025.pdf' },
   ],
 
   comments: [],
