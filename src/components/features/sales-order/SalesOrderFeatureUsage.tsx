@@ -633,6 +633,7 @@ function FeatureUsageChart({
             }
 
             let stackTop = barBottom
+            let stackValue = 0
             const barCount = bars.length
             const slotProgress = staggeredProgress(
               entranceProgress,
@@ -640,10 +641,13 @@ function FeatureUsageChart({
               slotLayout.length
             )
             return bars.map((bar, barIndex) => {
-              const animatedValue = bar.value * slotProgress
-              if (animatedValue <= 0) return null
-              const barTop = valueToY(animatedValue, yAxisMax, innerH)
+              if (bar.value <= 0) return null
+              stackValue += bar.value
+              const animatedStack = stackValue * slotProgress
+              if (animatedStack <= 0) return null
+              const barTop = valueToY(animatedStack, yAxisMax, innerH)
               const barHeight = stackTop - barTop
+              if (barHeight <= 0) return null
               const isTopSegment = barIndex === barCount - 1
               const pathD = isTopSegment
                 ? topRoundedBarPath(slot.left, barTop, slot.barW, barHeight, BAR_RADIUS)
