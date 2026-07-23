@@ -471,7 +471,6 @@ export interface SectionCommentStackProps {
 }
 
 export function SectionCommentStack({
-  sectionId,
   comments,
   linkedSection,
   onAddNote,
