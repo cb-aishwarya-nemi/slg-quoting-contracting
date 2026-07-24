@@ -149,22 +149,26 @@ export function UseCaseProvider({ children }: { children: ReactNode }) {
   
   // Set active page (called when a page/modal becomes active)
   const setActivePage = useCallback((pageId: string | null) => {
-    setActivePageState(pageId)
-    
-    if (pageId) {
-      const page = USE_CASE_REGISTRY.find(p => p.id === pageId)
-      if (page) {
-        // If no variant is set or current variant doesn't exist for this page,
-        // use the default variant for this page
-        setActiveVariantState(prevVariant => {
-          const validVariants = page.variants.map(v => v.id)
-          if (prevVariant && validVariants.includes(prevVariant)) {
-            return prevVariant
-          }
-          return page.defaultVariant
-        })
+    setActivePageState((prevPage) => {
+      if (pageId) {
+        const page = USE_CASE_REGISTRY.find((p) => p.id === pageId)
+        if (page) {
+          setActiveVariantState((prevVariant) => {
+            // Keep the current stage while staying on the same page (e.g. switcher).
+            // Fresh entry from another page always opens the default (Just created).
+            if (
+              prevPage === pageId &&
+              prevVariant &&
+              page.variants.some((v) => v.id === prevVariant)
+            ) {
+              return prevVariant
+            }
+            return page.defaultVariant
+          })
+        }
       }
-    }
+      return pageId
+    })
   }, [])
   
   // Set variant for current page
