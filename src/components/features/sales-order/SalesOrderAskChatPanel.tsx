@@ -237,28 +237,89 @@ function ThinkingState() {
   )
 }
 
-interface SalesOrderAskChatPanelProps {
+export interface AskChatTurn {
+  id: string
   prompt: string
+}
+
+function AgentAnswer({ prompt }: { prompt: string }) {
+  const response = ASK_RESPONSES[prompt]
+  if (response?.kind === 'kickoff') return <KickoffBrief />
+  if (response?.kind === 'markdown') return <MarkdownAnswer response={response} />
+  return (
+    <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-[13px] text-brand-navy shadow-sm">
+      I don&apos;t have a tailored brief for that yet — try one of the suggested prompts.
+    </div>
+  )
+}
+
+function ChatTurnBlock({
+  prompt,
+  isLatest,
+  usedPrompts,
+  onAsk,
+  onResolved,
+}: {
+  prompt: string
+  isLatest: boolean
+  usedPrompts: string[]
+  onAsk: (prompt: string) => void
+  onResolved: () => void
+}) {
+  const [phase, setPhase] = useState<'thinking' | 'answer'>('thinking')
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPhase('answer')
+      onResolved()
+    }, THINKING_MS)
+    return () => window.clearTimeout(timer)
+    // Only run thinking once per turn mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const otherSuggestions = ASK_SUGGESTIONS.filter((s) => !usedPrompts.includes(s))
+
+  return (
+    <div className="space-y-3">
+      <div className="flex justify-end">
+        <SuggestionPill label={prompt} asDisplay />
+      </div>
+
+      {phase === 'thinking' ? <ThinkingState /> : <AgentAnswer prompt={prompt} />}
+
+      {phase === 'answer' && isLatest && otherSuggestions.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1">
+          {otherSuggestions.map((suggestion) => (
+            <SuggestionPill
+              key={suggestion}
+              label={suggestion}
+              onClick={() => onAsk(suggestion)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+interface SalesOrderAskChatPanelProps {
+  turns: AskChatTurn[]
   onAsk: (prompt: string) => void
   onClose: () => void
 }
 
-export function SalesOrderAskChatPanel({ prompt, onAsk, onClose }: SalesOrderAskChatPanelProps) {
-  const [phase, setPhase] = useState<'thinking' | 'answer'>('thinking')
+export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskChatPanelProps) {
   const [followUp, setFollowUp] = useState('')
   const [contentReady, setContentReady] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    setPhase('thinking')
-    setFollowUp('')
     setContentReady(false)
     const reveal = window.setTimeout(() => setContentReady(true), 80)
-    const timer = window.setTimeout(() => setPhase('answer'), THINKING_MS)
-    return () => {
-      window.clearTimeout(reveal)
-      window.clearTimeout(timer)
-    }
-  }, [prompt])
+    return () => window.clearTimeout(reveal)
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -268,14 +329,22 @@ export function SalesOrderAskChatPanel({ prompt, onAsk, onClose }: SalesOrderAsk
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const response = ASK_RESPONSES[prompt]
-  const otherSuggestions = ASK_SUGGESTIONS.filter((s) => s !== prompt)
+  const scrollToBottom = () => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [turns.length])
 
   const submitFollowUp = () => {
     const trimmed = followUp.trim()
     if (!trimmed) return
+    setFollowUp('')
     onAsk(trimmed)
   }
+
+  const usedPrompts = turns.map((t) => t.prompt)
 
   return (
     <div className="flex h-full w-full flex-col bg-white">
@@ -298,40 +367,23 @@ export function SalesOrderAskChatPanel({ prompt, onAsk, onClose }: SalesOrderAsk
       </header>
 
       <div
+        ref={scrollRef}
         className={cn(
-          'min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-4 transition-all duration-500',
+          'min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4 transition-all duration-500',
           contentReady ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
         )}
       >
-        <div className="flex justify-end">
-          <SuggestionPill label={prompt} asDisplay />
-        </div>
-
-        <div>
-          {phase === 'thinking' ? (
-            <ThinkingState />
-          ) : response?.kind === 'kickoff' ? (
-            <KickoffBrief />
-          ) : response?.kind === 'markdown' ? (
-            <MarkdownAnswer response={response} />
-          ) : (
-            <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-[13px] text-brand-navy shadow-sm">
-              I don&apos;t have a tailored brief for that yet — try one of the suggested prompts.
-            </div>
-          )}
-        </div>
-
-        {phase === 'answer' && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {otherSuggestions.map((suggestion) => (
-              <SuggestionPill
-                key={suggestion}
-                label={suggestion}
-                onClick={() => onAsk(suggestion)}
-              />
-            ))}
-          </div>
-        )}
+        {turns.map((turn, index) => (
+          <ChatTurnBlock
+            key={turn.id}
+            prompt={turn.prompt}
+            isLatest={index === turns.length - 1}
+            usedPrompts={usedPrompts}
+            onAsk={onAsk}
+            onResolved={scrollToBottom}
+          />
+        ))}
+        <div ref={bottomRef} aria-hidden="true" />
       </div>
 
       <footer className="shrink-0 border-t border-neutral-200 p-3">

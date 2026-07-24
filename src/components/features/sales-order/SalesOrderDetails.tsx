@@ -8,6 +8,7 @@ import {
   ASK_CHAT_RAIL_WIDTH,
   SalesOrderAskBar,
   SalesOrderAskChatPanel,
+  type AskChatTurn,
 } from './SalesOrderAskChatPanel'
 import { type SalesOrder } from '@/data/salesOrderMock'
 import {
@@ -126,7 +127,7 @@ export function SalesOrderDetails({
 }: SalesOrderDetailsProps) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [chatOpen, setChatOpen] = useState(false)
-  const [chatPrompt, setChatPrompt] = useState<string | null>(null)
+  const [chatTurns, setChatTurns] = useState<AskChatTurn[]>([])
   const [askLeaving, setAskLeaving] = useState(false)
 
   const listItem = resolveListItem(order)
@@ -148,9 +149,24 @@ export function SalesOrderDetails({
     }
   }, [showMoreMenu])
 
+  // Fresh thread when switching sales orders
+  useEffect(() => {
+    setChatOpen(false)
+    setChatTurns([])
+    setAskLeaving(false)
+  }, [activeOrderId])
+
+  const appendTurn = (prompt: string) => {
+    setChatTurns((prev) => [
+      ...prev,
+      { id: `turn-${Date.now()}-${prev.length}`, prompt },
+    ])
+  }
+
   const openChat = (prompt: string) => {
+    appendTurn(prompt)
+    if (chatOpen) return
     setAskLeaving(true)
-    setChatPrompt(prompt)
     window.setTimeout(() => {
       setChatOpen(true)
       setAskLeaving(false)
@@ -159,7 +175,6 @@ export function SalesOrderDetails({
 
   const closeChat = () => {
     setChatOpen(false)
-    window.setTimeout(() => setChatPrompt(null), 420)
   }
 
   return (
@@ -292,10 +307,10 @@ export function SalesOrderDetails({
           )}
           style={{ width: ASK_CHAT_RAIL_WIDTH }}
         >
-          {chatPrompt && (
+          {chatTurns.length > 0 && (
             <SalesOrderAskChatPanel
-              prompt={chatPrompt}
-              onAsk={(next) => setChatPrompt(next)}
+              turns={chatTurns}
+              onAsk={appendTurn}
               onClose={closeChat}
             />
           )}
