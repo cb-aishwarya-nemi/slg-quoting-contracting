@@ -3,4 +3,7 @@ export { SalesOrderPreview } from './SalesOrderPreview'
 export { ReadOnlyProductsList } from './ReadOnlyProductsList'
 export { SalesOrderAskChatPanel } from './SalesOrderAskChatPanel'
 export { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
-export { SalesOrderAmendmentHistoryView } from './SalesOrderAmendmentHistoryView'
+export {
+  SalesOrderAmendmentHistoryView,
+  SelectedContractVersionPanel,
+} from './SalesOrderAmendmentHistoryView'

@@ -5,7 +5,6 @@ import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { usePageUseCase } from '@/context/UseCaseContext'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
-import { SalesOrderAmendmentHistoryView } from './SalesOrderAmendmentHistoryView'
 import {
   ASK_CHAT_RAIL_WIDTH,
   SalesOrderAskBar,
@@ -482,10 +481,6 @@ export function SalesOrderDetails({
   const [chatOpen, setChatOpen] = useState(false)
   const [chatTurns, setChatTurns] = useState<AskChatTurn[]>([])
   const [askLeaving, setAskLeaving] = useState(false)
-  const [amendmentHistory, setAmendmentHistory] = useState<{
-    open: boolean
-    versionId?: string
-  }>({ open: false })
 
   const listItem = resolveListItem(order)
   const statusStyle = SALES_ORDER_STATUS_STYLES[listItem.status]
@@ -512,7 +507,6 @@ export function SalesOrderDetails({
     setChatOpen(false)
     setChatTurns([])
     setAskLeaving(false)
-    setAmendmentHistory({ open: false })
   }, [activeOrderId])
 
   const appendTurn = (prompt: string) => {
@@ -534,18 +528,6 @@ export function SalesOrderDetails({
 
   const closeChat = () => {
     setChatOpen(false)
-  }
-
-  if (amendmentHistory.open) {
-    return (
-      <div className="flex min-h-0 w-full flex-1 overflow-hidden">
-        <SalesOrderAmendmentHistoryView
-          key={amendmentHistory.versionId ?? 'history'}
-          initialVersionId={amendmentHistory.versionId}
-          onClose={() => setAmendmentHistory({ open: false })}
-        />
-      </div>
-    )
   }
 
   return (
@@ -643,13 +625,7 @@ export function SalesOrderDetails({
               <AiSummaryNote order={order} listItem={listItem} variant={currentVariant} />
             </section>
 
-            <SalesOrderCollapsedSections
-              order={order}
-              variant={currentVariant}
-              onVersionSelect={(versionId) =>
-                setAmendmentHistory({ open: true, versionId })
-              }
-            />
+            <SalesOrderCollapsedSections order={order} variant={currentVariant} />
 
             <div aria-hidden="true" style={{ height: 120 }} />
           </div>

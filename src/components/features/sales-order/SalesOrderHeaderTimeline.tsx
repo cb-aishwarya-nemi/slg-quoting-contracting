@@ -10,9 +10,11 @@ import {
 interface SalesOrderHeaderTimelineProps {
   orderId: string
   variant?: string | null
-  onVersionSelect?: (versionId: string) => void
   /** Page content below the axis — dashed columns extend behind this. */
-  children?: ReactNode | ((ctx: { periodIndex: number }) => ReactNode)
+  children?: ReactNode | ((ctx: {
+    periodIndex: number
+    selectedVersionId?: string
+  }) => ReactNode)
 }
 
 interface AmendmentMarker {
@@ -85,6 +87,7 @@ const DEFAULT_PERIOD_INDEX = 1
 const TOTAL_PERIODS = 3
 /** Prototype “today” — 3rd month of Period 1. */
 const TODAY_DATE = '2026-07-22'
+const TODAY_LABEL = "Jul 22 '26"
 
 function formatMonthLabel(date: Date, isEdge: boolean): string {
   const month = date.toLocaleDateString('en-US', { month: 'short' })
@@ -118,7 +121,6 @@ function buildMonthTicks(startDate: string, endDate: string) {
 export function SalesOrderHeaderTimeline({
   orderId: _orderId,
   variant,
-  onVersionSelect,
   children,
 }: SalesOrderHeaderTimelineProps) {
   const isJustCreated = variant == null || variant === 'just-created'
@@ -140,6 +142,7 @@ export function SalesOrderHeaderTimeline({
     marker: AmendmentMarker
     rect: DOMRect
   } | null>(null)
+  const [todayHovered, setTodayHovered] = useState<{ rect: DOMRect } | null>(null)
 
   const months = useMemo(
     () => buildMonthTicks(period.startDate, period.endDate),
@@ -152,6 +155,9 @@ export function SalesOrderHeaderTimeline({
   const todayPercent = todayInPeriod
     ? dateToTimelinePercent(TODAY_DATE, period.startDate, period.endDate)
     : null
+
+  const selectedVersionId = visibleAmendments.find((m) => m.id === selectedId)?.version
+  const isTodaySelected = selectedId == null && todayPercent != null
 
   const handlePeriodChange = (next: number) => {
     if (next < 1 || next > TOTAL_PERIODS) return
@@ -167,9 +173,12 @@ export function SalesOrderHeaderTimeline({
   }
 
   const handleSelect = (marker: AmendmentMarker) => {
-    setSelectedId(marker.id)
-    // Pass version label (v2) so history view can open on the matching snapshot
-    onVersionSelect?.(marker.version)
+    // Toggle off to restore the default period / Today view
+    setSelectedId((prev) => (prev === marker.id ? undefined : marker.id))
+  }
+
+  const handleSelectToday = () => {
+    setSelectedId(undefined)
   }
 
   const monthGridStyle = {
@@ -259,18 +268,32 @@ export function SalesOrderHeaderTimeline({
         {/* Bottom axis line */}
         <div className="relative z-10 h-px bg-neutral-300" />
 
-        {/* Today — blue dot on the axis */}
+        {/* Today — blue dot on the axis (clickable: restore current view) */}
         {todayPercent != null && (
-          <div
-            className="pointer-events-none absolute top-0 z-20 -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${todayPercent}%` }}
+          <button
+            type="button"
+            onClick={handleSelectToday}
+            onMouseEnter={(e) => {
+              setTodayHovered({ rect: e.currentTarget.getBoundingClientRect() })
+            }}
+            onMouseLeave={() => setTodayHovered(null)}
+            aria-pressed={isTodaySelected}
             aria-label="Today"
+            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            style={{ left: `${todayPercent}%`, top: 0 }}
           >
-            <span className="relative flex h-2.5 w-2.5">
+            <span
+              className={cn(
+                'relative flex items-center justify-center rounded-full transition-all duration-200',
+                todayHovered || isTodaySelected ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5',
+                todayHovered &&
+                  'shadow-[0_0_0_4px_rgba(37,99,235,0.2)]'
+              )}
+            >
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
-              <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-blue-600" />
+              <span className="relative inline-flex h-full w-full rounded-full bg-blue-600" />
             </span>
-          </div>
+          </button>
         )}
 
         {/* Version / amendment markers — on the axis with Today */}
@@ -327,6 +350,28 @@ export function SalesOrderHeaderTimeline({
           )
         })}
 
+        {todayHovered &&
+          createPortal(
+            <div
+              className="pointer-events-none fixed z-[9999] flex -translate-x-1/2 flex-col items-center"
+              style={{
+                left: todayHovered.rect.left + todayHovered.rect.width / 2,
+                top: todayHovered.rect.bottom + 8,
+              }}
+            >
+              <span className="mb-1.5 h-3 w-px border-l border-dashed border-neutral-300" />
+              <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
+                <p className="whitespace-nowrap text-[12px] font-semibold text-blue-700">
+                  Today
+                </p>
+                <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
+                  {TODAY_LABEL} · current view
+                </p>
+              </div>
+            </div>,
+            document.body
+          )}
+
         {hoveredMarker &&
           createPortal(
             <div
@@ -361,7 +406,9 @@ export function SalesOrderHeaderTimeline({
 
         {children ? (
           <div className="relative z-10 space-y-10 pt-10">
-            {typeof children === 'function' ? children({ periodIndex }) : children}
+            {typeof children === 'function'
+              ? children({ periodIndex, selectedVersionId })
+              : children}
           </div>
         ) : null}
       </div>

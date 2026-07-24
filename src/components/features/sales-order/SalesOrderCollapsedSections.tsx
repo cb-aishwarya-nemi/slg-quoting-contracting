@@ -9,6 +9,10 @@ import {
   type SalesOrderRampPeriod,
   pioneerOverdueBillingSchedule,
 } from '@/data/salesOrderMock'
+import {
+  AMENDMENT_HISTORY_VERSIONS,
+  type AmendmentVersionSnapshot,
+} from '@/data/salesOrderAmendmentHistoryMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 
@@ -323,12 +327,63 @@ const PERIOD_ENTITLEMENTS: Record<number, PeriodEntitlement[]> = {
   ],
 }
 
+/** Entitlements as of a selected contract version (vs prior). */
+const VERSION_ENTITLEMENTS: Record<string, PeriodEntitlement[]> = {
+  v2: [
+    { label: 'Seats', value: '75 seats', change: '+25 seats' },
+    { label: 'Environments', value: '5 sandboxes' },
+    { label: 'API calls', value: '5M / year' },
+  ],
+  v3: [
+    { label: 'Seats', value: '75 seats', change: '+25 seats' },
+    { label: 'Environments', value: '5 sandboxes' },
+    { label: 'API calls', value: '5M / year' },
+  ],
+  v4: [
+    { label: 'Seats', value: '75 seats' },
+    { label: 'Environments', value: '6 sandboxes', change: '+1 sandbox' },
+    { label: 'API calls', value: '7.5M / year', change: '+2.5M' },
+  ],
+}
+
 function getProductsForTimelinePeriod(
   order: SalesOrder,
   periodIndex: number
 ): SalesOrderRampPeriod | undefined {
   const periods = order.productPeriods ?? []
   return periods[periodIndex - 1]
+}
+
+function VersionChangeSummary({ version }: { version: AmendmentVersionSnapshot }) {
+  const kind = version.changeKind ?? 'expansion'
+  const isExpansion = kind === 'expansion'
+  const Icon = isExpansion ? TrendingUp : TrendingDown
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className={cn(
+            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+            isExpansion ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-900'
+          )}
+        >
+          <Icon size={12} strokeWidth={2.25} className="shrink-0" />
+          {isExpansion ? 'Expansion' : 'Contraction'}
+        </span>
+        <span className="text-[12px] font-semibold text-brand-navy">{version.version}</span>
+        <span className="text-[12px] text-brand-fog">· {version.date}</span>
+      </div>
+      <p
+        className={cn(
+          'mt-1.5 text-[13px] leading-[1.55]',
+          isExpansion ? 'text-green-950/80' : 'text-amber-950/80'
+        )}
+      >
+        {version.changeSummary}
+      </p>
+    </div>
+  )
 }
 
 function EntitlementChangeBadge({ change }: { change: string }) {
@@ -498,38 +553,54 @@ export function SalesOrderCollapsedSections({
   order,
   variant,
   setSectionRef,
-  onVersionSelect,
 }: {
   order: SalesOrder
   variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
-  onVersionSelect?: (versionId: string) => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   const billingSchedule =
     variant === 'invoice-overdue' ? pioneerOverdueBillingSchedule : order.upcomingBillingSchedule
   const showTimeline = variant == null || variant === 'just-created'
 
-  const renderSections = (periodIndex = 1) => {
+  const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
+    const selectedVersion = selectedVersionId
+      ? AMENDMENT_HISTORY_VERSIONS.find((v) => v.id === selectedVersionId)
+      : undefined
     const timelinePeriod = showTimeline
       ? getProductsForTimelinePeriod(order, periodIndex)
       : undefined
-    const entitlements = showTimeline
-      ? PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1]
-      : ORDER_ENTITLEMENTS
+    // Keep period identity (name + dates); only swap line items for the selected version
+    const productsPeriod: SalesOrderRampPeriod | undefined =
+      selectedVersion && timelinePeriod
+        ? { ...timelinePeriod, items: selectedVersion.products }
+        : timelinePeriod
+    const entitlements =
+      (selectedVersion && VERSION_ENTITLEMENTS[selectedVersion.id]) ||
+      (showTimeline
+        ? PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1]
+        : ORDER_ENTITLEMENTS)
 
     return (
       <>
+        {selectedVersion?.changeKind ? (
+          <VersionChangeSummary version={selectedVersion} />
+        ) : null}
+
         <section ref={setSectionRef?.('products')} className="group/section">
           <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
             Products and pricing
           </h2>
           <div className="mt-4">
-            {timelinePeriod ? (
+            {productsPeriod ? (
               <ReadOnlyProductsList
-                key={timelinePeriod.id}
-                items={timelinePeriod.items}
-                periods={[timelinePeriod]}
+                key={
+                  selectedVersion
+                    ? `${productsPeriod.id}-${selectedVersion.id}`
+                    : productsPeriod.id
+                }
+                items={productsPeriod.items}
+                periods={[productsPeriod]}
               />
             ) : (
               <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
@@ -630,12 +701,10 @@ export function SalesOrderCollapsedSections({
 
   if (showTimeline) {
     return (
-      <SalesOrderHeaderTimeline
-        orderId={order.id}
-        variant={variant}
-        onVersionSelect={onVersionSelect}
-      >
-        {({ periodIndex }) => renderSections(periodIndex)}
+      <SalesOrderHeaderTimeline orderId={order.id} variant={variant}>
+        {({ periodIndex, selectedVersionId }) =>
+          renderSections(periodIndex, selectedVersionId)
+        }
       </SalesOrderHeaderTimeline>
     )
   }

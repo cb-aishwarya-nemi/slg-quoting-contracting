@@ -27,13 +27,20 @@ interface ProductDiffRow {
   summary: string
 }
 
-function findPreviousVersion(
+export function findPreviousVersion(
   versionId: string
 ): AmendmentVersionSnapshot | undefined {
   const idx = AMENDMENT_HISTORY_VERSIONS.findIndex((v) => v.id === versionId)
   if (idx < 0 || idx >= AMENDMENT_HISTORY_VERSIONS.length - 1) return undefined
   // Array is newest-first; previous chronologically is the next index
   return AMENDMENT_HISTORY_VERSIONS[idx + 1]
+}
+
+/** Inline panel for a selected timeline version (used below the SO period axis). */
+export function SelectedContractVersionPanel({ versionId }: { versionId: string }) {
+  const version = AMENDMENT_HISTORY_VERSIONS.find((v) => v.id === versionId)
+  if (!version) return null
+  return <VersionDetail version={version} previous={findPreviousVersion(version.id)} />
 }
 
 function buildProductDiffs(
@@ -114,7 +121,7 @@ function DiffBadge({ kind }: { kind: ProductDiffKind }) {
   )
 }
 
-function VersionDetail({
+export function VersionDetail({
   version,
   previous,
 }: {

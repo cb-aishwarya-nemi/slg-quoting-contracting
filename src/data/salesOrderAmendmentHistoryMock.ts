@@ -7,6 +7,8 @@ export interface AmendmentVersionSnapshot {
   detail: string
   date: string
   current?: boolean
+  /** Whether this version expands or contracts the deal vs the prior one */
+  changeKind?: 'expansion' | 'contraction'
   /** Contract time period for this version */
   timePeriod: {
     startDate: string
@@ -28,13 +30,14 @@ export const AMENDMENT_HISTORY_VERSIONS: AmendmentVersionSnapshot[] = [
     detail: 'Extended term',
     date: 'Jul 9, 2026',
     current: true,
+    changeKind: 'expansion',
     timePeriod: {
       startDate: 'May 1, 2026',
       endDate: 'Apr 30, 2029',
       term: '36 months',
     },
     tcv: '$492,000.00',
-    changeSummary: 'Extended the contract end date by 12 months; TCV updated to $492K.',
+    changeSummary: 'Term extended by a year — the deal now runs through Apr 2029 at $492K TCV.',
     products: [
       {
         id: 'v4-p1',
@@ -80,13 +83,14 @@ export const AMENDMENT_HISTORY_VERSIONS: AmendmentVersionSnapshot[] = [
     title: 'Contract expansion',
     detail: '+ 25 seats',
     date: 'Mar 1, 2026',
+    changeKind: 'expansion',
     timePeriod: {
       startDate: 'May 1, 2026',
       endDate: 'Apr 30, 2028',
       term: '24 months',
     },
     tcv: '$328,000.00',
-    changeSummary: 'Added 25 platform seats (50 → 75); annual platform line stepped up.',
+    changeSummary: 'Platform seats grew from 50 to 75 — the annual platform line stepped up with them.',
     products: [
       {
         id: 'v3-p1',
@@ -132,21 +136,24 @@ export const AMENDMENT_HISTORY_VERSIONS: AmendmentVersionSnapshot[] = [
     title: 'Contract expansion',
     detail: '+25 seats · ramp adjust',
     date: 'Jun 15, 2026',
+    changeKind: 'expansion',
     timePeriod: {
       startDate: 'May 1, 2025',
       endDate: 'Apr 30, 2027',
       term: '24 months',
     },
     tcv: '$246,000.00',
-    changeSummary: 'Adjusted Year 2 ramp pricing (+7%) and sandbox entitlements.',
+    changeSummary:
+      'Seats expanded by 25 and Year 2 ramp pricing was nudged +7% — TCV moved from $230K to $246K.',
     products: [
       {
         id: 'v2-p1',
         name: 'Apex platform - growth services',
         frequency: 'Yearly',
-        quantity: '50',
+        quantity: '75',
         unitPrice: '$2,400.00',
-        totalPrice: '$120,000.00',
+        totalPrice: '$180,000.00',
+        quantityChange: 25,
       },
       {
         id: 'v2-p2',
@@ -158,20 +165,31 @@ export const AMENDMENT_HISTORY_VERSIONS: AmendmentVersionSnapshot[] = [
       },
       {
         id: 'v2-p3',
-        name: 'Premium support SLA',
-        frequency: 'Yearly',
+        name: 'Onboarding & Training',
+        frequency: 'One-time',
         quantity: '01',
-        unitPrice: '$12,000.00',
-        totalPrice: '$12,000.00',
-        rampPriceChange: 7,
+        unitPrice: '$9,500.00',
+        totalPrice: '$9,500.00',
       },
       {
         id: 'v2-p4',
+        name: 'Premium support SLA',
+        frequency: 'Yearly',
+        quantity: '01',
+        unitPrice: '$12,840.00',
+        totalPrice: '$12,840.00',
+        rampPriceChange: 7,
+        unitPriceDiff: '+$840.00',
+      },
+      {
+        id: 'v2-p5',
         name: 'Sandbox environments',
         frequency: 'Yearly',
         quantity: '03',
-        unitPrice: '$1,500.00',
-        totalPrice: '$4,500.00',
+        unitPrice: '$1,605.00',
+        totalPrice: '$4,815.00',
+        rampPriceChange: 7,
+        unitPriceDiff: '+$105.00',
       },
     ],
     sourceDocs: [
