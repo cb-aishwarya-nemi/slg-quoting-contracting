@@ -29,137 +29,30 @@ export interface UseCasePage {
 }
 
 /**
- * Registry of all pages/modals and their use case variants
- * This is the single source of truth for what can be switched
+ * Registry of sales-order stage variants for this branch.
  */
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
-    id: 'customer-link-modal',
-    label: 'Customer Link Modal',
-    defaultVariant: 'closest-matches',
-    variants: [
-      {
-        id: 'perfect-match',
-        label: 'Perfect Match',
-        description: 'Customer name exactly matches an existing record',
-      },
-      {
-        id: 'closest-matches',
-        label: 'Closest Matches',
-        description: 'AI finds similar customers with fuzzy matching',
-      },
-      {
-        id: 'no-match',
-        label: 'No Match Found',
-        description: 'No existing customers match the extracted data',
-      },
-    ],
-  },
-  {
-    id: 'workbench',
-    label: 'Workbench',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard workbench with sample tasks',
-      },
-      {
-        id: 'empty',
-        label: 'Empty State',
-        description: 'No tasks in the workbench',
-      },
-      {
-        id: 'high-volume',
-        label: 'High Volume',
-        description: 'Many tasks requiring attention',
-      },
-    ],
-  },
-  {
-    id: 'customer360',
-    label: 'Customer 360',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard customer view',
-      },
-      {
-        id: 'attention-items',
-        label: 'Attention Items',
-        description: 'Contract with items requiring review',
-      },
-      {
-        id: 'all-ready',
-        label: 'All Ready',
-        description: 'All sections validated and ready',
-      },
-    ],
-  },
-  {
-    id: 'invoice-details',
-    label: 'Invoice Details',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Pending Invoice',
-        description: 'Invoice awaiting approval',
-      },
-      {
-        id: 'paid',
-        label: 'Paid Invoice',
-        description: 'Successfully paid invoice',
-      },
-      {
-        id: 'overdue',
-        label: 'Overdue Invoice',
-        description: 'Invoice past due date',
-      },
-    ],
-  },
-  {
-    id: 'all-invoices',
-    label: 'All Invoices',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard invoice list',
-      },
-      {
-        id: 'filtered',
-        label: 'Filtered View',
-        description: 'Invoices filtered by status',
-      },
-    ],
-  },
-  {
-    id: 'all-contracts',
-    label: 'All Contracts',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard contract list',
-      },
-      {
-        id: 'pending-only',
-        label: 'Pending Only',
-        description: 'Contracts pending approval',
-      },
-    ],
-  },
-  {
     id: 'sales-order-details',
     label: 'Sales Order Details',
-    defaultVariant: 'default',
-    variants: [],
+    defaultVariant: 'just-created',
+    variants: [
+      {
+        id: 'just-created',
+        label: 'Just created',
+        description: 'Sales order right after it was created from the contract',
+      },
+      {
+        id: 'invoice-overdue',
+        label: 'Invoice overdue',
+        description: 'Sales order with an overdue invoice that needs attention',
+      },
+      {
+        id: 'renewal-approaching',
+        label: 'Renewal approaching',
+        description: 'Sales order nearing renewal with upcoming decisions',
+      },
+    ],
   },
 ]
 

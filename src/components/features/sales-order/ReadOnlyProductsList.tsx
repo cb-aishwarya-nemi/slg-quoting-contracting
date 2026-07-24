@@ -10,17 +10,18 @@ interface ReadOnlyProductsListProps {
 }
 
 const PERIOD_W = 96
-const QTY_W = 60
-const UNIT_W = 110
+const QTY_W = 92
+const UNIT_W = 148
 const TOTAL_W = 124
 
-function PriceChangeBadge({ change }: { change: number }) {
+function QuantityChangeBadge({ change }: { change: number }) {
   const isIncrease = change >= 0
   const Icon = isIncrease ? TrendingUp : TrendingDown
   return (
     <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
       <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
-      {Math.abs(change)}%
+      {isIncrease ? '+' : '−'}
+      {Math.abs(change)}
     </span>
   )
 }
@@ -87,16 +88,29 @@ function LineRow({ item, isLast = false }: { item: SalesOrderProduct; isLast?: b
     >
       <div className="flex flex-1 items-center gap-2 truncate pr-4">
         <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
-        {item.rampPriceChange != null && <PriceChangeBadge change={item.rampPriceChange} />}
       </div>
       <div style={{ width: PERIOD_W }} className="shrink-0 text-[14px] text-brand-navy">
         {item.frequency}
       </div>
-      <div style={{ width: QTY_W }} className="shrink-0 text-[14px] text-brand-navy">
-        {item.quantity}
+      <div style={{ width: QTY_W }} className="flex shrink-0 items-center gap-1.5 text-[14px] text-brand-navy">
+        <span>{item.quantity}</span>
+        {item.quantityChange != null && <QuantityChangeBadge change={item.quantityChange} />}
       </div>
-      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-navy">
-        {item.unitPrice}
+      <div
+        style={{ width: UNIT_W }}
+        className="flex shrink-0 items-center justify-end gap-1.5 text-[14px] font-medium text-brand-navy"
+      >
+        {item.rampPriceChange != null ? (
+          <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
+            {(item.rampPriceChange ?? 0) >= 0 ? (
+              <TrendingUp size={11} strokeWidth={2} className="shrink-0" />
+            ) : (
+              <TrendingDown size={11} strokeWidth={2} className="shrink-0" />
+            )}
+            {Math.abs(item.rampPriceChange)}%
+          </span>
+        ) : null}
+        <span>{item.unitPrice}</span>
       </div>
       <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-navy">
         {item.totalPrice}
@@ -114,9 +128,11 @@ function PeriodContainer({
   isExpanded: boolean
   onToggle: () => void
 }) {
-  const containerClass = 'overflow-hidden rounded-lg border border-neutral-200'
+  const containerClass = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
+  const hideChevron = period.label === 'Period 1' || period.id === 'so-period-1'
+  const showExpanded = hideChevron || isExpanded
 
-  if (!isExpanded) {
+  if (!showExpanded) {
     return (
       <div className={containerClass}>
         <div
@@ -134,7 +150,7 @@ function PeriodContainer({
     <div className={containerClass}>
       <div className="flex items-center border-b border-neutral-200 px-3 pb-2 pt-3">
         <div className="flex min-w-0 flex-1 items-center">
-          <PeriodChevron isExpanded onToggle={onToggle} />
+          {!hideChevron && <PeriodChevron isExpanded onToggle={onToggle} />}
           <PeriodIdentity period={period} />
         </div>
         <ColumnLabels />
@@ -213,7 +229,7 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
 
   // Flat view
   return (
-    <div>
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white px-1 py-1">
       <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
         <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
           Item

@@ -1,12 +1,18 @@
 import { useState, type ReactNode } from 'react'
-import { CalendarClock, Check, ChevronDown, Clock, ExternalLink, MessageCircleMore } from 'lucide-react'
+import { CalendarClock, Check, ChevronDown, Clock, ExternalLink, MessageCircleMore, TrendingDown, TrendingUp } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { CommentsPanel } from '@/components/features/contract-processing'
-import { STATUS_STYLES, type InvoiceStatus } from '@/data/invoiceListMock'
-import { type ActivityItem, type BillingScheduleLine, type SalesOrder } from '@/data/salesOrderMock'
+import {
+  type ActivityItem,
+  type BillingScheduleLine,
+  type SalesOrder,
+  type SalesOrderRampPeriod,
+  pioneerOverdueBillingSchedule,
+} from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
+import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 
-const SECTION_DATA_CONTAINER = 'overflow-hidden rounded-lg border border-neutral-200'
+const SECTION_DATA_CONTAINER = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
 const SCHEDULE_TODAY = new Date('2026-06-22')
@@ -95,15 +101,27 @@ function BillingQuarterRow({
   const quarter = quarterMatch ? `Q${quarterMatch[1]}` : item.installment
   const statusDate = item.dueDate ?? item.billDate
   const statusLabel = getStatusLabel(item.status, statusDate)
+  const isOverdue =
+    item.status === 'Pending' && getDaysUntilDue(statusDate) < 0
   const invoiceId = item.invoiceId
   const dateLabel = item.dateAnnotation
     ? `${item.billDate} (${item.dateAnnotation})`
     : withRelativeAnnotation(item.billDate)
 
   return (
-    <div className="relative flex items-start">
+    <div
+      className={cn(
+        'relative flex items-start rounded-md',
+        isOverdue && '-mx-2 bg-red-50/70 px-2'
+      )}
+    >
       <div className="pointer-events-none relative z-10 flex w-5 shrink-0 justify-center pt-[7px]">
-        <div className="h-1.5 w-1.5 rounded-full bg-brand-navy/40" />
+        <div
+          className={cn(
+            'h-1.5 w-1.5 rounded-full',
+            isOverdue ? 'bg-red-600' : 'bg-brand-navy/40'
+          )}
+        />
       </div>
 
       {!isLast && (
@@ -138,10 +156,10 @@ function BillingQuarterRow({
           <span
             className={cn(
               'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium',
-              config.badge
+              isOverdue ? 'bg-red-50 text-red-700' : config.badge
             )}
           >
-            <StatusIcon size={10} />
+            {item.status !== 'Paid' && <StatusIcon size={10} />}
             {statusLabel}
           </span>
           <span className="text-[14px] font-semibold text-brand-navy">{item.amount}</span>
@@ -155,39 +173,57 @@ function BillingYearAccordion({
   group,
   isExpanded,
   onToggle,
+  hideChevron = false,
 }: {
   group: BillingYearGroup
   isExpanded: boolean
   onToggle: () => void
+  hideChevron?: boolean
 }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-neutral-200">
-      <button
-        type="button"
-        onClick={onToggle}
-        className="flex w-full cursor-pointer items-center justify-between gap-4 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
-      >
-        <div className="flex items-center gap-3">
+  const showExpanded = hideChevron || isExpanded
+
+  const headerContent = (
+    <>
+      <div className="flex items-center gap-3">
+        {!hideChevron && (
           <ChevronDown
             size={18}
             className={cn(
               'shrink-0 text-blue-700 transition-transform duration-200',
-              isExpanded && 'rotate-180'
+              showExpanded && 'rotate-180'
             )}
           />
-          <div>
-            <span className="text-[15px] font-semibold text-brand-navy">{group.year}</span>
-            <span className="ml-2 text-[12px] text-brand-fog">
-              {group.items.length} {group.items.length === 1 ? 'payment' : 'payments'}
-            </span>
-          </div>
+        )}
+        <div>
+          <span className="text-[15px] font-semibold text-brand-navy">{group.year}</span>
+          <span className="ml-2 text-[12px] text-brand-fog">
+            {group.items.length} {group.items.length === 1 ? 'payment' : 'payments'}
+          </span>
         </div>
-        <span className="text-[16px] font-bold text-brand-navy">
-          {formatAmount(group.totalAmount)}
-        </span>
-      </button>
+      </div>
+      <span className="text-[16px] font-bold text-brand-navy">
+        {formatAmount(group.totalAmount)}
+      </span>
+    </>
+  )
 
-      {isExpanded && (
+  return (
+    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+      {hideChevron ? (
+        <div className="flex w-full items-center justify-between gap-4 bg-white px-4 py-3 text-left">
+          {headerContent}
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="flex w-full cursor-pointer items-center justify-between gap-4 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
+        >
+          {headerContent}
+        </button>
+      )}
+
+      {showExpanded && (
         <div className="border-t border-neutral-200 bg-white px-4 py-2">
           <div className="space-y-2">
             {group.items.map((item, idx) => (
@@ -239,6 +275,7 @@ function BillingScheduleTimeline({ items }: { items: BillingScheduleLine[] }) {
           group={group}
           isExpanded={expandedYears.has(group.year)}
           onToggle={() => toggleYear(group.year)}
+          hideChevron={group.year === 'Year 1'}
         />
       ))}
       {!showAdditionalYears && additionalYearCount > 0 && (
@@ -261,20 +298,59 @@ const ORDER_ENTITLEMENTS = [
   { label: 'Environments', value: '5 sandboxes' },
 ]
 
-const ORDER_CONFIGURATIONS = [
-  { label: 'Auto collection', value: 'On' },
-  { label: 'Invoice closure', value: 'Manual' },
-  { label: 'Tax exemption', value: 'Exempted' },
-  { label: 'Payment method', value: 'Card details' },
-]
+type PeriodEntitlement = {
+  label: string
+  value: string
+  /** Human-readable delta vs previous period, e.g. "+25 seats" */
+  change?: string
+}
+
+const PERIOD_ENTITLEMENTS: Record<number, PeriodEntitlement[]> = {
+  1: [
+    { label: 'Seats', value: '50 seats' },
+    { label: 'Environments', value: '5 sandboxes' },
+    { label: 'API calls', value: '5M / year' },
+  ],
+  2: [
+    { label: 'Seats', value: '75 seats', change: '+25 seats' },
+    { label: 'Environments', value: '5 sandboxes' },
+    { label: 'API calls', value: '5M / year' },
+  ],
+  3: [
+    { label: 'Seats', value: '75 seats' },
+    { label: 'Environments', value: '6 sandboxes', change: '+1 sandbox' },
+    { label: 'API calls', value: '7.5M / year', change: '+2.5M' },
+  ],
+}
+
+function getProductsForTimelinePeriod(
+  order: SalesOrder,
+  periodIndex: number
+): SalesOrderRampPeriod | undefined {
+  const periods = order.productPeriods ?? []
+  return periods[periodIndex - 1]
+}
+
+function EntitlementChangeBadge({ change }: { change: string }) {
+  const isIncrease = !change.trim().startsWith('-')
+  const Icon = isIncrease ? TrendingUp : TrendingDown
+  return (
+    <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
+      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
+      {change}
+    </span>
+  )
+}
 
 function EntitlementRow({
   label,
   value,
+  change,
   isLast = false,
 }: {
   label: string
-  value: string
+  value: ReactNode
+  change?: string
   isLast?: boolean
 }) {
   return (
@@ -287,7 +363,10 @@ function EntitlementRow({
       <span className="w-[128px] shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         {label}
       </span>
-      <span className="text-[14px] font-medium text-brand-navy">{value}</span>
+      <span className="flex min-w-0 items-center gap-2 text-[14px] font-medium text-brand-navy">
+        <span>{value}</span>
+        {change ? <EntitlementChangeBadge change={change} /> : null}
+      </span>
     </div>
   )
 }
@@ -406,179 +485,162 @@ function CollapsibleSection({
           )}
         />
       </button>
-      {open && <div className="mt-4">{children}</div>}
+      {open && (
+        <div className="mt-4 overflow-hidden rounded-lg border border-neutral-200 bg-white px-4 py-3">
+          {children}
+        </div>
+      )}
     </section>
   )
 }
 
 export function SalesOrderCollapsedSections({
   order,
+  variant,
   setSectionRef,
+  onVersionSelect,
 }: {
   order: SalesOrder
+  variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
+  onVersionSelect?: (versionId: string) => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
+  const billingSchedule =
+    variant === 'invoice-overdue' ? pioneerOverdueBillingSchedule : order.upcomingBillingSchedule
+  const showTimeline = variant == null || variant === 'just-created'
 
-  return (
-    <div className="space-y-10">
-      <section ref={setSectionRef?.('products')} className="group/section">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Products and pricing
-        </h2>
-        <div className="mt-4">
-          <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
-        </div>
-      </section>
+  const renderSections = (periodIndex = 1) => {
+    const timelinePeriod = showTimeline
+      ? getProductsForTimelinePeriod(order, periodIndex)
+      : undefined
+    const entitlements = showTimeline
+      ? PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1]
+      : ORDER_ENTITLEMENTS
 
-      <section ref={setSectionRef?.('entitlements')} className="group/section">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Entitlements
-        </h2>
-        <div className="mt-4 grid grid-cols-2 gap-20">
-          <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200">
-            <div className="px-3 py-1">
-              {ORDER_ENTITLEMENTS.map((row, idx) => (
-                <EntitlementRow
-                  key={row.label}
-                  label={row.label}
-                  value={row.value}
-                  isLast={idx === ORDER_ENTITLEMENTS.length - 1}
-                />
-              ))}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section ref={setSectionRef?.('schedule')} className="group/section">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Billing schedule
-        </h2>
-        <div className="mt-4">
-          <BillingScheduleTimeline items={order.upcomingBillingSchedule} />
-        </div>
-      </section>
-
-      <section ref={setSectionRef?.('invoices')} className="group/section">
-        <CollapsibleSection title="Past invoices" defaultOpen>
-          <div className={SECTION_DATA_CONTAINER}>
-            {order.pastInvoices.length === 0 ? (
-              <p className="px-4 py-4 text-[13px] text-brand-fog">No invoices yet.</p>
+    return (
+      <>
+        <section ref={setSectionRef?.('products')} className="group/section">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Products and pricing
+          </h2>
+          <div className="mt-4">
+            {timelinePeriod ? (
+              <ReadOnlyProductsList
+                key={timelinePeriod.id}
+                items={timelinePeriod.items}
+                periods={[timelinePeriod]}
+              />
             ) : (
-              order.pastInvoices.map((inv, idx) => {
-                const style = STATUS_STYLES[inv.status as InvoiceStatus]
-                return (
-                  <div
-                    key={inv.id}
-                    className={cn(
-                      'flex items-center border-b border-neutral-200 px-4 py-2.5',
-                      idx === order.pastInvoices.length - 1 && 'border-b-0'
-                    )}
-                  >
-                    <a className="w-[160px] shrink-0 cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
-                      {inv.invoiceId}
-                    </a>
-                    <span className="flex-1 text-[13px] text-brand-fog">{inv.date}</span>
-                    <span
-                      className={cn(
-                        'mr-4 inline-flex items-center rounded-full px-2 py-0.5 text-[12px] font-medium',
-                        style.bg,
-                        style.text
-                      )}
-                    >
-                      {inv.status}
-                    </span>
-                    <span className="w-[110px] shrink-0 text-right text-[14px] font-semibold text-brand-navy">
-                      {inv.amount}
-                    </span>
-                  </div>
-                )
-              })
+              <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
             )}
           </div>
-        </CollapsibleSection>
-      </section>
+        </section>
 
-      <section ref={setSectionRef?.('configurations')} className="group/section">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Configurations
-        </h2>
-        <div className="mt-4 grid grid-cols-2 gap-20">
-          <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200">
-            <div className="px-3 py-1">
-              {ORDER_CONFIGURATIONS.map((row, idx) => (
-                <EntitlementRow
-                  key={row.label}
-                  label={row.label}
-                  value={row.value}
-                  isLast={idx === ORDER_CONFIGURATIONS.length - 1}
-                />
-              ))}
+        <section ref={setSectionRef?.('entitlements')} className="group/section">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Entitlements
+          </h2>
+          <div className="mt-4 grid grid-cols-2 gap-20">
+            <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <div className="px-3 py-1">
+                {entitlements.map((row, idx) => (
+                  <EntitlementRow
+                    key={row.label}
+                    label={row.label}
+                    value={row.value}
+                    change={'change' in row ? row.change : undefined}
+                    isLast={idx === entitlements.length - 1}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section ref={setSectionRef?.('linked')} className="group/section">
-        <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Linked records
-        </h2>
-        <div className="mt-4 grid grid-cols-2 gap-20">
-          <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200">
-            <div className="px-3 py-1">
-              {order.linkedRecords.map((row, idx) => (
-                <LinkedRecordRow
-                  key={row.label}
-                  label={row.label}
-                  value={row.value}
-                  isLast={idx === order.linkedRecords.length - 1}
-                />
-              ))}
+        <section ref={setSectionRef?.('schedule')} className="group/section">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Billing schedule
+          </h2>
+          <div className="mt-4">
+            <BillingScheduleTimeline items={billingSchedule} />
+          </div>
+        </section>
+
+        <section ref={setSectionRef?.('linked')} className="group/section">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Linked records
+          </h2>
+          <div className="mt-4 grid grid-cols-2 gap-20">
+            <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white">
+              <div className="px-3 py-1">
+                {order.linkedRecords.map((row, idx) => (
+                  <LinkedRecordRow
+                    key={row.label}
+                    label={row.label}
+                    value={row.value}
+                    isLast={idx === order.linkedRecords.length - 1}
+                  />
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section ref={setSectionRef?.('comments')} className="group/section">
-        <CollapsibleSection
-          title="Comments"
-          commentCount={order.comments.length}
-          trailing={
-            <button
-              type="button"
-              onClick={() => setShowCommentAddNote((prev) => !prev)}
-              className={cn(
-                'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors',
-                showCommentAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
-              )}
-            >
-              <MessageCircleMore size={14} />
-              Add note
-            </button>
-          }
-        >
-          {order.comments.length === 0 && !showCommentAddNote ? (
-            <p className="py-4 text-[13px] text-brand-fog">No comments yet.</p>
-          ) : (
-            <CommentsPanel
-              comments={order.comments}
-              hideHeader
-              dense
-              showAddNote={showCommentAddNote}
-              onShowAddNoteChange={setShowCommentAddNote}
-            />
-          )}
-        </CollapsibleSection>
-      </section>
+        <section ref={setSectionRef?.('comments')} className="group/section">
+          <CollapsibleSection
+            title="Comments"
+            commentCount={order.comments.length}
+            trailing={
+              <button
+                type="button"
+                onClick={() => setShowCommentAddNote((prev) => !prev)}
+                className={cn(
+                  'flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-0.5 text-[12px] font-medium transition-colors',
+                  showCommentAddNote ? 'bg-blue-50 text-blue-700' : 'text-blue-700 hover:bg-blue-50'
+                )}
+              >
+                <MessageCircleMore size={14} />
+                Add note
+              </button>
+            }
+          >
+            {order.comments.length === 0 && !showCommentAddNote ? (
+              <p className="py-4 text-[13px] text-brand-fog">No comments yet.</p>
+            ) : (
+              <CommentsPanel
+                comments={order.comments}
+                hideHeader
+                dense
+                showAddNote={showCommentAddNote}
+                onShowAddNoteChange={setShowCommentAddNote}
+              />
+            )}
+          </CollapsibleSection>
+        </section>
 
-      <section ref={setSectionRef?.('activity')} className="group/section">
-        <CollapsibleSection title="Activity">
-          <ActivityTimeline items={order.activity} />
-        </CollapsibleSection>
-      </section>
-    </div>
-  )
+        <section ref={setSectionRef?.('activity')} className="group/section">
+          <CollapsibleSection title="Activity">
+            <ActivityTimeline items={order.activity} />
+          </CollapsibleSection>
+        </section>
+      </>
+    )
+  }
+
+  if (showTimeline) {
+    return (
+      <SalesOrderHeaderTimeline
+        orderId={order.id}
+        variant={variant}
+        onVersionSelect={onVersionSelect}
+      >
+        {({ periodIndex }) => renderSections(periodIndex)}
+      </SalesOrderHeaderTimeline>
+    )
+  }
+
+  return <div className="space-y-10">{renderSections()}</div>
 }
 
 export default SalesOrderCollapsedSections

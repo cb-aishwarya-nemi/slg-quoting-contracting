@@ -36,6 +36,10 @@ export interface SalesOrderProduct {
   totalPrice: string
   /** price change percentage vs. the previous ramp period (e.g. 7 for +7%) */
   rampPriceChange?: number
+  /** absolute unit-price delta label vs. previous period (e.g. "+$168.00") */
+  unitPriceDiff?: string
+  /** quantity delta vs. the previous ramp period (e.g. 25 for +25) */
+  quantityChange?: number
 }
 
 export interface SalesOrderRampPeriod {
@@ -65,6 +69,10 @@ export interface PastInvoiceLine {
   invoiceId: string
   date: string
   status: InvoiceStatus
+  /** Optional status detail shown in the badge (e.g. "Overdue · 2 days") */
+  statusDetail?: string
+  /** When paid, date shown beside the Paid pill */
+  paidDate?: string
   amount: string
 }
 
@@ -174,7 +182,7 @@ export const pioneerSalesOrder: SalesOrder = {
   rampDetails: '2 ramp periods',
   totalContractValue: '$492,000.00',
   avgAnnualValue: '$164,000.00',
-  accruedValue: '$95,000.00',
+  accruedValue: '$2,800.00',
   contractTerm: '36 months',
   renewalAction: 'Manual renewal',
   renewalDate: 'Jul 2029',
@@ -313,9 +321,20 @@ export const pioneerSalesOrder: SalesOrder = {
       startDate: '1 May 2027',
       endDate: '30 Apr 2028',
       items: [
-        { id: 'so-p2-1', name: 'Apex platform - growth services', frequency: 'Yearly', quantity: '75', unitPrice: '$2,568.00', totalPrice: '$192,600.00', rampPriceChange: 7 },
-        { id: 'so-p2-2', name: 'Premium support SLA', frequency: 'Yearly', quantity: '01', unitPrice: '$12,840.00', totalPrice: '$12,840.00', rampPriceChange: 7 },
-        { id: 'so-p2-3', name: 'Sandbox environments', frequency: 'Yearly', quantity: '03', unitPrice: '$1,605.00', totalPrice: '$4,815.00', rampPriceChange: 7 },
+        { id: 'so-p2-1', name: 'Apex platform - growth services', frequency: 'Yearly', quantity: '75', unitPrice: '$2,568.00', totalPrice: '$192,600.00', rampPriceChange: 7, unitPriceDiff: '+$168.00', quantityChange: 25 },
+        { id: 'so-p2-2', name: 'Premium support SLA', frequency: 'Yearly', quantity: '01', unitPrice: '$12,840.00', totalPrice: '$12,840.00' },
+        { id: 'so-p2-3', name: 'Sandbox environments', frequency: 'Yearly', quantity: '03', unitPrice: '$1,605.00', totalPrice: '$4,815.00', rampPriceChange: 7, unitPriceDiff: '+$105.00' },
+      ],
+    },
+    {
+      id: 'so-period-3',
+      label: 'Period 3',
+      startDate: '1 May 2028',
+      endDate: '30 Apr 2029',
+      items: [
+        { id: 'so-p3-1', name: 'Apex platform - growth services', frequency: 'Yearly', quantity: '75', unitPrice: '$2,748.00', totalPrice: '$206,100.00', rampPriceChange: 7, unitPriceDiff: '+$180.00' },
+        { id: 'so-p3-2', name: 'Premium support SLA', frequency: 'Yearly', quantity: '01', unitPrice: '$13,739.00', totalPrice: '$13,739.00' },
+        { id: 'so-p3-3', name: 'Sandbox environments', frequency: 'Yearly', quantity: '04', unitPrice: '$1,717.00', totalPrice: '$6,868.00', quantityChange: 1 },
       ],
     },
   ],
@@ -358,6 +377,152 @@ export const pioneerSalesOrder: SalesOrder = {
     { id: 'so-a-1', label: 'Quote created', date: 'Apr 18, 2026', refId: 'Q-2026-1847' },
   ],
 }
+
+/** Past invoices for the Invoice overdue sales-order stage */
+export const pioneerOverduePastInvoices: PastInvoiceLine[] = [
+  {
+    id: 'so-pi-od-1',
+    invoiceId: 'INV-2026-9584',
+    date: 'May 13, 2026',
+    status: 'Overdue',
+    statusDetail: 'Overdue · 2 days',
+    amount: '$126,000.00',
+  },
+  {
+    id: 'so-pi-od-2',
+    invoiceId: 'INV-2026-8847',
+    date: 'Feb 1, 2026',
+    status: 'Paid',
+    paidDate: 'Feb 4, 2026',
+    amount: '$54,000.00',
+  },
+  {
+    id: 'so-pi-od-3',
+    invoiceId: 'INV-2026-0042',
+    date: 'May 1, 2026',
+    status: 'Paid',
+    paidDate: 'May 4, 2026',
+    amount: '$41,000.00',
+  },
+  {
+    id: 'so-pi-od-4',
+    invoiceId: 'INV-2026-0312',
+    date: 'Feb 1, 2026',
+    status: 'Paid',
+    paidDate: 'Feb 3, 2026',
+    amount: '$41,000.00',
+  },
+  {
+    id: 'so-pi-od-5',
+    invoiceId: 'INV-2025-9910',
+    date: 'Nov 1, 2025',
+    status: 'Paid',
+    paidDate: 'Nov 4, 2025',
+    amount: '$38,500.00',
+  },
+]
+
+/** Billing schedule for the Invoice overdue sales-order stage */
+export const pioneerOverdueBillingSchedule: BillingScheduleLine[] = [
+  {
+    id: 'so-bs-od-paid-1',
+    billDate: 'Nov 1, 2025',
+    installment: 'Year 1 · Q1',
+    amount: '$38,500.00',
+    status: 'Paid',
+    invoiceId: 'INV-2025-9910',
+  },
+  {
+    id: 'so-bs-od-paid-2',
+    billDate: 'Feb 1, 2026',
+    installment: 'Year 1 · Q2',
+    amount: '$41,000.00',
+    status: 'Paid',
+    invoiceId: 'INV-2026-0312',
+  },
+  {
+    id: 'so-bs-od-paid-3',
+    billDate: 'May 1, 2026',
+    installment: 'Year 1 · Q3',
+    amount: '$41,000.00',
+    status: 'Paid',
+    invoiceId: 'INV-2026-0042',
+  },
+  {
+    id: 'so-bs-od-1',
+    billDate: 'May 13, 2026',
+    installment: 'Year 1 · Q4',
+    amount: '$126,000.00',
+    status: 'Pending',
+    invoiceId: 'INV-2026-9584',
+    dateAnnotation: 'sent 6w ago',
+    dueDate: 'Jun 20, 2026',
+  },
+  {
+    id: 'so-bs-od-2',
+    billDate: 'Aug 31, 2026',
+    installment: 'Year 2 · Q1',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2026-9601',
+  },
+  {
+    id: 'so-bs-od-3',
+    billDate: 'Nov 30, 2026',
+    installment: 'Year 2 · Q2',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2026-9602',
+  },
+  {
+    id: 'so-bs-od-4',
+    billDate: 'Feb 28, 2027',
+    installment: 'Year 2 · Q3',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2026-9603',
+  },
+  {
+    id: 'so-bs-od-5',
+    billDate: 'May 31, 2027',
+    installment: 'Year 2 · Q4',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2027-9604',
+  },
+  {
+    id: 'so-bs-od-6',
+    billDate: 'Aug 31, 2027',
+    installment: 'Year 3 · Q1',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2027-9605',
+  },
+  {
+    id: 'so-bs-od-7',
+    billDate: 'Nov 30, 2027',
+    installment: 'Year 3 · Q2',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2027-9606',
+  },
+  {
+    id: 'so-bs-od-8',
+    billDate: 'Feb 28, 2028',
+    installment: 'Year 3 · Q3',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2027-9607',
+  },
+  {
+    id: 'so-bs-od-9',
+    billDate: 'May 31, 2028',
+    installment: 'Year 3 · Q4',
+    amount: '$41,000.00',
+    status: 'Upcoming',
+    invoiceId: 'INV-2028-9608',
+  },
+]
 
 const secondSalesOrder: SalesOrder = {
   id: 'so-pioneer-0128',

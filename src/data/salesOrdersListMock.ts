@@ -400,28 +400,28 @@ function getDaysOverdue(dueDateStr: string): number {
 
 const PAYMENT_SUMMARY_OVERRIDES: Partial<Record<string, Omit<SalesOrderPaymentSummary, 'overdueDays'> & { overdueDueDate?: string; overdueDays?: number }>> = {
   'so-pioneer-0153': {
-    overdueDueDate: 'July 1, 2026',
+    overdueDays: 2,
     overdueAmount: '$126,000.00',
     overdueInvoiceId: 'INV-2026-9584',
     patternSummary:
-      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after due. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months — Sharath is on top of this, and 4 reminders have already been sent.',
+      'Pioneer Systems typically pays within Net 30 — median clearance is 3 days after invoice is posted. Four of the last five invoices were on time; the open balance is the first overdue invoice in 14 months — Sharath is on top of this, and 4 reminders have already been sent.',
     patternSummaryShort:
       'First overdue in 14 months — Sharath is on it; 4 reminders already sent.',
     recentInvoices: [
-      { invoiceId: 'INV-2026-9584', amount: '$126,000.00', timingLabel: 'Overdue', timingTone: 'danger' },
+      { invoiceId: 'INV-2026-9584', amount: '$126,000.00', timingLabel: 'Overdue · 2 days', timingTone: 'danger' },
       { invoiceId: 'INV-2026-8847', amount: '$54,000.00', timingLabel: 'On time', timingTone: 'positive' },
       { invoiceId: 'INV-2026-0042', amount: '$41,000.00', timingLabel: 'On time', timingTone: 'positive' },
       { invoiceId: 'INV-2026-0312', amount: '$41,000.00', timingLabel: 'On time', timingTone: 'positive' },
-      { invoiceId: 'INV-2025-9910', amount: '$38,500.00', timingLabel: 'Late · 2 days', timingTone: 'warning' },
+      { invoiceId: 'INV-2025-9910', amount: '$38,500.00', timingLabel: 'On time', timingTone: 'positive' },
     ],
     cardOnFile: 'Visa ····4291',
-    cardOnFileSub: 'Expires Jul 2026',
+    cardOnFileSub: 'Expires Jul 2050',
     lastPayment: 'May 1, 2026',
     lastPaymentSub: 'On time · cleared in 3 days',
     nextBilling: '$41,000.00',
     nextBillingSub: 'Aug 31, 2026',
     paymentTerms: 'Net 30',
-    paymentTermsSub: '26 days outstanding on open invoice',
+    paymentTermsSub: 'Payment due Jun 12, 2026',
     billingContact: 'Alex Nguyen',
     billingContactSub: 'alex.nguyen@pioneersystems.com',
   },

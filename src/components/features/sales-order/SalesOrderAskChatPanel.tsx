@@ -4,12 +4,34 @@ import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing/GradientSparkle'
 import { ASK_RESPONSES, type AskResponse } from '@/data/salesOrderAskMock'
 
-export const ASK_SUGGESTIONS = [
+export const ASK_SUGGESTIONS_JUST_CREATED = [
   "What's the story of this deal?",
   'What exactly did we commit to Pioneer?',
   'Prep me for the kick-off call',
   "What can't wait this week?",
 ] as const
+
+export const ASK_SUGGESTIONS_INVOICE_OVERDUE = [
+  'Why might Pioneer be holding payment',
+  'Is the Aug 31 invoice at risk',
+  'Help me prepare to call Alex Nguyen',
+  'Is this a payment delay or a signal?',
+] as const
+
+export const ASK_SUGGESTIONS_RENEWAL_APPROACHING = [
+  'Is Pioneer likely to renew?',
+  'What stops working when the contract expires?',
+  "What are Pioneer's current terms going into renewal?",
+] as const
+
+export function getAskSuggestions(variant: string | null): readonly string[] {
+  if (variant === 'invoice-overdue') return ASK_SUGGESTIONS_INVOICE_OVERDUE
+  if (variant === 'renewal-approaching') return ASK_SUGGESTIONS_RENEWAL_APPROACHING
+  return ASK_SUGGESTIONS_JUST_CREATED
+}
+
+/** @deprecated Use getAskSuggestions — kept for any leftover imports */
+export const ASK_SUGGESTIONS = ASK_SUGGESTIONS_JUST_CREATED
 
 export const ASK_CHAT_RAIL_WIDTH = 420
 
@@ -24,14 +46,19 @@ export function SuggestionPill({
   label,
   onClick,
   asDisplay,
+  className,
 }: {
   label: string
   onClick?: () => void
   asDisplay?: boolean
+  className?: string
 }) {
   const inner = (
     <span
-      className="block rounded-full px-3 py-1.5 text-left text-[12px] font-medium text-brand-navy"
+      className={cn(
+        'block whitespace-nowrap rounded-full px-3 py-1.5 text-[12px] font-medium text-brand-navy',
+        asDisplay || !onClick ? 'text-left' : 'text-center',
+      )}
       style={{ background: PILL_FILL }}
     >
       {label}
@@ -40,7 +67,7 @@ export function SuggestionPill({
 
   if (asDisplay || !onClick) {
     return (
-      <div className="rounded-full p-px" style={{ background: PILL_RING }}>
+      <div className={cn('inline-block rounded-full p-px', className)} style={{ background: PILL_RING }}>
         {inner}
       </div>
     )
@@ -51,7 +78,10 @@ export function SuggestionPill({
       type="button"
       onMouseDown={(e) => e.preventDefault()}
       onClick={onClick}
-      className="cursor-pointer rounded-full p-px transition-opacity hover:opacity-90"
+      className={cn(
+        'inline-block w-fit cursor-pointer rounded-full p-px transition-opacity hover:opacity-90',
+        className,
+      )}
       style={{ background: PILL_RING }}
     >
       {inner}
@@ -257,12 +287,14 @@ function ChatTurnBlock({
   prompt,
   isLatest,
   usedPrompts,
+  suggestions,
   onAsk,
   onResolved,
 }: {
   prompt: string
   isLatest: boolean
   usedPrompts: string[]
+  suggestions: readonly string[]
   onAsk: (prompt: string) => void
   onResolved: () => void
 }) {
@@ -278,7 +310,7 @@ function ChatTurnBlock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const otherSuggestions = ASK_SUGGESTIONS.filter((s) => !usedPrompts.includes(s))
+  const otherSuggestions = suggestions.filter((s) => !usedPrompts.includes(s))
 
   return (
     <div className="space-y-3">
@@ -305,13 +337,22 @@ function ChatTurnBlock({
 
 interface SalesOrderAskChatPanelProps {
   turns: AskChatTurn[]
+  customerName: string
+  suggestions: readonly string[]
   onAsk: (prompt: string) => void
   onClose: () => void
 }
 
-export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskChatPanelProps) {
+export function SalesOrderAskChatPanel({
+  turns,
+  customerName,
+  suggestions,
+  onAsk,
+  onClose,
+}: SalesOrderAskChatPanelProps) {
   const [followUp, setFollowUp] = useState('')
   const [contentReady, setContentReady] = useState(false)
+  const [showContextPill, setShowContextPill] = useState(true)
   const scrollRef = useRef<HTMLDivElement>(null)
   const bottomRef = useRef<HTMLDivElement>(null)
 
@@ -320,6 +361,10 @@ export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskC
     const reveal = window.setTimeout(() => setContentReady(true), 80)
     return () => window.clearTimeout(reveal)
   }, [])
+
+  useEffect(() => {
+    setShowContextPill(true)
+  }, [customerName])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -379,6 +424,7 @@ export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskC
             prompt={turn.prompt}
             isLatest={index === turns.length - 1}
             usedPrompts={usedPrompts}
+            suggestions={suggestions}
             onAsk={onAsk}
             onResolved={scrollToBottom}
           />
@@ -387,6 +433,24 @@ export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskC
       </div>
 
       <footer className="shrink-0 border-t border-neutral-200 p-3">
+        {showContextPill && (
+          <div className="mb-2 flex items-center">
+            <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 py-1 pl-2.5 pr-1 text-[11px] text-brand-navy">
+              <span className="truncate">
+                <span className="text-brand-fog">Context · </span>
+                <span className="font-medium">{customerName}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowContextPill(false)}
+                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-fog transition-colors hover:bg-neutral-200 hover:text-brand-navy"
+                aria-label={`Remove ${customerName} context`}
+              >
+                <X size={10} strokeWidth={2.5} />
+              </button>
+            </div>
+          </div>
+        )}
         <AskComposer
           value={followUp}
           onChange={setFollowUp}
@@ -400,7 +464,13 @@ export function SalesOrderAskChatPanel({ turns, onAsk, onClose }: SalesOrderAskC
   )
 }
 
-export function SalesOrderAskBar({ onAsk }: { onAsk: (prompt: string) => void }) {
+export function SalesOrderAskBar({
+  onAsk,
+  suggestions = ASK_SUGGESTIONS_JUST_CREATED,
+}: {
+  onAsk: (prompt: string) => void
+  suggestions?: readonly string[]
+}) {
   const [query, setQuery] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -424,13 +494,17 @@ export function SalesOrderAskBar({ onAsk }: { onAsk: (prompt: string) => void })
   return (
     <div ref={rootRef} className="pointer-events-auto flex flex-col items-center gap-2.5">
       {showSuggestions && (
-        <div className="flex max-w-[640px] flex-wrap items-center justify-center gap-2">
-          {ASK_SUGGESTIONS.map((suggestion) => (
-            <SuggestionPill
-              key={suggestion}
-              label={suggestion}
-              onClick={() => submit(suggestion)}
-            />
+        <div className="flex flex-col items-center gap-2">
+          {[0, 2].map((start) => (
+            <div key={start} className="flex items-center justify-center gap-2">
+              {suggestions.slice(start, start + 2).map((suggestion) => (
+                <SuggestionPill
+                  key={suggestion}
+                  label={suggestion}
+                  onClick={() => submit(suggestion)}
+                />
+              ))}
+            </div>
           ))}
         </div>
       )}
