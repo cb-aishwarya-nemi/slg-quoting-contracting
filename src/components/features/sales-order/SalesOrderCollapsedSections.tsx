@@ -16,8 +16,6 @@ import {
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 
-const SECTION_DATA_CONTAINER = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
-
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
 const SCHEDULE_TODAY = new Date('2026-06-22')
 
@@ -297,17 +295,17 @@ function BillingScheduleTimeline({ items }: { items: BillingScheduleLine[] }) {
   )
 }
 
-const ORDER_ENTITLEMENTS = [
-  { label: 'Seats', value: '50 seats' },
-  { label: 'Environments', value: '5 sandboxes' },
-]
-
 type PeriodEntitlement = {
   label: string
   value: string
   /** Human-readable delta vs previous period, e.g. "+25 seats" */
   change?: string
 }
+
+const ORDER_ENTITLEMENTS: PeriodEntitlement[] = [
+  { label: 'Seats', value: '50 seats' },
+  { label: 'Environments', value: '5 sandboxes' },
+]
 
 const PERIOD_ENTITLEMENTS: Record<number, PeriodEntitlement[]> = {
   1: [
@@ -620,7 +618,7 @@ export function SalesOrderCollapsedSections({
                     key={row.label}
                     label={row.label}
                     value={row.value}
-                    change={'change' in row ? row.change : undefined}
+                    change={row.change}
                     isLast={idx === entitlements.length - 1}
                   />
                 ))}
