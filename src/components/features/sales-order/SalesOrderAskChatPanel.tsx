@@ -146,7 +146,6 @@ export function AskComposer({
   placeholder = 'Ask AI',
   placeholderPhrases,
   autoFocus,
-  expanded,
   fullWidth,
 }: {
   value: string
@@ -158,6 +157,7 @@ export function AskComposer({
   /** When set, cycles a typewriter through these phrases while idle */
   placeholderPhrases?: readonly string[]
   autoFocus?: boolean
+  /** @deprecated Width is fitted to placeholder phrases; kept for call-site compat */
   expanded?: boolean
   fullWidth?: boolean
 }) {
@@ -194,9 +194,9 @@ export function AskComposer({
     if (autoFocus) inputRef.current?.focus()
   }, [autoFocus])
 
-  const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
+  const handleFocus = () => {
     setFocused(true)
-    onFocus?.(e)
+    onFocus?.()
   }
 
   const handleBlur = (e: FocusEvent) => {
