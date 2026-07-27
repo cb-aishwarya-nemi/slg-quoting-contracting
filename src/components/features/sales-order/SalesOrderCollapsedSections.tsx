@@ -494,12 +494,15 @@ function CollapsibleSection({
   commentCount,
   trailing,
   defaultOpen = false,
+  outlined = true,
   children,
 }: {
   title: string
   commentCount?: number
   trailing?: ReactNode
   defaultOpen?: boolean
+  /** When false, expanded content has no border/card chrome. */
+  outlined?: boolean
   children: ReactNode
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -539,7 +542,12 @@ function CollapsibleSection({
         />
       </button>
       {open && (
-        <div className="mt-4 overflow-hidden rounded-lg border border-neutral-200 bg-white px-4 py-3">
+        <div
+          className={cn(
+            'mt-4',
+            outlined && 'overflow-hidden rounded-lg border border-neutral-200 bg-white px-4 py-3'
+          )}
+        >
           {children}
         </div>
       )}
@@ -659,6 +667,7 @@ export function SalesOrderCollapsedSections({
         <section ref={setSectionRef?.('comments')} className="group/section">
           <CollapsibleSection
             title="Comments"
+            outlined={false}
             commentCount={order.comments.length}
             trailing={
               <button
@@ -689,7 +698,7 @@ export function SalesOrderCollapsedSections({
         </section>
 
         <section ref={setSectionRef?.('activity')} className="group/section">
-          <CollapsibleSection title="Activity">
+          <CollapsibleSection title="Activity" outlined={false}>
             <ActivityTimeline items={order.activity} />
           </CollapsibleSection>
         </section>

@@ -433,9 +433,6 @@ function RenewalApproachingAiSummary({ order }: { order: SalesOrder }) {
       </p>
 
       <div className="mt-8 max-w-[560px]">
-        <p className="mb-1 text-[11px] font-medium uppercase tracking-wider text-brand-fog">
-          Account signals
-        </p>
         <div className="divide-y divide-neutral-100">
           {RENEWAL_ACCOUNT_SIGNALS.map((signal) => (
             <DetailLine

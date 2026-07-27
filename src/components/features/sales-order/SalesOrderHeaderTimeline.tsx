@@ -203,13 +203,14 @@ export function SalesOrderHeaderTimeline({
         >
           <ChevronLeft size={14} strokeWidth={2.25} />
         </button>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-center gap-2">
           <p className="text-[13px] font-medium text-brand-navy">
             Period {periodIndex}/{TOTAL_PERIODS}
           </p>
-          <span className="text-[11px] text-brand-fog" aria-hidden>
-            ·
-          </span>
+          <span
+            className="inline-block h-1 w-1 shrink-0 rounded-full bg-brand-fog"
+            aria-hidden
+          />
           <p className="text-[11px] font-medium text-brand-fog">{period.rangeLabel}</p>
         </div>
         <button
