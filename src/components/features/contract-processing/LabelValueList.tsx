@@ -52,6 +52,11 @@ interface AccountCustomerOption {
   email: string
 }
 
+/** Near-matches for Pioneer (including typo variants shown in the picker). */
+function isPioneerMatch(name: string): boolean {
+  return /pione+r/i.test(name) || /pinoeer/i.test(name)
+}
+
 /** Rich rows for the Account customer picker (SecondaryNavSwitcher-style). */
 const ACCOUNT_CUSTOMER_OPTIONS: AccountCustomerOption[] = [
   {
@@ -381,8 +386,13 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
-                      {customer.name}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      {isPioneerMatch(customer.name) && (
+                        <GradientSparkle size={12} />
+                      )}
+                      <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+                        {customer.name}
+                      </span>
                     </span>
                     <span
                       className={cn(
@@ -556,18 +566,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {isBestMatch && (
-            <span
-              className="inline-flex shrink-0 rounded-full p-px ai-gradient group-hover:opacity-90"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <span className="inline-flex items-center rounded-full bg-white px-2 py-0.5 group-hover:bg-white/95">
-                <span className="text-[11px] font-medium ai-gradient-text">
-                  Create as new
-                </span>
-              </span>
-            </span>
-          )}
           {isEdited && sectionId && !isEditing && !isOpen && (
             <button
               type="button"
