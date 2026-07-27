@@ -128,11 +128,8 @@ export function SalesOrderHeaderTimeline({
   const period =
     CONTRACT_PERIODS.find((p) => p.index === periodIndex) ?? CONTRACT_PERIODS[0]
 
-  const visibleAmendments = period.amendments.filter((marker) => {
-    // Just created: show green amendments only (no v1)
-    if (isJustCreated) return marker.tone === 'positive'
-    return true
-  })
+  // Just created still shows the full period trail (v1 at start + later amendments)
+  const visibleAmendments = period.amendments
 
   const defaultSelected = isJustCreated
     ? undefined
@@ -163,10 +160,7 @@ export function SalesOrderHeaderTimeline({
     if (next < 1 || next > TOTAL_PERIODS) return
     setPeriodIndex(next)
     const nextPeriod = CONTRACT_PERIODS.find((p) => p.index === next)
-    const nextVisible = (nextPeriod?.amendments ?? []).filter((marker) => {
-      if (isJustCreated) return marker.tone === 'positive'
-      return true
-    })
+    const nextVisible = nextPeriod?.amendments ?? []
     setSelectedId(
       isJustCreated ? undefined : nextVisible[nextVisible.length - 1]?.id
     )
@@ -285,14 +279,12 @@ export function SalesOrderHeaderTimeline({
           >
             <span
               className={cn(
-                'relative flex items-center justify-center rounded-full transition-all duration-200',
-                todayHovered || isTodaySelected ? 'h-3.5 w-3.5' : 'h-2.5 w-2.5',
-                todayHovered &&
-                  'shadow-[0_0_0_4px_rgba(37,99,235,0.2)]'
+                'relative block h-3 w-3 rounded-full transition-all duration-200',
+                todayHovered && 'scale-110 shadow-[0_0_0_4px_rgba(37,99,235,0.2)]',
               )}
             >
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-blue-400 opacity-60" />
-              <span className="relative inline-flex h-full w-full rounded-full bg-blue-600" />
+              <span className="absolute inset-0 animate-ping rounded-full bg-blue-400 opacity-40" />
+              <span className="relative z-[1] block h-3 w-3 rounded-full bg-blue-600" />
             </span>
           </button>
         )}
@@ -300,6 +292,7 @@ export function SalesOrderHeaderTimeline({
         {/* Version / amendment markers — on the axis with Today */}
         {visibleAmendments.map((marker) => {
           const left = dateToTimelinePercent(marker.date, period.startDate, period.endDate)
+          const isAtStart = left <= 0.5
           const isSelected = selectedId === marker.id
           const isPositive = marker.tone === 'positive'
           const isHovered = hoveredMarker?.marker.id === marker.id
@@ -318,7 +311,10 @@ export function SalesOrderHeaderTimeline({
               onMouseLeave={() => setHoveredMarker(null)}
               aria-pressed={isSelected}
               aria-label={`${marker.version}: ${marker.title}, ${marker.detail}, ${marker.dateLabel}`}
-              className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              className={cn(
+                'absolute z-20 -translate-y-1/2 cursor-pointer',
+                !isAtStart && '-translate-x-1/2',
+              )}
               style={{ left: `${left}%`, top: 0 }}
             >
               <span

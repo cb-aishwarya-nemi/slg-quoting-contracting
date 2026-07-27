@@ -3,7 +3,6 @@ import { Search, ChevronRight, MoreVertical, ArrowRight } from 'lucide-react'
 import { FilterUnit, type Filter } from '@/components/ui/FilterUnit'
 import { cn, formatRelativeToNow } from '@/lib/utils'
 import { useNavigation } from '@/context/NavigationContext'
-import { SalesOrderPreview } from '@/components/features/sales-order'
 import {
   salesOrdersListData,
   SALES_ORDER_STATUS_STYLES,
@@ -28,7 +27,6 @@ export function SalesOrdersPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [filters, setFilters] = useState<Filter[]>([])
   const [isFilterExpanded, setIsFilterExpanded] = useState(false)
-  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
   const searchInputRef = useRef<HTMLInputElement>(null)
   const searchContainerRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
@@ -87,19 +85,6 @@ export function SalesOrdersPage() {
       order.nextInvoice.toLowerCase().includes(query)
     )
   })
-
-  const selectedOrder =
-    selectedOrderId != null
-      ? filteredSalesOrders.find((order) => order.id === selectedOrderId) ?? null
-      : null
-
-  useEffect(() => {
-    if (selectedOrderId == null) return
-    const stillVisible = filteredSalesOrders.some((order) => order.id === selectedOrderId)
-    if (!stillVisible) {
-      setSelectedOrderId(null)
-    }
-  }, [filteredSalesOrders, selectedOrderId])
 
   const openOrderDetails = (order: SalesOrderListItem) => {
     goToCustomer360(order.customerId, {
@@ -303,8 +288,7 @@ export function SalesOrdersPage() {
             ))}
           </div>
 
-          <div className="flex items-start gap-4">
-            <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1">
           <table ref={tableRef} className="w-full table-fixed">
             <thead
               className="sticky -top-4 z-20 bg-white"
@@ -379,25 +363,14 @@ export function SalesOrdersPage() {
               ) : (
                 filteredSalesOrders.map((order) => {
                   const statusStyle = SALES_ORDER_STATUS_STYLES[order.status]
-                  const isSelected = selectedOrder?.id === order.id
 
                   return (
                     <tr
                       key={order.id}
-                      onClick={() =>
-                        setSelectedOrderId((prev) => (prev === order.id ? null : order.id))
-                      }
-                      className={cn(
-                        'group row-hover-trail cursor-pointer border-b border-neutral-100',
-                        isSelected ? 'bg-brand-navy' : 'hover:bg-brand-navy'
-                      )}
+                      onClick={() => openOrderDetails(order)}
+                      className="group row-hover-trail cursor-pointer border-b border-neutral-100 hover:bg-brand-navy"
                     >
-                      <td
-                        className={cn(
-                          'relative z-10 py-1 pl-3 pr-2 whitespace-nowrap text-[13px] font-medium',
-                          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-                        )}
-                      >
+                      <td className="relative z-10 py-1 pl-3 pr-2 whitespace-nowrap text-[13px] font-medium text-brand-navy group-hover:text-white">
                         {order.customer}
                       </td>
 
@@ -405,73 +378,46 @@ export function SalesOrdersPage() {
                         <div
                           className={cn(
                             'px-2 py-1 text-[13px] font-medium whitespace-nowrap',
-                            isSelected
-                              ? 'bg-white/20 text-white'
-                              : cn(statusStyle.text, statusStyle.bg, 'group-hover:bg-white/20 group-hover:text-white')
+                            statusStyle.text,
+                            statusStyle.bg,
+                            'group-hover:bg-white/20 group-hover:text-white',
                           )}
                         >
                           {order.status}
                         </div>
                       </td>
 
-                      <td
-                        className={cn(
-                          'relative z-10 py-1 pr-2 text-right whitespace-nowrap text-[13px] font-medium',
-                          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-                        )}
-                      >
+                      <td className="relative z-10 py-1 pr-2 text-right whitespace-nowrap text-[13px] font-medium text-brand-navy group-hover:text-white">
                         {order.tcv}
                       </td>
 
-                      <td
-                        className={cn(
-                          'relative z-10 py-1 pl-2 pr-0 whitespace-nowrap text-[13px]',
-                          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-                        )}
-                      >
+                      <td className="relative z-10 py-1 pl-2 pr-0 whitespace-nowrap text-[13px] text-brand-navy group-hover:text-white">
                         <span className="font-medium">{order.nextInvoice}</span>
                       </td>
 
-                      <td
-                        className={cn(
-                          'relative z-10 py-1 pl-1 pr-2 whitespace-nowrap text-[13px]',
-                          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-                        )}
-                      >
+                      <td className="relative z-10 py-1 pl-1 pr-2 whitespace-nowrap text-[13px] text-brand-navy group-hover:text-white">
                         <RelativeDate date={order.starts} />
                       </td>
 
-                      <td
-                        className={cn(
-                          'relative z-10 px-2 py-1 whitespace-nowrap text-[13px]',
-                          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-                        )}
-                      >
+                      <td className="relative z-10 px-2 py-1 whitespace-nowrap text-[13px] text-brand-navy group-hover:text-white">
                         <RelativeDate date={order.expires} />
                       </td>
 
                       <td className="relative z-10 py-1 pr-2 pl-1">
                         <button
                           type="button"
-                          className={cn(
-                            'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-colors',
-                            isSelected
-                              ? 'text-white/70 hover:bg-white/10 hover:text-white'
-                              : 'text-neutral-400 hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white'
-                          )}
+                          className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy group-hover:text-white/70 group-hover:hover:bg-white/10 group-hover:hover:text-white"
                           onClick={(e) => {
                             e.stopPropagation()
                             openOrderDetails(order)
                           }}
                         >
-                          <MoreVertical size={14} className={isSelected ? undefined : 'group-hover:hidden'} />
-                          {!isSelected && (
-                            <ArrowRight
-                              size={14}
-                              strokeWidth={2}
-                              className="hidden text-white group-hover:block"
-                            />
-                          )}
+                          <MoreVertical size={14} className="group-hover:hidden" />
+                          <ArrowRight
+                            size={14}
+                            strokeWidth={2}
+                            className="hidden text-white group-hover:block"
+                          />
                         </button>
                       </td>
                     </tr>
@@ -480,16 +426,6 @@ export function SalesOrdersPage() {
               )}
             </tbody>
           </table>
-            </div>
-
-            {selectedOrder && (
-              <div className="sticky top-0 w-[480px] shrink-0 self-start">
-                <SalesOrderPreview
-                  listItem={selectedOrder}
-                  onOpenDetails={() => openOrderDetails(selectedOrder)}
-                />
-              </div>
-            )}
           </div>
         </div>
       </div>

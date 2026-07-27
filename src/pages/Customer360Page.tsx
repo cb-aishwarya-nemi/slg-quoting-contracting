@@ -3,12 +3,18 @@ import { ChevronLeft, ArrowDown, Maximize2, Focus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
-import { useUseCase } from '@/context/UseCaseContext'
+import { useUseCase, usePageUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
 import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
 import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
 import { SalesOrderDetails } from '@/components/features/sales-order'
+import {
+  ASK_CHAT_RAIL_WIDTH,
+  SalesOrderAskChatPanel,
+  getAskSuggestions,
+  type AskChatTurn,
+} from '@/components/features/sales-order/SalesOrderAskChatPanel'
 import {
   GradientSparkle,
   SectionHeader,
@@ -100,6 +106,7 @@ function TabPlaceholder({ label }: { label: string }) {
 export function Customer360Page() {
   const { view, goToCustomers, goToSalesOrders } = useNavigation()
   const { setActivePage } = useUseCase()
+  const { currentVariant: salesOrderVariant } = usePageUseCase('sales-order-details')
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
   const data = contractProcessing
@@ -109,6 +116,8 @@ export function Customer360Page() {
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
   const [contractStatus, setContractStatus] = useState<string>('In progress')
   const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
+  const [askChatOpen, setAskChatOpen] = useState(false)
+  const [askChatTurns, setAskChatTurns] = useState<AskChatTurn[]>([])
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
   )
@@ -117,6 +126,35 @@ export function Customer360Page() {
   useEffect(() => {
     setAccountItems(data.account.map((item) => ({ ...item })))
   }, [data.account])
+
+  useEffect(() => {
+    setAskChatOpen(false)
+    setAskChatTurns([])
+  }, [activeSalesOrderId, activeTab])
+
+  const appendAskTurn = useCallback((prompt: string) => {
+    setAskChatTurns((prev) => [
+      ...prev,
+      { id: `turn-${Date.now()}-${prev.length}`, prompt },
+    ])
+  }, [])
+
+  const openAskChat = useCallback(
+    (prompt: string) => {
+      appendAskTurn(prompt)
+      setAskChatOpen(true)
+    },
+    [appendAskTurn],
+  )
+
+  const closeAskChat = useCallback(() => {
+    setAskChatOpen(false)
+  }, [])
+
+  const activeSalesOrder = useMemo(
+    () => getSalesOrderById(activeSalesOrderId),
+    [activeSalesOrderId],
+  )
 
   const accountAttention = useMemo(
     () => getExtractionAttentionStatus(accountItems),
@@ -375,7 +413,35 @@ export function Customer360Page() {
   )
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full overflow-hidden">
+      {/* Ask Apex — full-height left column, sibling to customer chrome (not under it) */}
+      <aside
+        className="relative shrink-0 overflow-hidden bg-transparent transition-[width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+        style={{
+          width: askChatOpen && activeTab === 'sales-order' ? ASK_CHAT_RAIL_WIDTH : 0,
+        }}
+        aria-hidden={!(askChatOpen && activeTab === 'sales-order')}
+      >
+        <div
+          className={cn(
+            'absolute inset-y-0 left-0 flex h-full flex-col transition-opacity duration-300',
+            askChatOpen && activeTab === 'sales-order' ? 'opacity-100 delay-150' : 'opacity-0',
+          )}
+          style={{ width: ASK_CHAT_RAIL_WIDTH }}
+        >
+          {askChatTurns.length > 0 && (
+            <SalesOrderAskChatPanel
+              turns={askChatTurns}
+              customerName={activeSalesOrder.customerName}
+              suggestions={getAskSuggestions(salesOrderVariant)}
+              onAsk={appendAskTurn}
+              onClose={closeAskChat}
+            />
+          )}
+        </div>
+      </aside>
+
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {/* Primary nav */}
       <div className="relative h-[60px] shrink-0">
         <div className="absolute left-6 bottom-1 flex flex-col justify-end">
@@ -636,10 +702,16 @@ export function Customer360Page() {
       {/* Sales Order tab — in-frame read-only details */}
       {activeTab === 'sales-order' && (
         <SalesOrderDetails
-          order={getSalesOrderById(activeSalesOrderId)}
+          order={activeSalesOrder}
           orders={salesOrders}
           activeOrderId={activeSalesOrderId}
           onSelectOrder={setActiveSalesOrderId}
+          externalChat
+          chatOpen={askChatOpen}
+          chatTurns={askChatTurns}
+          onOpenChat={openAskChat}
+          onAppendChat={appendAskTurn}
+          onCloseChat={closeAskChat}
         />
       )}
 
@@ -655,6 +727,7 @@ export function Customer360Page() {
         onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}
       />
+      </div>
     </div>
   )
 }

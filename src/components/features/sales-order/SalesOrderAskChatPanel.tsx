@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type FocusEvent, type ReactNode } from 'react'
-import { Send, X } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from 'react'
+import { PanelLeftClose, Send, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing/GradientSparkle'
 import { ASK_RESPONSES, type AskResponse } from '@/data/salesOrderAskMock'
@@ -33,7 +33,7 @@ export function getAskSuggestions(variant: string | null): readonly string[] {
 /** @deprecated Use getAskSuggestions — kept for any leftover imports */
 export const ASK_SUGGESTIONS = ASK_SUGGESTIONS_JUST_CREATED
 
-export const ASK_CHAT_RAIL_WIDTH = 420
+export const ASK_CHAT_RAIL_WIDTH = 320
 
 const THINKING_MS = 2400
 
@@ -89,15 +89,65 @@ export function SuggestionPill({
   )
 }
 
+const TYPE_MS = 36
+const DELETE_MS = 22
+const HOLD_MS = 1600
+const GAP_MS = 400
+
+function useTypewriterPlaceholder(phrases: readonly string[], enabled: boolean) {
+  const [text, setText] = useState('')
+  const [phraseIndex, setPhraseIndex] = useState(0)
+  const [charIndex, setCharIndex] = useState(0)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    if (!enabled || phrases.length === 0) {
+      setText('')
+      setCharIndex(0)
+      setDeleting(false)
+      return
+    }
+
+    const phrase = phrases[phraseIndex % phrases.length]
+
+    if (!deleting && charIndex === phrase.length) {
+      const hold = window.setTimeout(() => setDeleting(true), HOLD_MS)
+      return () => window.clearTimeout(hold)
+    }
+
+    if (deleting && charIndex === 0) {
+      const gap = window.setTimeout(() => {
+        setDeleting(false)
+        setPhraseIndex((i) => (i + 1) % phrases.length)
+      }, GAP_MS)
+      return () => window.clearTimeout(gap)
+    }
+
+    const timer = window.setTimeout(
+      () => {
+        const next = deleting ? charIndex - 1 : charIndex + 1
+        setCharIndex(next)
+        setText(phrase.slice(0, next))
+      },
+      deleting ? DELETE_MS : TYPE_MS,
+    )
+    return () => window.clearTimeout(timer)
+  }, [enabled, phrases, phraseIndex, charIndex, deleting])
+
+  return text
+}
+
 export function AskComposer({
   value,
   onChange,
   onSubmit,
   onFocus,
   onBlur,
-  placeholder = 'Ask about this sales order',
+  placeholder = 'Ask AI',
+  placeholderPhrases,
   autoFocus,
   expanded,
+  fullWidth,
 }: {
   value: string
   onChange: (value: string) => void
@@ -105,37 +155,94 @@ export function AskComposer({
   onFocus?: () => void
   onBlur?: (e: FocusEvent) => void
   placeholder?: string
+  /** When set, cycles a typewriter through these phrases while idle */
+  placeholderPhrases?: readonly string[]
   autoFocus?: boolean
   expanded?: boolean
+  fullWidth?: boolean
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [focused, setFocused] = useState(false)
+  const [hovered, setHovered] = useState(false)
+  const [typewriterReady, setTypewriterReady] = useState(!placeholderPhrases?.length)
+
+  useEffect(() => {
+    if (!placeholderPhrases?.length) {
+      setTypewriterReady(true)
+      return
+    }
+    setTypewriterReady(false)
+    const timer = window.setTimeout(() => setTypewriterReady(true), 2500)
+    return () => window.clearTimeout(timer)
+  }, [placeholderPhrases])
+
+  const animateIdle =
+    Boolean(placeholderPhrases?.length) && typewriterReady && !value && !focused && !hovered
+  const typedPlaceholder = useTypewriterPlaceholder(placeholderPhrases ?? [], animateIdle)
+
+  const fittedWidth = useMemo(() => {
+    const phrases = placeholderPhrases?.length ? placeholderPhrases : [placeholder]
+    const longest = phrases.reduce((a, b) => (a.length >= b.length ? a : b), phrases[0] ?? placeholder)
+    // 12px Inter: ~6.6px/char covers this copy without excess slack
+    const textPx = Math.ceil(longest.length * 6.6)
+    // sparkle + send + gaps + horizontal padding + gradient ring
+    const chromePx = 68
+    return `${textPx + chromePx}px`
+  }, [placeholderPhrases, placeholder])
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus()
   }, [autoFocus])
 
+  const handleFocus = (e: FocusEvent<HTMLInputElement>) => {
+    setFocused(true)
+    onFocus?.(e)
+  }
+
+  const handleBlur = (e: FocusEvent) => {
+    setFocused(false)
+    onBlur?.(e)
+  }
+
   return (
     <div
       className={cn(
         'rounded-full p-[1.5px] ai-gradient transition-all duration-300 ease-out',
-        expanded ? 'w-full' : 'w-[320px]',
+        fullWidth && 'w-full',
       )}
+      style={fullWidth ? undefined : { width: fittedWidth }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
     >
-      <div className="flex cursor-text items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
+      <div
+        className="relative flex cursor-text items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm"
+        onClick={() => inputRef.current?.focus()}
+      >
         <GradientSparkle size={12} />
-        <input
-          ref={inputRef}
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={onFocus}
-          onBlur={onBlur}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') onSubmit()
-          }}
-          placeholder={placeholder}
-          className="min-w-0 flex-1 bg-transparent text-[12px] text-brand-navy outline-none placeholder:text-brand-fog"
-        />
+        <div className="relative min-w-0 flex-1">
+          {animateIdle && (
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-0 flex items-center truncate text-[12px] text-brand-fog"
+            >
+              {typedPlaceholder}
+              <span className="ml-px inline-block h-[12px] w-px shrink-0 animate-pulse bg-brand-fog/70" />
+            </span>
+          )}
+          <input
+            ref={inputRef}
+            type="text"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onSubmit()
+            }}
+            placeholder={animateIdle ? '' : placeholder}
+            className="relative z-[1] w-full bg-transparent text-[12px] text-brand-navy outline-none placeholder:text-brand-fog"
+          />
+        </div>
         <button
           type="button"
           onMouseDown={(e) => e.preventDefault()}
@@ -151,6 +258,27 @@ export function AskComposer({
           <Send size={12} strokeWidth={2} />
         </button>
       </div>
+    </div>
+  )
+}
+
+function UserMessageBubble({ label }: { label: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[92%] rounded-xl bg-blue-50 px-3.5 py-2.5 text-[13px] leading-relaxed text-blue-800">
+        {label}
+      </div>
+    </div>
+  )
+}
+
+function AgentMessage({ children }: { children: ReactNode }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center">
+        <GradientSparkle size={14} />
+      </span>
+      <div className="min-w-0 flex-1 text-[13px] leading-relaxed text-brand-navy">{children}</div>
     </div>
   )
 }
@@ -175,11 +303,11 @@ function KickoffBrief() {
   ] as const
 
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
-      <h3 className="text-[15px] font-semibold tracking-[-0.2px] text-brand-navy">
+    <div>
+      <p className="text-[14px] font-semibold tracking-[-0.2px] text-brand-navy">
         Pioneer Systems · Kick-off brief
-      </h3>
-      <p className="mt-1.5 text-[12px] leading-relaxed text-brand-fog">
+      </p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-brand-fog">
         New customer · Signed May 1, 2026 · Apex platform, 50 seats, Premium SLA, 3 sandboxes · No
         prior relationship history.
       </p>
@@ -203,41 +331,30 @@ function KickoffBrief() {
 
       <SectionDivider />
       <SectionHeading>Confirm before hanging up</SectionHeading>
-      <BulletList items={[...confirm]} last />
+      <BulletList items={[...confirm]} />
     </div>
   )
 }
 
 function SectionHeading({ children }: { children: ReactNode }) {
   return (
-    <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-brand-fog">
+    <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.06em] text-brand-fog">
       {children}
     </p>
   )
 }
 
 function SectionDivider() {
-  return <div className="my-4 h-px w-full bg-neutral-200" />
+  return <div className="my-4 h-px w-full bg-neutral-200/80" />
 }
 
-function BulletList({
-  items,
-  last = false,
-}: {
-  items: ReactNode[]
-  last?: boolean
-}) {
+function BulletList({ items }: { items: ReactNode[] }) {
   return (
-    <ul className="space-y-0">
+    <ul className="space-y-2.5">
       {items.map((item, index) => (
-        <li key={index}>
-          <div className="flex gap-2.5 py-2.5 text-[13px] leading-relaxed text-brand-navy">
-            <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand-fog/70" />
-            <span>{item}</span>
-          </div>
-          {(!last || index < items.length - 1) && index < items.length - 1 && (
-            <div className="h-px w-full bg-neutral-100" />
-          )}
+        <li key={index} className="flex gap-2.5 text-[13px] leading-relaxed text-brand-navy">
+          <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-brand-fog/70" />
+          <span>{item}</span>
         </li>
       ))}
     </ul>
@@ -246,24 +363,25 @@ function BulletList({
 
 function MarkdownAnswer({ response }: { response: Extract<AskResponse, { kind: 'markdown' }> }) {
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white px-5 py-5 shadow-sm">
-      <h3 className="text-[15px] font-semibold tracking-[-0.2px] text-brand-navy">{response.title}</h3>
-      <p className="mt-3 text-[13px] leading-relaxed text-brand-navy">{response.body}</p>
+    <div>
+      <p className="text-[14px] font-semibold tracking-[-0.2px] text-brand-navy">{response.title}</p>
+      <p className="mt-2 text-[13px] leading-relaxed text-brand-navy">{response.body}</p>
     </div>
   )
 }
 
 function ThinkingState() {
   return (
-    <div className="flex items-center gap-2 rounded-xl border border-neutral-200 bg-white px-3.5 py-3 shadow-sm">
-      <GradientSparkle size={14} />
-      <span className="ai-gradient-text text-[13px] font-medium">Thinking</span>
-      <span className="flex gap-1 pl-0.5">
-        <span className="h-1 w-1 animate-pulse rounded-full bg-violet-400 [animation-delay:0ms]" />
-        <span className="h-1 w-1 animate-pulse rounded-full bg-violet-400 [animation-delay:150ms]" />
-        <span className="h-1 w-1 animate-pulse rounded-full bg-orange-400 [animation-delay:300ms]" />
-      </span>
-    </div>
+    <AgentMessage>
+      <div className="flex items-center gap-2">
+        <span className="ai-gradient-text text-[13px] font-medium">Thinking</span>
+        <span className="flex gap-1">
+          <span className="h-1 w-1 animate-pulse rounded-full bg-violet-400 [animation-delay:0ms]" />
+          <span className="h-1 w-1 animate-pulse rounded-full bg-violet-400 [animation-delay:150ms]" />
+          <span className="h-1 w-1 animate-pulse rounded-full bg-orange-400 [animation-delay:300ms]" />
+        </span>
+      </div>
+    </AgentMessage>
   )
 }
 
@@ -274,12 +392,24 @@ export interface AskChatTurn {
 
 function AgentAnswer({ prompt }: { prompt: string }) {
   const response = ASK_RESPONSES[prompt]
-  if (response?.kind === 'kickoff') return <KickoffBrief />
-  if (response?.kind === 'markdown') return <MarkdownAnswer response={response} />
+  if (response?.kind === 'kickoff') {
+    return (
+      <AgentMessage>
+        <KickoffBrief />
+      </AgentMessage>
+    )
+  }
+  if (response?.kind === 'markdown') {
+    return (
+      <AgentMessage>
+        <MarkdownAnswer response={response} />
+      </AgentMessage>
+    )
+  }
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white px-4 py-3 text-[13px] text-brand-navy shadow-sm">
+    <AgentMessage>
       I don&apos;t have a tailored brief for that yet — try one of the suggested prompts.
-    </div>
+    </AgentMessage>
   )
 }
 
@@ -313,21 +443,22 @@ function ChatTurnBlock({
   const otherSuggestions = suggestions.filter((s) => !usedPrompts.includes(s))
 
   return (
-    <div className="space-y-3">
-      <div className="flex justify-end">
-        <SuggestionPill label={prompt} asDisplay />
-      </div>
+    <div className="space-y-4">
+      <UserMessageBubble label={prompt} />
 
       {phase === 'thinking' ? <ThinkingState /> : <AgentAnswer prompt={prompt} />}
 
       {phase === 'answer' && isLatest && otherSuggestions.length > 0 && (
-        <div className="flex flex-wrap gap-2 pt-1">
+        <div className="flex flex-wrap gap-2 pl-7 pt-1">
           {otherSuggestions.map((suggestion) => (
-            <SuggestionPill
+            <button
               key={suggestion}
-              label={suggestion}
+              type="button"
               onClick={() => onAsk(suggestion)}
-            />
+              className="cursor-pointer rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+            >
+              {suggestion}
+            </button>
           ))}
         </div>
       )}
@@ -392,29 +523,30 @@ export function SalesOrderAskChatPanel({
   const usedPrompts = turns.map((t) => t.prompt)
 
   return (
-    <div className="flex h-full w-full flex-col bg-white">
-      <header className="flex shrink-0 items-center justify-between border-b border-neutral-200 px-4 py-3">
-        <div className="flex items-center gap-2">
-          <GradientSparkle size={16} />
-          <div>
-            <p className="text-[13px] font-semibold text-brand-navy">Ask Apex</p>
-            <p className="text-[11px] text-brand-fog">About this sales order</p>
-          </div>
+    <div className="flex h-full w-full flex-col bg-transparent">
+      <header className="flex shrink-0 items-start justify-between gap-3 px-5 pb-2 pt-5">
+        <div className="min-w-0">
+          <p className="text-[15px] font-semibold leading-tight tracking-[-0.2px] text-brand-navy">
+            Ask Apex
+          </p>
+          <p className="mt-1 truncate text-[12px] leading-snug text-brand-fog">
+            About this sales order
+          </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+          className="mt-0.5 flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-brand-fog transition-colors hover:bg-black/[0.04] hover:text-brand-navy"
           aria-label="Close chat"
         >
-          <X size={18} />
+          <PanelLeftClose size={16} strokeWidth={1.75} />
         </button>
       </header>
 
       <div
         ref={scrollRef}
         className={cn(
-          'min-h-0 flex-1 space-y-6 overflow-y-auto px-4 py-4 transition-all duration-500',
+          'min-h-0 flex-1 space-y-5 overflow-y-auto px-5 pb-4 pt-2 transition-all duration-500',
           contentReady ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0',
         )}
       >
@@ -432,10 +564,10 @@ export function SalesOrderAskChatPanel({
         <div ref={bottomRef} aria-hidden="true" />
       </div>
 
-      <footer className="shrink-0 border-t border-neutral-200 p-3">
+      <footer className="shrink-0 px-4 pb-4 pt-1">
         {showContextPill && (
           <div className="mb-2 flex items-center">
-            <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-neutral-200 bg-neutral-50 py-1 pl-2.5 pr-1 text-[11px] text-brand-navy">
+            <div className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-neutral-200/80 bg-transparent py-1 pl-2.5 pr-1 text-[11px] text-brand-navy">
               <span className="truncate">
                 <span className="text-brand-fog">Context · </span>
                 <span className="font-medium">{customerName}</span>
@@ -443,7 +575,7 @@ export function SalesOrderAskChatPanel({
               <button
                 type="button"
                 onClick={() => setShowContextPill(false)}
-                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-fog transition-colors hover:bg-neutral-200 hover:text-brand-navy"
+                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-brand-fog transition-colors hover:bg-black/[0.06] hover:text-brand-navy"
                 aria-label={`Remove ${customerName} context`}
               >
                 <X size={10} strokeWidth={2.5} />
@@ -456,7 +588,7 @@ export function SalesOrderAskChatPanel({
           onChange={setFollowUp}
           onSubmit={submitFollowUp}
           placeholder="Ask a follow-up…"
-          expanded
+          fullWidth
           autoFocus
         />
       </footer>
@@ -516,6 +648,7 @@ export function SalesOrderAskBar({
         onFocus={() => setIsExpanded(true)}
         onBlur={handleBlur}
         expanded={isExpanded}
+        placeholderPhrases={suggestions}
       />
     </div>
   )
