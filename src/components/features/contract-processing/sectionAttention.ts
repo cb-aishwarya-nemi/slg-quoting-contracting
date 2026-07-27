@@ -29,6 +29,6 @@ export function getExtractionAttentionStatus(items: LabelValue[]) {
 
   return {
     status: 'attention' as const,
-    statusLabel: `${unresolvedCount} ${unresolvedCount === 1 ? 'item needs' : 'items need'} action · not found in contract`,
+    statusLabel: `${unresolvedCount} ${unresolvedCount === 1 ? 'item' : 'items'} · not found in contract`,
   }
 }
