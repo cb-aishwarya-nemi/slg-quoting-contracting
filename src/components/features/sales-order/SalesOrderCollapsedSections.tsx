@@ -567,7 +567,8 @@ export function SalesOrderCollapsedSections({
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   const billingSchedule =
     variant === 'invoice-overdue' ? pioneerOverdueBillingSchedule : order.upcomingBillingSchedule
-  const showTimeline = variant == null || variant === 'just-created'
+  const showTimeline =
+    variant == null || variant === 'just-created' || variant === 'invoice-overdue'
 
   const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
     const selectedVersion = selectedVersionId

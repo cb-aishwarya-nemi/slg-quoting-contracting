@@ -1,6 +1,6 @@
 import { useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   dateToTimelinePercent,
@@ -85,18 +85,38 @@ const CONTRACT_PERIODS: ContractPeriod[] = [
 
 const DEFAULT_PERIOD_INDEX = 1
 const TOTAL_PERIODS = 3
-/** Prototype “today” — 3rd month of Period 1. */
+/** Full Pioneer contract span (3 annual periods). */
+const FULL_TERM_START = CONTRACT_PERIODS[0].startDate
+const FULL_TERM_END = CONTRACT_PERIODS[CONTRACT_PERIODS.length - 1].endDate
+/** Prototype “today” — Just created (3rd month of Period 1). */
 const TODAY_DATE = '2026-07-22'
 const TODAY_LABEL = "Jul 22 '26"
+/** Prototype “today” — Invoice overdue full-term view. */
+const INVOICE_OVERDUE_TODAY_DATE = '2027-04-26'
+const INVOICE_OVERDUE_TODAY_LABEL = "Apr 26 '27"
+/** Invoice overdue only — v2 sits in August on the full-term axis. */
+const INVOICE_OVERDUE_V2_DATE = '2026-08-15'
+const INVOICE_OVERDUE_V2_DATE_LABEL = "Aug 15 '26"
+/** Subtle inset for full-term date scale — keeps May/Apr off the axis edges. */
+const FULL_TERM_EDGE_PAD = 1.25
 
-function formatMonthLabel(date: Date, isEdge: boolean): string {
+function toTrackPercent(rawPercent: number, padded: boolean): number {
+  if (!padded) return rawPercent
+  return FULL_TERM_EDGE_PAD + (rawPercent / 100) * (100 - FULL_TERM_EDGE_PAD * 2)
+}
+
+function formatMonthLabel(date: Date, isEdge: boolean, showYear = false): string {
   const month = date.toLocaleDateString('en-US', { month: 'short' })
-  if (!isEdge) return month
+  if (!isEdge && !showYear) return month
   const yy = String(date.getFullYear()).slice(-2)
   return `${month} '${yy}`
 }
 
-function buildMonthTicks(startDate: string, endDate: string) {
+function buildMonthTicks(
+  startDate: string,
+  endDate: string,
+  stepMonths = 1,
+) {
   const start = parseTimelineDate(startDate)
   const end = parseTimelineDate(endDate)
   const months: { date: Date; iso: string }[] = []
@@ -109,13 +129,35 @@ function buildMonthTicks(startDate: string, endDate: string) {
       date: new Date(cursor),
       iso: `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-01`,
     })
-    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1)
+    cursor = new Date(cursor.getFullYear(), cursor.getMonth() + stepMonths, 1)
   }
 
-  return months.map((month, index) => ({
-    ...month,
-    label: formatMonthLabel(month.date, index === 0 || index === months.length - 1),
-  }))
+  // Always include the term end month when stepping
+  if (months.length > 0) {
+    const lastTick = months[months.length - 1].date
+    if (
+      lastTick.getFullYear() !== last.getFullYear() ||
+      lastTick.getMonth() !== last.getMonth()
+    ) {
+      months.push({
+        date: new Date(last),
+        iso: `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, '0')}-01`,
+      })
+    }
+  }
+
+  const startMonth = start.getMonth()
+  return months.map((month, index) => {
+    const isEdge = index === 0 || index === months.length - 1
+    const isPeriodStart = index > 0 && month.date.getMonth() === startMonth
+    const showYear = isEdge || isPeriodStart
+    return {
+      ...month,
+      label: formatMonthLabel(month.date, isEdge, isPeriodStart),
+      /** Year-boundary Mays (May '26 / '27 / '28) — slightly darker label */
+      emphasize: showYear && month.date.getMonth() === startMonth,
+    }
+  })
 }
 
 export function SalesOrderHeaderTimeline({
@@ -124,14 +166,31 @@ export function SalesOrderHeaderTimeline({
   children,
 }: SalesOrderHeaderTimelineProps) {
   const isJustCreated = variant == null || variant === 'just-created'
+  const isInvoiceOverdue = variant === 'invoice-overdue'
+  const preferTodaySelection = isJustCreated || isInvoiceOverdue
+  const showFullTerm = isInvoiceOverdue
   const [periodIndex, setPeriodIndex] = useState(DEFAULT_PERIOD_INDEX)
   const period =
     CONTRACT_PERIODS.find((p) => p.index === periodIndex) ?? CONTRACT_PERIODS[0]
 
-  // Just created still shows the full period trail (v1 at start + later amendments)
-  const visibleAmendments = period.amendments
+  const axisStart = showFullTerm ? FULL_TERM_START : period.startDate
+  const axisEnd = showFullTerm ? FULL_TERM_END : period.endDate
 
-  const defaultSelected = isJustCreated
+  const visibleAmendments = showFullTerm
+    ? CONTRACT_PERIODS.flatMap((p) =>
+        p.amendments.map((marker) =>
+          marker.version === 'v2'
+            ? {
+                ...marker,
+                date: INVOICE_OVERDUE_V2_DATE,
+                dateLabel: INVOICE_OVERDUE_V2_DATE_LABEL,
+              }
+            : marker,
+        ),
+      )
+    : period.amendments
+
+  const defaultSelected = preferTodaySelection
     ? undefined
     : visibleAmendments[visibleAmendments.length - 1]?.id
   const [selectedId, setSelectedId] = useState<string | undefined>(defaultSelected)
@@ -140,21 +199,30 @@ export function SalesOrderHeaderTimeline({
     rect: DOMRect
   } | null>(null)
   const [todayHovered, setTodayHovered] = useState<{ rect: DOMRect } | null>(null)
+  const [renewalHovered, setRenewalHovered] = useState<{ rect: DOMRect } | null>(null)
 
   const months = useMemo(
-    () => buildMonthTicks(period.startDate, period.endDate),
-    [period.startDate, period.endDate]
+    () => buildMonthTicks(axisStart, axisEnd, showFullTerm ? 3 : 1),
+    [axisStart, axisEnd, showFullTerm],
   )
 
+  const activeTodayDate = showFullTerm ? INVOICE_OVERDUE_TODAY_DATE : TODAY_DATE
+  const activeTodayLabel = showFullTerm ? INVOICE_OVERDUE_TODAY_LABEL : TODAY_LABEL
+
   const todayInPeriod =
-    parseTimelineDate(TODAY_DATE) >= parseTimelineDate(period.startDate) &&
-    parseTimelineDate(TODAY_DATE) <= parseTimelineDate(period.endDate)
+    parseTimelineDate(activeTodayDate) >= parseTimelineDate(axisStart) &&
+    parseTimelineDate(activeTodayDate) <= parseTimelineDate(axisEnd)
   const todayPercent = todayInPeriod
-    ? dateToTimelinePercent(TODAY_DATE, period.startDate, period.endDate)
+    ? dateToTimelinePercent(activeTodayDate, axisStart, axisEnd)
     : null
+  const todayTrackPercent =
+    todayPercent != null ? toTrackPercent(todayPercent, showFullTerm) : null
+
+  const trackLeft = (dateStr: string) =>
+    toTrackPercent(dateToTimelinePercent(dateStr, axisStart, axisEnd), showFullTerm)
 
   const selectedVersionId = visibleAmendments.find((m) => m.id === selectedId)?.version
-  const isTodaySelected = selectedId == null && todayPercent != null
+  const isTodaySelected = selectedId == null && todayTrackPercent != null
 
   const handlePeriodChange = (next: number) => {
     if (next < 1 || next > TOTAL_PERIODS) return
@@ -162,7 +230,7 @@ export function SalesOrderHeaderTimeline({
     const nextPeriod = CONTRACT_PERIODS.find((p) => p.index === next)
     const nextVisible = nextPeriod?.amendments ?? []
     setSelectedId(
-      isJustCreated ? undefined : nextVisible[nextVisible.length - 1]?.id
+      preferTodaySelection ? undefined : nextVisible[nextVisible.length - 1]?.id,
     )
   }
 
@@ -181,7 +249,8 @@ export function SalesOrderHeaderTimeline({
 
   return (
     <div className="w-full pt-1">
-      {/* Range label + period nav */}
+      {/* Range label + period nav — hidden on Invoice overdue */}
+      {!isInvoiceOverdue && (
       <div className="mb-3 flex items-center gap-1.5">
         <button
           type="button"
@@ -222,131 +291,219 @@ export function SalesOrderHeaderTimeline({
           <ChevronRight size={14} strokeWidth={2.25} />
         </button>
       </div>
+      )}
 
-      {/* Top axis line — above month labels */}
-      <div className="h-px bg-neutral-300" />
-
-      {/* Month labels — between the two axis lines */}
-      <div className="grid" style={monthGridStyle}>
-        {months.map((month, index) => (
-          <div
-            key={`label-${month.iso}`}
-            className={cn(
-              'py-2 text-[10px] font-medium tracking-[0.02em] text-brand-fog',
-              index === 0 ? 'text-left' : index === months.length - 1 ? 'text-right' : 'text-center'
-            )}
-          >
-            {month.label}
-          </div>
-        ))}
-      </div>
-
-      {/* Axis + full-page dashed columns + page content */}
-      <div className="relative">
-        {/* Dashed vertical month columns — stretch through all children */}
-        <div
-          className="pointer-events-none absolute inset-0 z-0 grid opacity-40"
-          style={monthGridStyle}
-          aria-hidden
-        >
-          {months.map((month, index) => (
+      {/* Year milestones — above the top axis (full-term only) */}
+      {showFullTerm && (
+        <div className="relative mb-2.5 h-9">
+          {CONTRACT_PERIODS.map((p) => (
             <div
-              key={`col-${month.iso}`}
-              className={cn(
-                'h-full border-neutral-300',
-                index > 0 && 'border-l border-dashed'
-              )}
-            />
+              key={`year-${p.index}`}
+              className="absolute bottom-0 flex flex-col items-start gap-1"
+              style={{ left: `${trackLeft(p.startDate)}%` }}
+            >
+              <Flag
+                size={12}
+                strokeWidth={1.75}
+                className={p.index === 1 ? 'text-green-600' : 'text-neutral-400'}
+                fill="currentColor"
+                fillOpacity={p.index === 1 ? 0.45 : 0.35}
+              />
+              <span className="whitespace-nowrap text-[11px] font-medium leading-tight text-brand-navy">
+                Year {p.index}
+              </span>
+            </div>
           ))}
         </div>
+      )}
 
-        {/* Bottom axis line */}
-        <div className="relative z-10 h-px bg-neutral-300" />
-
-        {/* Today — blue dot on the axis (clickable: restore current view) */}
-        {todayPercent != null && (
-          <button
-            type="button"
-            onClick={handleSelectToday}
-            onMouseEnter={(e) => {
-              setTodayHovered({ rect: e.currentTarget.getBoundingClientRect() })
+      {/* Timeline band: top line → months → bottom line */}
+      <div className="relative">
+        {/* Elapsed fill — Invoice overdue only: axis left → today */}
+        {showFullTerm && todayTrackPercent != null && (
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-y-0 left-0 z-0"
+            style={{
+              width: `${todayTrackPercent}%`,
+              background:
+                'linear-gradient(90deg, rgba(255, 51, 0, 0.10) 0%, rgba(139, 92, 246, 0.14) 100%)',
             }}
-            onMouseLeave={() => setTodayHovered(null)}
-            aria-pressed={isTodaySelected}
-            aria-label="Today"
-            className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
-            style={{ left: `${todayPercent}%`, top: 0 }}
-          >
-            <span
-              className={cn(
-                'relative block h-3 w-3 rounded-full transition-all duration-200',
-                todayHovered && 'scale-110 shadow-[0_0_0_4px_rgba(37,99,235,0.2)]',
-              )}
-            >
-              <span className="absolute inset-0 animate-ping rounded-full bg-blue-400 opacity-40" />
-              <span className="relative z-[1] block h-3 w-3 rounded-full bg-blue-600" />
-            </span>
-          </button>
+          />
         )}
 
-        {/* Version / amendment markers — on the axis with Today */}
-        {visibleAmendments.map((marker) => {
-          const left = dateToTimelinePercent(marker.date, period.startDate, period.endDate)
-          const isAtStart = left <= 0.5
-          const isSelected = selectedId === marker.id
-          const isPositive = marker.tone === 'positive'
-          const isHovered = hoveredMarker?.marker.id === marker.id
+        {/* Top axis line — above month labels */}
+        <div className="relative z-10 h-px bg-neutral-300" />
 
-          return (
+        {/* Month labels — between the two axis lines */}
+        <div className="relative z-10">
+          {showFullTerm ? (
+            <div className="relative h-9">
+              {months.map((month) => {
+                const left = trackLeft(month.iso)
+                return (
+                  <div
+                    key={`label-${month.iso}`}
+                    className={cn(
+                      'absolute top-2.5 whitespace-nowrap text-left text-[10px] font-medium tracking-[0.02em]',
+                      month.emphasize ? 'font-semibold text-brand-navy' : 'text-brand-fog',
+                    )}
+                    style={{ left: `${left}%` }}
+                  >
+                    {month.label}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="grid" style={monthGridStyle}>
+              {months.map((month, index) => (
+                <div
+                  key={`label-${month.iso}`}
+                  className={cn(
+                    'relative py-2 text-[10px] font-medium tracking-[0.02em]',
+                    month.emphasize ? 'font-semibold text-brand-navy' : 'text-brand-fog',
+                    index === 0 ? 'text-left' : index === months.length - 1 ? 'text-right' : 'text-center',
+                  )}
+                >
+                  {month.label}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Bottom axis + markers (same positioning as before) */}
+        <div className="relative">
+          <div className="relative z-10 h-px bg-neutral-300" />
+
+          {/* Month tick marks — above the axis, aligned with labels */}
+          {showFullTerm &&
+            months.map((month) => {
+              const left = trackLeft(month.iso)
+              return (
+                <span
+                  key={`tick-${month.iso}`}
+                  aria-hidden
+                  className="pointer-events-none absolute z-10 h-1.5 w-px -translate-y-full bg-neutral-300"
+                  style={{ left: `${left}%`, top: 0 }}
+                />
+              )
+            })}
+
+          {/* Today — blue dot on the axis (clickable: restore current view) */}
+          {todayTrackPercent != null && (
             <button
-              key={marker.id}
               type="button"
-              onClick={() => handleSelect(marker)}
+              onClick={handleSelectToday}
               onMouseEnter={(e) => {
-                setHoveredMarker({
-                  marker,
-                  rect: e.currentTarget.getBoundingClientRect(),
-                })
+                setTodayHovered({ rect: e.currentTarget.getBoundingClientRect() })
               }}
-              onMouseLeave={() => setHoveredMarker(null)}
-              aria-pressed={isSelected}
-              aria-label={`${marker.version}: ${marker.title}, ${marker.detail}, ${marker.dateLabel}`}
-              className={cn(
-                'absolute z-20 -translate-y-1/2 cursor-pointer',
-                !isAtStart && '-translate-x-1/2',
-              )}
-              style={{ left: `${left}%`, top: 0 }}
+              onMouseLeave={() => setTodayHovered(null)}
+              aria-pressed={isTodaySelected}
+              aria-label="Today"
+              className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+              style={{ left: `${todayTrackPercent}%`, top: 0 }}
             >
               <span
                 className={cn(
-                  'relative flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold transition-colors',
-                  isPositive
-                    ? isHovered
-                      ? 'scale-110 bg-green-600 text-white shadow-[0_0_0_4px_rgba(22,163,74,0.2)] transition-all duration-200'
-                      : isSelected
-                        ? 'bg-green-600 text-white'
-                        : 'bg-green-100 text-green-700'
-                    : isHovered
-                      ? 'scale-110 bg-blue-500 text-white shadow-[0_0_0_4px_rgba(37,99,235,0.2)] transition-all duration-200'
-                      : isSelected
-                        ? 'bg-blue-500 text-white'
-                        : 'bg-blue-50 text-blue-700'
+                  'relative block h-3 w-3 rounded-full transition-all duration-200',
+                  todayHovered && 'scale-110 shadow-[0_0_0_4px_rgba(37,99,235,0.2)]',
                 )}
               >
-                {isHovered && (
-                  <span
-                    className={cn(
-                      'absolute inset-0 animate-ping rounded-full opacity-40',
-                      isPositive ? 'bg-green-500' : 'bg-blue-400'
-                    )}
-                  />
-                )}
-                <span className="relative z-[1]">{marker.version}</span>
+                <span className="absolute inset-0 animate-ping rounded-full bg-blue-400 opacity-40" />
+                <span className="relative z-[1] block h-3 w-3 rounded-full bg-blue-600" />
               </span>
             </button>
-          )
-        })}
+          )}
 
+          {/* Version / amendment markers — on the axis with Today */}
+          {visibleAmendments.map((marker) => {
+            const left = trackLeft(marker.date)
+            const isAtStart = left <= (showFullTerm ? FULL_TERM_EDGE_PAD + 0.5 : 0.5)
+            const isSelected = selectedId === marker.id
+            const isPositive = marker.tone === 'positive'
+            const isHovered = hoveredMarker?.marker.id === marker.id
+
+            return (
+              <button
+                key={marker.id}
+                type="button"
+                onClick={() => handleSelect(marker)}
+                onMouseEnter={(e) => {
+                  setHoveredMarker({
+                    marker,
+                    rect: e.currentTarget.getBoundingClientRect(),
+                  })
+                }}
+                onMouseLeave={() => setHoveredMarker(null)}
+                aria-pressed={isSelected}
+                aria-label={`${marker.version}: ${marker.title}, ${marker.detail}, ${marker.dateLabel}`}
+                className={cn(
+                  'absolute z-20 -translate-y-1/2 cursor-pointer',
+                  !isAtStart && '-translate-x-1/2',
+                )}
+                style={{ left: `${left}%`, top: 0 }}
+              >
+                <span
+                  className={cn(
+                    'relative flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-bold transition-colors',
+                    showFullTerm && 'ring-1 ring-neutral-300',
+                    isPositive
+                      ? isHovered
+                        ? 'scale-110 bg-green-600 text-white shadow-[0_0_0_4px_rgba(22,163,74,0.2)] transition-all duration-200'
+                        : isSelected
+                          ? 'bg-green-600 text-white'
+                          : 'bg-green-100 text-green-700'
+                      : isHovered
+                        ? 'scale-110 bg-blue-500 text-white shadow-[0_0_0_4px_rgba(37,99,235,0.2)] transition-all duration-200'
+                        : isSelected
+                          ? 'bg-blue-500 text-white'
+                          : 'bg-blue-50 text-blue-700'
+                  )}
+                >
+                  {isHovered && (
+                    <span
+                      className={cn(
+                        'absolute inset-0 animate-ping rounded-full opacity-40',
+                        isPositive ? 'bg-green-500' : 'bg-blue-400'
+                      )}
+                    />
+                  )}
+                  <span className="relative z-[1]">{marker.version}</span>
+                </span>
+              </button>
+            )
+          })}
+
+          {/* Renewal marker — after term end (Invoice overdue only) */}
+          {showFullTerm && (
+            <button
+              type="button"
+              className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-default"
+              style={{
+                left: `${Math.min(100, trackLeft(FULL_TERM_END) + 1.75)}%`,
+                top: 0,
+              }}
+              onMouseEnter={(e) => {
+                setRenewalHovered({ rect: e.currentTarget.getBoundingClientRect() })
+              }}
+              onMouseLeave={() => setRenewalHovered(null)}
+              aria-label="Renewal"
+            >
+              <span
+                className={cn(
+                  'block h-4 w-4 rounded-full border border-dashed border-neutral-400 bg-white transition-all duration-200',
+                  renewalHovered && 'scale-110 shadow-[0_0_0_4px_rgba(163,163,163,0.2)]',
+                )}
+              />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Page content below the axis */}
+      <div className="relative">
         {todayHovered &&
           createPortal(
             <div
@@ -362,7 +519,29 @@ export function SalesOrderHeaderTimeline({
                   Today
                 </p>
                 <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
-                  {TODAY_LABEL} · current view
+                  {activeTodayLabel} · current view
+                </p>
+              </div>
+            </div>,
+            document.body
+          )}
+
+        {renewalHovered &&
+          createPortal(
+            <div
+              className="pointer-events-none fixed z-[9999] flex -translate-x-1/2 flex-col items-center"
+              style={{
+                left: renewalHovered.rect.left + renewalHovered.rect.width / 2,
+                top: renewalHovered.rect.bottom + 8,
+              }}
+            >
+              <span className="mb-1.5 h-3 w-px border-l border-dashed border-neutral-300" />
+              <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
+                <p className="whitespace-nowrap text-[12px] font-semibold text-brand-navy">
+                  Renewal
+                </p>
+                <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
+                  May 1 &apos;29 · upcoming
                 </p>
               </div>
             </div>,
