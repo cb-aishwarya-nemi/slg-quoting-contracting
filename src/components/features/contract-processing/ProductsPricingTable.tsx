@@ -329,6 +329,10 @@ interface ItemNameButtonProps {
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
   isRowHovered?: boolean
+  isRowActive?: boolean
+  isEdited?: boolean
+  isViewEditsFocused?: boolean
+  onViewEdits?: () => void
 }
 
 function ItemNameButton({
@@ -337,6 +341,10 @@ function ItemNameButton({
   onSelect,
   onOpenChange,
   isRowHovered,
+  isRowActive,
+  isEdited,
+  isViewEditsFocused,
+  onViewEdits,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -347,7 +355,7 @@ function ItemNameButton({
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 items-center group/item">
+    <div className="relative flex min-w-0 flex-1 items-center gap-1.5 group/item">
       {/* Icon with negative margin — sits outside the table column for alignment */}
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
@@ -376,6 +384,26 @@ function ItemNameButton({
           (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
+      {isEdited && !isOpen && !isRowActive && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewEdits?.()
+          }}
+          className={cn(
+            'inline-flex shrink-0 cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+            isRowHovered
+              ? 'bg-white/15 text-white/80'
+              : isViewEditsFocused
+                ? 'bg-amber-100/70 text-amber-800/80'
+                : 'bg-amber-50 text-amber-700/70'
+          )}
+        >
+          <span className={isRowHovered ? 'hidden' : 'inline'}>Edited</span>
+          <span className={isRowHovered ? 'inline' : 'hidden'}>View edits</span>
+        </button>
+      )}
       <LineItemPopover
         isOpen={isOpen}
         onClose={() => handleOpenChange(false)}
@@ -789,6 +817,19 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           name={item.name}
           isAttention={isAttention}
           isRowHovered={isHovered && !isActive}
+          isRowActive={isActive}
+          isEdited={isEdited}
+          isViewEditsFocused={
+            editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
+            editHistory?.viewEditsFocus?.fieldLabel === item.id
+          }
+          onViewEdits={() => {
+            editHistory?.focusViewEdits({
+              sectionId: PRODUCTS_SECTION_ID,
+              fieldLabel: item.id,
+              itemPrefix: true,
+            })
+          }}
           onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
           onSelect={(catalogItem) => {
             recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
@@ -843,33 +884,8 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
 
         <div
           className="flex shrink-0 items-center justify-end gap-1.5"
-          style={{ width: isEdited && !isActive ? 88 : MENU_W }}
+          style={{ width: MENU_W }}
         >
-          {isEdited && !isActive && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation()
-                editHistory?.focusViewEdits({
-                  sectionId: PRODUCTS_SECTION_ID,
-                  fieldLabel: item.id,
-                  itemPrefix: true,
-                })
-              }}
-              className={cn(
-                'inline-flex cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
-                isHovered
-                  ? 'bg-white/15 text-white/80'
-                  : editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
-                      editHistory?.viewEditsFocus?.fieldLabel === item.id
-                    ? 'bg-amber-100/70 text-amber-800/80'
-                    : 'bg-amber-50 text-amber-700/70'
-              )}
-            >
-              <span className={isHovered ? 'hidden' : 'inline'}>Edited</span>
-              <span className={isHovered ? 'inline' : 'hidden'}>View edits</span>
-            </button>
-          )}
           <button
             type="button"
             className={cn(
