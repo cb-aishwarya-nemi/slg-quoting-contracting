@@ -35,7 +35,7 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'sales-order-details',
     label: 'Sales Order Details',
-    defaultVariant: 'just-created',
+    defaultVariant: 'invoice-overdue',
     variants: [
       {
         id: 'just-created',
@@ -155,7 +155,7 @@ export function UseCaseProvider({ children }: { children: ReactNode }) {
         if (page) {
           setActiveVariantState((prevVariant) => {
             // Keep the current stage while staying on the same page (e.g. switcher).
-            // Fresh entry from another page always opens the default (Just created).
+            // Fresh entry from another page always opens the default (Invoice overdue).
             if (
               prevPage === pageId &&
               prevVariant &&

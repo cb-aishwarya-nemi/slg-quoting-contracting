@@ -658,12 +658,12 @@ export function SalesOrderDetails({
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pb-24 pt-12">
+      <div className="min-h-0 flex-1 overflow-y-auto pb-24">
         <div
-          className="mx-auto space-y-10 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
+          className="mx-auto pt-12 transition-[max-width] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)]"
           style={{ maxWidth: chatOpen ? 880 : CONTENT_MAX_WIDTH }}
         >
-          <section className="group/section">
+          <section className="group/section mb-10">
             <AiSummaryNote order={order} listItem={listItem} variant={currentVariant} />
           </section>
 

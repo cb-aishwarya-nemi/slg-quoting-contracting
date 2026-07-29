@@ -248,7 +248,9 @@ export function SalesOrderHeaderTimeline({
   }
 
   return (
-    <div className="w-full pt-1">
+    <div className="w-full">
+      {/* Sticky timeline chrome — pins under SO header/tabs while sections scroll */}
+      <div className="sticky top-0 z-20 bg-white pb-4">
       {/* Range label + period nav — hidden on Invoice overdue */}
       {!isInvoiceOverdue && (
       <div className="mb-3 flex items-center gap-1.5">
@@ -295,11 +297,11 @@ export function SalesOrderHeaderTimeline({
 
       {/* Year milestones — above the top axis (full-term only) */}
       {showFullTerm && (
-        <div className="relative mb-2.5 h-9">
+        <div className="relative mb-2 h-7">
           {CONTRACT_PERIODS.map((p) => (
             <div
               key={`year-${p.index}`}
-              className="absolute bottom-0 flex flex-col items-start gap-1"
+              className="absolute top-0 flex flex-col items-start gap-0.5"
               style={{ left: `${trackLeft(p.startDate)}%` }}
             >
               <Flag
@@ -327,7 +329,7 @@ export function SalesOrderHeaderTimeline({
             style={{
               width: `${todayTrackPercent}%`,
               background:
-                'linear-gradient(90deg, rgba(255, 51, 0, 0.10) 0%, rgba(139, 92, 246, 0.14) 100%)',
+                'linear-gradient(90deg, rgba(255, 51, 0, 0.18) 0%, rgba(139, 92, 246, 0.22) 100%)',
             }}
           />
         )}
@@ -500,6 +502,7 @@ export function SalesOrderHeaderTimeline({
             </button>
           )}
         </div>
+      </div>
       </div>
 
       {/* Page content below the axis */}
