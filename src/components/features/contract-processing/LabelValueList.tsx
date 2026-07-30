@@ -387,12 +387,12 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      {isPioneerMatch(customer.name) && (
-                        <GradientSparkle size={12} />
-                      )}
                       <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
                         {customer.name}
                       </span>
+                      {isPioneerMatch(customer.name) && (
+                        <GradientSparkle size={12} />
+                      )}
                     </span>
                     <span
                       className={cn(
