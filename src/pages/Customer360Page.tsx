@@ -299,10 +299,10 @@ export function Customer360Page() {
   const taskSwitcherItems: SwitcherItem[] = useMemo(
     () =>
       workbenchItems
-        .filter((item) => item.taskType.includes('Ingestion') && item.taskId)
+        .filter((item) => item.taskType.includes('Ingestion') && item.tcv)
         .map((item) => ({
           id: String(item.id),
-          label: item.taskId as string,
+          label: `TCV ${item.tcv}`,
           taskType: item.taskName ? `${item.taskName}: ${item.taskType}` : item.taskType,
           status: item.status,
           customer: item.customer,

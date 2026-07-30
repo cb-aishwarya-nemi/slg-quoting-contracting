@@ -186,6 +186,20 @@ export function FieldEditHistoryProvider({
 
       const fieldKey = makeFieldKey(sectionId, meta.fieldLabel)
 
+      // Empty / missing values are first fills (e.g. resolving flagged
+      // not-found-in-contract fields) — notify via comment, but don't mark
+      // the row as edited or store edit history.
+      if (!hasPreviousValue(previousValue)) {
+        onFieldEditRef.current?.({
+          sectionId,
+          sectionLabel: meta.sectionLabel,
+          fieldLabel: meta.fieldLabel,
+          previousValue,
+          newValue,
+        })
+        return
+      }
+
       onFieldEditRef.current?.({
         sectionId,
         sectionLabel: meta.sectionLabel,
@@ -200,9 +214,6 @@ export function FieldEditHistoryProvider({
         next.add(fieldKey)
         return next
       })
-
-      // Empty / missing values are first fills — notify + badge only, don't store edit history
-      if (!hasPreviousValue(previousValue)) return
 
       const record: FieldEditRecord = {
         id: `edit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
