@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { ChevronDown, ChevronUp, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
-import { cn, withRelativeAnnotation } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { type SalesOrderProduct, type SalesOrderRampPeriod } from '@/data/salesOrderMock'
 
 interface ReadOnlyProductsListProps {
@@ -43,7 +43,7 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
   )
 }
 
-/** Period identity: label + date range (with relative annotation on the start). */
+/** Period identity: label + date range. */
 function PeriodIdentity({ period }: { period: SalesOrderRampPeriod }) {
   return (
     <div className="flex min-w-0 items-center gap-2">
@@ -51,7 +51,7 @@ function PeriodIdentity({ period }: { period: SalesOrderRampPeriod }) {
       <span className="text-[13px] text-brand-fog">·</span>
       <div className="flex items-center gap-1.5 text-[12px] text-brand-fog">
         <Calendar size={14} className="shrink-0 text-brand-mist" />
-        <span className="whitespace-nowrap">{withRelativeAnnotation(period.startDate)}</span>
+        <span className="whitespace-nowrap">{period.startDate}</span>
         <span>to</span>
         <span className="whitespace-nowrap">{period.endDate}</span>
       </div>
@@ -129,10 +129,8 @@ function PeriodContainer({
   onToggle: () => void
 }) {
   const containerClass = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
-  const hideChevron = period.label === 'Period 1' || period.id === 'so-period-1'
-  const showExpanded = hideChevron || isExpanded
 
-  if (!showExpanded) {
+  if (!isExpanded) {
     return (
       <div className={containerClass}>
         <div
@@ -148,9 +146,12 @@ function PeriodContainer({
 
   return (
     <div className={containerClass}>
-      <div className="flex items-center border-b border-neutral-200 px-3 pb-2 pt-3">
+      <div
+        onClick={onToggle}
+        className="flex cursor-pointer items-center border-b border-neutral-200 px-3 pb-2 pt-3 transition-colors hover:bg-neutral-50"
+      >
         <div className="flex min-w-0 flex-1 items-center">
-          {!hideChevron && <PeriodChevron isExpanded onToggle={onToggle} />}
+          <PeriodChevron isExpanded onToggle={onToggle} />
           <PeriodIdentity period={period} />
         </div>
         <ColumnLabels />
@@ -170,10 +171,9 @@ function PeriodContainer({
 
 /**
  * Compact, read-only view of order line items. When `periods` are supplied it
- * renders each period in a light outlined collapsible container.
+ * renders each period as an accordion (first expanded by default).
  */
 export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListProps) {
-  const [showAdditionalPeriods, setShowAdditionalPeriods] = useState(false)
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     const firstPeriodId = periods?.[0]?.id
     return new Set(firstPeriodId ? [firstPeriodId] : [])
@@ -188,23 +188,11 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
     })
   }
 
-  const revealAdditionalPeriods = () => {
-    setShowAdditionalPeriods(true)
-    setExpandedPeriods((prev) => {
-      const next = new Set(prev)
-      periods?.slice(1).forEach((period) => next.add(period.id))
-      return next
-    })
-  }
-
-  // Ramp view — collapsible period tables with outlined containers
+  // Ramp view — all periods as accordions
   if (periods && periods.length > 0) {
-    const additionalPeriodCount = periods.length - 1
-    const visiblePeriods = showAdditionalPeriods ? periods : periods.slice(0, 1)
-
     return (
       <div className="space-y-4">
-        {visiblePeriods.map((period) => (
+        {periods.map((period) => (
           <PeriodContainer
             key={period.id}
             period={period}
@@ -212,17 +200,6 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
             onToggle={() => togglePeriod(period.id)}
           />
         ))}
-        {!showAdditionalPeriods && additionalPeriodCount > 0 && (
-          <button
-            type="button"
-            onClick={revealAdditionalPeriods}
-            className="cursor-pointer text-[13px] text-brand-navy underline decoration-brand-mist decoration-1 underline-offset-[3px] transition-colors hover:text-blue-700 hover:decoration-blue-700"
-          >
-            {additionalPeriodCount === 1
-              ? '1 more period'
-              : `${additionalPeriodCount} more periods`}
-          </button>
-        )}
       </div>
     )
   }

@@ -18,19 +18,11 @@ export const ASK_SUGGESTIONS_INVOICE_OVERDUE = [
   'Is this a payment delay or a signal?',
 ] as const
 
-export const ASK_SUGGESTIONS_RENEWAL_APPROACHING = [
-  'Is Pioneer likely to renew?',
-  'What stops working when the contract expires?',
-  "What are Pioneer's current terms going into renewal?",
-] as const
-
-export function getAskSuggestions(variant: string | null): readonly string[] {
-  if (variant === 'invoice-overdue') return ASK_SUGGESTIONS_INVOICE_OVERDUE
-  if (variant === 'renewal-approaching') return ASK_SUGGESTIONS_RENEWAL_APPROACHING
+/** Generic Just created prompts for the ask typewriter. */
+export function getAskSuggestions(_variant?: string | null): readonly string[] {
   return ASK_SUGGESTIONS_JUST_CREATED
 }
 
-/** @deprecated Use getAskSuggestions — kept for any leftover imports */
 export const ASK_SUGGESTIONS = ASK_SUGGESTIONS_JUST_CREATED
 
 export const ASK_CHAT_RAIL_WIDTH = 320

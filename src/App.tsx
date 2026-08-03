@@ -6,7 +6,6 @@ import { NotificationProvider } from './context/NotificationContext'
 import { VersionProvider, useVersion } from './context/VersionContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { useV0Contract } from './context/V0ContractContext'
-import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 
 function V1PageRouter() {
   const { view } = useNavigation()
@@ -73,8 +72,6 @@ function App() {
               <AppLayout>
                 <PageRouter />
               </AppLayout>
-              {/* Use Case Switcher - always visible, highest z-index */}
-              <UseCaseSwitcher />
             </NavigationProvider>
           </NotificationProvider>
         </UseCaseProvider>

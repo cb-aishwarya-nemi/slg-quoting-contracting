@@ -8,7 +8,11 @@ import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
 import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
 import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
-import { SalesOrderDetails } from '@/components/features/sales-order'
+import {
+  SalesOrderDetails,
+  BillingScheduleDetails,
+  UsageDetails,
+} from '@/components/features/sales-order'
 import {
   ASK_CHAT_RAIL_WIDTH,
   SalesOrderAskChatPanel,
@@ -48,6 +52,8 @@ const C360_TABS: TabItem[] = [
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
   { id: 'sales-order', label: 'Sales Order' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'usage', label: 'Entitlements/Usage' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'collections', label: 'Collections' },
   { id: 'revrec', label: 'Revrec' },
@@ -106,7 +112,7 @@ function TabPlaceholder({ label }: { label: string }) {
 export function Customer360Page() {
   const { view, goToCustomers, goToSalesOrders } = useNavigation()
   const { setActivePage } = useUseCase()
-  const { currentVariant: salesOrderVariant } = usePageUseCase('sales-order-details')
+  usePageUseCase('sales-order-details')
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
   const data = contractProcessing
@@ -433,7 +439,7 @@ export function Customer360Page() {
             <SalesOrderAskChatPanel
               turns={askChatTurns}
               customerName={activeSalesOrder.customerName}
-              suggestions={getAskSuggestions(salesOrderVariant)}
+              suggestions={getAskSuggestions()}
               onAsk={appendAskTurn}
               onClose={closeAskChat}
             />
@@ -715,8 +721,19 @@ export function Customer360Page() {
         />
       )}
 
+      {/* Billing schedule tab — Year 1 summary */}
+      {activeTab === 'schedule' && (
+        <BillingScheduleDetails order={activeSalesOrder} />
+      )}
+
+      {/* Usage tab — feature usage details */}
+      {activeTab === 'usage' && <UsageDetails order={activeSalesOrder} />}
+
       {/* Other tabs — simple placeholders */}
-      {activeTab !== 'tasks' && activeTab !== 'sales-order' && (
+      {activeTab !== 'tasks' &&
+        activeTab !== 'sales-order' &&
+        activeTab !== 'schedule' &&
+        activeTab !== 'usage' && (
         <TabPlaceholder label={C360_TABS.find((t) => t.id === activeTab)?.label ?? 'Content'} />
       )}
 

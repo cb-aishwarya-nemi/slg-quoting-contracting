@@ -15,6 +15,11 @@ import {
 } from '@/data/salesOrderAmendmentHistoryMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
+import {
+  EntitlementFeatureTables,
+  isEntitlementFeatureKey,
+  type EntitlementFeatureKey,
+} from './EntitlementFeatureTables'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
 const SCHEDULE_TODAY = new Date('2026-06-22')
@@ -30,7 +35,7 @@ const STATUS_CONFIG = {
   },
   Upcoming: {
     icon: CalendarClock,
-    badge: 'bg-violet-50 text-violet-700',
+    badge: 'bg-neutral-100 text-brand-fog',
   },
 } as const
 
@@ -175,58 +180,70 @@ function BillingYearAccordion({
   group,
   isExpanded,
   onToggle,
+  isLast,
+  connected,
   hideChevron = false,
 }: {
   group: BillingYearGroup
   isExpanded: boolean
   onToggle: () => void
+  isLast: boolean
+  connected: boolean
   hideChevron?: boolean
 }) {
   const showExpanded = hideChevron || isExpanded
 
-  const headerContent = (
-    <>
-      <div className="flex items-center gap-3">
-        {!hideChevron && (
-          <ChevronDown
-            size={18}
-            className={cn(
-              'shrink-0 text-blue-700 transition-transform duration-200',
-              showExpanded && 'rotate-180'
-            )}
-          />
-        )}
-        <div>
-          <span className="text-[15px] font-semibold text-brand-navy">{group.year}</span>
-          <span className="ml-2 text-[12px] text-brand-fog">
-            {group.items.length} {group.items.length === 1 ? 'payment' : 'payments'}
-          </span>
-        </div>
+  const header = (
+    <div className="flex items-center gap-3">
+      {!hideChevron && (
+        <ChevronDown
+          size={18}
+          className={cn(
+            'shrink-0 text-blue-700 transition-transform duration-200',
+            showExpanded && 'rotate-180'
+          )}
+        />
+      )}
+      <div>
+        <span className="text-[15px] font-semibold text-brand-navy">{group.year}</span>
+        <span className="ml-2 text-[12px] text-brand-fog">
+          {group.items.length} {group.items.length === 1 ? 'payment' : 'payments'}
+        </span>
       </div>
-      <span className="text-[16px] font-bold text-brand-navy">
-        {formatAmount(group.totalAmount)}
-      </span>
-    </>
+    </div>
   )
 
-  return (
-    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+  const amount = (
+    <span className="text-[16px] font-bold text-brand-navy">
+      {formatAmount(group.totalAmount)}
+    </span>
+  )
+
+  const card = (
+    <div
+      className={cn(
+        'relative overflow-hidden rounded-lg border border-neutral-200 transition-all',
+        connected && 'z-10'
+      )}
+    >
       {hideChevron ? (
-        <div className="flex w-full items-center justify-between gap-4 bg-white px-4 py-3 text-left">
-          {headerContent}
+        <div className="relative z-10 flex w-full items-center justify-between gap-4 bg-white px-4 py-3 text-left">
+          {header}
+          {amount}
         </div>
       ) : (
         <button
           type="button"
           onClick={onToggle}
-          className="flex w-full cursor-pointer items-center justify-between gap-4 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
+          className="relative z-10 flex w-full cursor-pointer items-center justify-between gap-4 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
         >
-          {headerContent}
+          {header}
+          {amount}
         </button>
       )}
 
       {showExpanded && (
-        <div className="border-t border-neutral-200 bg-white px-4 py-2">
+        <div className="relative z-10 border-t border-neutral-200 bg-white px-4 py-2">
           <div className="space-y-2">
             {group.items.map((item, idx) => (
               <BillingQuarterRow
@@ -240,21 +257,31 @@ function BillingYearAccordion({
       )}
     </div>
   )
+
+  if (!connected) return card
+
+  return (
+    <div className="relative">
+      {!isLast && (
+        <div
+          className="pointer-events-none absolute left-[25px] top-[18px] z-0 w-px bg-neutral-300"
+          style={{ height: 'calc(100% + 12px)' }}
+        />
+      )}
+      {card}
+    </div>
+  )
 }
 
-function BillingScheduleTimeline({ items }: { items: BillingScheduleLine[] }) {
+function ConnectedBillingScheduleTimeline({
+  items,
+  tcv,
+}: {
+  items: BillingScheduleLine[]
+  tcv?: string
+}) {
   const yearGroups = groupBillingByYear(items)
-  const [showAdditionalYears, setShowAdditionalYears] = useState(false)
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(
-    () => new Set(yearGroups[0] ? [yearGroups[0].year] : [])
-  )
-
-  if (yearGroups.length === 0) {
-    return <p className="py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
-  }
-
-  const additionalYearCount = yearGroups.length - 1
-  const visibleGroups = showAdditionalYears ? yearGroups : yearGroups.slice(0, 1)
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(() => new Set())
 
   const toggleYear = (year: string) => {
     setExpandedYears((prev) => {
@@ -265,51 +292,109 @@ function BillingScheduleTimeline({ items }: { items: BillingScheduleLine[] }) {
     })
   }
 
-  const revealAdditionalYears = () => {
-    setShowAdditionalYears(true)
-  }
-
   return (
-    <div className="space-y-3">
-      {visibleGroups.map((group) => (
-        <BillingYearAccordion
-          key={group.year}
-          group={group}
-          isExpanded={expandedYears.has(group.year)}
-          onToggle={() => toggleYear(group.year)}
-          hideChevron={group.year === 'Year 1'}
-        />
-      ))}
-      {!showAdditionalYears && additionalYearCount > 0 && (
-        <button
-          type="button"
-          onClick={revealAdditionalYears}
-          className="cursor-pointer text-[13px] text-brand-navy underline decoration-brand-mist decoration-1 underline-offset-[3px] transition-colors hover:text-blue-700 hover:decoration-blue-700"
-        >
-          {additionalYearCount === 1
-            ? '1 more year'
-            : `${additionalYearCount} more years`}
-        </button>
+    <div>
+      <div className="space-y-3">
+        {yearGroups.map((group, idx) => (
+          <BillingYearAccordion
+            key={group.year}
+            group={group}
+            isExpanded={expandedYears.has(group.year)}
+            onToggle={() => toggleYear(group.year)}
+            isLast={idx === yearGroups.length - 1}
+            connected
+          />
+        ))}
+      </div>
+
+      {tcv && (
+        <div className="mt-6 flex items-center justify-end gap-3 pr-4">
+          <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Total Contract Value (TCV)
+          </span>
+          <span className="text-[16px] font-bold text-brand-navy">{tcv}</span>
+        </div>
       )}
     </div>
   )
 }
 
+function ScheduleTabBillingTimeline({ items }: { items: BillingScheduleLine[] }) {
+  const yearGroups = groupBillingByYear(items)
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(
+    () => new Set(yearGroups[0] ? [yearGroups[0].year] : [])
+  )
+
+  const toggleYear = (year: string) => {
+    setExpandedYears((prev) => {
+      const next = new Set(prev)
+      if (next.has(year)) next.delete(year)
+      else next.add(year)
+      return next
+    })
+  }
+
+  return (
+    <div className="space-y-3">
+      {yearGroups.map((group, idx) => (
+        <BillingYearAccordion
+          key={group.year}
+          group={group}
+          isExpanded={expandedYears.has(group.year)}
+          onToggle={() => toggleYear(group.year)}
+          isLast={idx === yearGroups.length - 1}
+          connected={false}
+          hideChevron={group.year === 'Year 1'}
+        />
+      ))}
+    </div>
+  )
+}
+
+export function BillingScheduleTimeline({
+  items,
+  tcv,
+  /** Sales Order tab: all years as connected accordions (Tasks-style). */
+  connected = false,
+}: {
+  items: BillingScheduleLine[]
+  tcv?: string
+  connected?: boolean
+}) {
+  if (items.length === 0) {
+    return <p className="py-4 text-[13px] text-brand-fog">No upcoming installments.</p>
+  }
+
+  if (connected) {
+    return <ConnectedBillingScheduleTimeline items={items} tcv={tcv} />
+  }
+
+  // Schedule tab: year cards; Year 1 stays open with no chevron
+  return <ScheduleTabBillingTimeline items={items} />
+}
+
 type PeriodEntitlement = {
   label: string
-  value: string
+  value: ReactNode
   /** Human-readable delta vs previous period, e.g. "+25 seats" */
   change?: string
 }
 
-const ORDER_ENTITLEMENTS: PeriodEntitlement[] = [
-  { label: 'Seats', value: '50 seats' },
-  { label: 'Environments', value: '5 sandboxes' },
-]
+function SeatsRampValue() {
+  return (
+    <>
+      50{' '}
+      <span className="text-[11px] font-normal text-brand-fog">(Year 1)</span>
+      {' → '}
+      75 seats{' '}
+      <span className="text-[11px] font-normal text-brand-fog">(Year 2)</span>
+    </>
+  )
+}
 
 const PERIOD_ENTITLEMENTS: Record<number, PeriodEntitlement[]> = {
   1: [
-    { label: 'Seats', value: '50 seats' },
+    { label: 'Seats', value: <SeatsRampValue /> },
     { label: 'Environments', value: '5 sandboxes' },
     { label: 'API calls', value: '5M / year' },
   ],
@@ -400,16 +485,37 @@ function EntitlementRow({
   value,
   change,
   isLast = false,
+  isSelected = false,
+  onClick,
 }: {
   label: string
   value: ReactNode
   change?: string
   isLast?: boolean
+  isSelected?: boolean
+  onClick?: () => void
 }) {
+  const clickable = Boolean(onClick)
+
   return (
     <div
+      role={clickable ? 'button' : undefined}
+      tabIndex={clickable ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        clickable
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick?.()
+              }
+            }
+          : undefined
+      }
       className={cn(
-        'flex items-center py-2.5 pl-1 pr-2',
+        'flex items-center py-2.5 pl-1 pr-2 transition-colors',
+        clickable && 'cursor-pointer rounded-md hover:bg-neutral-50',
+        isSelected && 'bg-neutral-50',
         !isLast && 'border-b border-neutral-100'
       )}
     >
@@ -455,7 +561,7 @@ function LinkedRecordRow({
   )
 }
 
-function ActivityTimeline({ items }: { items: ActivityItem[] }) {
+export function ActivityTimeline({ items }: { items: ActivityItem[] }) {
   return (
     <div>
       {items.map((item, idx) => {
@@ -489,7 +595,7 @@ function ActivityTimeline({ items }: { items: ActivityItem[] }) {
   )
 }
 
-function CollapsibleSection({
+export function CollapsibleSection({
   title,
   commentCount,
   trailing,
@@ -557,7 +663,7 @@ function CollapsibleSection({
 
 export function SalesOrderCollapsedSections({
   order,
-  variant,
+  variant: _variant,
   setSectionRef,
 }: {
   order: SalesOrder
@@ -565,28 +671,31 @@ export function SalesOrderCollapsedSections({
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
-  const billingSchedule =
-    variant === 'invoice-overdue' ? pioneerOverdueBillingSchedule : order.upcomingBillingSchedule
-  const showTimeline =
-    variant == null || variant === 'just-created' || variant === 'invoice-overdue'
+  const [selectedEntitlement, setSelectedEntitlement] =
+    useState<EntitlementFeatureKey | null>(null)
+  // Single sales-order page: always Invoice overdue schedule + timeline
+  const billingSchedule = pioneerOverdueBillingSchedule
+
+  const toggleEntitlement = (label: string) => {
+    if (!isEntitlementFeatureKey(label)) return
+    setSelectedEntitlement((prev) => (prev === label ? null : label))
+  }
 
   const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
     const selectedVersion = selectedVersionId
       ? AMENDMENT_HISTORY_VERSIONS.find((v) => v.id === selectedVersionId)
       : undefined
-    const timelinePeriod = showTimeline
-      ? getProductsForTimelinePeriod(order, periodIndex)
-      : undefined
-    // Keep period identity (name + dates); only swap line items for the selected version
-    const productsPeriod: SalesOrderRampPeriod | undefined =
-      selectedVersion && timelinePeriod
-        ? { ...timelinePeriod, items: selectedVersion.products }
-        : timelinePeriod
+    const timelinePeriod = getProductsForTimelinePeriod(order, periodIndex)
+    // Show all ramp periods; when a version is selected, swap items on the active timeline period
+    const productsPeriods: SalesOrderRampPeriod[] | undefined = order.productPeriods?.map(
+      (period) =>
+        selectedVersion && timelinePeriod?.id === period.id
+          ? { ...period, items: selectedVersion.products }
+          : period
+    )
     const entitlements =
       (selectedVersion && VERSION_ENTITLEMENTS[selectedVersion.id]) ||
-      (showTimeline
-        ? PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1]
-        : ORDER_ENTITLEMENTS)
+      (PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1])
 
     return (
       <>
@@ -599,19 +708,15 @@ export function SalesOrderCollapsedSections({
             Products and pricing
           </h2>
           <div className="mt-4">
-            {productsPeriod ? (
-              <ReadOnlyProductsList
-                key={
-                  selectedVersion
-                    ? `${productsPeriod.id}-${selectedVersion.id}`
-                    : productsPeriod.id
-                }
-                items={productsPeriod.items}
-                periods={[productsPeriod]}
-              />
-            ) : (
-              <ReadOnlyProductsList items={order.products} periods={order.productPeriods} />
-            )}
+            <ReadOnlyProductsList
+              key={
+                selectedVersion
+                  ? `products-${selectedVersion.id}-${periodIndex}`
+                  : `products-${periodIndex}`
+              }
+              items={order.products}
+              periods={productsPeriods}
+            />
           </div>
         </section>
 
@@ -620,18 +725,34 @@ export function SalesOrderCollapsedSections({
             Entitlements
           </h2>
           <div className="mt-4 grid grid-cols-2 gap-20">
-            <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-              <div className="px-3 py-1">
-                {entitlements.map((row, idx) => (
-                  <EntitlementRow
-                    key={row.label}
-                    label={row.label}
-                    value={row.value}
-                    change={row.change}
-                    isLast={idx === entitlements.length - 1}
-                  />
-                ))}
+            <div className="min-w-0">
+              <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
+                <div className="px-3 py-1">
+                  {entitlements.map((row, idx) => (
+                    <EntitlementRow
+                      key={row.label}
+                      label={row.label}
+                      value={row.value}
+                      change={row.change}
+                      isLast={idx === entitlements.length - 1}
+                      isSelected={selectedEntitlement === row.label}
+                      onClick={
+                        isEntitlementFeatureKey(row.label)
+                          ? () => toggleEntitlement(row.label)
+                          : undefined
+                      }
+                    />
+                  ))}
+                </div>
               </div>
+              {selectedEntitlement && (
+                <div className="mt-4">
+                  <EntitlementFeatureTables
+                    key={selectedEntitlement}
+                    feature={selectedEntitlement}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </section>
@@ -640,8 +761,12 @@ export function SalesOrderCollapsedSections({
           <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
             Billing schedule
           </h2>
-          <div className="mt-4">
-            <BillingScheduleTimeline items={billingSchedule} />
+          <div className="mt-4" style={{ maxWidth: 780 }}>
+            <BillingScheduleTimeline
+              items={billingSchedule}
+              tcv={order.totalContractValue}
+              connected
+            />
           </div>
         </section>
 
@@ -707,17 +832,13 @@ export function SalesOrderCollapsedSections({
     )
   }
 
-  if (showTimeline) {
-    return (
-      <SalesOrderHeaderTimeline orderId={order.id} variant={variant}>
-        {({ periodIndex, selectedVersionId }) =>
-          renderSections(periodIndex, selectedVersionId)
-        }
-      </SalesOrderHeaderTimeline>
-    )
-  }
-
-  return <div className="space-y-10">{renderSections()}</div>
+  return (
+    <SalesOrderHeaderTimeline orderId={order.id}>
+      {({ periodIndex, selectedVersionId }) =>
+        renderSections(periodIndex, selectedVersionId)
+      }
+    </SalesOrderHeaderTimeline>
+  )
 }
 
 export default SalesOrderCollapsedSections

@@ -30,6 +30,7 @@ export interface UseCasePage {
 
 /**
  * Registry of sales-order stage variants for this branch.
+ * Single page: Invoice overdue only.
  */
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
@@ -38,19 +39,9 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
     defaultVariant: 'invoice-overdue',
     variants: [
       {
-        id: 'just-created',
-        label: 'Just created',
-        description: 'Sales order right after it was created from the contract',
-      },
-      {
         id: 'invoice-overdue',
         label: 'Invoice overdue',
         description: 'Sales order with an overdue invoice that needs attention',
-      },
-      {
-        id: 'renewal-approaching',
-        label: 'Renewal approaching',
-        description: 'Sales order nearing renewal with upcoming decisions',
       },
     ],
   },
