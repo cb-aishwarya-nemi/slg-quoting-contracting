@@ -462,7 +462,7 @@ export function UsageDetails({ order }: { order: SalesOrder }) {
             </section>
           </div>
         ) : isEntitlementFeatureKey(selected.label) ? (
-          <div className="mx-auto space-y-6 pt-12" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
+          <div className="space-y-6 pt-12" style={{ maxWidth: 640 }}>
             <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
               {selected.label}
             </h2>
