@@ -186,12 +186,12 @@ function MetricsSummaryCard({ order }: { order: SalesOrder }) {
           Summary
         </span>
       </div>
-      <div style={{ maxWidth: 600 }}>
+      <div style={{ maxWidth: 760 }}>
         <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
           {order.customerName || contractProcessing.customerName} is{' '}
-          <span className="font-bold">11 months into a 36-month</span>,{' '}
+          <span className="font-bold">11 months</span> into a{' '}
+          <span className="font-bold">36-month</span>,{' '}
           <span className="font-bold">{summary.contractValue}</span> contract
-          <br />
           covering 5 line items — Growth services (50 seats), Onboarding & Training, and
           more.
         </h2>
