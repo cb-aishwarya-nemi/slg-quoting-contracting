@@ -179,12 +179,19 @@ const FEATURE_CHART_SERIES: Record<string, FeatureChartSeries> = {
 const CHART_GRANULARITIES = ['Monthly', 'Quarterly', 'Yearly'] as const
 type ChartGranularity = (typeof CHART_GRANULARITIES)[number]
 
-function ChartGranularityDropdown({
+const CHART_AGGREGATIONS = ['Cumulative', 'Periodic'] as const
+type ChartAggregation = (typeof CHART_AGGREGATIONS)[number]
+
+function ChartToolbarDropdown<T extends string>({
   value,
+  options,
   onChange,
+  minWidth = 120,
 }: {
-  value: ChartGranularity
-  onChange: (value: ChartGranularity) => void
+  value: T
+  options: readonly T[]
+  onChange: (value: T) => void
+  minWidth?: number
 }) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
@@ -226,9 +233,10 @@ function ChartGranularityDropdown({
       {open ? (
         <div
           role="listbox"
-          className="absolute right-0 top-full z-20 mt-1 min-w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+          className="absolute right-0 top-full z-20 mt-1 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+          style={{ minWidth }}
         >
-          {CHART_GRANULARITIES.map((option) => (
+          {options.map((option) => (
             <button
               key={option}
               type="button"
@@ -254,6 +262,7 @@ function ChartGranularityDropdown({
 
 /** UBB chart 1 — ideal vs actual line chart from sales-order-explorations. */
 export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: string }) {
+  const [aggregation, setAggregation] = useState<ChartAggregation>('Cumulative')
   const [granularity, setGranularity] = useState<ChartGranularity>('Yearly')
   const chart =
     FEATURE_CHART_SERIES[featureLabel] ?? FEATURE_CHART_SERIES['Image processing']
@@ -397,8 +406,18 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
 
   return (
     <div className="overflow-visible rounded-lg border border-neutral-200 bg-white p-6">
-      <div className="mb-3 flex justify-end">
-        <ChartGranularityDropdown value={granularity} onChange={setGranularity} />
+      <div className="mb-6 flex items-center justify-end gap-3">
+        <ChartToolbarDropdown
+          value={aggregation}
+          options={CHART_AGGREGATIONS}
+          onChange={setAggregation}
+          minWidth={130}
+        />
+        <ChartToolbarDropdown
+          value={granularity}
+          options={CHART_GRANULARITIES}
+          onChange={setGranularity}
+        />
       </div>
       <div className="relative h-[320px] w-full overflow-visible">
         <svg
@@ -527,6 +546,28 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
         </svg>
 
         <div className="pointer-events-none absolute inset-0">
+          {/* Today — thin vertical line + centered label */}
+          <div
+            className="absolute"
+            style={{
+              left: `${(indexToX(FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX) / 1000) * 100}%`,
+              top: `${(FEATURE_USAGE_SHELL_PLOT.top / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+              height: `${((xAxisY - FEATURE_USAGE_SHELL_PLOT.top) / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <span className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700">
+              Today
+            </span>
+            <div
+              className="h-full w-px bg-blue-600"
+              style={{
+                backgroundImage:
+                  'repeating-linear-gradient(to bottom, #2563eb 0 3px, transparent 3px 6px)',
+                backgroundColor: 'transparent',
+              }}
+            />
+          </div>
           {yTicks.map((tick) => (
             <span
               key={tick}
@@ -579,13 +620,18 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
 
           {FEATURE_USAGE_SHELL_MONTHS.map((month, index) => {
             const centerX = FEATURE_USAGE_SHELL_PLOT.left + slotW * index + slotW / 2
+            const isCurrent = index === FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX
             const projected = index > FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX
             return (
               <span
                 key={month}
                 className={cn(
                   'absolute -translate-x-1/2 text-[10px]',
-                  projected ? 'text-brand-mist' : 'text-brand-fog'
+                  isCurrent
+                    ? 'font-semibold text-blue-700'
+                    : projected
+                      ? 'text-brand-mist'
+                      : 'text-brand-fog'
                 )}
                 style={{
                   left: `${(centerX / 1000) * 100}%`,
@@ -596,17 +642,6 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
               </span>
             )
           })}
-
-          <span
-            className="absolute text-center text-[10px] font-medium text-brand-fog"
-            style={{
-              left: `${(FEATURE_USAGE_SHELL_PLOT.left / 1000) * 100}%`,
-              width: `${(innerW / 1000) * 100}%`,
-              top: `${((xAxisY + 38) / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
-            }}
-          >
-            Billing cycle
-          </span>
         </div>
       </div>
       <FeatureUsageLineLegend />

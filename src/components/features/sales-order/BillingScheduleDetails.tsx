@@ -4,11 +4,7 @@ import { CommentsPanel, GradientSparkle } from '@/components/features/contract-p
 import { cn } from '@/lib/utils'
 import { type BillingScheduleLine, type SalesOrder } from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
-import {
-  EntitlementFeatureTables,
-  isEntitlementFeatureKey,
-  type EntitlementFeatureKey,
-} from './EntitlementFeatureTables'
+import { featureIdFromLabel } from './UsageDetails'
 import {
   ActivityTimeline,
   BillingScheduleTimeline,
@@ -35,6 +31,7 @@ const YEAR_1_USAGE_ROWS = [
     commitUnit: 'API calls',
     onDemandUsage: null,
     onDemandUnit: null,
+    onDemandAmount: null,
     commitExceeded: false,
   },
   {
@@ -43,6 +40,7 @@ const YEAR_1_USAGE_ROWS = [
     commitUnit: 'images',
     onDemandUsage: null,
     onDemandUnit: null,
+    onDemandAmount: null,
     commitExceeded: false,
   },
   {
@@ -51,6 +49,7 @@ const YEAR_1_USAGE_ROWS = [
     commitUnit: 'GB',
     onDemandUsage: '24',
     onDemandUnit: 'GB',
+    onDemandAmount: '$48.00',
     commitExceeded: true,
   },
 ] as const
@@ -178,7 +177,11 @@ function Year1Summary() {
   )
 }
 
-function UsageSummaryTable() {
+function UsageSummaryTable({
+  onSelectFeature,
+}: {
+  onSelectFeature?: (featureLabel: string) => void
+}) {
   return (
     <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
       <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-center border-b border-neutral-200 px-3 pb-2 pt-3">
@@ -197,6 +200,19 @@ function UsageSummaryTable() {
         {YEAR_1_USAGE_ROWS.map((row, idx) => (
           <div
             key={row.feature}
+            role={onSelectFeature ? 'button' : undefined}
+            tabIndex={onSelectFeature ? 0 : undefined}
+            onClick={() => onSelectFeature?.(row.feature)}
+            onKeyDown={
+              onSelectFeature
+                ? (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      onSelectFeature(row.feature)
+                    }
+                  }
+                : undefined
+            }
             className={cn(
               'group row-hover-trail grid cursor-pointer grid-cols-[1fr_1fr_1fr_auto] items-center px-3 py-2.5 transition-colors hover:bg-brand-navy',
               idx < YEAR_1_USAGE_ROWS.length - 1 && 'border-b border-neutral-100 hover:border-brand-navy'
@@ -233,6 +249,12 @@ function UsageSummaryTable() {
                       {row.onDemandUnit}
                     </span>
                   ) : null}
+                  {row.onDemandAmount ? (
+                    <span className="text-[12px] text-brand-fog transition-colors group-hover:text-white/70">
+                      {' '}
+                      ({row.onDemandAmount})
+                    </span>
+                  ) : null}
                 </>
               ) : (
                 <span className="text-[12px] text-brand-mist transition-colors group-hover:text-white/50">
@@ -256,91 +278,68 @@ function EntitlementRow({
   value,
   usageBased = false,
   isLast = false,
-  isSelected = false,
   onClick,
 }: {
   label: string
   value: ReactNode
   usageBased?: boolean
   isLast?: boolean
-  isSelected?: boolean
   onClick?: () => void
 }) {
-  const clickable = Boolean(onClick)
-
   return (
     <div
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
       onClick={onClick}
       onKeyDown={
-        clickable
+        onClick
           ? (e) => {
               if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault()
-                onClick?.()
+                onClick()
               }
             }
           : undefined
       }
       className={cn(
-        'group row-hover-trail relative flex items-center px-3 py-2.5 transition-colors',
-        clickable && 'cursor-pointer',
-        isSelected
-          ? 'bg-brand-navy'
-          : clickable && 'hover:bg-brand-navy',
-        !isLast && (isSelected ? 'border-b border-brand-navy' : 'border-b border-neutral-100 hover:border-brand-navy')
+        'group row-hover-trail relative flex cursor-pointer items-center px-3 py-2.5 transition-colors hover:bg-brand-navy',
+        !isLast && 'border-b border-neutral-100 hover:border-brand-navy'
       )}
     >
-      <span
-        className={cn(
-          'flex w-[200px] shrink-0 items-center gap-1.5 text-[11px] font-normal uppercase tracking-[-0.5px] transition-colors',
-          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-        )}
-      >
+      <span className="flex w-[200px] shrink-0 items-center gap-1.5 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy transition-colors group-hover:text-white">
         {label}
         {usageBased && (
           <Gauge
             size={13}
             strokeWidth={2}
-            className={cn(
-              'shrink-0 transition-colors',
-              isSelected ? 'text-white/70' : 'text-brand-fog group-hover:text-white/70'
-            )}
+            className="shrink-0 text-brand-fog transition-colors group-hover:text-white/70"
             aria-hidden
           />
         )}
       </span>
-      <span
-        className={cn(
-          'min-w-0 flex-1 text-[14px] font-medium transition-colors',
-          isSelected ? 'text-white' : 'text-brand-navy group-hover:text-white'
-        )}
-      >
+      <span className="min-w-0 flex-1 text-[14px] font-medium text-brand-navy transition-colors group-hover:text-white">
         {value}
       </span>
-      {clickable && (
-        <ArrowRight
-          size={14}
-          className={cn(
-            'shrink-0 transition-opacity',
-            isSelected ? 'text-white opacity-100' : 'text-white opacity-0 group-hover:opacity-100'
-          )}
-        />
-      )}
+      <ArrowRight
+        size={14}
+        className="shrink-0 text-white opacity-0 transition-opacity group-hover:opacity-100"
+      />
     </div>
   )
 }
 
-export function BillingScheduleDetails({ order }: { order: SalesOrder }) {
+export function BillingScheduleDetails({
+  order,
+  onViewUsageDetails,
+}: {
+  order: SalesOrder
+  onViewUsageDetails?: (featureId?: string) => void
+}) {
   const year1Period = order.productPeriods?.[0]
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
-  const [selectedEntitlement, setSelectedEntitlement] =
-    useState<EntitlementFeatureKey | null>(null)
 
-  const toggleEntitlement = (label: string) => {
-    if (!isEntitlementFeatureKey(label)) return
-    setSelectedEntitlement((prev) => (prev === label ? null : label))
+  const openUsageFeature = (label: string) => {
+    onViewUsageDetails?.(featureIdFromLabel(label))
   }
 
   return (
@@ -374,6 +373,7 @@ export function BillingScheduleDetails({ order }: { order: SalesOrder }) {
               </h2>
               <button
                 type="button"
+                onClick={() => onViewUsageDetails?.()}
                 className="inline-flex cursor-pointer items-center gap-1 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
               >
                 View details
@@ -381,7 +381,7 @@ export function BillingScheduleDetails({ order }: { order: SalesOrder }) {
               </button>
             </div>
             <div className="mt-4">
-              <UsageSummaryTable />
+              <UsageSummaryTable onSelectFeature={openUsageFeature} />
             </div>
           </section>
 
@@ -397,6 +397,7 @@ export function BillingScheduleDetails({ order }: { order: SalesOrder }) {
                   </div>
                   <button
                     type="button"
+                    onClick={() => onViewUsageDetails?.()}
                     className="inline-flex cursor-pointer items-center gap-1 text-[13px] font-medium text-blue-700 transition-colors hover:text-blue-800"
                   >
                     View all
@@ -411,23 +412,10 @@ export function BillingScheduleDetails({ order }: { order: SalesOrder }) {
                       value={row.value}
                       usageBased={row.usageBased}
                       isLast={idx === YEAR_1_ENTITLEMENTS.length - 1}
-                      isSelected={selectedEntitlement === row.label}
-                      onClick={
-                        isEntitlementFeatureKey(row.label)
-                          ? () => toggleEntitlement(row.label)
-                          : undefined
-                      }
+                      onClick={() => openUsageFeature(row.label)}
                     />
                   ))}
                 </div>
-                {selectedEntitlement && (
-                  <div className="mt-4">
-                    <EntitlementFeatureTables
-                      key={selectedEntitlement}
-                      feature={selectedEntitlement}
-                    />
-                  </div>
-                )}
               </div>
             </div>
           </section>

@@ -4,6 +4,7 @@ import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { usePageUseCase } from '@/context/UseCaseContext'
+import { contractProcessing } from '@/data/contractProcessingMock'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
 import {
   ASK_CHAT_RAIL_WIDTH,
@@ -73,6 +74,30 @@ function formatContractTermRange(order: SalesOrder): string {
   return `${order.startDate} – ${endLabel}`
 }
 
+/** Prototype “today” for summary metrics — Year 1, 11th month (matches Schedule tab). */
+const SUMMARY_TODAY = new Date('2027-03-15')
+
+function monthsUntil(from: Date, to: Date): number {
+  const years = to.getFullYear() - from.getFullYear()
+  const months = to.getMonth() - from.getMonth()
+  let total = years * 12 + months
+  if (to.getDate() < from.getDate()) total -= 1
+  return Math.max(0, total)
+}
+
+function formatMonthsUntil(target: Date): string {
+  const months = monthsUntil(SUMMARY_TODAY, target)
+  if (months === 0) return 'this month'
+  if (months === 1) return 'in 1 month'
+  return `in ${months} months`
+}
+
+function parseRenewalDate(renewalDate: string): Date | null {
+  // e.g. "Jul 2029" → first of that month
+  const parsed = new Date(`1 ${renewalDate}`)
+  return isNaN(parsed.getTime()) ? null : parsed
+}
+
 type SummaryMetric = {
   label: string
   value: string
@@ -85,6 +110,8 @@ function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
     order.renewalAction === 'Auto-renew'
       ? 'Auto'
       : order.renewalAction.replace(/\s+renewal$/i, '')
+  const renewalAt = parseRenewalDate(order.renewalDate)
+  const renewalSub = renewalAt ? formatMonthsUntil(renewalAt) : undefined
 
   return [
     { label: 'TCV', value: order.totalContractValue },
@@ -94,12 +121,12 @@ function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
     {
       label: 'Contract term',
       value: formatContractTermRange(order),
-      sub: '36 months · 3rd month running',
+      sub: '36 months · 11th month running',
     },
     {
       label: 'Renewal',
       value: `${renewalType} · ${order.renewalDate}`,
-      sub: 'in 33 months',
+      sub: renewalSub,
     },
     {
       label: 'Source contract',
@@ -149,6 +176,7 @@ function MetricsSummaryCard({ order }: { order: SalesOrder }) {
   const metrics = getAttentionSummaryMetrics(order)
   const topRow = metrics.slice(0, 4)
   const bottomRow = metrics.slice(4, 8)
+  const summary = contractProcessing.summary
 
   return (
     <section>
@@ -158,13 +186,16 @@ function MetricsSummaryCard({ order }: { order: SalesOrder }) {
           Summary
         </span>
       </div>
-      <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.25px] text-brand-navy">
-        {order.totalContractValue} locked in across {formatContractTermRange(order)}
-      </h2>
-      <p className="mt-3 max-w-[720px] text-[13px] leading-[1.65] text-brand-navy">
-        Year 1 is underway — {order.accruedValue} accrued so far, next invoice on Aug 31, and{' '}
-        {order.renewalAction.toLowerCase()} on {order.renewalDate}.
-      </p>
+      <div style={{ maxWidth: 600 }}>
+        <h2 className="font-heading text-[21px] font-normal leading-[1.45] tracking-[-0.5px] text-brand-navy">
+          {order.customerName || contractProcessing.customerName} is{' '}
+          <span className="font-bold">11 months into a 36-month</span>,{' '}
+          <span className="font-bold">{summary.contractValue}</span> contract
+          <br />
+          covering 5 line items — Growth services (50 seats), Onboarding & Training, and
+          more.
+        </h2>
+      </div>
       <div className="mt-8 space-y-6">
         <SummaryMetricsRow metrics={topRow} />
         <SummaryMetricsRow metrics={bottomRow} />

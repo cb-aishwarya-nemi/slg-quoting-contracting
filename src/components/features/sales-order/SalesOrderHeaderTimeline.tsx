@@ -1,6 +1,5 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Flag } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   dateToTimelinePercent,
@@ -77,6 +76,40 @@ const RAMP_MARKERS = [
     dateLabel: "May 1 '28",
   },
 ] as const
+
+/** Lucide `flag` path with optional longer pole (sticky timeline). */
+function YearFlag({
+  longPole = false,
+  className,
+  fillOpacity = 0.35,
+}: {
+  longPole?: boolean
+  className?: string
+  fillOpacity?: number
+}) {
+  // Default lucide flag: pole M4 22V4… — extend to y=30 when stuck
+  const d = longPole
+    ? 'M4 30V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528'
+    : 'M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528'
+
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox={longPole ? '0 0 24 32' : '0 0 24 24'}
+      width={12}
+      height={longPole ? 16 : 12}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path d={d} fill="currentColor" fillOpacity={fillOpacity} />
+    </svg>
+  )
+}
 
 function toTrackPercent(rawPercent: number, padded: boolean): number {
   if (!padded) return rawPercent
@@ -160,6 +193,46 @@ export function SalesOrderHeaderTimeline({
     dateLabel: string
     rect: DOMRect
   } | null>(null)
+  const [isTimelineStuck, setIsTimelineStuck] = useState(false)
+  const stickyChromeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const chrome = stickyChromeRef.current
+    if (!chrome) return
+
+    const getScrollParent = (el: Element): HTMLElement | null => {
+      let parent = el.parentElement
+      while (parent) {
+        const { overflowY } = getComputedStyle(parent)
+        if (
+          (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'overlay') &&
+          parent.scrollHeight > parent.clientHeight
+        ) {
+          return parent
+        }
+        parent = parent.parentElement
+      }
+      return null
+    }
+
+    const scrollParent = getScrollParent(chrome)
+    if (!scrollParent) return
+
+    const updateStuck = () => {
+      const chromeTop = chrome.getBoundingClientRect().top
+      const parentTop = scrollParent.getBoundingClientRect().top
+      // Sticky `top-0` — stuck once the chrome reaches the scrollport top
+      setIsTimelineStuck(chromeTop <= parentTop + 1)
+    }
+
+    updateStuck()
+    scrollParent.addEventListener('scroll', updateStuck, { passive: true })
+    window.addEventListener('resize', updateStuck)
+    return () => {
+      scrollParent.removeEventListener('scroll', updateStuck)
+      window.removeEventListener('resize', updateStuck)
+    }
+  }, [])
 
   const months = useMemo(
     () => buildMonthTicks(axisStart, axisEnd, showFullTerm ? 3 : 1),
@@ -195,28 +268,59 @@ export function SalesOrderHeaderTimeline({
       </h2>
 
       {/* Sticky timeline chrome only — title scrolls away */}
-      <div className="sticky top-0 z-20 bg-white pb-4">
-      {/* Year milestones — above the top axis (full-term only) */}
+      <div
+        ref={stickyChromeRef}
+        className="sticky top-0 z-20 bg-white pb-4"
+        data-timeline-stuck={isTimelineStuck ? 'true' : 'false'}
+      >
+      {/* Year milestones — stacked by default; beside flags with longer pole when stuck */}
       {showFullTerm && (
-        <div className="relative mb-2 h-7">
-          {CONTRACT_PERIODS.map((p) => (
-            <div
-              key={`year-${p.index}`}
-              className="absolute top-0 flex flex-col items-start gap-0.5"
-              style={{ left: `${trackLeft(p.startDate)}%` }}
-            >
-              <Flag
-                size={12}
-                strokeWidth={1.75}
-                className={p.index === 1 ? 'text-green-600' : 'text-neutral-400'}
-                fill="currentColor"
-                fillOpacity={p.index === 1 ? 0.45 : 0.35}
-              />
-              <span className="whitespace-nowrap text-[11px] font-medium leading-tight text-brand-navy">
-                Year {p.index}
-              </span>
-            </div>
-          ))}
+        <div
+          className={cn(
+            'relative transition-[height,margin] duration-200',
+            isTimelineStuck ? 'mb-0 h-5' : 'mb-2 h-7'
+          )}
+        >
+          {CONTRACT_PERIODS.map((p) => {
+            const flagColor =
+              p.index === 1 ? 'text-green-600' : 'text-neutral-400'
+            const fillOpacity = p.index === 1 ? 0.45 : 0.35
+
+            if (isTimelineStuck) {
+              return (
+                <div
+                  key={`year-${p.index}`}
+                  className="absolute bottom-0 flex items-start gap-1.5"
+                  style={{ left: `${trackLeft(p.startDate)}%` }}
+                >
+                  <YearFlag
+                    longPole
+                    className={cn('shrink-0 translate-y-px', flagColor)}
+                    fillOpacity={fillOpacity}
+                  />
+                  <span className="pt-0.5 whitespace-nowrap text-[11px] font-medium leading-none text-brand-navy">
+                    Year {p.index}
+                  </span>
+                </div>
+              )
+            }
+
+            return (
+              <div
+                key={`year-${p.index}`}
+                className="absolute top-0 flex flex-col items-start gap-0.5"
+                style={{ left: `${trackLeft(p.startDate)}%` }}
+              >
+                <YearFlag
+                  className={cn('shrink-0', flagColor)}
+                  fillOpacity={fillOpacity}
+                />
+                <span className="whitespace-nowrap text-[11px] font-medium leading-tight text-brand-navy">
+                  Year {p.index}
+                </span>
+              </div>
+            )
+          })}
         </div>
       )}
 

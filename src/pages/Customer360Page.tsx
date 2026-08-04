@@ -117,6 +117,7 @@ export function Customer360Page() {
   const { workbenchItems } = useFileDrop()
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('tasks')
+  const [usageFocusFeatureId, setUsageFocusFeatureId] = useState<string | null>(null)
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
@@ -723,11 +724,22 @@ export function Customer360Page() {
 
       {/* Billing schedule tab — Year 1 summary */}
       {activeTab === 'schedule' && (
-        <BillingScheduleDetails order={activeSalesOrder} />
+        <BillingScheduleDetails
+          order={activeSalesOrder}
+          onViewUsageDetails={(featureId) => {
+            setUsageFocusFeatureId(featureId ?? null)
+            setActiveTab('usage')
+          }}
+        />
       )}
 
       {/* Usage tab — feature usage details */}
-      {activeTab === 'usage' && <UsageDetails order={activeSalesOrder} />}
+      {activeTab === 'usage' && (
+        <UsageDetails
+          order={activeSalesOrder}
+          initialFeatureId={usageFocusFeatureId}
+        />
+      )}
 
       {/* Other tabs — simple placeholders */}
       {activeTab !== 'tasks' &&

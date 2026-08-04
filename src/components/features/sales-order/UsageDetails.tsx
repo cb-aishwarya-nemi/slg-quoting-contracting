@@ -19,12 +19,20 @@ type FeatureItem = {
 }
 
 const FEATURES: FeatureItem[] = [
-  { id: 'seats', label: 'Seats', usageBased: false },
-  { id: 'environments', label: 'Environments', usageBased: false },
   { id: 'api-calls', label: 'API calls', usageBased: true },
   { id: 'image-processing', label: 'Image processing', usageBased: true },
   { id: 'storage', label: 'Storage', usageBased: true },
+  { id: 'seats', label: 'Seats', usageBased: false },
+  { id: 'environments', label: 'Environments', usageBased: false },
 ]
+
+const FEATURE_ID_BY_LABEL: Record<string, string> = Object.fromEntries(
+  FEATURES.map((f) => [f.label, f.id])
+)
+
+export function featureIdFromLabel(label: string): string | undefined {
+  return FEATURE_ID_BY_LABEL[label]
+}
 
 type CommittedUsageRow = {
   id: string
@@ -400,12 +408,29 @@ function FeatureList({
   )
 }
 
-export function UsageDetails({ order }: { order: SalesOrder }) {
+export function UsageDetails({
+  order,
+  initialFeatureId,
+}: {
+  order: SalesOrder
+  initialFeatureId?: string | null
+}) {
   const periods = order.productPeriods ?? []
-  const [selectedId, setSelectedId] = useState('image-processing')
+  const [selectedId, setSelectedId] = useState(() => {
+    if (initialFeatureId && FEATURES.some((f) => f.id === initialFeatureId)) {
+      return initialFeatureId
+    }
+    return 'image-processing'
+  })
   const [selectedPeriodId, setSelectedPeriodId] = useState(
     () => periods[0]?.id ?? ''
   )
+
+  useEffect(() => {
+    if (!initialFeatureId) return
+    if (!FEATURES.some((f) => f.id === initialFeatureId)) return
+    setSelectedId(initialFeatureId)
+  }, [initialFeatureId])
 
   const selected =
     FEATURES.find((f) => f.id === selectedId) ??
@@ -441,7 +466,14 @@ export function UsageDetails({ order }: { order: SalesOrder }) {
               </h2>
               <div className="mt-8">
                 {periods.length > 0 ? (
-                  <div className="mb-3">
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <h3 className="shrink-0 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+                      {selected.label}
+                    </h3>
+                    <span
+                      className="h-4 w-px shrink-0 bg-neutral-300"
+                      aria-hidden
+                    />
                     <PeriodDropdown
                       periods={periods}
                       value={selectedPeriodId || periods[0].id}
@@ -462,11 +494,13 @@ export function UsageDetails({ order }: { order: SalesOrder }) {
             </section>
           </div>
         ) : isEntitlementFeatureKey(selected.label) ? (
-          <div className="space-y-6 pt-12" style={{ maxWidth: 640 }}>
+          <div className="mx-auto space-y-6 pt-12" style={{ maxWidth: CONTENT_MAX_WIDTH }}>
             <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
               {selected.label}
             </h2>
-            <EntitlementFeatureTables key={selected.label} feature={selected.label} />
+            <div style={{ maxWidth: 640 }}>
+              <EntitlementFeatureTables key={selected.label} feature={selected.label} />
+            </div>
           </div>
         ) : (
           <div className="flex h-full items-center justify-center pt-12">
