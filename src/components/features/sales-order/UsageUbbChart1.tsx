@@ -538,7 +538,6 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
                 fill={projected ? 'white' : color}
                 stroke={color}
                 strokeWidth="2"
-                strokeDasharray={projected ? '2.5 2' : undefined}
                 vectorEffect="non-scaling-stroke"
               />
             )
