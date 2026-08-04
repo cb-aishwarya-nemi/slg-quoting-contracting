@@ -34,6 +34,10 @@ export interface SalesOrderProduct {
   quantity: string
   unitPrice: string
   totalPrice: string
+  /** Number of entitlements linked to this product line */
+  entitlementCount?: number
+  /** When there is a single entitlement, show this value in the table */
+  entitlementValue?: string
   /** price change percentage vs. the previous ramp period (e.g. 7 for +7%) */
   rampPriceChange?: number
   /** absolute unit-price delta label vs. previous period (e.g. "+$168.00") */

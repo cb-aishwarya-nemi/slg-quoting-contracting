@@ -32,6 +32,7 @@ export interface SalesOrderDetailsProps {
   onOpenChat?: (prompt: string) => void
   onAppendChat?: (prompt: string) => void
   onCloseChat?: () => void
+  onViewEntitlements?: () => void
 }
 
 const CONTENT_MAX_WIDTH = 1040
@@ -219,6 +220,7 @@ export function SalesOrderDetails({
   onOpenChat,
   onAppendChat,
   onCloseChat,
+  onViewEntitlements,
 }: SalesOrderDetailsProps) {
   usePageUseCase('sales-order-details')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -238,7 +240,7 @@ export function SalesOrderDetails({
     label: o.totalContractValue,
     taskType: o.soId,
     status: o.dealTag,
-    customer: o.customerName,
+    customer: 'Starts in 2 days',
   }))
 
   useEffect(() => {
@@ -388,7 +390,10 @@ export function SalesOrderDetails({
             <AiSummaryNote order={order} />
           </section>
 
-          <SalesOrderCollapsedSections order={order} />
+          <SalesOrderCollapsedSections
+            order={order}
+            onViewEntitlements={onViewEntitlements}
+          />
 
           <div aria-hidden="true" style={{ height: 120 }} />
         </div>

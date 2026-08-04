@@ -665,10 +665,12 @@ export function SalesOrderCollapsedSections({
   order,
   variant: _variant,
   setSectionRef,
+  onViewEntitlements,
 }: {
   order: SalesOrder
   variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
+  onViewEntitlements?: () => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   const [selectedEntitlement, setSelectedEntitlement] =
@@ -716,6 +718,7 @@ export function SalesOrderCollapsedSections({
               }
               items={order.products}
               periods={productsPeriods}
+              onViewEntitlements={onViewEntitlements}
             />
           </div>
         </section>

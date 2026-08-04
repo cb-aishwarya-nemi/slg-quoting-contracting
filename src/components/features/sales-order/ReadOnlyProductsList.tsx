@@ -7,12 +7,88 @@ interface ReadOnlyProductsListProps {
   items: SalesOrderProduct[]
   /** optional ramp breakdown — renders collapsible period tables */
   periods?: SalesOrderRampPeriod[]
+  /** Navigate to Entitlements/Usage when a multi-entitlement link is clicked */
+  onViewEntitlements?: () => void
 }
 
-const PERIOD_W = 96
-const QTY_W = 92
-const UNIT_W = 148
-const TOTAL_W = 124
+const ENTITLEMENTS_W = 200
+const PERIOD_W = 88
+const QTY_W = 80
+const UNIT_W = 140
+const TOTAL_W = 116
+
+type EntitlementSummary = {
+  count: number
+  /** Shown alone when count is 1, or as the lead when count > 1 */
+  primary: string
+}
+
+/** Prototype entitlement summaries by product line. */
+const ENTITLEMENT_SUMMARY_BY_NAME: Record<string, EntitlementSummary> = {
+  'Apex platform - growth services': { count: 5, primary: '10k API calls' },
+  'Apex platform - starter services': { count: 3, primary: '5k API calls' },
+  'Implementation services': { count: 2, primary: '40 hrs' },
+  'Onboarding & Training': { count: 1, primary: '1 cohort' },
+  'Premium support SLA': { count: 3, primary: '24/7 support' },
+  'Sandbox environments': { count: 1, primary: 'sandboxes' },
+}
+
+function entitlementSummaryFor(item: SalesOrderProduct): EntitlementSummary {
+  if (item.entitlementCount === 1 && item.entitlementValue) {
+    return { count: 1, primary: item.entitlementValue }
+  }
+  if (item.name === 'Sandbox environments') {
+    const qty = Number.parseInt(item.quantity, 10)
+    const n = Number.isFinite(qty) ? qty : 1
+    return {
+      count: 1,
+      primary: `${n} ${n === 1 ? 'sandbox' : 'sandboxes'}`,
+    }
+  }
+  const mapped = ENTITLEMENT_SUMMARY_BY_NAME[item.name]
+  if (mapped) {
+    return {
+      count: item.entitlementCount ?? mapped.count,
+      primary: item.entitlementValue ?? mapped.primary,
+    }
+  }
+  return {
+    count: item.entitlementCount ?? 2,
+    primary: item.entitlementValue ?? '10k API calls',
+  }
+}
+
+function EntitlementsCell({
+  item,
+  onViewEntitlements,
+}: {
+  item: SalesOrderProduct
+  onViewEntitlements?: () => void
+}) {
+  const { count, primary } = entitlementSummaryFor(item)
+  if (count === 1) {
+    return (
+      <span className="whitespace-nowrap text-[14px] text-brand-navy">{primary}</span>
+    )
+  }
+  const more = count - 1
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation()
+        onViewEntitlements?.()
+      }}
+      className="group cursor-pointer whitespace-nowrap text-left text-[13px]"
+    >
+      <span className="font-normal text-brand-navy">{primary}</span>
+      <span className="font-medium text-blue-700 transition-colors group-hover:text-blue-800">
+        {' '}
+        + {more} more
+      </span>
+    </button>
+  )
+}
 
 function QuantityChangeBadge({ change }: { change: number }) {
   const isIncrease = change >= 0
@@ -68,6 +144,12 @@ function ColumnLabels() {
       <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Qty
       </div>
+      <div
+        style={{ width: ENTITLEMENTS_W }}
+        className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+      >
+        Entitlements
+      </div>
       <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Unit price
       </div>
@@ -78,7 +160,15 @@ function ColumnLabels() {
   )
 }
 
-function LineRow({ item, isLast = false }: { item: SalesOrderProduct; isLast?: boolean }) {
+function LineRow({
+  item,
+  isLast = false,
+  onViewEntitlements,
+}: {
+  item: SalesOrderProduct
+  isLast?: boolean
+  onViewEntitlements?: () => void
+}) {
   return (
     <div
       className={cn(
@@ -89,16 +179,25 @@ function LineRow({ item, isLast = false }: { item: SalesOrderProduct; isLast?: b
       <div className="flex flex-1 items-center gap-2 truncate pr-4">
         <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
       </div>
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[14px] text-brand-navy">
+      <div
+        style={{ width: PERIOD_W }}
+        className="shrink-0 whitespace-nowrap text-[14px] text-brand-navy"
+      >
         {item.frequency}
       </div>
-      <div style={{ width: QTY_W }} className="flex shrink-0 items-center gap-1.5 text-[14px] text-brand-navy">
+      <div
+        style={{ width: QTY_W }}
+        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[14px] text-brand-navy"
+      >
         <span>{item.quantity}</span>
         {item.quantityChange != null && <QuantityChangeBadge change={item.quantityChange} />}
       </div>
+      <div style={{ width: ENTITLEMENTS_W }} className="shrink-0 whitespace-nowrap">
+        <EntitlementsCell item={item} onViewEntitlements={onViewEntitlements} />
+      </div>
       <div
         style={{ width: UNIT_W }}
-        className="flex shrink-0 items-center justify-end gap-1.5 text-[14px] font-medium text-brand-navy"
+        className="flex shrink-0 items-center justify-end gap-1.5 whitespace-nowrap text-[14px] font-medium text-brand-navy"
       >
         {item.rampPriceChange != null ? (
           <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
@@ -112,7 +211,10 @@ function LineRow({ item, isLast = false }: { item: SalesOrderProduct; isLast?: b
         ) : null}
         <span>{item.unitPrice}</span>
       </div>
-      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-navy">
+      <div
+        style={{ width: TOTAL_W }}
+        className="shrink-0 whitespace-nowrap text-right text-[14px] font-medium text-brand-navy"
+      >
         {item.totalPrice}
       </div>
     </div>
@@ -123,10 +225,12 @@ function PeriodContainer({
   period,
   isExpanded,
   onToggle,
+  onViewEntitlements,
 }: {
   period: SalesOrderRampPeriod
   isExpanded: boolean
   onToggle: () => void
+  onViewEntitlements?: () => void
 }) {
   const containerClass = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
 
@@ -162,6 +266,7 @@ function PeriodContainer({
             key={item.id}
             item={item}
             isLast={idx === period.items.length - 1}
+            onViewEntitlements={onViewEntitlements}
           />
         ))}
       </div>
@@ -173,7 +278,11 @@ function PeriodContainer({
  * Compact, read-only view of order line items. When `periods` are supplied it
  * renders each period as an accordion (first expanded by default).
  */
-export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListProps) {
+export function ReadOnlyProductsList({
+  items,
+  periods,
+  onViewEntitlements,
+}: ReadOnlyProductsListProps) {
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     const firstPeriodId = periods?.[0]?.id
     return new Set(firstPeriodId ? [firstPeriodId] : [])
@@ -198,6 +307,7 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
             period={period}
             isExpanded={expandedPeriods.has(period.id)}
             onToggle={() => togglePeriod(period.id)}
+            onViewEntitlements={onViewEntitlements}
           />
         ))}
       </div>
@@ -214,7 +324,12 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
         <ColumnLabels />
       </div>
       {items.map((item, idx) => (
-        <LineRow key={item.id} item={item} isLast={idx === items.length - 1} />
+        <LineRow
+          key={item.id}
+          item={item}
+          isLast={idx === items.length - 1}
+          onViewEntitlements={onViewEntitlements}
+        />
       ))}
     </div>
   )

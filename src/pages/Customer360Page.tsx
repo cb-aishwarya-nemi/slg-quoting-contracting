@@ -719,6 +719,10 @@ export function Customer360Page() {
           onOpenChat={openAskChat}
           onAppendChat={appendAskTurn}
           onCloseChat={closeAskChat}
+          onViewEntitlements={() => {
+            setUsageFocusFeatureId(null)
+            setActiveTab('usage')
+          }}
         />
       )}
 
