@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MoreVertical, CirclePlus, Search, X, Circle, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 import {
@@ -424,7 +424,7 @@ const UNIT_W = 110
 const TOTAL_W = 124
 const MENU_W = 28
 
-type NewRowStep = 'item' | 'frequency' | 'quantity' | 'done'
+type NewRowStep = 'idle' | 'item' | 'frequency' | 'quantity' | 'done'
 
 interface NewLineItemRowProps {
   onComplete: (item: {
@@ -437,7 +437,7 @@ interface NewLineItemRowProps {
 }
 
 function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
-  const [step, setStep] = useState<NewRowStep>('item')
+  const [step, setStep] = useState<NewRowStep>('idle')
   const [selectedItem, setSelectedItem] = useState<CatalogLineItem | null>(null)
   const [billingPeriod, setBillingPeriod] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -498,7 +498,6 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
     <div className="flex items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2">
       {/* Item */}
       <div ref={itemAnchorRef} className="relative flex min-w-0 flex-1 items-center">
-        <Circle size={16} className="-ml-6 mr-2 shrink-0 text-brand-mist" />
         <button
           type="button"
           onClick={() => setStep('item')}
@@ -514,7 +513,7 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         </button>
         <LineItemPopover
           isOpen={step === 'item'}
-          onClose={onCancel}
+          onClose={() => setStep('idle')}
           onSelect={handleItemSelect}
           anchorRef={itemAnchorRef}
           currentName={selectedItem?.name || ''}
@@ -540,7 +539,7 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         </button>
         <MiniDropdownPopover
           isOpen={step === 'frequency'}
-          onClose={() => setStep('item')}
+          onClose={() => setStep('idle')}
           onSelect={handleFrequencySelect}
           options={BILLING_PERIODS}
           currentValue={billingPeriod}
@@ -1132,7 +1131,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       recordProductEdit(
         editHistory,
         periodId,
-        'Start date',
+        `${period.label} Start date`,
         period.startDate,
         dates.startDate
       )
@@ -1141,7 +1140,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       recordProductEdit(
         editHistory,
         periodId,
-        'End date',
+        `${period.label} End date`,
         period.endDate,
         dates.endDate
       )
