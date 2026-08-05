@@ -49,6 +49,14 @@ function FieldEditCommentBody({
     fieldEdit.previousValue.trim() !== '—' &&
     fieldEdit.previousValue.trim() !== '-'
 
+  if (fieldEdit.newValue === 'Deleted') {
+    return (
+      <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
+        {fieldLabel} deleted
+      </p>
+    )
+  }
+
   if (hasPrevious) {
     return (
       <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>

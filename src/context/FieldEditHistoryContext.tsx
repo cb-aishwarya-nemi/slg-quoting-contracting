@@ -341,6 +341,9 @@ export function formatFieldEditCommentBody(event: FieldEditEvent): string {
   const sep = ' · '
   const sepIdx = event.fieldLabel.lastIndexOf(sep)
   const fieldLabel = sepIdx >= 0 ? event.fieldLabel.slice(sepIdx + sep.length) : event.fieldLabel
+  if (event.newValue === 'Deleted') {
+    return `${fieldLabel} deleted`
+  }
   if (hasPreviousValue(event.previousValue)) {
     return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`
   }

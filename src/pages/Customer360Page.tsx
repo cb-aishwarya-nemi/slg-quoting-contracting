@@ -64,6 +64,45 @@ const LEFT_NAV_WIDTH = 48
 const EXPANDED_MAX_WIDTH = 1000
 const ACTIVE_TASK_ID = 100
 
+/** Stable section layout — recreating this in render remounts children and wipes local state. */
+function ContractSectionRow({
+  sectionId,
+  sectionLabel,
+  children,
+  isPanelsExpanded,
+  comments,
+  onAddNote,
+  onDelete,
+  onResolve,
+}: {
+  sectionId: string
+  sectionLabel: string
+  children: React.ReactNode
+  isPanelsExpanded: boolean
+  comments: Array<Comment & { status?: CommentStatus }>
+  onAddNote: (text: string, status: ContractStatus) => void
+  onDelete: (commentId: string) => void
+  onResolve: (commentId: string) => void
+}) {
+  return (
+    <div className="flex items-start gap-8">
+      <div className="min-w-0 flex-1">{children}</div>
+      {isPanelsExpanded && (
+        <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH }}>
+          <SectionCommentStack
+            sectionId={sectionId}
+            comments={comments}
+            linkedSection={sectionLabel}
+            onAddNote={onAddNote}
+            onDelete={onDelete}
+            onResolve={onResolve}
+          />
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -322,43 +361,6 @@ export function Customer360Page() {
 
   const taskId = activeTask?.taskId ?? 'TSK-2026-0153'
 
-  // Helper: section row layout (content col + optional comments col)
-  const SectionRow = useCallback(
-    ({
-      sectionId,
-      sectionLabel,
-      children,
-    }: {
-      sectionId: string
-      sectionLabel: string
-      children: React.ReactNode
-    }) => (
-      <div className="flex items-start gap-8">
-        {/* Content expands to fill available space when panels expanded */}
-        <div className="min-w-0 flex-1">{children}</div>
-        {isPanelsExpanded && (
-          <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH }}>
-            <SectionCommentStack
-              sectionId={sectionId}
-              comments={commentsBySection[sectionId] ?? []}
-              linkedSection={sectionLabel}
-              onAddNote={(text, status) => handleAddComment(sectionId, sectionLabel, text, status)}
-              onDelete={handleDeleteComment}
-              onResolve={handleResolveComment}
-            />
-          </div>
-        )}
-      </div>
-    ),
-    [
-      isPanelsExpanded,
-      commentsBySection,
-      handleAddComment,
-      handleDeleteComment,
-      handleResolveComment,
-    ]
-  )
-
   return (
     <div className="flex h-full flex-col">
       {/* Primary nav */}
@@ -523,7 +525,15 @@ export function Customer360Page() {
                     sources={sectionSources.account}
                     onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
                   />
-                  <SectionRow sectionId="account" sectionLabel="Account">
+                  <ContractSectionRow
+                    sectionId="account"
+                    sectionLabel="Account"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['account'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <SectionHeader
                       title="Account"
                       status={accountAttention.status}
@@ -541,7 +551,7 @@ export function Customer360Page() {
                         onItemChange={handleAccountItemChange}
                       />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
 
                 {/* Addresses */}
@@ -550,7 +560,15 @@ export function Customer360Page() {
                     sources={sectionSources.addresses}
                     onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
                   />
-                  <SectionRow sectionId="addresses" sectionLabel="Addresses">
+                  <ContractSectionRow
+                    sectionId="addresses"
+                    sectionLabel="Addresses"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['addresses'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('addresses', 'Addresses', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <SectionHeader
                       title="Addresses"
                       status="ready"
@@ -565,7 +583,7 @@ export function Customer360Page() {
                         sectionLabel="Addresses"
                       />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
 
                 {/* Terms and billing */}
@@ -574,7 +592,15 @@ export function Customer360Page() {
                     sources={sectionSources.terms}
                     onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
                   />
-                  <SectionRow sectionId="terms" sectionLabel="Terms and billing">
+                  <ContractSectionRow
+                    sectionId="terms"
+                    sectionLabel="Terms and billing"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['terms'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('terms', 'Terms and billing', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <SectionHeader
                       title="Terms and billing"
                       status="ready"
@@ -589,7 +615,7 @@ export function Customer360Page() {
                         sectionLabel="Terms and billing"
                       />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
 
                 {/* Products and pricing */}
@@ -598,7 +624,15 @@ export function Customer360Page() {
                     sources={sectionSources.products}
                     onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
                   />
-                  <SectionRow sectionId="products" sectionLabel="Products and pricing">
+                  <ContractSectionRow
+                    sectionId="products"
+                    sectionLabel="Products and pricing"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['products'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('products', 'Products and pricing', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <SectionHeader
                       title="Products and pricing"
                       status="ai-created"
@@ -609,12 +643,20 @@ export function Customer360Page() {
                     <div className="mt-6">
                       <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
 
                 {/* Billing schedule */}
                 <section ref={setSectionRef('schedule')} className="group/section">
-                  <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
+                  <ContractSectionRow
+                    sectionId="schedule"
+                    sectionLabel="Billing schedule"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['schedule'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('schedule', 'Billing schedule', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <SectionHeader
                       title="Billing schedule"
                       hideLine
@@ -625,16 +667,24 @@ export function Customer360Page() {
                     <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                       <PaymentSchedule tcv={data.summary.contractValue} />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
 
                 {/* Invoice preview */}
                 <section ref={setSectionRef('invoice')} className="group/section">
-                  <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
+                  <ContractSectionRow
+                    sectionId="invoice"
+                    sectionLabel="Invoice preview"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['invoice'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('invoice', 'Invoice preview', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                       <InvoicePreview isFlashing={false} />
                     </div>
-                  </SectionRow>
+                  </ContractSectionRow>
                 </section>
               </div>
             </div>
