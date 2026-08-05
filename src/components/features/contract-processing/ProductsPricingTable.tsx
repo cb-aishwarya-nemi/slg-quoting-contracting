@@ -136,7 +136,7 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
   useEffect(() => {
     if (!isOpen) return
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
       if (
         popoverRef.current &&
         !popoverRef.current.contains(e.target as Node) &&
@@ -273,7 +273,7 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
   useEffect(() => {
     if (!isOpen) return
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose()
       }
@@ -880,7 +880,7 @@ function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
 
   useEffect(() => {
     if (!open) return
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
         setOpen(false)
       }
