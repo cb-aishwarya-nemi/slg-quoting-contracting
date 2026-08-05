@@ -15,11 +15,6 @@ import {
 } from '@/data/salesOrderAmendmentHistoryMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
-import {
-  EntitlementFeatureTables,
-  isEntitlementFeatureKey,
-  type EntitlementFeatureKey,
-} from './EntitlementFeatureTables'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
 const SCHEDULE_TODAY = new Date('2026-06-22')
@@ -373,62 +368,6 @@ export function BillingScheduleTimeline({
   return <ScheduleTabBillingTimeline items={items} />
 }
 
-type PeriodEntitlement = {
-  label: string
-  value: ReactNode
-  /** Human-readable delta vs previous period, e.g. "+25 seats" */
-  change?: string
-}
-
-function SeatsRampValue() {
-  return (
-    <>
-      50{' '}
-      <span className="text-[11px] font-normal text-brand-fog">(Year 1)</span>
-      {' → '}
-      75 seats{' '}
-      <span className="text-[11px] font-normal text-brand-fog">(Year 2)</span>
-    </>
-  )
-}
-
-const PERIOD_ENTITLEMENTS: Record<number, PeriodEntitlement[]> = {
-  1: [
-    { label: 'Seats', value: <SeatsRampValue /> },
-    { label: 'Environments', value: '5 sandboxes' },
-    { label: 'API calls', value: '5M / year' },
-  ],
-  2: [
-    { label: 'Seats', value: '75 seats', change: '+25 seats' },
-    { label: 'Environments', value: '5 sandboxes' },
-    { label: 'API calls', value: '5M / year' },
-  ],
-  3: [
-    { label: 'Seats', value: '75 seats' },
-    { label: 'Environments', value: '6 sandboxes', change: '+1 sandbox' },
-    { label: 'API calls', value: '7.5M / year', change: '+2.5M' },
-  ],
-}
-
-/** Entitlements as of a selected contract version (vs prior). */
-const VERSION_ENTITLEMENTS: Record<string, PeriodEntitlement[]> = {
-  v2: [
-    { label: 'Seats', value: '75 seats', change: '+25 seats' },
-    { label: 'Environments', value: '5 sandboxes' },
-    { label: 'API calls', value: '5M / year' },
-  ],
-  v3: [
-    { label: 'Seats', value: '75 seats', change: '+25 seats' },
-    { label: 'Environments', value: '5 sandboxes' },
-    { label: 'API calls', value: '5M / year' },
-  ],
-  v4: [
-    { label: 'Seats', value: '75 seats' },
-    { label: 'Environments', value: '6 sandboxes', change: '+1 sandbox' },
-    { label: 'API calls', value: '7.5M / year', change: '+2.5M' },
-  ],
-}
-
 function getProductsForTimelinePeriod(
   order: SalesOrder,
   periodIndex: number
@@ -465,67 +404,6 @@ function VersionChangeSummary({ version }: { version: AmendmentVersionSnapshot }
       >
         {version.changeSummary}
       </p>
-    </div>
-  )
-}
-
-function EntitlementChangeBadge({ change }: { change: string }) {
-  const isIncrease = !change.trim().startsWith('-')
-  const Icon = isIncrease ? TrendingUp : TrendingDown
-  return (
-    <span className="inline-flex items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
-      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
-      {change}
-    </span>
-  )
-}
-
-function EntitlementRow({
-  label,
-  value,
-  change,
-  isLast = false,
-  isSelected = false,
-  onClick,
-}: {
-  label: string
-  value: ReactNode
-  change?: string
-  isLast?: boolean
-  isSelected?: boolean
-  onClick?: () => void
-}) {
-  const clickable = Boolean(onClick)
-
-  return (
-    <div
-      role={clickable ? 'button' : undefined}
-      tabIndex={clickable ? 0 : undefined}
-      onClick={onClick}
-      onKeyDown={
-        clickable
-          ? (e) => {
-              if (e.key === 'Enter' || e.key === ' ') {
-                e.preventDefault()
-                onClick?.()
-              }
-            }
-          : undefined
-      }
-      className={cn(
-        'flex items-center py-2.5 pl-1 pr-2 transition-colors',
-        clickable && 'cursor-pointer rounded-md hover:bg-neutral-50',
-        isSelected && 'bg-neutral-50',
-        !isLast && 'border-b border-neutral-100'
-      )}
-    >
-      <span className="w-[128px] shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-        {label}
-      </span>
-      <span className="flex min-w-0 items-center gap-2 text-[14px] font-medium text-brand-navy">
-        <span>{value}</span>
-        {change ? <EntitlementChangeBadge change={change} /> : null}
-      </span>
     </div>
   )
 }
@@ -673,15 +551,8 @@ export function SalesOrderCollapsedSections({
   onViewEntitlements?: () => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
-  const [selectedEntitlement, setSelectedEntitlement] =
-    useState<EntitlementFeatureKey | null>(null)
   // Single sales-order page: always Invoice overdue schedule + timeline
   const billingSchedule = pioneerOverdueBillingSchedule
-
-  const toggleEntitlement = (label: string) => {
-    if (!isEntitlementFeatureKey(label)) return
-    setSelectedEntitlement((prev) => (prev === label ? null : label))
-  }
 
   const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
     const selectedVersion = selectedVersionId
@@ -695,9 +566,6 @@ export function SalesOrderCollapsedSections({
           ? { ...period, items: selectedVersion.products }
           : period
     )
-    const entitlements =
-      (selectedVersion && VERSION_ENTITLEMENTS[selectedVersion.id]) ||
-      (PERIOD_ENTITLEMENTS[periodIndex] ?? PERIOD_ENTITLEMENTS[1])
 
     return (
       <>
@@ -720,43 +588,6 @@ export function SalesOrderCollapsedSections({
               periods={productsPeriods}
               onViewEntitlements={onViewEntitlements}
             />
-          </div>
-        </section>
-
-        <section ref={setSectionRef?.('entitlements')} className="group/section">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Entitlements
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-20">
-            <div className="min-w-0">
-              <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-                <div className="px-3 py-1">
-                  {entitlements.map((row, idx) => (
-                    <EntitlementRow
-                      key={row.label}
-                      label={row.label}
-                      value={row.value}
-                      change={row.change}
-                      isLast={idx === entitlements.length - 1}
-                      isSelected={selectedEntitlement === row.label}
-                      onClick={
-                        isEntitlementFeatureKey(row.label)
-                          ? () => toggleEntitlement(row.label)
-                          : undefined
-                      }
-                    />
-                  ))}
-                </div>
-              </div>
-              {selectedEntitlement && (
-                <div className="mt-4">
-                  <EntitlementFeatureTables
-                    key={selectedEntitlement}
-                    feature={selectedEntitlement}
-                  />
-                </div>
-              )}
-            </div>
           </div>
         </section>
 
