@@ -7,8 +7,6 @@ import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
 import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
-import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
-import { SalesOrderDetails } from '@/components/features/sales-order'
 import {
   GradientSparkle,
   SectionHeader,
@@ -133,7 +131,6 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
-  const [activeSalesOrderId, setActiveSalesOrderId] = useState<string>(salesOrders[0].id)
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
   )
@@ -207,13 +204,12 @@ export function Customer360Page() {
   }, [commentsBySection])
 
   useEffect(() => {
-    setActivePage(activeTab === 'sales-order' ? 'sales-order-details' : 'customer360')
-  }, [setActivePage, activeTab])
+    setActivePage('customer360')
+  }, [setActivePage])
 
   useEffect(() => {
     if (view.name !== 'customer360') return
     if (view.tab) setActiveTab(view.tab)
-    if (view.salesOrderId) setActiveSalesOrderId(view.salesOrderId)
   }, [view])
 
   const setSectionRef = useCallback(
@@ -239,7 +235,6 @@ export function Customer360Page() {
   const handleNavigate = scrollToSection
 
   const handleCreateSalesOrder = useCallback(() => {
-    setActiveSalesOrderId(salesOrders[0].id)
     setActiveTab('sales-order')
     addNotification({
       title: 'Sales order created',
@@ -693,18 +688,8 @@ export function Customer360Page() {
         </FieldEditHistoryProvider>
       )}
 
-      {/* Sales Order tab — in-frame read-only details */}
-      {activeTab === 'sales-order' && (
-        <SalesOrderDetails
-          order={getSalesOrderById(activeSalesOrderId)}
-          orders={salesOrders}
-          activeOrderId={activeSalesOrderId}
-          onSelectOrder={setActiveSalesOrderId}
-        />
-      )}
-
-      {/* Other tabs — simple placeholders */}
-      {activeTab !== 'tasks' && activeTab !== 'sales-order' && (
+      {/* Other tabs (including Sales Order) — simple placeholders */}
+      {activeTab !== 'tasks' && (
         <TabPlaceholder label={C360_TABS.find((t) => t.id === activeTab)?.label ?? 'Content'} />
       )}
 
