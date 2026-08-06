@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleCheck, PackagePlus } from 'lucide-react'
+import { PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
@@ -55,7 +55,6 @@ export function SectionHeader({
 
         {showRefreshIcon && <DownstreamRefreshIndicator label={title} />}
 
-        {status === 'ready' && <CircleCheck size={14} className="text-green-600" />}
         {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}
 
         {statusLabel && status === 'attention' ? (
@@ -63,7 +62,7 @@ export function SectionHeader({
             <AttentionFlagIcon id={title.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
             <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
           </span>
-        ) : statusLabel ? (
+        ) : statusLabel && status !== 'ready' ? (
           <span
             className={cn(
               'text-[12px] font-medium',

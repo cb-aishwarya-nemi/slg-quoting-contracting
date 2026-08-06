@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
@@ -33,6 +33,49 @@ const BASE_NAV_SECTIONS: NavSection[] = [
 interface ContractIngestionPageProps {
   activeContractId: number | null
   onContractProcessed?: (contractId: number) => void
+}
+
+const INGESTION_COMMENTS_COL_WIDTH = 250
+
+/** Stable section layout — recreating this in render remounts children and wipes local state. */
+function IngestionSectionRow({
+  sectionId,
+  sectionLabel,
+  children,
+  isPanelsExpanded,
+  contentWidth,
+  comments,
+  onAddNote,
+  onDelete,
+  onResolve,
+}: {
+  sectionId: string
+  sectionLabel: string
+  children: React.ReactNode
+  isPanelsExpanded: boolean
+  contentWidth: number
+  comments: Array<Comment & { status?: 'open' | 'resolved' }>
+  onAddNote: (text: string, status?: 'Blocked' | 'In progress') => void
+  onDelete: (commentId: string) => void
+  onResolve: (commentId: string) => void
+}) {
+  return (
+    <div className="flex items-start gap-8">
+      <div style={{ width: contentWidth, flexShrink: 0 }}>{children}</div>
+      {isPanelsExpanded && (
+        <div style={{ width: INGESTION_COMMENTS_COL_WIDTH, flexShrink: 0 }}>
+          <SectionCommentStack
+            sectionId={sectionId}
+            comments={comments}
+            linkedSection={sectionLabel}
+            onAddNote={(text, status) => onAddNote(text, status)}
+            onDelete={onDelete}
+            onResolve={onResolve}
+          />
+        </div>
+      )}
+    </div>
+  )
 }
 
 function EmptyDropZone({ onFileProcessed }: { onFileProcessed?: (contractId: number) => void }) {
@@ -603,50 +646,13 @@ function ContractProcessingView({
   const LEFT_NAV_WIDTH = 180
   const CONTENT_COL_WIDTH = 820
   const BODY_COL_WIDTH = 620
-  const COMMENTS_COL_WIDTH = 250
+  const COMMENTS_COL_WIDTH = INGESTION_COMMENTS_COL_WIDTH
   const EXPANDED_MAX_WIDTH = 1000
 
   // Dynamic widths based on panel state
   const contentWidth = isPanelsExpanded ? CONTENT_COL_WIDTH : EXPANDED_MAX_WIDTH
   const bodyWidth = isPanelsExpanded ? BODY_COL_WIDTH : EXPANDED_MAX_WIDTH
   const productsWidth = isPanelsExpanded ? 780 : EXPANDED_MAX_WIDTH
-
-  // 2-col section row: content on the left, inline comment stack on the right
-  const SectionRow = useCallback(
-    ({
-      sectionId,
-      sectionLabel,
-      children,
-    }: {
-      sectionId: string
-      sectionLabel: string
-      children: React.ReactNode
-    }) => (
-      <div className="flex items-start gap-8">
-        <div style={{ width: contentWidth, flexShrink: 0 }}>{children}</div>
-        {isPanelsExpanded && (
-          <div style={{ width: COMMENTS_COL_WIDTH, flexShrink: 0 }}>
-            <SectionCommentStack
-              sectionId={sectionId}
-              comments={commentsBySection[sectionId] ?? []}
-              linkedSection={sectionLabel}
-              onAddNote={(text) => handleAddComment(sectionId, sectionLabel, text)}
-              onDelete={handleDeleteComment}
-              onResolve={handleResolveComment}
-            />
-          </div>
-        )}
-      </div>
-    ),
-    [
-      isPanelsExpanded,
-      contentWidth,
-      commentsBySection,
-      handleAddComment,
-      handleDeleteComment,
-      handleResolveComment,
-    ]
-  )
 
   return (
     <div className="flex h-full flex-col">
@@ -711,6 +717,7 @@ function ContractProcessingView({
       </div>
 
       <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
+      <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}
@@ -783,7 +790,16 @@ function ContractProcessingView({
                 sources={sectionSources.account}
                 onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
               />
-              <SectionRow sectionId="account" sectionLabel="Account">
+              <IngestionSectionRow
+                sectionId="account"
+                sectionLabel="Account"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['account'] ?? []}
+                onAddNote={(text) => handleAddComment('account', 'Account', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <SectionHeader
                   title="Account"
                   status={accountAttention.status}
@@ -800,7 +816,7 @@ function ContractProcessingView({
                     onItemChange={handleAccountItemChange}
                   />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Addresses */}
@@ -809,7 +825,16 @@ function ContractProcessingView({
                 sources={sectionSources.addresses}
                 onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
               />
-              <SectionRow sectionId="addresses" sectionLabel="Addresses">
+              <IngestionSectionRow
+                sectionId="addresses"
+                sectionLabel="Addresses"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['addresses'] ?? []}
+                onAddNote={(text) => handleAddComment('addresses', 'Addresses', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <SectionHeader
                   title="Addresses"
                   status="ready"
@@ -819,7 +844,7 @@ function ContractProcessingView({
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList items={data.addresses} />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Terms and billing */}
@@ -828,7 +853,16 @@ function ContractProcessingView({
                 sources={sectionSources.terms}
                 onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
               />
-              <SectionRow sectionId="terms" sectionLabel="Terms and billing">
+              <IngestionSectionRow
+                sectionId="terms"
+                sectionLabel="Terms and billing"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['terms'] ?? []}
+                onAddNote={(text) => handleAddComment('terms', 'Terms and billing', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <SectionHeader
                   title="Terms and billing"
                   status="ready"
@@ -838,7 +872,7 @@ function ContractProcessingView({
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList items={data.termsAndBilling} />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Products and pricing */}
@@ -847,7 +881,16 @@ function ContractProcessingView({
                 sources={sectionSources.products}
                 onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
               />
-              <SectionRow sectionId="products" sectionLabel="Products and pricing">
+              <IngestionSectionRow
+                sectionId="products"
+                sectionLabel="Products and pricing"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['products'] ?? []}
+                onAddNote={(text) => handleAddComment('products', 'Products and pricing', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <SectionHeader
                   title="Products and pricing"
                   status="ai-created"
@@ -860,12 +903,21 @@ function ContractProcessingView({
                     periods={data.rampPeriods}
                   />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Billing schedule */}
             <section ref={setSectionRef('schedule')} className="group/section">
-              <SectionRow sectionId="schedule" sectionLabel="Billing schedule">
+              <IngestionSectionRow
+                sectionId="schedule"
+                sectionLabel="Billing schedule"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['schedule'] ?? []}
+                onAddNote={(text) => handleAddComment('schedule', 'Billing schedule', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <SectionHeader
                   title="Billing schedule"
                   showRefreshIcon
@@ -874,16 +926,25 @@ function ContractProcessingView({
                 <div className="mt-6" style={{ maxWidth: bodyWidth }}>
                   <PaymentSchedule tcv={data.summary.contractValue} />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Invoice preview */}
             <section ref={setSectionRef('invoice')} className="group/section">
-              <SectionRow sectionId="invoice" sectionLabel="Invoice preview">
+              <IngestionSectionRow
+                sectionId="invoice"
+                sectionLabel="Invoice preview"
+                isPanelsExpanded={isPanelsExpanded}
+                contentWidth={contentWidth}
+                comments={commentsBySection['invoice'] ?? []}
+                onAddNote={(text) => handleAddComment('invoice', 'Invoice preview', text)}
+                onDelete={handleDeleteComment}
+                onResolve={handleResolveComment}
+              >
                 <div style={{ maxWidth: bodyWidth }}>
                   <InvoicePreview isFlashing={false} />
                 </div>
-              </SectionRow>
+              </IngestionSectionRow>
             </section>
 
             {/* Bottom breathing room */}

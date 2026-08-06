@@ -1,14 +1,16 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, Pencil, X, CirclePlus, Check, Maximize2 } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
+import { ChevronDown, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
-import { CustomerMatchDrawer } from '@/components/features/customer-link/CustomerMatchDrawer'
+import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
 
-const UNRESOLVED_FIELD_STYLE =
-  'w-full rounded bg-amber-50 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-fog focus:bg-amber-100'
+/** Shared focus/editing fill for text inputs and open dropdowns. */
+const ACTIVE_FIELD_STYLE =
+  'w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
 
@@ -44,6 +46,86 @@ const ACCOUNT_NAME_OPTIONS = [
   'Horizon Analytics',
 ]
 
+interface AccountCustomerOption {
+  name: string
+  status: 'Active' | 'Inactive'
+  contactName: string
+  email: string
+}
+
+/** Near-matches for Pioneer (including typo variants shown in the picker). */
+function isPioneerMatch(name: string): boolean {
+  return /pione+r/i.test(name) || /pinoeer/i.test(name)
+}
+
+/** Rich rows for the Account customer picker (SecondaryNavSwitcher-style). */
+const ACCOUNT_CUSTOMER_OPTIONS: AccountCustomerOption[] = [
+  {
+    name: 'Pioneer Systems',
+    status: 'Active',
+    contactName: 'Alex Nguyen',
+    email: 'alex.nguyen@pioneersystems.com',
+  },
+  {
+    name: 'Pioneer systems',
+    status: 'Active',
+    contactName: 'David Chen',
+    email: 'd.chen@pioneersystems.com',
+  },
+  {
+    name: 'Pioneer System',
+    status: 'Active',
+    contactName: 'Rachel Torres',
+    email: 'r.torres@pioneer-system.com',
+  },
+  {
+    name: 'Pioneers Systems',
+    status: 'Active',
+    contactName: 'Samira Patel',
+    email: 's.patel@pioneers-systems.com',
+  },
+  {
+    name: 'Pinoeer Systems',
+    status: 'Inactive',
+    contactName: 'Morgan Lee',
+    email: 'm.lee@pinoeersystems.com',
+  },
+  {
+    name: 'Atlas BioSystems',
+    status: 'Active',
+    contactName: 'Priya Mehta',
+    email: 'p.mehta@atlasbio.com',
+  },
+  {
+    name: 'Cascade Networks',
+    status: 'Active',
+    contactName: 'James Wilson',
+    email: 'j.wilson@cascadenet.com',
+  },
+  {
+    name: 'Horizon Analytics',
+    status: 'Active',
+    contactName: 'Linda Wang',
+    email: 'l.wang@horizonanalytics.com',
+  },
+]
+
+const ACCOUNT_STATUS_STYLES: Record<AccountCustomerOption['status'], string> = {
+  Active: 'bg-green-50 text-green-700',
+  Inactive: 'bg-neutral-100 text-brand-navy',
+}
+
+function resolveAccountOption(name: string): AccountCustomerOption {
+  return (
+    ACCOUNT_CUSTOMER_OPTIONS.find((option) => option.name === name) ?? {
+      name,
+      status: 'Active',
+      contactName: '—',
+      email: '—',
+    }
+  )
+}
+
 interface LabelValueRowProps {
   item: LabelValue
   sectionId?: string
@@ -62,14 +144,19 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         : undefined
   const isSelect = !!options
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
+  const isEdited =
+    !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
   const [editValue, setEditValue] = useState(item.value)
+  const [accountSearch, setAccountSearch] = useState('')
   const [dropdownPosition, setDropdownPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
+  const [accountDropdownStyle, setAccountDropdownStyle] = useState<CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
+  const accountSearchRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const accountTriggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     setEditValue(item.value)
@@ -87,7 +174,44 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   }, [isEditing])
 
   useEffect(() => {
-    if (!isOpen || !dropdownRef.current) return
+    if (!isOpen) {
+      setAccountSearch('')
+      return
+    }
+    if (item.label === 'Account') {
+      const timer = window.setTimeout(() => accountSearchRef.current?.focus(), 0)
+      return () => window.clearTimeout(timer)
+    }
+  }, [isOpen, item.label])
+
+  // Account menu: always open fixed directly below the clicked value
+  useEffect(() => {
+    if (!isOpen || item.label !== 'Account' || !accountTriggerRef.current) return
+
+    const updatePosition = () => {
+      const rect = accountTriggerRef.current!.getBoundingClientRect()
+      const menuWidth = 380
+      const left = Math.min(rect.left, window.innerWidth - menuWidth - 8)
+      setAccountDropdownStyle({
+        position: 'fixed',
+        top: rect.bottom + 4,
+        left: Math.max(8, left),
+        width: menuWidth,
+        zIndex: 9999,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [isOpen, item.label])
+
+  useEffect(() => {
+    if (!isOpen || !dropdownRef.current || item.label === 'Account') return
     const timer = setTimeout(() => {
       const spaceBelow = window.innerHeight - dropdownRef.current!.getBoundingClientRect().top
       if (spaceBelow < 200) {
@@ -97,14 +221,15 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
       }
     }, 0)
     return () => clearTimeout(timer)
-  }, [isOpen])
+  }, [isOpen, item.label])
 
   useEffect(() => {
     if (!isOpen) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
+      const target = e.target as Node
+      if (dropdownRef.current?.contains(target)) return
+      if (accountTriggerRef.current?.contains(target)) return
+      setIsOpen(false)
     }
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setIsOpen(false)
@@ -158,90 +283,173 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   }
 
   const isUnresolvedActive = isUnresolved && (isEditing || isOpen)
+  const isAccountSelect = isSelect && item.label === 'Account'
+  const isBestMatch =
+    isAccountSelect && item.value === ACCOUNT_CUSTOMER_OPTIONS[0].name
+  const accountQuery = accountSearch.trim().toLowerCase()
+  const visibleOptions = !options
+    ? []
+    : isAccountSelect && accountQuery
+      ? options.filter((option) => {
+          const customer = resolveAccountOption(option)
+          return (
+            customer.name.toLowerCase().includes(accountQuery) ||
+            customer.contactName.toLowerCase().includes(accountQuery) ||
+            customer.email.toLowerCase().includes(accountQuery)
+          )
+        })
+      : options
 
-  const selectDropdown = isOpen && options ? (
+  const dropdownContent = isOpen && options ? (
     <div
-      className="absolute left-0 z-50 min-w-[220px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-      style={{
-        top: dropdownPosition.top as any,
-        bottom: dropdownPosition.bottom as any,
-        marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
-        marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
-      }}
+      ref={dropdownRef}
+      className={cn(
+        'overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg',
+        isAccountSelect ? 'w-[380px]' : 'absolute left-0 z-50 min-w-[220px] py-1'
+      )}
+      style={
+        isAccountSelect
+          ? accountDropdownStyle
+          : {
+              top: dropdownPosition.top as any,
+              bottom: dropdownPosition.bottom as any,
+              marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
+              marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
+            }
+      }
     >
-      {item.label === 'Account' && (
-        <div className="flex items-center justify-end px-2 pb-0.5 pt-1">
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setIsOpen(false)
-              setIsDrawerOpen(true)
-            }}
-            className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-            title="Expand to drawer"
-          >
-            <Maximize2 size={13} />
-          </button>
+      {isAccountSelect && (
+        <div className="border-b border-neutral-100 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-lg bg-neutral-50 px-2.5 py-1.5">
+            <Search size={14} className="shrink-0 text-brand-fog" />
+            <input
+              ref={accountSearchRef}
+              type="text"
+              value={accountSearch}
+              onChange={(e) => setAccountSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                e.stopPropagation()
+                if (e.key === 'Escape') {
+                  if (accountSearch) {
+                    e.preventDefault()
+                    setAccountSearch('')
+                  } else {
+                    setIsOpen(false)
+                  }
+                }
+              }}
+              placeholder="Search customers…"
+              className="min-w-0 flex-1 bg-transparent text-[13px] text-brand-navy outline-none placeholder:text-brand-fog"
+            />
+            {accountSearch ? (
+              <button
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  setAccountSearch('')
+                  accountSearchRef.current?.focus()
+                }}
+                className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog hover:bg-neutral-200 hover:text-brand-navy"
+                aria-label="Clear search"
+              >
+                <X size={12} />
+              </button>
+            ) : null}
+          </div>
         </div>
       )}
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onMouseDown={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            commitValue(option)
-            setIsOpen(false)
-          }}
-          className={cn(
-            'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
-            option === item.value
-              ? 'bg-neutral-100 font-medium text-brand-navy'
-              : 'text-brand-navy hover:bg-brand-navy hover:text-white'
-          )}
-        >
-          {option}
-        </button>
-      ))}
-      {item.label === 'Account' && (
-        <>
-          <div className="my-1 h-px bg-neutral-200" />
-          <button
-            type="button"
-            onMouseDown={(e) => {
-              e.preventDefault()
-              e.stopPropagation()
-              setIsOpen(false)
-            }}
-            className="w-full cursor-pointer px-3 py-2 text-left text-[14px] font-medium text-blue-700 transition-colors hover:bg-brand-navy hover:text-white"
-          >
-            + Create new customer
-          </button>
-        </>
-      )}
+      <div className={cn('max-h-[360px] overflow-y-auto', isAccountSelect && 'py-1')}>
+        {visibleOptions.length === 0 ? (
+          <p className="px-3 py-3 text-[13px] text-brand-fog">No customers match.</p>
+        ) : (
+          visibleOptions.map((option, index) => {
+            const isSelected = option === item.value
+            const isLast = index === visibleOptions.length - 1
+            if (isAccountSelect) {
+              const customer = resolveAccountOption(option)
+              return (
+                <button
+                  key={option}
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    commitValue(option)
+                    setIsOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition-colors',
+                    !isLast && 'border-b border-neutral-100',
+                    isSelected ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+                        {customer.name}
+                      </span>
+                      {isPioneerMatch(customer.name) && (
+                        <GradientSparkle size={12} />
+                      )}
+                    </span>
+                    <span
+                      className={cn(
+                        'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
+                        ACCOUNT_STATUS_STYLES[customer.status]
+                      )}
+                    >
+                      {customer.status}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-brand-fog">
+                    <span className="truncate">{customer.contactName}</span>
+                    <span className="shrink-0 text-brand-mist">·</span>
+                    <span className="truncate">{customer.email}</span>
+                  </div>
+                </button>
+              )
+            }
+
+            return (
+              <button
+                key={option}
+                type="button"
+                onMouseDown={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  commitValue(option)
+                  setIsOpen(false)
+                }}
+                className={cn(
+                  'w-full cursor-pointer px-3 py-2 text-left text-[14px] transition-colors',
+                  isSelected
+                    ? 'bg-neutral-100 font-medium text-brand-navy'
+                    : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+                )}
+              >
+                {option}
+              </button>
+            )
+          })
+        )}
+      </div>
     </div>
   ) : null
 
-  const accountDrawer =
-    item.label === 'Account' && options ? (
-      <CustomerMatchDrawer
-        open={isDrawerOpen}
-        options={options}
-        value={item.value}
-        onSelect={commitValue}
-        onClose={() => setIsDrawerOpen(false)}
-      />
-    ) : null
+  const selectDropdown =
+    isAccountSelect && dropdownContent
+      ? createPortal(dropdownContent, document.body)
+      : dropdownContent
 
   return (
-    <>
     <div
       onClick={handleRowClick}
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
+        isEdited && !isEditing && !isOpen && 'bg-amber-50',
         !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
@@ -275,11 +483,13 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
-                'flex w-full cursor-pointer items-center justify-between',
-                UNRESOLVED_FIELD_STYLE
+                'flex cursor-pointer items-center justify-between',
+                ACTIVE_FIELD_STYLE,
+                // Match focused text fields (`focus:bg-neutral-200`) while the menu is open
+                isOpen && 'bg-neutral-200'
               )}
             >
-              <span className="text-brand-fog">Select…</span>
+              <span className="text-brand-fog">Select {item.label.toLowerCase()}</span>
               <ChevronDown size={14} className="text-brand-fog" />
             </button>
             {selectDropdown}
@@ -294,7 +504,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
             placeholder="Enter value…"
-            className={UNRESOLVED_FIELD_STYLE}
+            className={ACTIVE_FIELD_STYLE}
           />
         ) : isUnresolved ? (
           isSelect ? (
@@ -311,13 +521,16 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             </span>
           )
         ) : isSelect ? (
-          <div ref={dropdownRef} className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <div className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
+              ref={isAccountSelect ? accountTriggerRef : undefined}
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
                 'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
-                isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
+                isOpen
+                  ? cn(ACTIVE_FIELD_STYLE, 'w-auto bg-neutral-200')
+                  : 'text-blue-700 group-hover:text-white'
               )}
             >
               <span>{item.value}</span>
@@ -326,6 +539,12 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
                 isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
+            {isBestMatch && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
+                <GradientSparkle size={12} />
+                Best match
+              </span>
+            )}
             {selectDropdown}
           </div>
         ) : isEditing ? (
@@ -337,7 +556,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200"
+            className={ACTIVE_FIELD_STYLE}
           />
         ) : (
           <span className={cn(
@@ -352,6 +571,25 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
+          {isEdited && sectionId && !isEditing && !isOpen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                editHistory?.focusViewEdits({ sectionId, fieldLabel: item.label })
+              }}
+              className={cn(
+                'inline-flex cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+                editHistory?.viewEditsFocus?.sectionId === sectionId &&
+                  editHistory?.viewEditsFocus?.fieldLabel === item.label
+                  ? 'bg-amber-100/70 text-amber-800/80 group-hover:bg-white/20 group-hover:text-white'
+                  : 'bg-amber-50 text-amber-700/70 group-hover:bg-white/15 group-hover:text-white/80'
+              )}
+            >
+              <span className="group-hover:hidden">Edited</span>
+              <span className="hidden group-hover:inline">View edits</span>
+            </button>
+          )}
           {!isEditing && !isOpen && (
             onRemove ? (
               <button
@@ -371,8 +609,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
       </div>
     </div>
-    {accountDrawer}
-    </>
   )
 }
 

@@ -36,6 +36,54 @@ function hasPreviousValue(value: string) {
   return trimmed.length > 0 && trimmed !== '—' && trimmed !== '-'
 }
 
+/** Format delete comments. Optional `Deleted|successor…` encodes a renumber note. */
+export function formatDeletedFieldEditComment(
+  fieldLabel: string,
+  previousValue: string,
+  newValue: string
+): string {
+  const successor = newValue.startsWith('Deleted|') ? newValue.slice('Deleted|'.length) : null
+  const head = hasPreviousValue(previousValue)
+    ? `${fieldLabel} (${previousValue}) deleted`
+    : `${fieldLabel} deleted`
+  return successor ? `${head}. ${successor}` : head
+}
+
+/** Format add comments. Optional `Added|renumber…` encodes date-based renumber notes. */
+export function formatAddedFieldEditComment(
+  fieldLabel: string,
+  previousValue: string,
+  newValue: string
+): string {
+  const renumberNote = newValue.startsWith('Added|') ? newValue.slice('Added|'.length) : null
+  const head = hasPreviousValue(previousValue)
+    ? `${fieldLabel} (${previousValue}) added`
+    : `${fieldLabel} added`
+  return renumberNote ? `${head}. ${renumberNote}` : head
+}
+
+/** Format date-driven renumber comments: `Renumbered|note…`. */
+export function formatRenumberedFieldEditComment(newValue: string): string {
+  const note = newValue.startsWith('Renumbered|')
+    ? newValue.slice('Renumbered|'.length)
+    : newValue
+  return note
+    ? `Periods renumbered by date. ${note}`
+    : 'Periods renumbered by date'
+}
+
+function isDeletedFieldEditValue(newValue: string) {
+  return newValue === 'Deleted' || newValue.startsWith('Deleted|')
+}
+
+function isAddedFieldEditValue(newValue: string) {
+  return newValue === 'Added' || newValue.startsWith('Added|')
+}
+
+function isRenumberedFieldEditValue(newValue: string) {
+  return newValue === 'Renumbered' || newValue.startsWith('Renumbered|')
+}
+
 function formatEditTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp
   const diffMin = Math.floor(diffMs / 60_000)
@@ -94,6 +142,14 @@ export interface FieldEditEvent {
   newValue: string
 }
 
+export interface ViewEditsFocus {
+  sectionId: string
+  /** Exact field label, or a product line-item id prefix (matched via itemPrefix) */
+  fieldLabel: string
+  /** When true, matches any field edit whose label starts with `${fieldLabel} ·` */
+  itemPrefix?: boolean
+}
+
 interface FieldEditHistoryContextValue {
   recordEdit: (
     sectionId: string,
@@ -105,6 +161,9 @@ interface FieldEditHistoryContextValue {
   hasEdits: (sectionId: string, fieldLabel: string) => boolean
   /** True when the user has changed this field in the current session */
   isFieldEdited: (sectionId: string, fieldLabel: string) => boolean
+  viewEditsFocus: ViewEditsFocus | null
+  focusViewEdits: (focus: ViewEditsFocus) => void
+  clearViewEditsFocus: () => void
   editedFieldCount: number
   editCount: number
   isDownstreamRefreshing: boolean
@@ -141,6 +200,7 @@ export function FieldEditHistoryProvider({
   })
   /** Session-only: fields the user has changed (excludes seed history) */
   const [editedFieldKeys, setEditedFieldKeys] = useState<Set<string>>(() => new Set())
+  const [viewEditsFocus, setViewEditsFocus] = useState<ViewEditsFocus | null>(null)
 
   const triggerDownstreamRefresh = useCallback(() => {
     setIsDownstreamRefreshing(true)
@@ -174,6 +234,20 @@ export function FieldEditHistoryProvider({
 
       const fieldKey = makeFieldKey(sectionId, meta.fieldLabel)
 
+      // Empty / missing values are first fills (e.g. resolving flagged
+      // not-found-in-contract fields) — notify via comment, but don't mark
+      // the row as edited or store edit history.
+      if (!hasPreviousValue(previousValue)) {
+        onFieldEditRef.current?.({
+          sectionId,
+          sectionLabel: meta.sectionLabel,
+          fieldLabel: meta.fieldLabel,
+          previousValue,
+          newValue,
+        })
+        return
+      }
+
       onFieldEditRef.current?.({
         sectionId,
         sectionLabel: meta.sectionLabel,
@@ -188,9 +262,6 @@ export function FieldEditHistoryProvider({
         next.add(fieldKey)
         return next
       })
-
-      // Empty / missing values are first fills — notify + badge only, don't store edit history
-      if (!hasPreviousValue(previousValue)) return
 
       const record: FieldEditRecord = {
         id: `edit-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -238,6 +309,24 @@ export function FieldEditHistoryProvider({
     [editedFieldKeys]
   )
 
+  const focusViewEdits = useCallback((focus: ViewEditsFocus) => {
+    setViewEditsFocus((prev) => {
+      if (
+        prev &&
+        prev.sectionId === focus.sectionId &&
+        prev.fieldLabel === focus.fieldLabel &&
+        !!prev.itemPrefix === !!focus.itemPrefix
+      ) {
+        return null
+      }
+      return focus
+    })
+  }, [])
+
+  const clearViewEditsFocus = useCallback(() => {
+    setViewEditsFocus(null)
+  }, [])
+
   const editedFieldCount = useMemo(
     () => Object.values(editsByField).filter((records) => records.length > 0).length,
     [editsByField]
@@ -257,6 +346,9 @@ export function FieldEditHistoryProvider({
       getEdits,
       hasEdits,
       isFieldEdited,
+      viewEditsFocus,
+      focusViewEdits,
+      clearViewEditsFocus,
       editedFieldCount,
       editCount,
       isDownstreamRefreshing,
@@ -264,7 +356,7 @@ export function FieldEditHistoryProvider({
       refreshDownstream: triggerDownstreamRefresh,
       formatEditTime,
     }),
-    [recordEdit, getEdits, hasEdits, isFieldEdited, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
+    [recordEdit, getEdits, hasEdits, isFieldEdited, viewEditsFocus, focusViewEdits, clearViewEditsFocus, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
   )
 
   return (
@@ -284,12 +376,45 @@ export function useOptionalFieldEditHistory() {
   return useContext(FieldEditHistoryContext)
 }
 
+/** Expands comment panels when the user clicks "View edits" on a field row. */
+export function EnsurePanelsOnViewEdits({ onNeedPanels }: { onNeedPanels: () => void }) {
+  const history = useOptionalFieldEditHistory()
+  useEffect(() => {
+    if (history?.viewEditsFocus) onNeedPanels()
+  }, [history?.viewEditsFocus, onNeedPanels])
+  return null
+}
+
 export function formatFieldEditCommentBody(event: FieldEditEvent): string {
   const sep = ' · '
   const sepIdx = event.fieldLabel.lastIndexOf(sep)
   const fieldLabel = sepIdx >= 0 ? event.fieldLabel.slice(sepIdx + sep.length) : event.fieldLabel
+  if (isDeletedFieldEditValue(event.newValue)) {
+    return formatDeletedFieldEditComment(fieldLabel, event.previousValue, event.newValue)
+  }
+  if (isAddedFieldEditValue(event.newValue)) {
+    return formatAddedFieldEditComment(fieldLabel, event.previousValue, event.newValue)
+  }
+  if (isRenumberedFieldEditValue(event.newValue)) {
+    return formatRenumberedFieldEditComment(event.newValue)
+  }
   if (hasPreviousValue(event.previousValue)) {
     return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`
   }
   return `Set ${fieldLabel} to "${event.newValue}"`
+}
+
+export function commentMatchesViewEditsFocus(
+  comment: { linkedSectionId?: string; fieldEdit?: { fieldLabel: string } },
+  focus: ViewEditsFocus | null
+): boolean {
+  if (!focus || !comment.fieldEdit) return false
+  if (comment.linkedSectionId !== focus.sectionId) return false
+  if (focus.itemPrefix) {
+    return (
+      comment.fieldEdit.fieldLabel === focus.fieldLabel ||
+      comment.fieldEdit.fieldLabel.startsWith(`${focus.fieldLabel} ·`)
+    )
+  }
+  return comment.fieldEdit.fieldLabel === focus.fieldLabel
 }

@@ -1,6 +1,6 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, MoreVertical, CirclePlus, Search, X, Circle, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
-import { cn, withRelativeAnnotation } from '@/lib/utils'
+import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
+import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 import {
   useOptionalFieldEditHistory,
@@ -136,7 +136,7 @@ function LineItemPopover({ isOpen, onClose, onSelect, anchorRef, currentName }: 
   useEffect(() => {
     if (!isOpen) return
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
       if (
         popoverRef.current &&
         !popoverRef.current.contains(e.target as Node) &&
@@ -273,7 +273,7 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
   useEffect(() => {
     if (!isOpen) return
 
-    const handleClickOutside = (e: MouseEvent) => {
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
       if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
         onClose()
       }
@@ -329,6 +329,10 @@ interface ItemNameButtonProps {
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
   isRowHovered?: boolean
+  isRowActive?: boolean
+  isEdited?: boolean
+  isViewEditsFocused?: boolean
+  onViewEdits?: () => void
 }
 
 function ItemNameButton({
@@ -337,6 +341,10 @@ function ItemNameButton({
   onSelect,
   onOpenChange,
   isRowHovered,
+  isRowActive,
+  isEdited,
+  isViewEditsFocused,
+  onViewEdits,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -347,7 +355,7 @@ function ItemNameButton({
   }
 
   return (
-    <div className="relative flex min-w-0 flex-1 items-center group/item">
+    <div className="relative flex min-w-0 flex-1 items-center gap-1.5 group/item">
       {/* Icon with negative margin — sits outside the table column for alignment */}
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
@@ -376,6 +384,26 @@ function ItemNameButton({
           (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
+      {isEdited && !isOpen && !isRowActive && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onViewEdits?.()
+          }}
+          className={cn(
+            'inline-flex shrink-0 cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+            isRowHovered
+              ? 'bg-white/15 text-white/80'
+              : isViewEditsFocused
+                ? 'bg-amber-100/70 text-amber-800/80'
+                : 'bg-amber-50 text-amber-700/70'
+          )}
+        >
+          <span className={isRowHovered ? 'hidden' : 'inline'}>Edited</span>
+          <span className={isRowHovered ? 'inline' : 'hidden'}>View edits</span>
+        </button>
+      )}
       <LineItemPopover
         isOpen={isOpen}
         onClose={() => handleOpenChange(false)}
@@ -396,7 +424,7 @@ const UNIT_W = 110
 const TOTAL_W = 124
 const MENU_W = 28
 
-type NewRowStep = 'item' | 'frequency' | 'quantity' | 'done'
+type NewRowStep = 'idle' | 'item' | 'frequency' | 'quantity' | 'done'
 
 interface NewLineItemRowProps {
   onComplete: (item: {
@@ -409,7 +437,7 @@ interface NewLineItemRowProps {
 }
 
 function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
-  const [step, setStep] = useState<NewRowStep>('item')
+  const [step, setStep] = useState<NewRowStep>('idle')
   const [selectedItem, setSelectedItem] = useState<CatalogLineItem | null>(null)
   const [billingPeriod, setBillingPeriod] = useState('')
   const [quantity, setQuantity] = useState('')
@@ -470,7 +498,6 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
     <div className="flex items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2">
       {/* Item */}
       <div ref={itemAnchorRef} className="relative flex min-w-0 flex-1 items-center">
-        <Circle size={16} className="-ml-6 mr-2 shrink-0 text-brand-mist" />
         <button
           type="button"
           onClick={() => setStep('item')}
@@ -486,7 +513,7 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         </button>
         <LineItemPopover
           isOpen={step === 'item'}
-          onClose={onCancel}
+          onClose={() => setStep('idle')}
           onSelect={handleItemSelect}
           anchorRef={itemAnchorRef}
           currentName={selectedItem?.name || ''}
@@ -512,7 +539,7 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         </button>
         <MiniDropdownPopover
           isOpen={step === 'frequency'}
-          onClose={() => setStep('item')}
+          onClose={() => setStep('idle')}
           onSelect={handleFrequencySelect}
           options={BILLING_PERIODS}
           currentValue={billingPeriod}
@@ -596,31 +623,397 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
   )
 }
 
-/** Period identity: label + date range (with relative annotation on the start). */
-function PeriodIdentity({ period }: { period: RampPeriod }) {
+function parsePeriodDate(dateStr: string): Date | null {
+  const parsed = new Date(dateStr)
+  if (isNaN(parsed.getTime())) return null
+  return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
+}
+
+function formatPeriodDate(date: Date): string {
+  return date.toLocaleDateString('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+/** Sort chronologically by start (then end) and relabel Period 1…N. */
+function renumberPeriodsByDate(periods: RampPeriod[]): RampPeriod[] {
+  return sortPeriodsByDate(periods).map((period, index) => ({
+    ...period,
+    label: `Period ${index + 1}`,
+  }))
+}
+
+function sortPeriodsByDate(periods: RampPeriod[]): RampPeriod[] {
+  return [...periods].sort((a, b) => {
+    const aStart = parsePeriodDate(a.startDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    const bStart = parsePeriodDate(b.startDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    if (aStart !== bStart) return aStart - bStart
+    const aEnd = parsePeriodDate(a.endDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    const bEnd = parsePeriodDate(b.endDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    return aEnd - bEnd
+  })
+}
+
+function toDateKey(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
+
+/** In-app calendar popover aligned with Apex dropdown styling. */
+function PeriodDateEdit({
+  value,
+  showRelative = false,
+  onChange,
+}: {
+  value: string
+  showRelative?: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selected = parsePeriodDate(value) ?? new Date()
+  const [viewMonth, setViewMonth] = useState(
+    () => new Date(selected.getFullYear(), selected.getMonth(), 1)
+  )
+  const rootRef = useRef<HTMLSpanElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const parsed = parsePeriodDate(value)
+    if (parsed) setViewMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
+  }, [open, value])
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [open])
+
+  const todayKey = toDateKey(new Date())
+  const selectedKey = toDateKey(selected)
+
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate()
+  const firstWeekday = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay()
+  const cells: Array<Date | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from({ length: daysInMonth }, (_, i) =>
+      new Date(viewMonth.getFullYear(), viewMonth.getMonth(), i + 1)
+    ),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const monthLabel = viewMonth.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  const relativeLabel = (() => {
+    if (!showRelative) return null
+    const parsed = new Date(value)
+    if (isNaN(parsed.getTime())) return null
+    return formatRelativeToNow(parsed)
+  })()
+
+  return (
+    <span ref={rootRef} className="relative inline-flex items-center gap-1">
+      <button
+        type="button"
+        onClick={(e: MouseEvent) => {
+          e.stopPropagation()
+          setOpen((prev) => !prev)
+        }}
+        className={cn(
+          'cursor-text whitespace-nowrap rounded px-0.5 text-[12px] text-blue-700 transition-colors hover:bg-neutral-100',
+          open && 'bg-neutral-100'
+        )}
+        aria-label={`Edit date ${value}`}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+      >
+        {value}
+      </button>
+      {relativeLabel ? (
+        <span className="whitespace-nowrap text-[12px] text-brand-fog">
+          ({relativeLabel})
+        </span>
+      ) : null}
+
+      {open ? (
+        <div
+          role="dialog"
+          aria-label="Choose date"
+          onClick={(e) => e.stopPropagation()}
+          className="absolute left-0 top-full z-40 mt-1.5 w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
+        >
+          <div className="mb-3 flex items-center justify-between gap-1">
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Previous year"
+              >
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Previous month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
+            <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+              {monthLabel}
+            </span>
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Next month"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Next year"
+              >
+                <ChevronsRight size={16} />
+              </button>
+            </div>
+          </div>
+
+          <div className="mb-1 grid grid-cols-7 gap-0.5">
+            {WEEKDAYS.map((day) => (
+              <div
+                key={day}
+                className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7 gap-0.5">
+            {cells.map((date, idx) => {
+              if (!date) {
+                return <div key={`empty-${idx}`} className="h-8" />
+              }
+              const key = toDateKey(date)
+              const isSelected = key === selectedKey
+              const isToday = key === todayKey
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    onChange(formatPeriodDate(date))
+                    setOpen(false)
+                  }}
+                  className={cn(
+                    'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
+                    isSelected
+                      ? 'bg-brand-navy font-semibold text-white'
+                      : isToday
+                        ? 'font-semibold text-blue-700 hover:bg-blue-50'
+                        : 'text-brand-navy hover:bg-neutral-100'
+                  )}
+                >
+                  {date.getDate()}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      ) : null}
+    </span>
+  )
+}
+
+/** Period identity: label + editable date range. */
+function PeriodIdentity({
+  period,
+  onChangeDates,
+}: {
+  period: RampPeriod
+  onChangeDates?: (dates: { startDate: string; endDate: string }) => void
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
       <span className="text-[13px] text-brand-fog">·</span>
       <div className="flex items-center gap-1.5 text-[12px] text-brand-fog">
         <Calendar size={14} className="shrink-0 text-brand-mist" />
-        <span className="whitespace-nowrap">{withRelativeAnnotation(period.startDate)}</span>
+        <PeriodDateEdit
+          value={period.startDate}
+          showRelative
+          onChange={(startDate) =>
+            onChangeDates?.({ startDate, endDate: period.endDate })
+          }
+        />
         <span>to</span>
-        <span className="whitespace-nowrap">{period.endDate}</span>
+        <PeriodDateEdit
+          value={period.endDate}
+          onChange={(endDate) =>
+            onChangeDates?.({ startDate: period.startDate, endDate })
+          }
+        />
       </div>
     </div>
   )
 }
 
 /** Collapsed period row — clicking anywhere expands. */
-function PeriodHeader({ period, isExpanded, onToggle }: PeriodHeaderProps) {
+function PeriodHeader({
+  period,
+  isExpanded,
+  onToggle,
+  onChangeDates,
+}: PeriodHeaderProps & {
+  onChangeDates?: (dates: { startDate: string; endDate: string }) => void
+}) {
   return (
     <div
       onClick={onToggle}
       className="flex w-full cursor-pointer items-center py-3 pl-1 pr-2 transition-colors hover:bg-neutral-50"
     >
       <PeriodChevron isExpanded={isExpanded} onToggle={onToggle} />
-      <PeriodIdentity period={period} />
+      <PeriodIdentity period={period} onChangeDates={onChangeDates} />
+    </div>
+  )
+}
+
+function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handleClickOutside = (e: globalThis.MouseEvent) => {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    document.addEventListener('keydown', handleEscape)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('keydown', handleEscape)
+    }
+  }, [open])
+
+  return (
+    <div ref={rootRef} className="relative flex w-full justify-end">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation()
+          setOpen((prev) => !prev)
+        }}
+        className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-neutral-500 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+        aria-label="Period options"
+        aria-expanded={open}
+        aria-haspopup="menu"
+      >
+        <MoreVertical size={15} />
+      </button>
+      {open ? (
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen(false)
+              onDelete()
+            }}
+            className="flex w-full cursor-pointer px-3 py-2 text-left text-[13px] font-medium text-red-600 transition-colors hover:bg-red-50"
+          >
+            Delete period
+          </button>
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function periodDateRangeLabel(period: RampPeriod): string {
+  return `${withRelativeAnnotation(period.startDate)} to ${period.endDate}`
+}
+
+/** Gmail-style undo strip shown in place of a just-deleted period. */
+function PeriodDeletedUndoBanner({
+  period,
+  onUndo,
+}: {
+  period: RampPeriod
+  onUndo: () => void
+}) {
+  return (
+    <div
+      className="border-b border-neutral-100 pb-2 pl-1 pr-2"
+      role="status"
+    >
+      <div className="-ml-6 flex items-center justify-between gap-4 py-2">
+        <p className="min-w-0 text-[13px] leading-[1.4] text-brand-navy">
+          <span className="font-semibold">{period.label}</span>
+          <span className="text-brand-fog">
+            {' '}
+            · {periodDateRangeLabel(period)}
+          </span>
+          <span> deleted</span>
+        </p>
+        <button
+          type="button"
+          onClick={onUndo}
+          className="shrink-0 cursor-pointer text-[13px] font-semibold text-blue-700 transition-colors hover:text-blue-800"
+        >
+          Undo
+        </button>
+      </div>
     </div>
   )
 }
@@ -656,6 +1049,76 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     return new Set()
   })
   const [addingToPeriodId, setAddingToPeriodId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<{
+    period: RampPeriod
+    index: number
+  } | null>(null)
+  const pendingDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current)
+    }
+  }, [])
+
+  const clearPendingDeleteBanner = useCallback(() => {
+    if (pendingDeleteTimerRef.current) {
+      clearTimeout(pendingDeleteTimerRef.current)
+      pendingDeleteTimerRef.current = null
+    }
+    setPendingDelete(null)
+  }, [])
+
+  const handleDeletePeriod = useCallback(
+    (period: RampPeriod, index: number) => {
+      if (pendingDeleteTimerRef.current) {
+        clearTimeout(pendingDeleteTimerRef.current)
+        pendingDeleteTimerRef.current = null
+      }
+
+      const remaining = (periods ?? []).filter((p) => p.id !== period.id)
+      const promoted = sortPeriodsByDate(remaining)[0]
+
+      setPeriods(() => renumberPeriodsByDate(remaining))
+      setExpandedPeriods((prev) => {
+        const next = new Set(prev)
+        next.delete(period.id)
+        return next
+      })
+      if (addingToPeriodId === period.id) setAddingToPeriodId(null)
+
+      setPendingDelete({ period, index })
+      pendingDeleteTimerRef.current = setTimeout(() => {
+        setPendingDelete(null)
+        pendingDeleteTimerRef.current = null
+      }, 8000)
+
+      const dateRange = `${period.startDate} to ${period.endDate}`
+      const deleteValue = promoted
+        ? `Deleted|${promoted.label} (${promoted.startDate} to ${promoted.endDate}) is now Period 1`
+        : 'Deleted'
+      recordProductEdit(
+        editHistory,
+        period.id,
+        period.label,
+        dateRange,
+        deleteValue
+      )
+    },
+    [addingToPeriodId, editHistory, periods]
+  )
+
+  const handleUndoDeletePeriod = useCallback(() => {
+    if (!pendingDelete) return
+    const { period } = pendingDelete
+    clearPendingDeleteBanner()
+    setPeriods((prev) => renumberPeriodsByDate([...(prev ?? []), period]))
+    setExpandedPeriods((prev) => {
+      const next = new Set(prev)
+      next.add(period.id)
+      return next
+    })
+  }, [pendingDelete, clearPendingDeleteBanner])
 
   const togglePeriod = (periodId: string) => {
     setExpandedPeriods(prev => {
@@ -704,6 +1167,60 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     }
   }
 
+  const updatePeriodDates = (
+    periodId: string,
+    dates: { startDate: string; endDate: string }
+  ) => {
+    const period = periods?.find((p) => p.id === periodId)
+    if (!period) return
+    if (period.startDate === dates.startDate && period.endDate === dates.endDate) return
+
+    if (period.startDate !== dates.startDate) {
+      recordProductEdit(
+        editHistory,
+        periodId,
+        `${period.label} Start date`,
+        period.startDate,
+        dates.startDate
+      )
+    }
+    if (period.endDate !== dates.endDate) {
+      recordProductEdit(
+        editHistory,
+        periodId,
+        `${period.label} End date`,
+        period.endDate,
+        dates.endDate
+      )
+    }
+
+    const previousById = new Map((periods ?? []).map((p) => [p.id, p]))
+    const nextPeriods = renumberPeriodsByDate(
+      (periods ?? []).map((p) => (p.id === periodId ? { ...p, ...dates } : p))
+    )
+    const renumberNotes = nextPeriods
+      .filter((p) => {
+        const previous = previousById.get(p.id)
+        return previous != null && previous.label !== p.label
+      })
+      .map((p) => {
+        const previous = previousById.get(p.id)!
+        return `${previous.label} (${p.startDate} to ${p.endDate}) is now ${p.label}`
+      })
+
+    setPeriods(nextPeriods)
+
+    if (renumberNotes.length > 0) {
+      recordProductEdit(
+        editHistory,
+        'periods',
+        'Period order',
+        '',
+        `Renumbered|${renumberNotes.join('. ')}`
+      )
+    }
+  }
+
   const renderTableHeader = () => (
     <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
       <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
@@ -736,11 +1253,18 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
 
   // Expanded ramp period header — merges the period identity into the table
   // header row (the period label replaces the "Item" column label).
-  const renderPeriodTableHeader = (period: RampPeriod, onToggle: () => void) => (
+  const renderPeriodTableHeader = (
+    period: RampPeriod,
+    onToggle: () => void,
+    onDelete: () => void
+  ) => (
     <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
       <div className="flex min-w-0 flex-1 items-center">
         <PeriodChevron isExpanded onToggle={onToggle} />
-        <PeriodIdentity period={period} />
+        <PeriodIdentity
+          period={period}
+          onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
+        />
       </div>
       <GhostSeparator />
       <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
@@ -757,7 +1281,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Total price
       </div>
-      <div style={{ width: MENU_W }} className="shrink-0" />
+      <div className="flex shrink-0 items-center justify-end" style={{ width: MENU_W }}>
+        <PeriodOptionsMenu onDelete={onDelete} />
+      </div>
     </div>
   )
 
@@ -765,6 +1291,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
+    const isEdited =
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
+      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
     
     return (
       <div
@@ -775,7 +1304,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
-            : "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy"
+            : cn(
+                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
+                isEdited && "bg-amber-50"
+              )
         )}
       >
         {/* Item */}
@@ -783,6 +1315,19 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           name={item.name}
           isAttention={isAttention}
           isRowHovered={isHovered && !isActive}
+          isRowActive={isActive}
+          isEdited={isEdited}
+          isViewEditsFocused={
+            editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
+            editHistory?.viewEditsFocus?.fieldLabel === item.id
+          }
+          onViewEdits={() => {
+            editHistory?.focusViewEdits({
+              sectionId: PRODUCTS_SECTION_ID,
+              fieldLabel: item.id,
+              itemPrefix: true,
+            })
+          }}
           onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
           onSelect={(catalogItem) => {
             recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
@@ -866,16 +1411,85 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     </button>
   )
 
+  const handleAddPeriod = () => {
+    const lastPeriod = periods?.[periods.length - 1]
+    let startDate = '17 Jul 2028'
+    let endDate = '17 Jul 2029'
+    if (lastPeriod) {
+      const lastEnd = new Date(lastPeriod.endDate)
+      if (!isNaN(lastEnd.getTime())) {
+        const start = new Date(lastEnd)
+        start.setDate(start.getDate() + 1)
+        const end = new Date(start)
+        end.setFullYear(end.getFullYear() + 1)
+        end.setDate(end.getDate() - 1)
+        const fmt = (d: Date) =>
+          d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+        startDate = fmt(start)
+        endDate = fmt(end)
+      }
+    }
+    const newPeriod: RampPeriod = {
+      id: `period-new-${Date.now()}`,
+      label: `Period ${(periods?.length ?? 0) + 1}`,
+      startDate,
+      endDate,
+      items: [],
+    }
+
+    const previousById = new Map((periods ?? []).map((p) => [p.id, p]))
+    const nextPeriods = renumberPeriodsByDate([...(periods ?? []), newPeriod])
+    const added = nextPeriods.find((p) => p.id === newPeriod.id) ?? newPeriod
+    const renumberNotes = nextPeriods
+      .filter((p) => {
+        const previous = previousById.get(p.id)
+        return previous != null && previous.label !== p.label
+      })
+      .map((p) => {
+        const previous = previousById.get(p.id)!
+        return `${previous.label} (${previous.startDate} to ${previous.endDate}) is now ${p.label}`
+      })
+
+    setPeriods(nextPeriods)
+    setExpandedPeriods((prev) => {
+      const next = new Set(prev)
+      next.add(newPeriod.id)
+      return next
+    })
+    setAddingToPeriodId(newPeriod.id)
+
+    const dateRange = `${added.startDate} to ${added.endDate}`
+    const addValue =
+      renumberNotes.length > 0 ? `Added|${renumberNotes.join('. ')}` : 'Added'
+    recordProductEdit(editHistory, added.id, added.label, dateRange, addValue)
+  }
+
   // Render with periods (ramp view)
-  if (periods && periods.length > 0) {
+  if (periods && (periods.length > 0 || pendingDelete)) {
+    const slotCount = periods.length + (pendingDelete ? 1 : 0)
+    let periodCursor = 0
+
     return (
       <div className="pl-6">
-        {periods.map((period, idx) => {
+        {Array.from({ length: slotCount }, (_, slotIndex) => {
+          if (pendingDelete && slotIndex === pendingDelete.index) {
+            return (
+              <div key={`deleted-${pendingDelete.period.id}`} style={{ marginBottom: 16 }}>
+                <PeriodDeletedUndoBanner
+                  period={pendingDelete.period}
+                  onUndo={handleUndoDeletePeriod}
+                />
+              </div>
+            )
+          }
+
+          const period = periods[periodCursor++]
+          if (!period) return null
+
           const isExpanded = expandedPeriods.has(period.id)
           const isAddingToThisPeriod = addingToPeriodId === period.id
-          const isLast = idx === periods.length - 1
-          // 24px between expanded tables, 16px between collapsed rows
-          const marginBottom = isLast ? 0 : isExpanded ? 24 : 16
+          const isLast = slotIndex === slotCount - 1
+          const marginBottom = isLast ? 8 : isExpanded ? 24 : 16
 
           if (!isExpanded) {
             return (
@@ -884,14 +1498,21 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
                   period={period}
                   isExpanded={false}
                   onToggle={() => togglePeriod(period.id)}
+                  onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
                 />
               </div>
             )
           }
 
+          const periodIndexInList = periods.findIndex((p) => p.id === period.id)
+
           return (
             <div key={period.id} style={{ marginBottom }}>
-              {renderPeriodTableHeader(period, () => togglePeriod(period.id))}
+              {renderPeriodTableHeader(
+                period,
+                () => togglePeriod(period.id),
+                () => handleDeletePeriod(period, periodIndexInList)
+              )}
 
               {period.items.map((item) =>
                 renderLineItem(item, (updater) => {
@@ -914,6 +1535,19 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             </div>
           )
         })}
+
+        <div className="pl-1 pr-2">
+          <button
+            type="button"
+            onClick={handleAddPeriod}
+            className="-ml-6 flex w-[calc(100%+1.5rem)] cursor-pointer items-center gap-1 py-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center">
+              <CirclePlus size={16} className="text-blue-700" />
+            </span>
+            Add period
+          </button>
+        </div>
       </div>
     )
   }
