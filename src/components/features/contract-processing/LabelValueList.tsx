@@ -8,8 +8,9 @@ import { AttentionFlagIcon } from './AttentionFlagIcon'
 import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
 
-const UNRESOLVED_FIELD_STYLE =
-  'w-full rounded bg-amber-50 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-fog focus:bg-amber-100'
+/** Shared focus/editing fill for text inputs and open dropdowns. */
+const ACTIVE_FIELD_STYLE =
+  'w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
 
@@ -482,11 +483,13 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
-                'flex w-full cursor-pointer items-center justify-between',
-                UNRESOLVED_FIELD_STYLE
+                'flex cursor-pointer items-center justify-between',
+                ACTIVE_FIELD_STYLE,
+                // Match focused text fields (`focus:bg-neutral-200`) while the menu is open
+                isOpen && 'bg-neutral-200'
               )}
             >
-              <span className="text-brand-fog">Select…</span>
+              <span className="text-brand-fog">Select {item.label.toLowerCase()}</span>
               <ChevronDown size={14} className="text-brand-fog" />
             </button>
             {selectDropdown}
@@ -501,7 +504,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
             placeholder="Enter value…"
-            className={UNRESOLVED_FIELD_STYLE}
+            className={ACTIVE_FIELD_STYLE}
           />
         ) : isUnresolved ? (
           isSelect ? (
@@ -525,7 +528,9 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
                 'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
-                isOpen ? 'text-blue-700' : 'text-blue-700 group-hover:text-white'
+                isOpen
+                  ? cn(ACTIVE_FIELD_STYLE, 'w-auto bg-neutral-200')
+                  : 'text-blue-700 group-hover:text-white'
               )}
             >
               <span>{item.value}</span>
@@ -551,7 +556,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             onBlur={handleBlur}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
-            className="w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200"
+            className={ACTIVE_FIELD_STYLE}
           />
         ) : (
           <span className={cn(
