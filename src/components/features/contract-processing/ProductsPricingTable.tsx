@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 import {
@@ -637,6 +637,25 @@ function formatPeriodDate(date: Date): string {
   })
 }
 
+/** Sort chronologically by start (then end) and relabel Period 1…N. */
+function renumberPeriodsByDate(periods: RampPeriod[]): RampPeriod[] {
+  return sortPeriodsByDate(periods).map((period, index) => ({
+    ...period,
+    label: `Period ${index + 1}`,
+  }))
+}
+
+function sortPeriodsByDate(periods: RampPeriod[]): RampPeriod[] {
+  return [...periods].sort((a, b) => {
+    const aStart = parsePeriodDate(a.startDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    const bStart = parsePeriodDate(b.startDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    if (aStart !== bStart) return aStart - bStart
+    const aEnd = parsePeriodDate(a.endDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    const bEnd = parsePeriodDate(b.endDate)?.getTime() ?? Number.POSITIVE_INFINITY
+    return aEnd - bEnd
+  })
+}
+
 function toDateKey(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
@@ -721,8 +740,8 @@ function PeriodDateEdit({
           setOpen((prev) => !prev)
         }}
         className={cn(
-          'cursor-text whitespace-nowrap rounded px-0.5 text-[12px] text-blue-700/80 transition-colors hover:bg-neutral-100 hover:text-blue-700',
-          open && 'bg-neutral-100 text-blue-700'
+          'cursor-text whitespace-nowrap rounded px-0.5 text-[12px] text-blue-700 transition-colors hover:bg-neutral-100',
+          open && 'bg-neutral-100'
         )}
         aria-label={`Edit date ${value}`}
         aria-expanded={open}
@@ -743,34 +762,62 @@ function PeriodDateEdit({
           onClick={(e) => e.stopPropagation()}
           className="absolute left-0 top-full z-40 mt-1.5 w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
         >
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                setViewMonth(
-                  new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
-                )
-              }
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-              aria-label="Previous month"
-            >
-              <ChevronLeft size={16} />
-            </button>
+          <div className="mb-3 flex items-center justify-between gap-1">
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Previous year"
+              >
+                <ChevronsLeft size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Previous month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+            </div>
             <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
               {monthLabel}
             </span>
-            <button
-              type="button"
-              onClick={() =>
-                setViewMonth(
-                  new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
-                )
-              }
-              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-              aria-label="Next month"
-            >
-              <ChevronRight size={16} />
-            </button>
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Next month"
+              >
+                <ChevronRight size={16} />
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setViewMonth(
+                    new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1)
+                  )
+                }
+                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                aria-label="Next year"
+              >
+                <ChevronsRight size={16} />
+              </button>
+            </div>
           </div>
 
           <div className="mb-1 grid grid-cols-7 gap-0.5">
@@ -1029,7 +1076,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         pendingDeleteTimerRef.current = null
       }
 
-      setPeriods((prev) => prev?.filter((p) => p.id !== period.id))
+      const remaining = (periods ?? []).filter((p) => p.id !== period.id)
+      const promoted = sortPeriodsByDate(remaining)[0]
+
+      setPeriods(() => renumberPeriodsByDate(remaining))
       setExpandedPeriods((prev) => {
         const next = new Set(prev)
         next.delete(period.id)
@@ -1044,27 +1094,25 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       }, 8000)
 
       const dateRange = `${period.startDate} to ${period.endDate}`
+      const deleteValue = promoted
+        ? `Deleted|${promoted.label} (${promoted.startDate} to ${promoted.endDate}) is now Period 1`
+        : 'Deleted'
       recordProductEdit(
         editHistory,
         period.id,
         period.label,
         dateRange,
-        'Deleted'
+        deleteValue
       )
     },
-    [addingToPeriodId, editHistory]
+    [addingToPeriodId, editHistory, periods]
   )
 
   const handleUndoDeletePeriod = useCallback(() => {
     if (!pendingDelete) return
-    const { period, index } = pendingDelete
+    const { period } = pendingDelete
     clearPendingDeleteBanner()
-    setPeriods((prev) => {
-      const list = prev ? [...prev] : []
-      const insertAt = Math.min(Math.max(index, 0), list.length)
-      list.splice(insertAt, 0, period)
-      return list
-    })
+    setPeriods((prev) => renumberPeriodsByDate([...(prev ?? []), period]))
     setExpandedPeriods((prev) => {
       const next = new Set(prev)
       next.add(period.id)
@@ -1146,9 +1194,31 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       )
     }
 
-    setPeriods((prev) =>
-      prev?.map((p) => (p.id === periodId ? { ...p, ...dates } : p))
+    const previousById = new Map((periods ?? []).map((p) => [p.id, p]))
+    const nextPeriods = renumberPeriodsByDate(
+      (periods ?? []).map((p) => (p.id === periodId ? { ...p, ...dates } : p))
     )
+    const renumberNotes = nextPeriods
+      .filter((p) => {
+        const previous = previousById.get(p.id)
+        return previous != null && previous.label !== p.label
+      })
+      .map((p) => {
+        const previous = previousById.get(p.id)!
+        return `${previous.label} (${p.startDate} to ${p.endDate}) is now ${p.label}`
+      })
+
+    setPeriods(nextPeriods)
+
+    if (renumberNotes.length > 0) {
+      recordProductEdit(
+        editHistory,
+        'periods',
+        'Period order',
+        '',
+        `Renumbered|${renumberNotes.join('. ')}`
+      )
+    }
   }
 
   const renderTableHeader = () => (
@@ -1342,7 +1412,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   )
 
   const handleAddPeriod = () => {
-    const nextNumber = (periods?.length ?? 0) + 1
     const lastPeriod = periods?.[periods.length - 1]
     let startDate = '17 Jul 2028'
     let endDate = '17 Jul 2029'
@@ -1362,18 +1431,37 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     }
     const newPeriod: RampPeriod = {
       id: `period-new-${Date.now()}`,
-      label: `Period ${nextNumber}`,
+      label: `Period ${(periods?.length ?? 0) + 1}`,
       startDate,
       endDate,
       items: [],
     }
-    setPeriods((prev) => [...(prev ?? []), newPeriod])
+
+    const previousById = new Map((periods ?? []).map((p) => [p.id, p]))
+    const nextPeriods = renumberPeriodsByDate([...(periods ?? []), newPeriod])
+    const added = nextPeriods.find((p) => p.id === newPeriod.id) ?? newPeriod
+    const renumberNotes = nextPeriods
+      .filter((p) => {
+        const previous = previousById.get(p.id)
+        return previous != null && previous.label !== p.label
+      })
+      .map((p) => {
+        const previous = previousById.get(p.id)!
+        return `${previous.label} (${previous.startDate} to ${previous.endDate}) is now ${p.label}`
+      })
+
+    setPeriods(nextPeriods)
     setExpandedPeriods((prev) => {
       const next = new Set(prev)
       next.add(newPeriod.id)
       return next
     })
     setAddingToPeriodId(newPeriod.id)
+
+    const dateRange = `${added.startDate} to ${added.endDate}`
+    const addValue =
+      renumberNotes.length > 0 ? `Added|${renumberNotes.join('. ')}` : 'Added'
+    recordProductEdit(editHistory, added.id, added.label, dateRange, addValue)
   }
 
   // Render with periods (ramp view)

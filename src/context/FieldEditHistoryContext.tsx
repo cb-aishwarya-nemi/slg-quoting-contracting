@@ -36,6 +36,54 @@ function hasPreviousValue(value: string) {
   return trimmed.length > 0 && trimmed !== '—' && trimmed !== '-'
 }
 
+/** Format delete comments. Optional `Deleted|successor…` encodes a renumber note. */
+export function formatDeletedFieldEditComment(
+  fieldLabel: string,
+  previousValue: string,
+  newValue: string
+): string {
+  const successor = newValue.startsWith('Deleted|') ? newValue.slice('Deleted|'.length) : null
+  const head = hasPreviousValue(previousValue)
+    ? `${fieldLabel} (${previousValue}) deleted`
+    : `${fieldLabel} deleted`
+  return successor ? `${head}. ${successor}` : head
+}
+
+/** Format add comments. Optional `Added|renumber…` encodes date-based renumber notes. */
+export function formatAddedFieldEditComment(
+  fieldLabel: string,
+  previousValue: string,
+  newValue: string
+): string {
+  const renumberNote = newValue.startsWith('Added|') ? newValue.slice('Added|'.length) : null
+  const head = hasPreviousValue(previousValue)
+    ? `${fieldLabel} (${previousValue}) added`
+    : `${fieldLabel} added`
+  return renumberNote ? `${head}. ${renumberNote}` : head
+}
+
+/** Format date-driven renumber comments: `Renumbered|note…`. */
+export function formatRenumberedFieldEditComment(newValue: string): string {
+  const note = newValue.startsWith('Renumbered|')
+    ? newValue.slice('Renumbered|'.length)
+    : newValue
+  return note
+    ? `Periods renumbered by date. ${note}`
+    : 'Periods renumbered by date'
+}
+
+function isDeletedFieldEditValue(newValue: string) {
+  return newValue === 'Deleted' || newValue.startsWith('Deleted|')
+}
+
+function isAddedFieldEditValue(newValue: string) {
+  return newValue === 'Added' || newValue.startsWith('Added|')
+}
+
+function isRenumberedFieldEditValue(newValue: string) {
+  return newValue === 'Renumbered' || newValue.startsWith('Renumbered|')
+}
+
 function formatEditTime(timestamp: number): string {
   const diffMs = Date.now() - timestamp
   const diffMin = Math.floor(diffMs / 60_000)
@@ -341,8 +389,14 @@ export function formatFieldEditCommentBody(event: FieldEditEvent): string {
   const sep = ' · '
   const sepIdx = event.fieldLabel.lastIndexOf(sep)
   const fieldLabel = sepIdx >= 0 ? event.fieldLabel.slice(sepIdx + sep.length) : event.fieldLabel
-  if (event.newValue === 'Deleted') {
-    return `${fieldLabel} deleted`
+  if (isDeletedFieldEditValue(event.newValue)) {
+    return formatDeletedFieldEditComment(fieldLabel, event.previousValue, event.newValue)
+  }
+  if (isAddedFieldEditValue(event.newValue)) {
+    return formatAddedFieldEditComment(fieldLabel, event.previousValue, event.newValue)
+  }
+  if (isRenumberedFieldEditValue(event.newValue)) {
+    return formatRenumberedFieldEditComment(event.newValue)
   }
   if (hasPreviousValue(event.previousValue)) {
     return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`

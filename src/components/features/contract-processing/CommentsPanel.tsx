@@ -5,6 +5,9 @@ import { type Comment } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
 import {
   commentMatchesViewEditsFocus,
+  formatAddedFieldEditComment,
+  formatDeletedFieldEditComment,
+  formatRenumberedFieldEditComment,
   useOptionalFieldEditHistory,
 } from '@/context/FieldEditHistoryContext'
 
@@ -49,10 +52,26 @@ function FieldEditCommentBody({
     fieldEdit.previousValue.trim() !== '—' &&
     fieldEdit.previousValue.trim() !== '-'
 
-  if (fieldEdit.newValue === 'Deleted') {
+  if (fieldEdit.newValue === 'Deleted' || fieldEdit.newValue.startsWith('Deleted|')) {
     return (
       <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
-        {fieldLabel} deleted
+        {formatDeletedFieldEditComment(fieldLabel, fieldEdit.previousValue, fieldEdit.newValue)}
+      </p>
+    )
+  }
+
+  if (fieldEdit.newValue === 'Added' || fieldEdit.newValue.startsWith('Added|')) {
+    return (
+      <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
+        {formatAddedFieldEditComment(fieldLabel, fieldEdit.previousValue, fieldEdit.newValue)}
+      </p>
+    )
+  }
+
+  if (fieldEdit.newValue === 'Renumbered' || fieldEdit.newValue.startsWith('Renumbered|')) {
+    return (
+      <p className={cn('leading-[1.5] text-brand-navy', bodyClassName)}>
+        {formatRenumberedFieldEditComment(fieldEdit.newValue)}
       </p>
     )
   }
