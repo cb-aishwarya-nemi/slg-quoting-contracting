@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useCallback, type MouseEvent } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash } from 'lucide-react'
 import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
 import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
 import {
@@ -34,15 +34,20 @@ function Separator({
   isRowHovered,
   isRowActive,
   alignTop,
+  hideLine,
 }: {
   isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
+  /** Keeps the column gap but drops the rule — the lifted table runs without them. */
+  hideLine?: boolean
 }) {
   return <div className={cn(
     "mx-3 w-px shrink-0 transition-colors",
     alignTop ? "mt-1 h-4 self-start" : "h-5",
-    (isRowActive || isRowHovered) ? "bg-white/20" : "bg-neutral-200"
+    hideLine
+      ? "bg-transparent"
+      : (isRowActive || isRowHovered) ? "bg-white/20" : "bg-neutral-200"
   )} />
 }
 
@@ -58,7 +63,7 @@ function MiniDropdown({
   alignTop,
 }: {
   label: string
-  width: number
+  width?: number
   isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
@@ -66,13 +71,14 @@ function MiniDropdown({
   return (
     <button
       type="button"
-      style={{ width }}
+      style={width != null ? { width } : undefined}
       className={cn(
-        "flex shrink-0 items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors",
-        alignTop && "self-start",
-        (isRowActive || isRowHovered)
-          ? "text-white hover:bg-white/10"
-          : "text-brand-navy hover:bg-neutral-100"
+        'flex items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
+        width != null ? 'shrink-0' : 'w-full min-w-0',
+        alignTop && 'self-start',
+        isRowActive || isRowHovered
+          ? 'text-white hover:bg-white/10'
+          : 'text-brand-navy hover:bg-neutral-100'
       )}
     >
       <span>{label}</span>
@@ -333,6 +339,8 @@ interface ItemNameButtonProps {
   isEdited?: boolean
   isViewEditsFocused?: boolean
   onViewEdits?: () => void
+  /** Increment to programmatically open the item picker (e.g. from row Edit). */
+  openRequestId?: number
 }
 
 function ItemNameButton({
@@ -345,6 +353,7 @@ function ItemNameButton({
   isEdited,
   isViewEditsFocused,
   onViewEdits,
+  openRequestId,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -354,8 +363,15 @@ function ItemNameButton({
     onOpenChange?.(open)
   }
 
+  useEffect(() => {
+    if (openRequestId && openRequestId > 0) {
+      handleOpenChange(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- open only when request id bumps
+  }, [openRequestId])
+
   return (
-    <div className="relative flex min-w-0 flex-1 items-center gap-1.5 group/item">
+    <div className="group/item relative flex min-w-0 flex-1 items-center gap-1.5">
       {/* Icon with negative margin — sits outside the table column for alignment */}
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
@@ -422,7 +438,68 @@ const PERIOD_W = 96
 const QTY_W = 60
 const UNIT_W = 110
 const TOTAL_W = 124
-const MENU_W = 28
+const MENU_W = 48
+/** A separator's `mx-3` margins plus its 1px rule. */
+const SEPARATOR_W = 25
+/** The `pl-1 pr-2` every row carries. */
+const ROW_PAD_X = 12
+
+const EXPAND_RATIO = 1.3
+/** Row chevrons and AI icons hang 24px left of the table box; keep that inside the bounds. */
+const EXPAND_EDGE_GUTTER = 24
+/** Breathing room between the expanded table and the page edges. */
+const PAGE_EDGE_MARGIN = 24
+/** How far the elliptical blur halo reaches past the expanded table. */
+const HALO_SPREAD_X = 220
+const HALO_SPREAD_Y = 150
+/** Inset that keeps rows clear of the lifted surface's rounded corners. */
+const SHELL_PAD_X = 14
+const SHELL_PAD_Y = 10
+
+const EXPAND_TRANSITION = '500ms ease-out'
+/** Settling back is quicker than opening, and eases at both ends so it lands softly. */
+const COLLAPSE_MS = 420
+const COLLAPSE_TRANSITION = `${COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
+/** Small cushion so the last pixel of the tween lands before the layout swaps back. */
+const COLLAPSE_SETTLE_MS = COLLAPSE_MS + 40
+
+interface ExpandBounds {
+  centerX: number
+  maxWidth: number
+}
+
+/**
+ * The edit-mode table is lifted into a fixed layer, so it no longer inherits its
+ * column's width. It centers on the page rather than on its own column, which is
+ * offset by the in-page nav and the comments column. `main` is the page area next
+ * to the app rail; maxWidth keeps both edges (including the icons hanging off the
+ * left) inside it while staying symmetric around the centre.
+ */
+function measureExpandBounds(): ExpandBounds {
+  const page = document.querySelector('main')
+  let left = 0
+  let right = window.innerWidth
+
+  if (page) {
+    const style = window.getComputedStyle(page)
+    const paddingLeft = parseFloat(style.paddingLeft) || 0
+    const paddingRight = parseFloat(style.paddingRight) || 0
+    left = page.getBoundingClientRect().left + page.clientLeft + paddingLeft
+    right = left + Math.max(0, page.clientWidth - paddingLeft - paddingRight)
+  }
+
+  left += PAGE_EDGE_MARGIN
+  right -= PAGE_EDGE_MARGIN
+  const centerX = (left + right) / 2
+
+  return {
+    centerX,
+    maxWidth: Math.max(
+      0,
+      2 * Math.min(centerX - left - EXPAND_EDGE_GUTTER, right - centerX)
+    ),
+  }
+}
 
 type NewRowStep = 'idle' | 'item' | 'frequency' | 'quantity' | 'done'
 
@@ -434,9 +511,11 @@ interface NewLineItemRowProps {
     quantity: string
   }) => void
   onCancel: () => void
+  rowStyle?: CSSProperties
 }
 
-function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
+function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps) {
+  const useGrid = rowStyle != null
   const [step, setStep] = useState<NewRowStep>('idle')
   const [selectedItem, setSelectedItem] = useState<CatalogLineItem | null>(null)
   const [billingPeriod, setBillingPeriod] = useState('')
@@ -495,9 +574,18 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
   }
 
   return (
-    <div className="flex items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2">
+    <div
+      className={cn(
+        'items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2',
+        !useGrid && 'flex'
+      )}
+      style={rowStyle}
+    >
       {/* Item */}
-      <div ref={itemAnchorRef} className="relative flex min-w-0 flex-1 items-center">
+      <div
+        ref={itemAnchorRef}
+        className={cn('relative flex min-w-0 items-center', !useGrid && 'flex-1')}
+      >
         <button
           type="button"
           onClick={() => setStep('item')}
@@ -520,10 +608,14 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         />
       </div>
 
-      <Separator />
+      <Separator hideLine={useGrid} />
 
       {/* Frequency */}
-      <div ref={frequencyAnchorRef} className="relative shrink-0" style={{ width: PERIOD_W }}>
+      <div
+        ref={frequencyAnchorRef}
+        className={cn('relative', !useGrid && 'shrink-0')}
+        style={useGrid ? undefined : { width: PERIOD_W }}
+      >
         <button
           type="button"
           onClick={() => selectedItem && setStep('frequency')}
@@ -546,10 +638,10 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         />
       </div>
 
-      <Separator />
+      <Separator hideLine={useGrid} />
 
       {/* Quantity */}
-      <div className="shrink-0" style={{ width: QTY_W }}>
+      <div className={cn(!useGrid && 'shrink-0')} style={useGrid ? undefined : { width: QTY_W }}>
         {step === 'quantity' ? (
           <input
             ref={quantityInputRef}
@@ -578,16 +670,31 @@ function NewLineItemRow({ onComplete, onCancel }: NewLineItemRowProps) {
         )}
       </div>
 
-      <Separator />
+      <Separator hideLine={useGrid} />
 
-      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-mist">
+      <div
+        style={useGrid ? undefined : { width: UNIT_W }}
+        className={cn(
+          'text-right text-[14px] font-medium text-brand-mist',
+          !useGrid && 'shrink-0'
+        )}
+      >
         {selectedItem?.unitPrice || '—'}
       </div>
-      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[14px] font-medium text-brand-mist">
+      <div
+        style={useGrid ? undefined : { width: TOTAL_W }}
+        className={cn(
+          'text-right text-[14px] font-medium text-brand-mist',
+          !useGrid && 'shrink-0'
+        )}
+      >
         {selectedItem && quantity ? calculateTotal() : '—'}
       </div>
 
-      <div style={{ width: MENU_W }} className="flex shrink-0 justify-end">
+      <div
+        style={useGrid ? undefined : { width: MENU_W }}
+        className={cn('flex justify-end', !useGrid && 'shrink-0')}
+      >
         <button
           type="button"
           onClick={onCancel}
@@ -1033,15 +1140,36 @@ function RampPriceChangeBadge({ change }: { change: number }) {
 interface ProductsPricingTableProps {
   items: ProductLineItem[]
   periods?: RampPeriod[]
+  /**
+   * Section title and source thumbnails. They live inside the table so they get
+   * lifted, centred and blurred along with it when edit mode expands.
+   */
+  header?: ReactNode
 }
 
-export function ProductsPricingTable({ items: initialItems, periods: initialPeriods }: ProductsPricingTableProps) {
+export function ProductsPricingTable({ items: initialItems, periods: initialPeriods, header }: ProductsPricingTableProps) {
   const editHistory = useOptionalFieldEditHistory()
   const [items, setItems] = useState(initialItems)
   const [periods, setPeriods] = useState(initialPeriods)
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+  const [lineItemEditRequest, setLineItemEditRequest] = useState<Record<string, number>>({})
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [editExpanded, setEditExpanded] = useState(false)
+  const [editLayout, setEditLayout] = useState<{
+    top: number
+    left: number
+    width: number
+    height: number
+  } | null>(null)
+  const [editBounds, setEditBounds] = useState<ExpandBounds | null>(null)
+  const [editAnimReady, setEditAnimReady] = useState(false)
+  const [isCollapsing, setIsCollapsing] = useState(false)
+  const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const tableRootRef = useRef<HTMLDivElement>(null)
+  const tableSpacerRef = useRef<HTMLDivElement>(null)
+  const editBaseWidthRef = useRef<number | null>(null)
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     if (initialPeriods) {
       return new Set(initialPeriods.map(p => p.id))
@@ -1055,11 +1183,116 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   } | null>(null)
   const pendingDeleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const enterEditMode = useCallback(() => {
+    if (isEditMode) return
+    const el = tableRootRef.current
+    if (el) {
+      const rect = el.getBoundingClientRect()
+      setEditLayout({
+        top: rect.top,
+        left: rect.left,
+        width: rect.width,
+        height: rect.height,
+      })
+      editBaseWidthRef.current = rect.width
+      setEditBounds(measureExpandBounds())
+    }
+    setEditExpanded(false)
+    setEditAnimReady(false)
+    setIsEditMode(true)
+  }, [isEditMode])
+
+  /** Drops the table out of the fixed layer and back into the page flow. */
+  const finishExitEditMode = useCallback(() => {
+    collapseTimerRef.current = null
+    setIsCollapsing(false)
+    setIsEditMode(false)
+    setEditExpanded(false)
+    setEditAnimReady(false)
+    setEditLayout(null)
+    setEditBounds(null)
+    editBaseWidthRef.current = null
+    setActiveRowId(null)
+    setHoveredRowId(null)
+  }, [])
+
+  const exitEditMode = useCallback(() => {
+    if (collapseTimerRef.current) return
+    if (!isEditMode || editBaseWidthRef.current == null) {
+      finishExitEditMode()
+      return
+    }
+    // Play the expansion in reverse first. Tearing down straight away would swap
+    // the grid rows back to flex and the fixed shell back into the flow on the
+    // same frame, which reads as a snap however smooth the opening was.
+    setActiveRowId(null)
+    setHoveredRowId(null)
+    setIsCollapsing(true)
+    setEditExpanded(false)
+    collapseTimerRef.current = setTimeout(finishExitEditMode, COLLAPSE_SETTLE_MS)
+  }, [isEditMode, finishExitEditMode])
+
   useEffect(() => {
     return () => {
       if (pendingDeleteTimerRef.current) clearTimeout(pendingDeleteTimerRef.current)
+      if (collapseTimerRef.current) clearTimeout(collapseTimerRef.current)
     }
   }, [])
+
+  // The table enters edit mode with `transition: none` at its exact pixel width.
+  // Reading layout here resolves that width before the tween is enabled — without
+  // it the browser interpolates from the old `w-full`, which now means 100% of the
+  // viewport (the fixed containing block), so the table flew out past the page and
+  // shrank back in.
+  useLayoutEffect(() => {
+    if (!isEditMode || editBaseWidthRef.current == null) return
+    void tableRootRef.current?.offsetWidth
+    setEditAnimReady(true)
+    const frame = requestAnimationFrame(() => setEditExpanded(true))
+    return () => cancelAnimationFrame(frame)
+  }, [isEditMode])
+
+  // Scroll only moves the table vertically. Resyncing width mid-transition is what
+  // made columns overshoot and snap back, so width/bounds only change on resize.
+  useEffect(() => {
+    if (!isEditMode) return
+    const syncPosition = () => {
+      const spacer = tableSpacerRef.current
+      if (!spacer) return
+      setEditLayout((prev) =>
+        prev ? { ...prev, top: spacer.getBoundingClientRect().top } : prev
+      )
+    }
+    const syncBounds = () => {
+      syncPosition()
+      setEditBounds(measureExpandBounds())
+    }
+    syncPosition()
+    window.addEventListener('resize', syncBounds)
+    document.addEventListener('scroll', syncPosition, true)
+    return () => {
+      window.removeEventListener('resize', syncBounds)
+      document.removeEventListener('scroll', syncPosition, true)
+    }
+  }, [isEditMode])
+
+  useEffect(() => {
+    if (!isEditMode) return
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') exitEditMode()
+    }
+    const handlePointerDown = (event: globalThis.MouseEvent) => {
+      if (!tableRootRef.current?.contains(event.target as Node)) {
+        exitEditMode()
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('mousedown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('mousedown', handlePointerDown)
+    }
+  }, [isEditMode, exitEditMode])
 
   const clearPendingDeleteBanner = useCallback(() => {
     if (pendingDeleteTimerRef.current) {
@@ -1221,33 +1454,100 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     }
   }
 
+  // Proportional weights so every column grows with the container (no separate width tween).
+  // minmax(0, Nfr) is required — plain Nfr uses min-width:auto and overflows mid-animation.
+  const baseWidth = editBaseWidthRef.current ?? editLayout?.width ?? 720
+  const expandMaxWidth = editBounds?.maxWidth ?? baseWidth * EXPAND_RATIO
+  // The item column takes whatever the inline flex row leaves it, so at base width
+  // the fr tracks resolve to exactly the flex widths. Without that the columns jump
+  // sideways the moment the row swaps between the two layouts.
+  const itemColWeight = Math.max(
+    160,
+    Math.round(
+      baseWidth -
+        ROW_PAD_X -
+        SEPARATOR_W * 3 -
+        (PERIOD_W + QTY_W + UNIT_W + TOTAL_W + MENU_W)
+    )
+  )
+  const editRowGridStyle = isEditMode
+    ? {
+        display: 'grid' as const,
+        // Mirrors the flex row track for track: item | rule | frequency | rule |
+        // qty | rule | unit price | total | menu. The rules stay a fixed width
+        // while the value columns share the extra space as the table widens.
+        gridTemplateColumns: [
+          `minmax(0, ${itemColWeight}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${PERIOD_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${QTY_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${UNIT_W}fr)`,
+          `minmax(0, ${TOTAL_W}fr)`,
+          `minmax(0, ${MENU_W}fr)`,
+        ].join(' '),
+        columnGap: 0,
+        alignItems: 'center' as const,
+        width: '100%',
+        minWidth: 0,
+      }
+    : undefined
+
   const renderTableHeader = () => (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
-      <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+    <div
+      className={cn(
+        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        !isEditMode && 'flex'
+      )}
+      style={editRowGridStyle}
+    >
+      <div className="min-w-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Item
       </div>
       <GhostSeparator />
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: PERIOD_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Frequency
       </div>
       <GhostSeparator />
-      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: QTY_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Qty
       </div>
       <GhostSeparator />
       <div
-        style={{ width: UNIT_W }}
-        className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+        style={isEditMode ? undefined : { width: UNIT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
       >
         Unit price
       </div>
       <div
-        style={{ width: TOTAL_W }}
-        className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+        style={isEditMode ? undefined : { width: TOTAL_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
       >
         Total price
       </div>
-      <div style={{ width: MENU_W }} className="shrink-0" />
+      <div
+        style={isEditMode ? undefined : { width: MENU_W }}
+        className={cn(!isEditMode && 'shrink-0')}
+      />
     </div>
   )
 
@@ -1258,8 +1558,14 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     onToggle: () => void,
     onDelete: () => void
   ) => (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
-      <div className="flex min-w-0 flex-1 items-center">
+    <div
+      className={cn(
+        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        !isEditMode && 'flex'
+      )}
+      style={editRowGridStyle}
+    >
+      <div className="flex min-w-0 items-center">
         <PeriodChevron isExpanded onToggle={onToggle} />
         <PeriodIdentity
           period={period}
@@ -1267,21 +1573,48 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         />
       </div>
       <GhostSeparator />
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: PERIOD_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Frequency
       </div>
       <GhostSeparator />
-      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: QTY_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Qty
       </div>
       <GhostSeparator />
-      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: UNIT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Unit price
       </div>
-      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isEditMode ? undefined : { width: TOTAL_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isEditMode && 'shrink-0'
+        )}
+      >
         Total price
       </div>
-      <div className="flex shrink-0 items-center justify-end" style={{ width: MENU_W }}>
+      <div
+        className={cn('flex items-center justify-end', !isEditMode && 'shrink-0')}
+        style={isEditMode ? undefined : { width: MENU_W }}
+      >
         <PeriodOptionsMenu onDelete={onDelete} />
       </div>
     </div>
@@ -1300,15 +1633,21 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         key={item.id}
         onMouseEnter={() => setHoveredRowId(item.id)}
         onMouseLeave={() => setHoveredRowId(null)}
+        onClick={() => enterEditMode()}
         className={cn(
-          "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
-          isActive 
-            ? "bg-brand-navy border-brand-navy cursor-pointer"
+          'group row-hover-trail items-center border-b py-1.5 pl-1 pr-2 transition-colors',
+          !isEditMode && 'flex',
+          // Softened only on the lifted surface, where a square fill would fight
+          // the rounded card; the inline table keeps flush rows like other tables.
+          isEditMode && (isActive ? 'rounded-lg' : 'hover:rounded-lg'),
+          isActive
+            ? 'bg-brand-navy border-brand-navy cursor-pointer'
             : cn(
-                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
-                isEdited && "bg-amber-50"
+                'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
+                isEdited && 'bg-amber-50'
               )
         )}
+        style={editRowGridStyle}
       >
         {/* Item */}
         <ItemNameButton
@@ -1317,6 +1656,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           isRowHovered={isHovered && !isActive}
           isRowActive={isActive}
           isEdited={isEdited}
+          openRequestId={lineItemEditRequest[item.id]}
           isViewEditsFocused={
             editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
             editHistory?.viewEditsFocus?.fieldLabel === item.id
@@ -1328,7 +1668,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
               itemPrefix: true,
             })
           }}
-          onOpenChange={(isOpen) => setActiveRowId(isOpen ? item.id : null)}
+          onOpenChange={(isOpen) => {
+            setActiveRowId(isOpen ? item.id : null)
+            if (isOpen) enterEditMode()
+          }}
           onSelect={(catalogItem) => {
             recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
             recordProductEdit(
@@ -1349,15 +1692,28 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           }}
         />
 
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
-        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
-        <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
+        <MiniDropdown
+          label={item.billingPeriod}
+          width={isEditMode ? undefined : PERIOD_W}
+          isRowHovered={isHovered}
+          isRowActive={isActive}
+        />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
+        <MiniDropdown
+          label={item.quantity}
+          width={isEditMode ? undefined : QTY_W}
+          isRowHovered={isHovered}
+          isRowActive={isActive}
+        />
+        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
 
         <div
-          style={{ width: UNIT_W }}
-          className="flex shrink-0 flex-col items-end gap-0.5 pl-3"
+          style={isEditMode ? undefined : { width: UNIT_W }}
+          className={cn(
+            'flex flex-col items-end gap-0.5 pl-3',
+            !isEditMode && 'shrink-0'
+          )}
         >
           <div className="flex items-center justify-end gap-2">
             {item.rampPriceChange && !isActive && (
@@ -1373,28 +1729,158 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             </span>
           </div>
         </div>
-        <div style={{ width: TOTAL_W }} className={cn(
-          "shrink-0 text-right text-[14px] font-medium transition-colors",
-          (isActive || isHovered) ? "text-white" : "text-brand-navy"
-        )}>
+        <div
+          style={isEditMode ? undefined : { width: TOTAL_W }}
+          className={cn(
+            'text-right text-[14px] font-medium transition-colors',
+            !isEditMode && 'shrink-0',
+            isActive || isHovered ? 'text-white' : 'text-brand-navy'
+          )}
+        >
           {item.totalPrice}
         </div>
 
         <div
-          className="flex shrink-0 items-center justify-end gap-1.5"
-          style={{ width: MENU_W }}
+          className={cn('flex items-center justify-end gap-0.5', !isEditMode && 'shrink-0')}
+          style={isEditMode ? undefined : { width: MENU_W }}
         >
           <button
             type="button"
+            aria-label={`Edit ${item.name}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              enterEditMode()
+              setLineItemEditRequest((prev) => ({
+                ...prev,
+                [item.id]: (prev[item.id] ?? 0) + 1,
+              }))
+            }}
             className={cn(
-              "flex h-6 w-6 cursor-pointer items-center justify-center rounded transition-colors",
-              (isActive || isHovered)
-                ? "text-white/70 hover:bg-white/10"
-                : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
+              'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
+              isActive || isHovered
+                ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                : 'opacity-0 pointer-events-none'
             )}
           >
-            <MoreVertical size={15} />
+            <Pencil size={14} strokeWidth={1.75} />
           </button>
+          <button
+            type="button"
+            aria-label={`Delete ${item.name}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              recordProductEdit(editHistory, item.id, 'Item', item.name, 'Deleted')
+              updateItems((prev) => prev.filter((i) => i.id !== item.id))
+              if (activeRowId === item.id) setActiveRowId(null)
+              if (hoveredRowId === item.id) setHoveredRowId(null)
+            }}
+            className={cn(
+              'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
+              isActive || isHovered
+                ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                : 'opacity-0 pointer-events-none'
+            )}
+          >
+            <Trash size={14} strokeWidth={1.75} />
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const wrapTableShell = (content: ReactNode) => {
+    const isFixedEditing = isEditMode && editLayout != null
+    const baseW = editBaseWidthRef.current ?? editLayout?.width ?? 0
+    // The lifted surface adds padding so rows don't run into the rounded corners.
+    // Width/top absorb it, keeping the content itself exactly where it was.
+    const contentWidth = isFixedEditing
+      ? editExpanded
+        ? Math.min(baseW * EXPAND_RATIO, expandMaxWidth - SHELL_PAD_X * 2)
+        : baseW
+      : 0
+    const displayWidth = isFixedEditing ? contentWidth + SHELL_PAD_X * 2 : undefined
+    // Start from where the table already sits, then glide to the page centre so
+    // both edges travel outward instead of the table jumping sideways first.
+    const displayCenterX = isFixedEditing
+      ? editExpanded
+        ? editBounds?.centerX ?? editLayout.left + baseW / 2
+        : editLayout.left + baseW / 2
+      : undefined
+    const timing = isCollapsing ? COLLAPSE_TRANSITION : EXPAND_TRANSITION
+
+    return (
+      <div className="overflow-visible pl-6">
+        {isFixedEditing ? (
+          <div
+            ref={tableSpacerRef}
+            style={{ height: editLayout.height }}
+            aria-hidden
+          />
+        ) : null}
+        {isFixedEditing ? (
+          <div
+            aria-hidden
+            // Below the app rail (z-50) so the chrome stays crisp, above page content.
+            className="pointer-events-none fixed z-[45]"
+            style={{
+              top: editLayout.top - HALO_SPREAD_Y,
+              left: displayCenterX,
+              width: (displayWidth ?? 0) + HALO_SPREAD_X * 2,
+              height: editLayout.height + HALO_SPREAD_Y * 2,
+              transform: 'translateX(-50%)',
+              opacity: editExpanded ? 1 : 0,
+              backdropFilter: 'blur(14px)',
+              WebkitBackdropFilter: 'blur(14px)',
+              background:
+                'radial-gradient(ellipse at center, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 55%, rgba(255,255,255,0) 100%)',
+              // Feathers the blur itself into an ellipse so it dissolves outward
+              // instead of ending on a hard rectangular edge.
+              maskImage:
+                'radial-gradient(ellipse at center, #000 0%, #000 48%, rgba(0,0,0,0.55) 70%, transparent 100%)',
+              WebkitMaskImage:
+                'radial-gradient(ellipse at center, #000 0%, #000 48%, rgba(0,0,0,0.55) 70%, transparent 100%)',
+              transition: editAnimReady
+                ? `width ${timing}, left ${timing}, opacity ${timing}`
+                : 'none',
+            }}
+          />
+        ) : null}
+        <div
+          ref={tableRootRef}
+          className={cn(
+            'bg-white',
+            isFixedEditing ? 'fixed z-[60]' : 'relative z-0 w-full'
+          )}
+          style={
+            isFixedEditing
+              ? {
+                  top: editLayout.top - SHELL_PAD_Y,
+                  left: displayCenterX,
+                  width: displayWidth,
+                  transform: 'translateX(-50%)',
+                  borderRadius: 20,
+                  padding: `${SHELL_PAD_Y}px ${SHELL_PAD_X}px`,
+                  // A wide white glow dissolves the surface into the blur behind it
+                  // so the edges read as soft rather than as a cut-out rectangle.
+                  boxShadow: editExpanded
+                    ? '0 0 48px 24px rgba(255,255,255,0.9), 0 28px 68px -36px rgba(28,27,46,0.26)'
+                    : '0 0 0 0 rgba(255,255,255,0)',
+                  // Inline (not a class) so the very first fixed frame can never
+                  // inherit a live transition and tween in from `w-full`.
+                  transition: editAnimReady
+                    ? `width ${timing}, left ${timing}, box-shadow ${timing}`
+                    : 'none',
+                  willChange: 'width, left',
+                  // Rows would light up under the cursor as the table slides back.
+                  pointerEvents: isCollapsing ? 'none' : undefined,
+                }
+              : undefined
+          }
+        >
+          {/* The shell is inset by pl-6 so row icons can hang left; pull the title
+              back out to the section's own left edge. */}
+          {header ? <div className="-ml-6 mb-6">{header}</div> : null}
+          {content}
         </div>
       </div>
     )
@@ -1403,7 +1889,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   const renderAddLineItemButton = (onClick: () => void) => (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        enterEditMode()
+        onClick()
+      }}
       className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-100 py-2 pl-1 pr-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
     >
       <CirclePlus size={16} className="text-blue-700" />
@@ -1469,8 +1958,8 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const slotCount = periods.length + (pendingDelete ? 1 : 0)
     let periodCursor = 0
 
-    return (
-      <div className="pl-6">
+    return wrapTableShell(
+      <>
         {Array.from({ length: slotCount }, (_, slotIndex) => {
           if (pendingDelete && slotIndex === pendingDelete.index) {
             return (
@@ -1528,6 +2017,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
                 <NewLineItemRow
                   onComplete={(newItem) => handleAddComplete(newItem, period.id)}
                   onCancel={() => setAddingToPeriodId(null)}
+                  rowStyle={editRowGridStyle}
                 />
               ) : (
                 renderAddLineItemButton(() => setAddingToPeriodId(period.id))
@@ -1548,13 +2038,13 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             Add period
           </button>
         </div>
-      </div>
+      </>
     )
   }
 
   // Default single-table view (backward compatible)
-  return (
-    <div className="pl-6">
+  return wrapTableShell(
+    <>
       {renderTableHeader()}
 
       {/* Rows */}
@@ -1565,12 +2055,13 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         <NewLineItemRow
           onComplete={(newItem) => handleAddComplete(newItem)}
           onCancel={() => setIsAddingNew(false)}
+          rowStyle={editRowGridStyle}
         />
       )}
 
       {/* Add line item button */}
       {!isAddingNew && renderAddLineItemButton(() => setIsAddingNew(true))}
-    </div>
+    </>
   )
 }
 

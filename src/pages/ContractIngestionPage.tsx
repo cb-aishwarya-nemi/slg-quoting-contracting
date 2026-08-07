@@ -14,6 +14,7 @@ import {
   InPageNav,
   SectionCommentStack,
   SectionSourceThumbnails,
+  SECTION_SOURCE_THUMBNAILS_HEIGHT,
   SourcePreviewDrawer,
   getExtractionAttentionStatus,
   applyFieldValue,
@@ -45,6 +46,7 @@ function IngestionSectionRow({
   isPanelsExpanded,
   contentWidth,
   comments,
+  commentsOffsetTop,
   onAddNote,
   onDelete,
   onResolve,
@@ -55,6 +57,8 @@ function IngestionSectionRow({
   isPanelsExpanded: boolean
   contentWidth: number
   comments: Array<Comment & { status?: 'open' | 'resolved' }>
+  /** Pushes the notes down to the section title when the content column starts above it. */
+  commentsOffsetTop?: number
   onAddNote: (text: string, status?: 'Blocked' | 'In progress') => void
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
@@ -63,7 +67,7 @@ function IngestionSectionRow({
     <div className="flex items-start gap-8">
       <div style={{ width: contentWidth, flexShrink: 0 }}>{children}</div>
       {isPanelsExpanded && (
-        <div style={{ width: INGESTION_COMMENTS_COL_WIDTH, flexShrink: 0 }}>
+        <div style={{ width: INGESTION_COMMENTS_COL_WIDTH, flexShrink: 0, marginTop: commentsOffsetTop }}>
           <SectionCommentStack
             sectionId={sectionId}
             comments={comments}
@@ -877,30 +881,37 @@ function ContractProcessingView({
 
             {/* Products and pricing */}
             <section ref={setSectionRef('products')} className="group/section">
-              <SectionSourceThumbnails
-                sources={sectionSources.products}
-                onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-              />
               <IngestionSectionRow
                 sectionId="products"
                 sectionLabel="Products and pricing"
                 isPanelsExpanded={isPanelsExpanded}
                 contentWidth={contentWidth}
                 comments={commentsBySection['products'] ?? []}
+                commentsOffsetTop={
+                  sectionSources.products?.length ? SECTION_SOURCE_THUMBNAILS_HEIGHT : 0
+                }
                 onAddNote={(text) => handleAddComment('products', 'Products and pricing', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
               >
-                <SectionHeader
-                  title="Products and pricing"
-                  status="ai-created"
-                  statusLabel="Created 2 items"
-                  commentCount={commentCountsBySection['products']}
-                />
-                <div className="mt-6" style={{ width: productsWidth }}>
-                  <ProductsPricingTable 
-                    items={data.products} 
+                <div style={{ width: productsWidth }}>
+                  <ProductsPricingTable
+                    items={data.products}
                     periods={data.rampPeriods}
+                    header={
+                      <>
+                        <SectionSourceThumbnails
+                          sources={sectionSources.products}
+                          onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                        />
+                        <SectionHeader
+                          title="Products and pricing"
+                          status="ai-created"
+                          statusLabel="Created 2 items"
+                          commentCount={commentCountsBySection['products']}
+                        />
+                      </>
+                    }
                   />
                 </div>
               </IngestionSectionRow>

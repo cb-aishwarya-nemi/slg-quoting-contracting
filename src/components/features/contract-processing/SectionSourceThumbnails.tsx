@@ -6,6 +6,9 @@ interface SectionSourceThumbnailsProps {
   onOpen: (index: number) => void
 }
 
+/** Thumbnail height plus the mb-4 gap below it. */
+export const SECTION_SOURCE_THUMBNAILS_HEIGHT = 80
+
 export function SectionSourceThumbnails({ sources, onOpen }: SectionSourceThumbnailsProps) {
   if (!sources || sources.length === 0) return null
 

@@ -18,6 +18,7 @@ import {
   InPageNav,
   SectionCommentStack,
   SectionSourceThumbnails,
+  SECTION_SOURCE_THUMBNAILS_HEIGHT,
   SourcePreviewDrawer,
   getExtractionAttentionStatus,
   applyFieldValue,
@@ -69,6 +70,7 @@ function ContractSectionRow({
   children,
   isPanelsExpanded,
   comments,
+  commentsOffsetTop,
   onAddNote,
   onDelete,
   onResolve,
@@ -78,6 +80,8 @@ function ContractSectionRow({
   children: React.ReactNode
   isPanelsExpanded: boolean
   comments: Array<Comment & { status?: CommentStatus }>
+  /** Pushes the notes down to the section title when the content column starts above it. */
+  commentsOffsetTop?: number
   onAddNote: (text: string, status: ContractStatus) => void
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
@@ -86,7 +90,7 @@ function ContractSectionRow({
     <div className="flex items-start gap-8">
       <div className="min-w-0 flex-1">{children}</div>
       {isPanelsExpanded && (
-        <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH }}>
+        <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH, marginTop: commentsOffsetTop }}>
           <SectionCommentStack
             sectionId={sectionId}
             comments={comments}
@@ -615,29 +619,37 @@ export function Customer360Page() {
 
                 {/* Products and pricing */}
                 <section ref={setSectionRef('products')} className="group/section">
-                  <SectionSourceThumbnails
-                    sources={sectionSources.products}
-                    onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                  />
                   <ContractSectionRow
                     sectionId="products"
                     sectionLabel="Products and pricing"
                     isPanelsExpanded={isPanelsExpanded}
                     comments={commentsBySection['products'] ?? []}
+                    commentsOffsetTop={
+                      sectionSources.products?.length ? SECTION_SOURCE_THUMBNAILS_HEIGHT : 0
+                    }
                     onAddNote={(text, status) => handleAddComment('products', 'Products and pricing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
                   >
-                    <SectionHeader
-                      title="Products and pricing"
-                      status="ai-created"
-                      statusLabel="Created 2 items"
-                      isFlashing={false}
-                      commentCount={commentCountsBySection['products']}
+                    <ProductsPricingTable
+                      items={data.products}
+                      periods={data.rampPeriods}
+                      header={
+                        <>
+                          <SectionSourceThumbnails
+                            sources={sectionSources.products}
+                            onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                          />
+                          <SectionHeader
+                            title="Products and pricing"
+                            status="ai-created"
+                            statusLabel="Created 2 items"
+                            isFlashing={false}
+                            commentCount={commentCountsBySection['products']}
+                          />
+                        </>
+                      }
                     />
-                    <div className="mt-6">
-                      <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
-                    </div>
                   </ContractSectionRow>
                 </section>
 
