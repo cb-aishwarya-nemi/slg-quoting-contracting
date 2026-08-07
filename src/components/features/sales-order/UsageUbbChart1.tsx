@@ -19,7 +19,7 @@ const FEATURE_USAGE_SHELL_MONTHS = [
   'Dec',
 ] as const
 /** July is current; Aug–Dec are projected. */
-const FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX = 6
+export const FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX = 6
 const FEATURE_USAGE_SHELL_COLORS = {
   ideal: '#94a3b8',
   actual: '#22863a',
@@ -174,6 +174,46 @@ const FEATURE_CHART_SERIES: Record<string, FeatureChartSeries> = {
     yAxisStep: 1_000,
     actual: [400, 800, 1_200, 1_800, 2_400, 3_000, 3_250, 3_550, 3_850, 4_150, 4_450, 4_750],
   },
+}
+
+const FEATURE_USAGE_UNITS: Record<string, string> = {
+  'API calls': 'API calls',
+  'Image processing': 'images',
+  Storage: 'GB',
+}
+
+/** On-demand unit price used for KPI dollar amounts. */
+const FEATURE_ON_DEMAND_UNIT_PRICE: Record<string, number> = {
+  'API calls': 0.0001,
+  'Image processing': 0.1,
+  Storage: 2,
+}
+
+export type FeatureUsageKpis = {
+  commitRemaining: number
+  commitTotal: number
+  onDemandUsage: number
+  onDemandAmount: number
+  unit: string
+}
+
+/** Current-month KPIs derived from the usage chart series. */
+export function getFeatureUsageKpis(featureLabel: string): FeatureUsageKpis {
+  const chart =
+    FEATURE_CHART_SERIES[featureLabel] ?? FEATURE_CHART_SERIES['Image processing']
+  const current =
+    chart.actual[FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX] ?? chart.actual[0] ?? 0
+  const onDemandUsage = Math.max(0, current - chart.commit)
+  const unitPrice =
+    FEATURE_ON_DEMAND_UNIT_PRICE[featureLabel] ??
+    FEATURE_ON_DEMAND_UNIT_PRICE['Image processing']
+  return {
+    commitRemaining: Math.max(0, chart.commit - current),
+    commitTotal: chart.commit,
+    onDemandUsage,
+    onDemandAmount: onDemandUsage * unitPrice,
+    unit: FEATURE_USAGE_UNITS[featureLabel] ?? 'units',
+  }
 }
 
 const CHART_GRANULARITIES = ['Monthly', 'Quarterly', 'Yearly'] as const
@@ -555,14 +595,14 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
               transform: 'translateX(-50%)',
             }}
           >
-            <span className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700">
+            <span className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold tracking-[-0.01em] text-teal-700">
               Today
             </span>
             <div
-              className="h-full w-px bg-blue-600"
+              className="h-full w-px"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(to bottom, #2563eb 0 3px, transparent 3px 6px)',
+                  'repeating-linear-gradient(to bottom, #0d9488 0 3px, transparent 3px 6px)',
                 backgroundColor: 'transparent',
               }}
             />
@@ -600,7 +640,7 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
             return (
               <span
                 key={`actual-value-${FEATURE_USAGE_SHELL_MONTHS[point.index]}`}
-                className="absolute whitespace-nowrap text-center text-[10px] font-semibold"
+                className="absolute whitespace-nowrap text-center text-[10px] font-medium"
                 style={{
                   left: `${(point.x / 1000) * 100}%`,
                   top: `${(point.yActual / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
@@ -627,7 +667,7 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
                 className={cn(
                   'absolute -translate-x-1/2 text-[10px]',
                   isCurrent
-                    ? 'font-semibold text-blue-700'
+                    ? 'font-semibold text-teal-700'
                     : projected
                       ? 'text-brand-mist'
                       : 'text-brand-fog'
