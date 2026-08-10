@@ -403,7 +403,7 @@ export function Customer360Page() {
         <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
-          <div className="flex shrink-0 items-center py-3">
+          <div data-c360-secondary-nav className="flex shrink-0 items-center py-3">
             <div className="flex shrink-0 items-center gap-2">
               <SecondaryNavSwitcher
                 items={taskSwitcherItems}

@@ -695,11 +695,23 @@ interface ExpandBounds {
 /**
  * The edit-mode table is lifted into a fixed layer, so it no longer inherits its
  * column's width. It centers on the page rather than on its own column, which is
- * offset by the in-page nav and the comments column. `main` is the page area next
- * to the app rail; maxWidth keeps both edges (including the icons hanging off the
- * left) inside it while staying symmetric around the centre.
+ * offset by the in-page nav and the comments column. When the secondary nav row
+ * (holding the task title and "Create Sales Order") is on screen, its bounds are
+ * used directly so the expanded table lines up with it exactly. Otherwise this
+ * falls back to `main` — the page area next to the app rail — with margins that
+ * keep both edges (including the icons hanging off the left) inside it while
+ * staying symmetric around the centre.
  */
 function measureExpandBounds(): ExpandBounds {
+  const secondaryNav = document.querySelector('[data-c360-secondary-nav]')
+  if (secondaryNav) {
+    const rect = secondaryNav.getBoundingClientRect()
+    return {
+      centerX: (rect.left + rect.right) / 2,
+      maxWidth: Math.max(0, rect.width),
+    }
+  }
+
   const page = document.querySelector('main')
   let left = 0
   let right = window.innerWidth
@@ -1255,7 +1267,7 @@ function PeriodIdentity({
   compact?: boolean
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
+    <div className="flex min-w-0 items-center gap-2 pr-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
       <span className="text-[13px] text-brand-fog">·</span>
       <div className="flex items-center gap-1.5 text-[12px] text-brand-fog">
@@ -1423,11 +1435,10 @@ function computeDiscountDollarValue(
 }
 
 /**
- * Inline-table tag flagging a discount on the row. Deliberately doesn't repeat
- * the discount amount next to the total — that reads as "this much more off",
- * leaving it ambiguous whether the total shown is pre- or post-discount. The
- * expanded table's Discount column is the source of truth for the amount, but
- * a hover layer surfaces it here too so it's not entirely hidden inline.
+ * Inline-table tag flagging a discount on the row, with the amount shown right
+ * on the pill. A hover layer adds the dollar equivalent and period, since those
+ * don't fit inline — the expanded table's Discount column remains the source of
+ * truth for editing.
  */
 function DiscountBadge({
   isRowFilled,
@@ -1453,6 +1464,7 @@ function DiscountBadge({
       )}
     >
       <Tag size={10} strokeWidth={2} />
+      {formatDiscount(discount, discountUnit)}
       <span className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-max min-w-[132px] rounded-lg bg-brand-navy px-3 py-2 text-left opacity-0 shadow-lg transition-opacity group-hover/discount:opacity-100">
         <span className="block text-[11px] font-semibold text-white">Discount applied</span>
         <span className="mt-1.5 flex items-center justify-between gap-4">
