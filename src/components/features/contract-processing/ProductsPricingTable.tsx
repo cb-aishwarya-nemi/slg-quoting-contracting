@@ -1,10 +1,20 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash } from 'lucide-react'
 import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
-import { type ProductLineItem, type RampPeriod, lineItemCatalog, type CatalogLineItem } from '@/data/contractProcessingMock'
+import {
+  type ProductLineItem,
+  type RampPeriod,
+  type DiscountUnit,
+  type DiscountPeriod,
+  DISCOUNT_UNITS,
+  DISCOUNT_PERIODS,
+  lineItemCatalog,
+  type CatalogLineItem,
+} from '@/data/contractProcessingMock'
 import {
   useOptionalFieldEditHistory,
 } from '@/context/FieldEditHistoryContext'
+import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 
 const PRODUCTS_SECTION_ID = 'products'
 const PRODUCTS_SECTION_LABEL = 'Products and pricing'
@@ -61,12 +71,15 @@ function MiniDropdown({
   isRowHovered,
   isRowActive,
   alignTop,
+  asField,
 }: {
   label: string
   width?: number
   isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
+  /** Wear the page's grey edit pill instead of reading as plain row text. */
+  asField?: boolean
 }) {
   return (
     <button
@@ -76,15 +89,17 @@ function MiniDropdown({
         'flex items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
         width != null ? 'shrink-0' : 'w-full min-w-0',
         alignTop && 'self-start',
-        isRowActive || isRowHovered
-          ? 'text-white hover:bg-white/10'
-          : 'text-brand-navy hover:bg-neutral-100'
+        asField
+          ? cn(ACTIVE_FIELD_STYLE, 'cursor-pointer hover:bg-neutral-200')
+          : isRowActive || isRowHovered
+            ? 'text-white hover:bg-white/10'
+            : 'text-brand-navy hover:bg-neutral-100'
       )}
     >
-      <span>{label}</span>
+      <span className="truncate">{label}</span>
       <ChevronDown size={14} className={cn(
-        "transition-colors",
-        (isRowActive || isRowHovered) ? "text-white/70" : "text-brand-mist"
+        "shrink-0 transition-colors",
+        !asField && (isRowActive || isRowHovered) ? "text-white/70" : "text-brand-mist"
       )} />
     </button>
   )
@@ -329,6 +344,197 @@ function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue 
   )
 }
 
+/** Renders the stored amount + unit as a single label, e.g. `10%` or `$500`. */
+function formatDiscount(value?: string, unit?: DiscountUnit) {
+  if (!value) return '—'
+  return unit === 'USD' ? `$${value}` : `${value}%`
+}
+
+/** Rounds a typed amount back into the table's currency format. */
+function formatCurrency(input: string): string {
+  const amount = parseFloat(input.replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(amount)) return input
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+function computeTotalPrice(unitPrice: string, quantity: string): string | null {
+  const price = parseFloat(unitPrice.replace(/[^\d.]/g, ''))
+  const qty = parseInt(quantity, 10)
+  if (!Number.isFinite(price) || !Number.isFinite(qty)) return null
+  return (price * qty).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+interface PriceFieldProps {
+  value: string
+  ariaLabel: string
+  onCommit: (value: string) => void
+}
+
+/** Currency cell that edits in place, wearing the same pill as every other field. */
+function PriceField({ value, ariaLabel, onCommit }: PriceFieldProps) {
+  const [draft, setDraft] = useState(value)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const commit = () => {
+    const next = formatCurrency(draft)
+    setDraft(next)
+    if (next !== value) onCommit(next)
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      value={draft}
+      inputMode="decimal"
+      aria-label={ariaLabel}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          commit()
+          inputRef.current?.blur()
+        }
+        if (e.key === 'Escape') {
+          // Otherwise the table's Escape handler collapses the whole edit surface.
+          e.stopPropagation()
+          setDraft(value)
+          inputRef.current?.blur()
+        }
+      }}
+      className={cn(ACTIVE_FIELD_STYLE, 'text-right')}
+    />
+  )
+}
+
+interface DiscountFieldProps {
+  value: string
+  unit: DiscountUnit
+  onChange: (next: { value: string; unit: DiscountUnit }) => void
+}
+
+/** Amount input with the % / USD switch built into the same pill. */
+function DiscountField({ value, unit, onChange }: DiscountFieldProps) {
+  const [draft, setDraft] = useState(value)
+  const [isUnitOpen, setIsUnitOpen] = useState(false)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    setDraft(value)
+  }, [value])
+
+  const commit = () => {
+    if (draft !== value) onChange({ value: draft, unit })
+  }
+
+  return (
+    // The wrapper's padding keeps the pill off its neighbour without pushing it
+    // past the end of its grid track, which a margin on a full-width pill would.
+    <div className="min-w-0 pl-3" onClick={(e) => e.stopPropagation()}>
+      <div
+        className={cn(
+          ACTIVE_FIELD_STYLE,
+          'flex items-center gap-1 transition-colors focus-within:bg-neutral-200'
+        )}
+      >
+        <input
+          ref={inputRef}
+          value={draft}
+          inputMode="decimal"
+          placeholder="0"
+          aria-label="Discount"
+          onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              commit()
+              inputRef.current?.blur()
+            }
+            if (e.key === 'Escape') {
+              e.stopPropagation()
+              setDraft(value)
+              inputRef.current?.blur()
+            }
+          }}
+          className="w-full min-w-0 bg-transparent text-right text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-mist"
+        />
+        <div className="relative shrink-0">
+          <button
+            type="button"
+            aria-label="Discount unit"
+            // Keeps the popover's outside-click listener from firing on the toggle itself.
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => setIsUnitOpen((open) => !open)}
+            className="flex cursor-pointer items-center gap-0.5 rounded px-1 text-[12px] font-medium text-brand-fog transition-colors hover:bg-neutral-300/60 hover:text-brand-navy"
+          >
+            {unit}
+            <ChevronDown size={12} className="text-brand-mist" />
+          </button>
+          <MiniDropdownPopover
+            isOpen={isUnitOpen}
+            onClose={() => setIsUnitOpen(false)}
+            onSelect={(next) => {
+              setIsUnitOpen(false)
+              onChange({ value: draft, unit: next as DiscountUnit })
+            }}
+            options={[...DISCOUNT_UNITS]}
+            currentValue={unit}
+          />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+interface SelectFieldProps {
+  value: string
+  options: string[]
+  ariaLabel: string
+  onChange: (value: string) => void
+}
+
+/** Pill-styled dropdown for the edit surface's plain choice columns. */
+function SelectField({ value, options, ariaLabel, onChange }: SelectFieldProps) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className="min-w-0 pl-3" onClick={(e) => e.stopPropagation()}>
+      <div className="relative">
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          aria-expanded={isOpen}
+          // Keeps the popover's outside-click listener from firing on the toggle itself.
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setIsOpen((open) => !open)}
+          className={cn(
+            ACTIVE_FIELD_STYLE,
+            'flex cursor-pointer items-center justify-between gap-1 hover:bg-neutral-200',
+            isOpen && 'bg-neutral-200'
+          )}
+        >
+          <span className="truncate">{value}</span>
+          <ChevronDown size={14} className="shrink-0 text-brand-mist" />
+        </button>
+        <MiniDropdownPopover
+          isOpen={isOpen}
+          onClose={() => setIsOpen(false)}
+          onSelect={(next) => {
+            setIsOpen(false)
+            onChange(next)
+          }}
+          options={options}
+          currentValue={value}
+        />
+      </div>
+    </div>
+  )
+}
+
 interface ItemNameButtonProps {
   name: string
   isAttention: boolean
@@ -341,6 +547,8 @@ interface ItemNameButtonProps {
   onViewEdits?: () => void
   /** Increment to programmatically open the item picker (e.g. from row Edit). */
   openRequestId?: number
+  /** Wear the page's grey edit pill instead of reading as plain row text. */
+  asField?: boolean
 }
 
 function ItemNameButton({
@@ -354,6 +562,7 @@ function ItemNameButton({
   isViewEditsFocused,
   onViewEdits,
   openRequestId,
+  asField,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -389,15 +598,19 @@ function ItemNameButton({
         onClick={() => handleOpenChange(!isOpen)}
         className={cn(
           'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
-          (isOpen || isRowHovered)
-            ? 'text-white'
-            : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
+          asField
+            ? cn(ACTIVE_FIELD_STYLE, 'justify-between hover:bg-neutral-200', isOpen && 'bg-neutral-200')
+            : (isOpen || isRowHovered)
+              ? 'text-white'
+              : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
         )}
       >
-        <span className="truncate">{name}</span>
+        {/* On the pill the gradient has to sit on the text alone — as a button
+            class its background would paint over the pill fill. */}
+        <span className={cn('truncate', asField && isAttention && 'ai-gradient-text')}>{name}</span>
         <ChevronDown size={14} className={cn(
           "shrink-0 transition-colors",
-          (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
+          !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
       {isEdited && !isOpen && !isRowActive && (
@@ -437,6 +650,10 @@ function ItemNameButton({
 const PERIOD_W = 96
 const QTY_W = 60
 const UNIT_W = 110
+/** Edit-mode-only column between unit price and total — fits the amount + unit control. */
+const DISCOUNT_W = 78
+/** Edit-mode-only column for how long the discount runs. */
+const DISCOUNT_PERIOD_W = 120
 const TOTAL_W = 124
 const MENU_W = 48
 /** A separator's `mx-3` margins plus its 1px rule. */
@@ -509,6 +726,9 @@ interface NewLineItemRowProps {
     unitPrice: string
     billingPeriod: string
     quantity: string
+    discount: string
+    discountUnit: DiscountUnit
+    discountPeriod: DiscountPeriod
   }) => void
   onCancel: () => void
   rowStyle?: CSSProperties
@@ -520,6 +740,9 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
   const [selectedItem, setSelectedItem] = useState<CatalogLineItem | null>(null)
   const [billingPeriod, setBillingPeriod] = useState('')
   const [quantity, setQuantity] = useState('')
+  const [discount, setDiscount] = useState('')
+  const [discountUnit, setDiscountUnit] = useState<DiscountUnit>('%')
+  const [discountPeriod, setDiscountPeriod] = useState<DiscountPeriod>('None')
   
   const itemAnchorRef = useRef<HTMLDivElement>(null)
   const frequencyAnchorRef = useRef<HTMLDivElement>(null)
@@ -548,6 +771,9 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
         unitPrice: selectedItem.unitPrice,
         billingPeriod,
         quantity,
+        discount,
+        discountUnit,
+        discountPeriod,
       })
     }
     if (e.key === 'Escape') {
@@ -562,6 +788,9 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
         unitPrice: selectedItem.unitPrice,
         billingPeriod,
         quantity,
+        discount,
+        discountUnit,
+        discountPeriod,
       })
     }
   }
@@ -591,7 +820,13 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
           onClick={() => setStep('item')}
           className={cn(
             'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] transition-colors',
-            selectedItem ? 'text-brand-navy' : 'text-brand-mist'
+            selectedItem ? 'text-brand-navy' : 'text-brand-mist',
+            useGrid &&
+              cn(
+                ACTIVE_FIELD_STYLE,
+                'justify-between hover:bg-neutral-200',
+                !selectedItem && 'text-brand-mist'
+              )
           )}
         >
           <span className="truncate font-medium">
@@ -622,6 +857,12 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
           className={cn(
             'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
             billingPeriod ? 'text-brand-navy hover:bg-neutral-100' : 'text-brand-mist',
+            useGrid &&
+              cn(
+                ACTIVE_FIELD_STYLE,
+                'hover:bg-neutral-200',
+                !billingPeriod && 'text-brand-mist'
+              ),
             !selectedItem && 'cursor-not-allowed opacity-50'
           )}
           disabled={!selectedItem}
@@ -651,7 +892,7 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
             onKeyDown={handleQuantityKeyDown}
             onBlur={handleQuantityBlur}
             placeholder="Qty"
-            className="w-full rounded bg-neutral-100 px-2 py-1 text-center text-[14px] text-brand-navy outline-none"
+            className={cn(ACTIVE_FIELD_STYLE, 'text-center')}
           />
         ) : (
           <button
@@ -660,6 +901,8 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
             className={cn(
               'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
               quantity ? 'text-brand-navy hover:bg-neutral-100' : 'text-brand-mist',
+              useGrid &&
+                cn(ACTIVE_FIELD_STYLE, 'hover:bg-neutral-200', !quantity && 'text-brand-mist'),
               !billingPeriod && 'cursor-not-allowed opacity-50'
             )}
             disabled={!billingPeriod}
@@ -681,6 +924,24 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
       >
         {selectedItem?.unitPrice || '—'}
       </div>
+      {useGrid ? (
+        <>
+          <DiscountField
+            value={discount}
+            unit={discountUnit}
+            onChange={(next) => {
+              setDiscount(next.value)
+              setDiscountUnit(next.unit)
+            }}
+          />
+          <SelectField
+            value={discountPeriod}
+            options={[...DISCOUNT_PERIODS]}
+            ariaLabel="Discount period for new line item"
+            onChange={(next) => setDiscountPeriod(next as DiscountPeriod)}
+          />
+        </>
+      ) : null}
       <div
         style={useGrid ? undefined : { width: TOTAL_W }}
         className={cn(
@@ -978,19 +1239,22 @@ function PeriodDateEdit({
 function PeriodIdentity({
   period,
   onChangeDates,
+  compact,
 }: {
   period: RampPeriod
   onChangeDates?: (dates: { startDate: string; endDate: string }) => void
+  /** Drops the relative annotation — the edit surface's item column is tighter. */
+  compact?: boolean
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
       <span className="text-[13px] text-brand-fog">·</span>
       <div className="flex items-center gap-1.5 text-[12px] text-brand-fog">
         <Calendar size={14} className="shrink-0 text-brand-mist" />
         <PeriodDateEdit
           value={period.startDate}
-          showRelative
+          showRelative={!compact}
           onChange={(startDate) =>
             onChangeDates?.({ startDate, endDate: period.endDate })
           }
@@ -1370,6 +1634,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     unitPrice: string
     billingPeriod: string
     quantity: string
+    discount: string
+    discountUnit: DiscountUnit
+    discountPeriod: DiscountPeriod
   }, periodId?: string) => {
     const unitPrice = parseFloat(newItem.unitPrice.replace(/[$,]/g, ''))
     const qty = parseInt(newItem.quantity, 10) || 0
@@ -1382,6 +1649,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       billingPeriod: newItem.billingPeriod,
       quantity: newItem.quantity.padStart(2, '0'),
       unitPrice: newItem.unitPrice,
+      discount: newItem.discount,
+      discountUnit: newItem.discountUnit,
+      discountPeriod: newItem.discountPeriod,
       totalPrice,
     }
 
@@ -1467,15 +1737,17 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       baseWidth -
         ROW_PAD_X -
         SEPARATOR_W * 3 -
-        (PERIOD_W + QTY_W + UNIT_W + TOTAL_W + MENU_W)
+        (PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + TOTAL_W + MENU_W)
     )
   )
   const editRowGridStyle = isEditMode
     ? {
         display: 'grid' as const,
-        // Mirrors the flex row track for track: item | rule | frequency | rule |
-        // qty | rule | unit price | total | menu. The rules stay a fixed width
-        // while the value columns share the extra space as the table widens.
+        // Mirrors the flex row track for track, then adds Discount and its period
+        // between unit and total — edit-only, so the expanded width absorbs them.
+        // Tracks: item | rule | frequency | rule | qty | rule | unit | discount |
+        // discount period | total | menu. Rules stay fixed; value columns share
+        // the extra space.
         gridTemplateColumns: [
           `minmax(0, ${itemColWeight}fr)`,
           `${SEPARATOR_W}px`,
@@ -1484,6 +1756,8 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           `minmax(0, ${QTY_W}fr)`,
           `${SEPARATOR_W}px`,
           `minmax(0, ${UNIT_W}fr)`,
+          `minmax(0, ${DISCOUNT_W}fr)`,
+          `minmax(0, ${DISCOUNT_PERIOD_W}fr)`,
           `minmax(0, ${TOTAL_W}fr)`,
           `minmax(0, ${MENU_W}fr)`,
         ].join(' '),
@@ -1502,7 +1776,14 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       )}
       style={editRowGridStyle}
     >
-      <div className="min-w-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        className={cn(
+          'min-w-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          // Matches the row's item cell, which grows — without it every label
+          // downstream sits left of the column it names.
+          !isEditMode && 'flex-1'
+        )}
+      >
         Item
       </div>
       <GhostSeparator />
@@ -1535,6 +1816,16 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       >
         Unit price
       </div>
+      {isEditMode ? (
+        <>
+          <div className="pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+            Discount
+          </div>
+          <div className="pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+            Discount period
+          </div>
+        </>
+      ) : null}
       <div
         style={isEditMode ? undefined : { width: TOTAL_W }}
         className={cn(
@@ -1565,10 +1856,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       )}
       style={editRowGridStyle}
     >
-      <div className="flex min-w-0 items-center">
+      <div className={cn('flex min-w-0 items-center', !isEditMode && 'flex-1')}>
         <PeriodChevron isExpanded onToggle={onToggle} />
         <PeriodIdentity
           period={period}
+          compact={isEditMode}
           onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
         />
       </div>
@@ -1602,6 +1894,16 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
       >
         Unit price
       </div>
+      {isEditMode ? (
+        <>
+          <div className="pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+            Discount
+          </div>
+          <div className="pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+            Discount period
+          </div>
+        </>
+      ) : null}
       <div
         style={isEditMode ? undefined : { width: TOTAL_W }}
         className={cn(
@@ -1624,6 +1926,9 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
+    // The lifted table already marks every cell as editable, so the navy row fill
+    // would only add noise — it stays behind for the inline table.
+    const isRowFilled = !isEditMode && (isActive || isHovered)
     const isEdited =
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
@@ -1637,15 +1942,14 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         className={cn(
           'group row-hover-trail items-center border-b py-1.5 pl-1 pr-2 transition-colors',
           !isEditMode && 'flex',
-          // Softened only on the lifted surface, where a square fill would fight
-          // the rounded card; the inline table keeps flush rows like other tables.
-          isEditMode && (isActive ? 'rounded-lg' : 'hover:rounded-lg'),
-          isActive
-            ? 'bg-brand-navy border-brand-navy cursor-pointer'
-            : cn(
-                'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
-                isEdited && 'bg-amber-50'
-              )
+          isEditMode
+            ? cn('rounded-lg border-neutral-100', isEdited && 'bg-amber-50')
+            : isActive
+              ? 'bg-brand-navy border-brand-navy cursor-pointer'
+              : cn(
+                  'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
+                  isEdited && 'bg-amber-50'
+                )
         )}
         style={editRowGridStyle}
       >
@@ -1653,10 +1957,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         <ItemNameButton
           name={item.name}
           isAttention={isAttention}
-          isRowHovered={isHovered && !isActive}
-          isRowActive={isActive}
+          isRowHovered={isRowFilled && !isActive}
+          isRowActive={isRowFilled && isActive}
           isEdited={isEdited}
           openRequestId={lineItemEditRequest[item.id]}
+          asField={isEditMode}
           isViewEditsFocused={
             editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
             editHistory?.viewEditsFocus?.fieldLabel === item.id
@@ -1692,21 +1997,23 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           }}
         />
 
-        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
+        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={isEditMode} />
         <MiniDropdown
           label={item.billingPeriod}
           width={isEditMode ? undefined : PERIOD_W}
-          isRowHovered={isHovered}
-          isRowActive={isActive}
+          isRowHovered={isRowFilled}
+          isRowActive={isRowFilled}
+          asField={isEditMode}
         />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
+        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={isEditMode} />
         <MiniDropdown
           label={item.quantity}
           width={isEditMode ? undefined : QTY_W}
-          isRowHovered={isHovered}
-          isRowActive={isActive}
+          isRowHovered={isRowFilled}
+          isRowActive={isRowFilled}
+          asField={isEditMode}
         />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} hideLine={isEditMode} />
+        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={isEditMode} />
 
         <div
           style={isEditMode ? undefined : { width: UNIT_W }}
@@ -1715,26 +2022,88 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             !isEditMode && 'shrink-0'
           )}
         >
-          <div className="flex items-center justify-end gap-2">
-            {item.rampPriceChange && !isActive && (
+          <div className="flex w-full items-center justify-end gap-2">
+            {item.rampPriceChange && !(isRowFilled && isActive) && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
-            <span
-              className={cn(
-                'text-right text-[14px] font-medium transition-colors',
-                isActive || isHovered ? 'text-white' : 'text-brand-navy'
-              )}
-            >
-              {item.unitPrice}
-            </span>
+            {isEditMode ? (
+              <PriceField
+                value={item.unitPrice}
+                ariaLabel={`Unit price for ${item.name}`}
+                onCommit={(nextPrice) => {
+                  recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
+                  updateItems((prev) =>
+                    prev.map((i) =>
+                      i.id === item.id
+                        ? {
+                            ...i,
+                            unitPrice: nextPrice,
+                            totalPrice: computeTotalPrice(nextPrice, i.quantity) ?? i.totalPrice,
+                          }
+                        : i
+                    )
+                  )
+                }}
+              />
+            ) : (
+              <span
+                className={cn(
+                  'text-right text-[14px] font-medium transition-colors',
+                  isRowFilled ? 'text-white' : 'text-brand-navy'
+                )}
+              >
+                {item.unitPrice}
+              </span>
+            )}
           </div>
         </div>
+        {isEditMode ? (
+          <DiscountField
+            value={item.discount ?? ''}
+            unit={item.discountUnit ?? '%'}
+            onChange={({ value, unit }) => {
+              recordProductEdit(
+                editHistory,
+                item.id,
+                'Discount',
+                formatDiscount(item.discount, item.discountUnit),
+                formatDiscount(value, unit)
+              )
+              updateItems((prev) =>
+                prev.map((i) =>
+                  i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
+                )
+              )
+            }}
+          />
+        ) : null}
+        {isEditMode ? (
+          <SelectField
+            value={item.discountPeriod ?? 'None'}
+            options={[...DISCOUNT_PERIODS]}
+            ariaLabel={`Discount period for ${item.name}`}
+            onChange={(next) => {
+              recordProductEdit(
+                editHistory,
+                item.id,
+                'Discount period',
+                item.discountPeriod ?? 'None',
+                next
+              )
+              updateItems((prev) =>
+                prev.map((i) =>
+                  i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
+                )
+              )
+            }}
+          />
+        ) : null}
         <div
           style={isEditMode ? undefined : { width: TOTAL_W }}
           className={cn(
             'text-right text-[14px] font-medium transition-colors',
             !isEditMode && 'shrink-0',
-            isActive || isHovered ? 'text-white' : 'text-brand-navy'
+            isRowFilled ? 'text-white' : 'text-brand-navy'
           )}
         >
           {item.totalPrice}
@@ -1744,26 +2113,29 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           className={cn('flex items-center justify-end gap-0.5', !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: MENU_W }}
         >
-          <button
-            type="button"
-            aria-label={`Edit ${item.name}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              enterEditMode()
-              setLineItemEditRequest((prev) => ({
-                ...prev,
-                [item.id]: (prev[item.id] ?? 0) + 1,
-              }))
-            }}
-            className={cn(
-              'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
-              isActive || isHovered
-                ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
-                : 'opacity-0 pointer-events-none'
-            )}
-          >
-            <Pencil size={14} strokeWidth={1.75} />
-          </button>
+          {/* Redundant once the row is lifted — every cell is already an input. */}
+          {!isEditMode && (
+            <button
+              type="button"
+              aria-label={`Edit ${item.name}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                enterEditMode()
+                setLineItemEditRequest((prev) => ({
+                  ...prev,
+                  [item.id]: (prev[item.id] ?? 0) + 1,
+                }))
+              }}
+              className={cn(
+                'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
+                isRowFilled
+                  ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                  : 'opacity-0 pointer-events-none'
+              )}
+            >
+              <Pencil size={14} strokeWidth={1.75} />
+            </button>
+          )}
           <button
             type="button"
             aria-label={`Delete ${item.name}`}
@@ -1776,9 +2148,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             }}
             className={cn(
               'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
-              isActive || isHovered
-                ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
-                : 'opacity-0 pointer-events-none'
+              isEditMode
+                ? 'text-brand-mist hover:bg-neutral-100 hover:text-brand-navy'
+                : isRowFilled
+                  ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                  : 'opacity-0 pointer-events-none'
             )}
           >
             <Trash size={14} strokeWidth={1.75} />

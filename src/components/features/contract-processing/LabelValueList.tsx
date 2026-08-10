@@ -7,10 +7,7 @@ import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
 import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
-
-/** Shared focus/editing fill for text inputs and open dropdowns. */
-const ACTIVE_FIELD_STYLE =
-  'w-full rounded bg-neutral-100 px-2 py-1 text-[14px] font-medium text-brand-navy outline-none focus:bg-neutral-200'
+import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
 

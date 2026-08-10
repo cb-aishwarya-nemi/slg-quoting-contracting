@@ -15,6 +15,12 @@ export interface LabelValue {
   extractionFailed?: boolean
 }
 
+export const DISCOUNT_UNITS = ['%', 'USD'] as const
+export type DiscountUnit = (typeof DISCOUNT_UNITS)[number]
+
+export const DISCOUNT_PERIODS = ['None', 'One Time', 'Forever', 'Limited Period'] as const
+export type DiscountPeriod = (typeof DISCOUNT_PERIODS)[number]
+
 export interface ProductLineItem {
   id: string
   name: string
@@ -23,6 +29,11 @@ export interface ProductLineItem {
   billingPeriod: string
   quantity: string
   unitPrice: string
+  /** Amount only — editable in the expanded products table. Empty means no discount. */
+  discount?: string
+  discountUnit?: DiscountUnit
+  /** How long the discount runs for. Defaults to 'None' when unset. */
+  discountPeriod?: DiscountPeriod
   totalPrice: string
   /** Price change percentage from previous period (e.g., 7 for 7% increase) */
   rampPriceChange?: number
@@ -240,6 +251,9 @@ export const contractProcessing = {
       billingPeriod: 'Yearly',
       quantity: '50',
       unitPrice: '$2,400.00',
+      discount: '10',
+      discountUnit: '%',
+      discountPeriod: 'Forever',
       totalPrice: '$120,000.00',
     },
     {
@@ -258,6 +272,9 @@ export const contractProcessing = {
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$9,500.00',
+      discount: '5',
+      discountUnit: '%',
+      discountPeriod: 'One Time',
       totalPrice: '$9,500.00',
     },
     {
@@ -276,6 +293,9 @@ export const contractProcessing = {
       billingPeriod: 'Yearly',
       quantity: '03',
       unitPrice: '$1,500.00',
+      discount: '15',
+      discountUnit: '%',
+      discountPeriod: 'Limited Period',
       totalPrice: '$4,500.00',
     },
   ] as ProductLineItem[],
@@ -294,6 +314,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '50',
           unitPrice: '$2,400.00',
+          discount: '10',
+          discountUnit: '%',
+          discountPeriod: 'Forever',
           totalPrice: '$120,000.00',
         },
         {
@@ -303,7 +326,7 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$18,000.00',
-          totalPrice: '$18,000.00',
+              totalPrice: '$18,000.00',
         },
         {
           id: 'rp1-li-3',
@@ -312,6 +335,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$9,500.00',
+          discount: '5',
+          discountUnit: '%',
+          discountPeriod: 'One Time',
           totalPrice: '$9,500.00',
         },
         {
@@ -321,7 +347,7 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$12,000.00',
-          totalPrice: '$12,000.00',
+              totalPrice: '$12,000.00',
         },
         {
           id: 'rp1-li-5',
@@ -330,6 +356,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '03',
           unitPrice: '$1,500.00',
+          discount: '15',
+          discountUnit: '%',
+          discountPeriod: 'Limited Period',
           totalPrice: '$4,500.00',
         },
       ] as ProductLineItem[],
@@ -347,6 +376,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '50',
           unitPrice: '$2,568.00',
+          discount: '10',
+          discountUnit: '%',
+          discountPeriod: 'Forever',
           totalPrice: '$128,400.00',
           rampPriceChange: 7,
         },
@@ -357,7 +389,7 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$18,000.00',
-          totalPrice: '$18,000.00',
+              totalPrice: '$18,000.00',
         },
         {
           id: 'rp2-li-3',
@@ -366,6 +398,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$10,165.00',
+          discount: '5',
+          discountUnit: '%',
+          discountPeriod: 'One Time',
           totalPrice: '$10,165.00',
           rampPriceChange: 7,
         },
@@ -376,7 +411,7 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$12,840.00',
-          totalPrice: '$12,840.00',
+              totalPrice: '$12,840.00',
         },
         {
           id: 'rp2-li-5',
@@ -385,6 +420,9 @@ export const contractProcessing = {
           billingPeriod: 'Yearly',
           quantity: '03',
           unitPrice: '$1,605.00',
+          discount: '15',
+          discountUnit: '%',
+          discountPeriod: 'Limited Period',
           totalPrice: '$4,815.00',
         },
       ] as ProductLineItem[],
