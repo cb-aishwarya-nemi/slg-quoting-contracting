@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag } from 'lucide-react'
-import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
+import { cn, withRelativeAnnotation } from '@/lib/utils'
 import {
   type ProductLineItem,
   type RampPeriod,
@@ -962,6 +962,7 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
           />
         </>
       ) : null}
+      <Separator hideLine={useGrid} />
       <div
         style={useGrid ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
@@ -1056,11 +1057,9 @@ const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 /** In-app calendar popover aligned with Apex dropdown styling. */
 function PeriodDateEdit({
   value,
-  showRelative = false,
   onChange,
 }: {
   value: string
-  showRelative?: boolean
   onChange: (value: string) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -1112,13 +1111,6 @@ function PeriodDateEdit({
     year: 'numeric',
   })
 
-  const relativeLabel = (() => {
-    if (!showRelative) return null
-    const parsed = new Date(value)
-    if (isNaN(parsed.getTime())) return null
-    return formatRelativeToNow(parsed)
-  })()
-
   return (
     <span ref={rootRef} className="relative inline-flex items-center gap-1">
       <button
@@ -1137,11 +1129,6 @@ function PeriodDateEdit({
       >
         {value}
       </button>
-      {relativeLabel ? (
-        <span className="whitespace-nowrap text-[12px] text-brand-fog">
-          ({relativeLabel})
-        </span>
-      ) : null}
 
       {open ? (
         <div
@@ -1259,12 +1246,9 @@ function PeriodDateEdit({
 function PeriodIdentity({
   period,
   onChangeDates,
-  compact,
 }: {
   period: RampPeriod
   onChangeDates?: (dates: { startDate: string; endDate: string }) => void
-  /** Drops the relative annotation — the edit surface's item column is tighter. */
-  compact?: boolean
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2 pr-2">
@@ -1274,7 +1258,6 @@ function PeriodIdentity({
         <Calendar size={14} className="shrink-0 text-brand-mist" />
         <PeriodDateEdit
           value={period.startDate}
-          showRelative={!compact}
           onChange={(startDate) =>
             onChangeDates?.({ startDate, endDate: period.endDate })
           }
@@ -1459,8 +1442,8 @@ function DiscountBadge({
   return (
     <span
       className={cn(
-        'group/discount relative inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
-        isRowFilled ? 'bg-white/15 text-white/80' : 'bg-violet-50 text-violet-700'
+        'group/discount relative inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-none px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+        isRowFilled ? 'bg-transparent text-fuchsia-400' : 'bg-violet-50 text-violet-700'
       )}
     >
       <Tag size={10} strokeWidth={2} />
@@ -1820,7 +1803,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     Math.round(
       baseWidth -
         ROW_PAD_X -
-        SEPARATOR_W * 3 -
+        SEPARATOR_W * 4 -
         (PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + TOTAL_W + MENU_W)
     )
   )
@@ -1830,8 +1813,8 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         // Mirrors the flex row track for track, then adds Discount and its period
         // between unit and total — edit-only, so the expanded width absorbs them.
         // Tracks: item | rule | frequency | rule | qty | rule | unit | discount |
-        // discount period | total | menu. Rules stay fixed; value columns share
-        // the extra space.
+        // discount period | rule | total | menu. Rules stay fixed; value columns
+        // share the extra space.
         gridTemplateColumns: [
           `minmax(0, ${itemColWeight}fr)`,
           `${SEPARATOR_W}px`,
@@ -1842,6 +1825,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           `minmax(0, ${UNIT_W}fr)`,
           `minmax(0, ${DISCOUNT_W}fr)`,
           `minmax(0, ${DISCOUNT_PERIOD_W}fr)`,
+          `${SEPARATOR_W}px`,
           `minmax(0, ${TOTAL_W}fr)`,
           `minmax(0, ${MENU_W}fr)`,
         ].join(' '),
@@ -1910,6 +1894,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           </div>
         </>
       ) : null}
+      <GhostSeparator />
       <div
         style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
@@ -1944,7 +1929,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         <PeriodChevron isExpanded onToggle={onToggle} />
         <PeriodIdentity
           period={period}
-          compact={isEditMode}
           onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
         />
       </div>
@@ -1988,6 +1972,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           </div>
         </>
       ) : null}
+      <GhostSeparator />
       <div
         style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
@@ -2184,6 +2169,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             }}
           />
         ) : null}
+        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={isEditMode} />
         <div
           style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
           className={cn(
