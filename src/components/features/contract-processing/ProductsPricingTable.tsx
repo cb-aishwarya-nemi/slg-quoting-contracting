@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag } from 'lucide-react'
 import { cn, formatRelativeToNow, withRelativeAnnotation } from '@/lib/utils'
 import {
   type ProductLineItem,
@@ -495,10 +495,11 @@ interface SelectFieldProps {
   options: string[]
   ariaLabel: string
   onChange: (value: string) => void
+  disabled?: boolean
 }
 
 /** Pill-styled dropdown for the edit surface's plain choice columns. */
-function SelectField({ value, options, ariaLabel, onChange }: SelectFieldProps) {
+function SelectField({ value, options, ariaLabel, onChange, disabled }: SelectFieldProps) {
   const [isOpen, setIsOpen] = useState(false)
 
   return (
@@ -508,28 +509,32 @@ function SelectField({ value, options, ariaLabel, onChange }: SelectFieldProps) 
           type="button"
           aria-label={ariaLabel}
           aria-expanded={isOpen}
+          disabled={disabled}
           // Keeps the popover's outside-click listener from firing on the toggle itself.
           onMouseDown={(e) => e.stopPropagation()}
           onClick={() => setIsOpen((open) => !open)}
           className={cn(
             ACTIVE_FIELD_STYLE,
-            'flex cursor-pointer items-center justify-between gap-1 hover:bg-neutral-200',
+            'flex items-center justify-between gap-1',
+            disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:bg-neutral-200',
             isOpen && 'bg-neutral-200'
           )}
         >
           <span className="truncate">{value}</span>
           <ChevronDown size={14} className="shrink-0 text-brand-mist" />
         </button>
-        <MiniDropdownPopover
-          isOpen={isOpen}
-          onClose={() => setIsOpen(false)}
-          onSelect={(next) => {
-            setIsOpen(false)
-            onChange(next)
-          }}
-          options={options}
-          currentValue={value}
-        />
+        {!disabled && (
+          <MiniDropdownPopover
+            isOpen={isOpen}
+            onClose={() => setIsOpen(false)}
+            onSelect={(next) => {
+              setIsOpen(false)
+              onChange(next)
+            }}
+            options={options}
+            currentValue={value}
+          />
+        )}
       </div>
     </div>
   )
@@ -653,8 +658,10 @@ const UNIT_W = 110
 /** Edit-mode-only column between unit price and total — fits the amount + unit control. */
 const DISCOUNT_W = 78
 /** Edit-mode-only column for how long the discount runs. */
-const DISCOUNT_PERIOD_W = 120
+const DISCOUNT_PERIOD_W = 116
 const TOTAL_W = 124
+/** Inline layout only — leaves room for the discount tag beside the amount. */
+const TOTAL_INLINE_W = 172
 const MENU_W = 48
 /** A separator's `mx-3` margins plus its 1px rule. */
 const SEPARATOR_W = 25
@@ -935,15 +942,16 @@ function NewLineItemRow({ onComplete, onCancel, rowStyle }: NewLineItemRowProps)
             }}
           />
           <SelectField
-            value={discountPeriod}
-            options={[...DISCOUNT_PERIODS]}
+            value={parseFloat(discount) > 0 ? discountPeriod : 'None'}
+            options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
             ariaLabel="Discount period for new line item"
             onChange={(next) => setDiscountPeriod(next as DiscountPeriod)}
+            disabled={!(parseFloat(discount) > 0)}
           />
         </>
       ) : null}
       <div
-        style={useGrid ? undefined : { width: TOTAL_W }}
+        style={useGrid ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
           'text-right text-[14px] font-medium text-brand-mist',
           !useGrid && 'shrink-0'
@@ -1401,6 +1409,70 @@ function RampPriceChangeBadge({ change }: { change: number }) {
   )
 }
 
+/** Converts a percentage discount into its dollar value off the pre-discount total. */
+function computeDiscountDollarValue(
+  discount?: string,
+  discountUnit?: DiscountUnit,
+  baseAmount?: string
+): number | null {
+  if (discountUnit !== '%') return null
+  const pct = parseFloat(discount ?? '')
+  const base = parseFloat((baseAmount ?? '').replace(/[^\d.]/g, ''))
+  if (!Number.isFinite(pct) || !Number.isFinite(base)) return null
+  return (base * pct) / 100
+}
+
+/**
+ * Inline-table tag flagging a discount on the row. Deliberately doesn't repeat
+ * the discount amount next to the total — that reads as "this much more off",
+ * leaving it ambiguous whether the total shown is pre- or post-discount. The
+ * expanded table's Discount column is the source of truth for the amount, but
+ * a hover layer surfaces it here too so it's not entirely hidden inline.
+ */
+function DiscountBadge({
+  isRowFilled,
+  discount,
+  discountUnit,
+  discountPeriod,
+  baseAmount,
+}: {
+  isRowFilled?: boolean
+  discount?: string
+  discountUnit?: DiscountUnit
+  discountPeriod?: DiscountPeriod
+  /** Pre-discount total, used to convert a percentage discount into a dollar value. */
+  baseAmount?: string
+}) {
+  const dollarValue = computeDiscountDollarValue(discount, discountUnit, baseAmount)
+
+  return (
+    <span
+      className={cn(
+        'group/discount relative inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
+        isRowFilled ? 'bg-white/15 text-white/80' : 'bg-violet-50 text-violet-700'
+      )}
+    >
+      <Tag size={10} strokeWidth={2} />
+      <span className="pointer-events-none absolute right-0 top-full z-20 mt-2 w-max min-w-[132px] rounded-lg bg-brand-navy px-3 py-2 text-left opacity-0 shadow-lg transition-opacity group-hover/discount:opacity-100">
+        <span className="block text-[11px] font-semibold text-white">Discount applied</span>
+        <span className="mt-1.5 flex items-center justify-between gap-4">
+          <span className="shrink-0 text-[11px] text-white/60">Amount</span>
+          <span className="whitespace-nowrap text-[11px] font-medium text-white">
+            {formatDiscount(discount, discountUnit)}
+            {dollarValue !== null && (
+              <span className="text-white/60"> ({formatCurrency(String(dollarValue))})</span>
+            )}
+          </span>
+        </span>
+        <span className="flex items-center justify-between gap-4">
+          <span className="text-[11px] text-white/60">Period</span>
+          <span className="text-[11px] font-medium text-white">{discountPeriod ?? 'None'}</span>
+        </span>
+      </span>
+    </span>
+  )
+}
+
 interface ProductsPricingTableProps {
   items: ProductLineItem[]
   periods?: RampPeriod[]
@@ -1827,7 +1899,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         </>
       ) : null}
       <div
-        style={isEditMode ? undefined : { width: TOTAL_W }}
+        style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
           'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
@@ -1905,7 +1977,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         </>
       ) : null}
       <div
-        style={isEditMode ? undefined : { width: TOTAL_W }}
+        style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
         className={cn(
           'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
@@ -1929,6 +2001,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     // The lifted table already marks every cell as editable, so the navy row fill
     // would only add noise — it stays behind for the inline table.
     const isRowFilled = !isEditMode && (isActive || isHovered)
+    const hasDiscount = parseFloat(item.discount ?? '') > 0
     const isEdited =
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
@@ -2079,9 +2152,10 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         ) : null}
         {isEditMode ? (
           <SelectField
-            value={item.discountPeriod ?? 'None'}
-            options={[...DISCOUNT_PERIODS]}
+            value={hasDiscount ? (item.discountPeriod ?? 'None') : 'None'}
+            options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
             ariaLabel={`Discount period for ${item.name}`}
+            disabled={!hasDiscount}
             onChange={(next) => {
               recordProductEdit(
                 editHistory,
@@ -2099,13 +2173,22 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           />
         ) : null}
         <div
-          style={isEditMode ? undefined : { width: TOTAL_W }}
+          style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
           className={cn(
             'text-right text-[14px] font-medium transition-colors',
-            !isEditMode && 'shrink-0',
+            !isEditMode && 'flex shrink-0 items-center justify-end gap-1.5',
             isRowFilled ? 'text-white' : 'text-brand-navy'
           )}
         >
+          {!isEditMode && hasDiscount && (
+            <DiscountBadge
+              isRowFilled={isRowFilled}
+              discount={item.discount}
+              discountUnit={item.discountUnit}
+              discountPeriod={item.discountPeriod}
+              baseAmount={item.totalPrice}
+            />
+          )}
           {item.totalPrice}
         </div>
 
@@ -2169,7 +2252,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     // Width/top absorb it, keeping the content itself exactly where it was.
     const contentWidth = isFixedEditing
       ? editExpanded
-        ? Math.min(baseW * EXPAND_RATIO, expandMaxWidth - SHELL_PAD_X * 2)
+        ? Math.max(baseW, expandMaxWidth - SHELL_PAD_X * 2)
         : baseW
       : 0
     const displayWidth = isFixedEditing ? contentWidth + SHELL_PAD_X * 2 : undefined
