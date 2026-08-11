@@ -2806,50 +2806,64 @@ export function ProductsPricingTable({
           className={cn('flex items-center justify-end gap-0.5', !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: MENU_W }}
         >
-          {/* Redundant once the row is lifted — every cell is already an input. */}
-          {!isEditMode && (
-            <button
-              type="button"
-              aria-label={`Edit ${item.name}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                enterEditMode()
-                setLineItemEditRequest((prev) => ({
-                  ...prev,
-                  [item.id]: (prev[item.id] ?? 0) + 1,
-                }))
+          {isExpandedVariant ? (
+            <LineItemOptionsMenu
+              itemName={item.name}
+              onDelete={() => {
+                recordProductEdit(editHistory, item.id, 'Item', item.name, 'Deleted')
+                updateItems((prev) => prev.filter((i) => i.id !== item.id))
+                if (activeRowId === item.id) setActiveRowId(null)
+                if (hoveredRowId === item.id) setHoveredRowId(null)
               }}
-              className={cn(
-                'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
-                isRowFilled
-                  ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
-                  : 'opacity-0 pointer-events-none'
+            />
+          ) : (
+            <>
+              {/* Redundant once the row is lifted — every cell is already an input. */}
+              {!isEditMode && (
+                <button
+                  type="button"
+                  aria-label={`Edit ${item.name}`}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    enterEditMode()
+                    setLineItemEditRequest((prev) => ({
+                      ...prev,
+                      [item.id]: (prev[item.id] ?? 0) + 1,
+                    }))
+                  }}
+                  className={cn(
+                    'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
+                    isRowFilled
+                      ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                      : 'opacity-0 pointer-events-none'
+                  )}
+                >
+                  <Pencil size={14} strokeWidth={1.75} />
+                </button>
               )}
-            >
-              <Pencil size={14} strokeWidth={1.75} />
-            </button>
+              <button
+                type="button"
+                aria-label={`Delete ${item.name}`}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  recordProductEdit(editHistory, item.id, 'Item', item.name, 'Deleted')
+                  updateItems((prev) => prev.filter((i) => i.id !== item.id))
+                  if (activeRowId === item.id) setActiveRowId(null)
+                  if (hoveredRowId === item.id) setHoveredRowId(null)
+                }}
+                className={cn(
+                  'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
+                  isEditMode
+                    ? 'text-brand-mist hover:bg-neutral-100 hover:text-brand-navy'
+                    : isRowFilled
+                      ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
+                      : 'opacity-0 pointer-events-none'
+                )}
+              >
+                <Trash size={14} strokeWidth={1.75} />
+              </button>
+            </>
           )}
-          <button
-            type="button"
-            aria-label={`Delete ${item.name}`}
-            onClick={(e) => {
-              e.stopPropagation()
-              recordProductEdit(editHistory, item.id, 'Item', item.name, 'Deleted')
-              updateItems((prev) => prev.filter((i) => i.id !== item.id))
-              if (activeRowId === item.id) setActiveRowId(null)
-              if (hoveredRowId === item.id) setHoveredRowId(null)
-            }}
-            className={cn(
-              'flex h-5 w-5 cursor-pointer items-center justify-center rounded transition-all',
-              isEditMode
-                ? 'text-brand-mist hover:bg-neutral-100 hover:text-brand-navy'
-                : isRowFilled
-                  ? 'opacity-100 text-white/80 hover:bg-white/15 hover:text-white'
-                  : 'opacity-0 pointer-events-none'
-            )}
-          >
-            <Trash size={14} strokeWidth={1.75} />
-          </button>
         </div>
       </div>
     )
