@@ -31,144 +31,26 @@ export interface UseCasePage {
 /**
  * Registry of all pages/modals and their use case variants
  * This is the single source of truth for what can be switched
+ *
+ * Trimmed down to a single focused entry while exploring alternate layouts
+ * for the Products and pricing section — keeps the `customer360` id so
+ * existing `activePage === 'customer360'` checks elsewhere keep working.
  */
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
-    id: 'customer-link-modal',
-    label: 'Customer Link Modal',
-    defaultVariant: 'closest-matches',
-    variants: [
-      {
-        id: 'perfect-match',
-        label: 'Perfect Match',
-        description: 'Customer name exactly matches an existing record',
-      },
-      {
-        id: 'closest-matches',
-        label: 'Closest Matches',
-        description: 'AI finds similar customers with fuzzy matching',
-      },
-      {
-        id: 'no-match',
-        label: 'No Match Found',
-        description: 'No existing customers match the extracted data',
-      },
-    ],
-  },
-  {
-    id: 'workbench',
-    label: 'Workbench',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard workbench with sample tasks',
-      },
-      {
-        id: 'empty',
-        label: 'Empty State',
-        description: 'No tasks in the workbench',
-      },
-      {
-        id: 'high-volume',
-        label: 'High Volume',
-        description: 'Many tasks requiring attention',
-      },
-    ],
-  },
-  {
     id: 'customer360',
-    label: 'Customer 360',
-    defaultVariant: 'default',
+    label: 'Products & Pricing',
+    defaultVariant: 'edit-state',
     variants: [
       {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard customer view',
+        id: 'edit-state',
+        label: 'Edit State',
+        description: 'Inline table — click a row to lift into edit',
       },
       {
-        id: 'attention-items',
-        label: 'Attention Items',
-        description: 'Contract with items requiring review',
-      },
-      {
-        id: 'all-ready',
-        label: 'All Ready',
-        description: 'All sections validated and ready',
-      },
-    ],
-  },
-  {
-    id: 'invoice-details',
-    label: 'Invoice Details',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Pending Invoice',
-        description: 'Invoice awaiting approval',
-      },
-      {
-        id: 'paid',
-        label: 'Paid Invoice',
-        description: 'Successfully paid invoice',
-      },
-      {
-        id: 'overdue',
-        label: 'Overdue Invoice',
-        description: 'Invoice past due date',
-      },
-    ],
-  },
-  {
-    id: 'all-invoices',
-    label: 'All Invoices',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard invoice list',
-      },
-      {
-        id: 'filtered',
-        label: 'Filtered View',
-        description: 'Invoices filtered by status',
-      },
-    ],
-  },
-  {
-    id: 'all-contracts',
-    label: 'All Contracts',
-    defaultVariant: 'default',
-    variants: [
-      {
-        id: 'default',
-        label: 'Default View',
-        description: 'Standard contract list',
-      },
-      {
-        id: 'pending-only',
-        label: 'Pending Only',
-        description: 'Contracts pending approval',
-      },
-    ],
-  },
-  {
-    id: 'sales-order-details',
-    label: 'Sales Order Details',
-    defaultVariant: 'v2',
-    variants: [
-      {
-        id: 'v1',
-        label: 'V1',
-        description: 'AI summary with contextual details',
-      },
-      {
-        id: 'v2',
-        label: 'V2',
-        description: 'Timeline view with surface signals',
+        id: 'expanded-state',
+        label: 'Expanded State',
+        description: 'Same as Edit state’s lifted edit surface',
       },
     ],
   },

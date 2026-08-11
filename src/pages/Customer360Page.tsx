@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus, Expand, Shrink } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -23,6 +23,7 @@ import {
   getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
+  type ProductsPricingVariant,
 } from '@/components/features/contract-processing'
 import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { cn } from '@/lib/utils'
@@ -127,7 +128,15 @@ function TabPlaceholder({ label }: { label: string }) {
 
 export function Customer360Page() {
   const { view, goToCustomers, goToSalesOrders } = useNavigation()
-  const { setActivePage } = useUseCase()
+  const { activePage, activeVariant, setActivePage, getPage } = useUseCase()
+  const productsPricingPage = getPage('customer360')
+  const productsPricingVariant =
+    (activePage === 'customer360' &&
+      activeVariant &&
+      productsPricingPage?.variants.some((v) => v.id === activeVariant)
+      ? activeVariant
+      : productsPricingPage?.defaultVariant) as ProductsPricingVariant | undefined
+  const [isProductsLifted, setIsProductsLifted] = useState(false)
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
   const data = contractProcessing
@@ -143,6 +152,11 @@ export function Customer360Page() {
   useEffect(() => {
     setAccountItems(data.account.map((item) => ({ ...item })))
   }, [data.account])
+
+  // Drop lift when switching Edit ↔ Expanded use case.
+  useEffect(() => {
+    setIsProductsLifted(false)
+  }, [productsPricingVariant])
 
   const accountAttention = useMemo(
     () => getExtractionAttentionStatus(accountItems),
@@ -634,6 +648,9 @@ export function Customer360Page() {
                     <ProductsPricingTable
                       items={data.products}
                       periods={data.rampPeriods}
+                      variant={productsPricingVariant}
+                      lifted={isProductsLifted}
+                      onLiftedChange={setIsProductsLifted}
                       header={
                         <>
                           <SectionSourceThumbnails
@@ -646,6 +663,25 @@ export function Customer360Page() {
                             statusLabel="Created 2 items"
                             isFlashing={false}
                             commentCount={commentCountsBySection['products']}
+                            trailing={
+                              <button
+                                type="button"
+                                onClick={() => setIsProductsLifted((prev) => !prev)}
+                                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+                                aria-label={
+                                  isProductsLifted
+                                    ? 'Collapse products and pricing'
+                                    : 'Expand products and pricing'
+                                }
+                                title={isProductsLifted ? 'Collapse' : 'Expand'}
+                              >
+                                {isProductsLifted ? (
+                                  <Shrink size={14} strokeWidth={2} />
+                                ) : (
+                                  <Expand size={14} strokeWidth={2} />
+                                )}
+                              </button>
+                            }
                           />
                         </>
                       }
