@@ -729,9 +729,9 @@ function ItemNameButton({
 
   return (
     <div className="group/item relative flex min-w-0 flex-1 items-center gap-1.5">
-      {/* Icon with negative margin — sits outside the table column for alignment */}
-      {isAttention && (
-        <div className={cn('relative mr-2 shrink-0', hangIcon && '-ml-6')}>
+      {/* Edit-state: hang the attention icon in the left gutter outside the column. */}
+      {isAttention && hangIcon && (
+        <div className="relative -ml-6 mr-2 shrink-0">
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
           {!isOpen && !isRowHovered && (
             <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
@@ -783,6 +783,17 @@ function ItemNameButton({
           <span className={isRowHovered ? 'inline' : 'hidden'}>View edits</span>
         </button>
       )}
+      {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
+      {isAttention && !hangIcon && (
+        <div className="relative ml-auto shrink-0 pr-2">
+          <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
+          {!isOpen && !isRowHovered && (
+            <span className="pointer-events-none absolute right-full mr-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
+              Created this item based on your contract
+            </span>
+          )}
+        </div>
+      )}
       <LineItemPopover
         isOpen={isOpen}
         onClose={() => handleOpenChange(false)}
@@ -817,6 +828,75 @@ const ROW_PAD_X = 12
  *  Sized to fit "Period N · 📅 17 Jul 2026 to 17 Jun 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
 const EXPANDED_ITEM_W = 340
+/** `pl-1` on expanded rows — sticky Item starts after this inset. */
+const EXPANDED_ROW_PAD_L = 4
+
+/** How far the sticky-column shadow reaches into the scrolling columns. */
+const STICKY_SHADOW_W = 28
+/** Scroll distance over which the shadow deepens from resting to full strength. */
+const STICKY_SHADOW_RAMP = 40
+/** Resting strength while the columns sit at scroll origin. */
+const STICKY_SHADOW_REST = 0.65
+/** Vertical falloff so the shadow dissolves instead of ending on a hard line. */
+const STICKY_SHADOW_FADE_Y = 16
+
+/**
+ * Expanded-state horizontal scroller. Renders one continuous soft shadow at the
+ * sticky Item column’s right edge so the pin + scrollable remainder read clearly.
+ * The overlay lives outside the scroll box — inside it, an absolute element would
+ * scroll away with the columns — and it deepens as content slides underneath.
+ */
+function ExpandedScrollContainer({ children }: { children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [strength, setStrength] = useState(0)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+
+    const sync = () => {
+      if (el.scrollWidth - el.clientWidth <= 1) {
+        setStrength(0)
+        return
+      }
+      const progress = Math.min(1, el.scrollLeft / STICKY_SHADOW_RAMP)
+      setStrength(STICKY_SHADOW_REST + (1 - STICKY_SHADOW_REST) * progress)
+    }
+
+    sync()
+    el.addEventListener('scroll', sync, { passive: true })
+    const ro = new ResizeObserver(sync)
+    ro.observe(el)
+    return () => {
+      el.removeEventListener('scroll', sync)
+      ro.disconnect()
+    }
+  }, [])
+
+  const verticalFade = `linear-gradient(to bottom, transparent 0, #000 ${STICKY_SHADOW_FADE_Y}px, #000 calc(100% - ${STICKY_SHADOW_FADE_Y}px), transparent 100%)`
+
+  return (
+    <div className="relative">
+      <div ref={ref} className="overflow-x-auto">
+        {children}
+      </div>
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 z-20 transition-opacity duration-300 ease-out"
+        style={{
+          left: EXPANDED_ROW_PAD_L + EXPANDED_ITEM_W,
+          width: STICKY_SHADOW_W,
+          opacity: strength,
+          // Eased alpha stops keep the falloff smooth instead of banding out.
+          background:
+            'linear-gradient(to right, rgba(28, 27, 46, 0.13) 0%, rgba(28, 27, 46, 0.08) 18%, rgba(28, 27, 46, 0.04) 40%, rgba(28, 27, 46, 0.014) 66%, rgba(28, 27, 46, 0) 100%)',
+          maskImage: verticalFade,
+          WebkitMaskImage: verticalFade,
+        }}
+      />
+    </div>
+  )
+}
 
 const EXPAND_RATIO = 1.3
 /** Row chevrons and AI icons hang 24px left of the table box; keep that inside the bounds. */
@@ -1226,7 +1306,8 @@ function toDateKey(date: Date): string {
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
-/** In-app calendar popover aligned with Apex dropdown styling. */
+/** In-app calendar popover aligned with Apex dropdown styling.
+ *  Portaled to the body so sticky / overflow-x table chrome can’t clip it. */
 function PeriodDateEdit({
   value,
   onChange,
@@ -1239,7 +1320,28 @@ function PeriodDateEdit({
   const [viewMonth, setViewMonth] = useState(
     () => new Date(selected.getFullYear(), selected.getMonth(), 1)
   )
-  const rootRef = useRef<HTMLSpanElement>(null)
+  const buttonRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean } | null>(
+    null
+  )
+
+  const updatePosition = useCallback(() => {
+    if (!buttonRef.current) return
+    const rect = buttonRef.current.getBoundingClientRect()
+    const popoverH = 320
+    const openUp = window.innerHeight - rect.bottom < popoverH && rect.top > popoverH
+    const width = 280
+    const left = Math.min(
+      Math.max(8, rect.left),
+      Math.max(8, window.innerWidth - width - 8)
+    )
+    setCoords({
+      top: openUp ? rect.top - 4 : rect.bottom + 6,
+      left,
+      openUp,
+    })
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -1247,12 +1349,28 @@ function PeriodDateEdit({
     if (parsed) setViewMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
   }, [open, value])
 
+  useLayoutEffect(() => {
+    if (!open) {
+      setCoords(null)
+      return
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    document.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      document.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [open, updatePosition])
+
   useEffect(() => {
     if (!open) return
     const handleClickOutside = (e: globalThis.MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false)
+      const target = e.target as Node
+      if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target)) {
+        return
       }
+      setOpen(false)
     }
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false)
@@ -1283,9 +1401,129 @@ function PeriodDateEdit({
     year: 'numeric',
   })
 
+  const calendar =
+    open && coords
+      ? createPortal(
+          <div
+            ref={popoverRef}
+            role="dialog"
+            aria-label="Choose date"
+            onClick={(e) => e.stopPropagation()}
+            className="fixed z-[60] w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
+            style={
+              coords.openUp
+                ? { left: coords.left, bottom: window.innerHeight - coords.top }
+                : { left: coords.left, top: coords.top }
+            }
+          >
+            <div className="mb-3 flex items-center justify-between gap-1">
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewMonth(
+                      new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1)
+                    )
+                  }
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                  aria-label="Previous year"
+                >
+                  <ChevronsLeft size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewMonth(
+                      new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
+                    )
+                  }
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                  aria-label="Previous month"
+                >
+                  <ChevronLeft size={16} />
+                </button>
+              </div>
+              <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+                {monthLabel}
+              </span>
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewMonth(
+                      new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
+                    )
+                  }
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                  aria-label="Next month"
+                >
+                  <ChevronRight size={16} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setViewMonth(
+                      new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1)
+                    )
+                  }
+                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+                  aria-label="Next year"
+                >
+                  <ChevronsRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="mb-1 grid grid-cols-7 gap-0.5">
+              {WEEKDAYS.map((day) => (
+                <div
+                  key={day}
+                  className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
+                >
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-7 gap-0.5">
+              {cells.map((date, idx) => {
+                if (!date) {
+                  return <div key={`empty-${idx}`} className="h-8" />
+                }
+                const key = toDateKey(date)
+                const isSelected = key === selectedKey
+                const isToday = key === todayKey
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => {
+                      onChange(formatPeriodDate(date))
+                      setOpen(false)
+                    }}
+                    className={cn(
+                      'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
+                      isSelected
+                        ? 'bg-brand-navy font-semibold text-white'
+                        : isToday
+                          ? 'font-semibold text-blue-700 hover:bg-blue-50'
+                          : 'text-brand-navy hover:bg-neutral-100'
+                    )}
+                  >
+                    {date.getDate()}
+                  </button>
+                )
+              })}
+            </div>
+          </div>,
+          document.body
+        )
+      : null
+
   return (
-    <span ref={rootRef} className="relative inline-flex items-center gap-1">
+    <span className="relative inline-flex items-center gap-1">
       <button
+        ref={buttonRef}
         type="button"
         onClick={(e: MouseEvent) => {
           e.stopPropagation()
@@ -1301,115 +1539,7 @@ function PeriodDateEdit({
       >
         {value}
       </button>
-
-      {open ? (
-        <div
-          role="dialog"
-          aria-label="Choose date"
-          onClick={(e) => e.stopPropagation()}
-          className="absolute left-0 top-full z-40 mt-1.5 w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
-        >
-          <div className="mb-3 flex items-center justify-between gap-1">
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMonth(
-                    new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1)
-                  )
-                }
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                aria-label="Previous year"
-              >
-                <ChevronsLeft size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMonth(
-                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
-                  )
-                }
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                aria-label="Previous month"
-              >
-                <ChevronLeft size={16} />
-              </button>
-            </div>
-            <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
-              {monthLabel}
-            </span>
-            <div className="flex items-center">
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMonth(
-                    new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
-                  )
-                }
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                aria-label="Next month"
-              >
-                <ChevronRight size={16} />
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setViewMonth(
-                    new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1)
-                  )
-                }
-                className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                aria-label="Next year"
-              >
-                <ChevronsRight size={16} />
-              </button>
-            </div>
-          </div>
-
-          <div className="mb-1 grid grid-cols-7 gap-0.5">
-            {WEEKDAYS.map((day) => (
-              <div
-                key={day}
-                className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
-              >
-                {day}
-              </div>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {cells.map((date, idx) => {
-              if (!date) {
-                return <div key={`empty-${idx}`} className="h-8" />
-              }
-              const key = toDateKey(date)
-              const isSelected = key === selectedKey
-              const isToday = key === todayKey
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => {
-                    onChange(formatPeriodDate(date))
-                    setOpen(false)
-                  }}
-                  className={cn(
-                    'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
-                    isSelected
-                      ? 'bg-brand-navy font-semibold text-white'
-                      : isToday
-                        ? 'font-semibold text-blue-700 hover:bg-blue-50'
-                        : 'text-brand-navy hover:bg-neutral-100'
-                  )}
-                >
-                  {date.getDate()}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ) : null}
+      {calendar}
     </span>
   )
 }
@@ -2298,10 +2428,12 @@ export function ProductsPricingTable({
       <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Unit price
       </div>
-      <div style={{ width: DISCOUNT_W }} className="shrink-0 pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <GhostSeparator />
+      <div style={{ width: DISCOUNT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Discount
       </div>
-      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <GhostSeparator />
+      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Discount period
       </div>
       <GhostSeparator />
@@ -2345,10 +2477,12 @@ export function ProductsPricingTable({
       <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Unit price
       </div>
-      <div style={{ width: DISCOUNT_W }} className="shrink-0 pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <GhostSeparator />
+      <div style={{ width: DISCOUNT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Discount
       </div>
-      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <GhostSeparator />
+      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Discount period
       </div>
       <GhostSeparator />
@@ -2495,16 +2629,18 @@ export function ProductsPricingTable({
           </div>
         </div>
 
+        <Separator />
         <div
           style={{ width: DISCOUNT_W }}
           className={cn(
-            'shrink-0 pl-3 text-right text-[14px] font-medium',
+            'shrink-0 text-right text-[14px] font-medium',
             hasDiscount ? 'text-brand-navy' : 'text-brand-mist'
           )}
         >
           {formatDiscount(item.discount, item.discountUnit)}
         </div>
-        <div style={{ width: DISCOUNT_PERIOD_W }} className="min-w-0 shrink-0 pl-3">
+        <Separator />
+        <div style={{ width: DISCOUNT_PERIOD_W }} className="min-w-0 shrink-0">
           <InteractiveMiniDropdown
             label={hasDiscount ? (item.discountPeriod ?? 'None') : '–'}
             options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
@@ -3086,14 +3222,14 @@ export function ProductsPricingTable({
           return (
             <div key={period.id} style={{ marginBottom }}>
               {isExpandedVariant && !isEditMode ? (
-                <div className="overflow-x-auto">
+                <ExpandedScrollContainer>
                   {renderExpandedPeriodTableHeader(
                     period,
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
                   {period.items.map((item) => renderExpandedLineItem(item, updatePeriodItems))}
-                </div>
+                </ExpandedScrollContainer>
               ) : (
                 <>
                   {renderPeriodTableHeader(
@@ -3139,10 +3275,10 @@ export function ProductsPricingTable({
   return wrapTableShell(
     <>
       {isExpandedVariant && !isEditMode ? (
-        <div className="overflow-x-auto">
+        <ExpandedScrollContainer>
           {renderExpandedTableHeader()}
           {items.map((item) => renderExpandedLineItem(item, setItems))}
-        </div>
+        </ExpandedScrollContainer>
       ) : (
         <>
           {renderTableHeader()}
