@@ -306,25 +306,33 @@ const USAGE_LEDGER_ROWS: CreditLedgerRow[] = [
 
 type UsageKpiMetric = {
   label: string
-  value: string
+  value: ReactNode
+  hint?: string
+  valueClassName?: string
 }
 
 function UsageKpisRow({ metrics }: { metrics: UsageKpiMetric[] }) {
   return (
-    <div className="flex">
-      {metrics.map((metric, idx) => (
-        <div key={metric.label} className="flex min-w-0 flex-1 items-start">
-          <div className="min-w-0 flex-1 py-1">
-            <p className="text-[11px] font-medium uppercase tracking-wider text-brand-fog">
-              {metric.label}
-            </p>
-            <p className="mt-1 truncate text-[15px] font-semibold text-brand-navy">
-              {metric.value}
-            </p>
-          </div>
-          {idx < metrics.length - 1 && (
-            <div className="mx-4 h-12 w-px shrink-0 self-center bg-neutral-200" />
-          )}
+    <div className="flex flex-wrap items-stretch gap-3">
+      {metrics.map((metric) => (
+        <div
+          key={metric.label}
+          className="min-w-[148px] rounded-lg border border-neutral-200/80 bg-white px-3.5 py-2.5"
+        >
+          <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-brand-fog">
+            {metric.label}
+          </p>
+          <p
+            className={cn(
+              'mt-1 text-[18px] font-semibold tracking-[-0.02em] text-brand-navy',
+              metric.valueClassName
+            )}
+          >
+            {metric.value}
+          </p>
+          {metric.hint ? (
+            <p className="mt-0.5 text-[11px] text-brand-fog">{metric.hint}</p>
+          ) : null}
         </div>
       ))}
     </div>
@@ -1029,12 +1037,37 @@ export function UsageDetails({
                   <UsageKpisRow
                     metrics={[
                       {
-                        label: 'Committed usage',
-                            value: `${usageKpis.commitRemaining.toLocaleString('en-US')} / ${usageKpis.commitTotal.toLocaleString('en-US')} ${usageKpis.unit}`,
+                        label: 'Commit',
+                        value: usageKpis.commitTotal.toLocaleString('en-US'),
+                        hint: `annual ${usageKpis.unit} commit`,
                       },
                       {
-                        label: 'On-demand usage',
-                        value: `${usageKpis.onDemandUsage.toLocaleString('en-US')} ${usageKpis.unit} · ${usageKpis.onDemandAmount.toLocaleString(
+                        label: 'Remaining',
+                        value: (
+                          <>
+                            {usageKpis.commitRemaining.toLocaleString('en-US')}
+                            <span className="ml-1 text-[12px] font-medium text-brand-fog">
+                              / {usageKpis.commitTotal.toLocaleString('en-US')}
+                            </span>
+                          </>
+                        ),
+                        hint:
+                          usageKpis.commitRemaining <= 0 && usageKpis.onDemandUsage > 0
+                            ? 'over commit'
+                            : usageKpis.commitTotal > 0
+                              ? `${Math.round(
+                                  (usageKpis.commitRemaining / usageKpis.commitTotal) * 100
+                                )}% of commit left`
+                              : 'of commit left',
+                        valueClassName:
+                          usageKpis.commitRemaining <= 0 && usageKpis.onDemandUsage > 0
+                            ? 'text-[#d96138]'
+                            : undefined,
+                      },
+                      {
+                        label: 'On-demand',
+                        value: usageKpis.onDemandUsage.toLocaleString('en-US'),
+                        hint: `${usageKpis.unit} · ${usageKpis.onDemandAmount.toLocaleString(
                           'en-US',
                           {
                             style: 'currency',

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus, Expand } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -735,6 +735,16 @@ export function Customer360Page() {
                       title="Allocation"
                       isFlashing={false}
                       commentCount={commentCountsBySection['allocation']}
+                      trailing={
+                        <button
+                          type="button"
+                          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+                          aria-label="Expand allocation"
+                          title="Expand"
+                        >
+                          <Expand size={14} strokeWidth={2} />
+                        </button>
+                      }
                     />
                     <div className="mt-6">
                       <AllocationTable items={data.allocations} />

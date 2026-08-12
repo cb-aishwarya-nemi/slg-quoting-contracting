@@ -309,7 +309,7 @@ export const contractProcessing = {
     {
       id: 'alloc-1',
       feature: 'API calls',
-      units: '50,000',
+      units: '30,000',
       kind: 'usage',
       sources: [
         {
@@ -318,15 +318,15 @@ export const contractProcessing = {
           units: '25,000',
           frequency: 'Yearly',
           rollover: 'No rollover',
-          expiry: 'Expires every month',
+          expiry: 'Every year',
         },
         {
           id: 'alloc-1-s2',
           name: 'Implementation services',
-          units: '25,000',
+          units: '5,000',
           frequency: 'Monthly',
           rollover: 'End of term',
-          expiry: 'Never expires',
+          expiry: 'Never',
         },
       ],
     },
@@ -342,7 +342,7 @@ export const contractProcessing = {
           units: '12,000',
           frequency: 'Yearly',
           rollover: 'No rollover',
-          expiry: 'Expires every month',
+          expiry: 'Every year',
         },
         {
           id: 'alloc-2-s2',
@@ -350,7 +350,7 @@ export const contractProcessing = {
           units: '8,000',
           frequency: 'Monthly',
           rollover: 'End of term',
-          expiry: 'Never expires',
+          expiry: 'Never',
         },
       ],
     },
