@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { ChevronsUpDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AnchoredMenu } from './AnchoredMenu'
 
 export interface SwitcherItem {
   id: string
@@ -44,32 +45,15 @@ export function SecondaryNavSwitcher({
   maxVisible = 8,
 }: SecondaryNavSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen])
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const visibleItems = items.slice(0, maxVisible)
   const hasMore = items.length > maxVisible
 
   return (
-    <div ref={ref} className="relative">
+    <div className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
@@ -78,9 +62,14 @@ export function SecondaryNavSwitcher({
         <ChevronsUpDown size={15} />
       </button>
 
-      {isOpen && (
-        <div className="absolute left-0 top-full z-40 mt-1.5 w-[380px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg">
-          <div className="max-h-[360px] overflow-y-auto">
+      <AnchoredMenu
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        anchorRef={triggerRef}
+        offset={6}
+        className="w-[380px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        <div className="max-h-[360px] overflow-y-auto">
             {visibleItems.map((item) => {
               const isActive = item.id === activeId
               const hasMeta = !!item.taskType
@@ -135,22 +124,21 @@ export function SecondaryNavSwitcher({
             })}
           </div>
 
-          {hasMore && onViewMore && (
-            <div className="border-t border-neutral-100 px-3 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  onViewMore()
-                  setIsOpen(false)
-                }}
-                className="cursor-pointer text-[12px] font-medium text-blue-700 hover:underline"
-              >
-                View More
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+        {hasMore && onViewMore && (
+          <div className="border-t border-neutral-100 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => {
+                onViewMore()
+                setIsOpen(false)
+              }}
+              className="cursor-pointer text-[12px] font-medium text-blue-700 hover:underline"
+            >
+              View More
+            </button>
+          </div>
+        )}
+      </AnchoredMenu>
     </div>
   )
 }

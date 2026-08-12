@@ -1,7 +1,7 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
   type ProductLineItem,
   type RampPeriod,
@@ -117,6 +117,7 @@ function InteractiveMiniDropdown({
   onSelect,
   disabled,
   ariaLabel,
+  limitedPeriodOption,
 }: {
   label: string
   width?: number
@@ -124,8 +125,10 @@ function InteractiveMiniDropdown({
   onSelect: (value: string) => void
   disabled?: boolean
   ariaLabel?: string
+  limitedPeriodOption?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div
@@ -134,6 +137,7 @@ function InteractiveMiniDropdown({
       onClick={(e) => e.stopPropagation()}
     >
       <button
+        ref={triggerRef}
         type="button"
         aria-label={ariaLabel}
         aria-expanded={isOpen}
@@ -160,6 +164,8 @@ function InteractiveMiniDropdown({
           }}
           options={options}
           currentValue={label}
+          anchorRef={triggerRef}
+          limitedPeriodOption={limitedPeriodOption}
         />
       ) : null}
     </div>
@@ -174,10 +180,8 @@ interface LineItemPopoverProps {
   isOpen: boolean
   onClose: () => void
   onSelect: (item: CatalogLineItem) => void
-  anchorRef: React.RefObject<HTMLButtonElement | HTMLDivElement | null>
+  anchorRef: RefObject<HTMLElement | null>
   currentName: string
-  /** Expanded sticky table clips absolute menus — portal to the body instead. */
-  usePortal?: boolean
 }
 
 function LineItemPopover({
@@ -186,47 +190,9 @@ function LineItemPopover({
   onSelect,
   anchorRef,
   currentName,
-  usePortal = false,
 }: LineItemPopoverProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const popoverRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
-  const [position, setPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
-  // Fixed coords so the menu can escape sticky/overflow clipping in the table.
-  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean } | null>(null)
-
-  const updatePortalPosition = useCallback(() => {
-    if (!anchorRef.current) return
-    const anchorRect = anchorRef.current.getBoundingClientRect()
-    const spaceBelow = window.innerHeight - anchorRect.bottom
-    const spaceAbove = anchorRect.top
-    const openUp = spaceBelow < 320 && spaceAbove > 320
-    const width = 400
-    const left = Math.min(
-      Math.max(8, anchorRect.left),
-      Math.max(8, window.innerWidth - width - 8)
-    )
-    setCoords({
-      top: openUp ? anchorRect.top - 4 : anchorRect.bottom + 4,
-      left,
-      openUp,
-    })
-  }, [anchorRef])
-
-  useLayoutEffect(() => {
-    if (!usePortal) return
-    if (!isOpen) {
-      setCoords(null)
-      return
-    }
-    updatePortalPosition()
-    window.addEventListener('resize', updatePortalPosition)
-    document.addEventListener('scroll', updatePortalPosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePortalPosition)
-      document.removeEventListener('scroll', updatePortalPosition, true)
-    }
-  }, [isOpen, usePortal, updatePortalPosition])
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -234,59 +200,11 @@ function LineItemPopover({
     }
   }, [isOpen])
 
-  // Edit-state: absolute positioning relative to the anchor.
-  useEffect(() => {
-    if (usePortal || !isOpen || !popoverRef.current || !anchorRef.current) return
-
-    const timer = setTimeout(() => {
-      const anchorRect = anchorRef.current!.getBoundingClientRect()
-      const DEFAULT_POSITION = { top: '100%', bottom: 'auto' }
-      const spaceBelow = window.innerHeight - anchorRect.bottom
-      const spaceAbove = anchorRect.top
-      if (spaceBelow < 320 && spaceAbove > 320) {
-        setPosition({ bottom: '100%', top: 'auto' })
-      } else {
-        setPosition(DEFAULT_POSITION)
-      }
-    }, 0)
-
-    return () => clearTimeout(timer)
-  }, [isOpen, usePortal, anchorRef])
-
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(e.target as Node) &&
-        anchorRef.current &&
-        !anchorRef.current.contains(e.target as Node)
-      ) {
-        onClose()
-      }
-    }
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose, anchorRef])
-
   useEffect(() => {
     if (!isOpen) {
       setSearchQuery('')
     }
   }, [isOpen])
-
-  if (!isOpen) return null
-  if (usePortal && !coords) return null
 
   const filteredItems = lineItemCatalog.filter(
     (item) =>
@@ -294,32 +212,12 @@ function LineItemPopover({
       item.family.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
-  const panel = (
-    <div
-      ref={popoverRef}
-      className={cn(
-        'z-50 w-[400px] rounded-lg border border-neutral-200 bg-white shadow-lg',
-        usePortal ? 'fixed z-[9999]' : 'absolute'
-      )}
-      style={
-        usePortal && coords
-          ? {
-              top: coords.openUp ? undefined : coords.top,
-              bottom: coords.openUp ? window.innerHeight - coords.top : undefined,
-              left: coords.left,
-            }
-          : {
-              left: '0',
-              marginTop:
-                typeof position.top !== 'undefined' && position.top === '100%' ? '4px' : '0',
-              marginBottom:
-                typeof position.bottom !== 'undefined' && position.bottom === '100%'
-                  ? '4px'
-                  : '0',
-              top: position.top as string | undefined,
-              bottom: position.bottom as string | undefined,
-            }
-      }
+  return (
+    <AnchoredMenu
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      className="w-[400px] rounded-lg border border-neutral-200 bg-white shadow-lg"
     >
       {/* Search bar */}
       <div className="border-b border-neutral-200 p-3">
@@ -366,16 +264,163 @@ function LineItemPopover({
                 {item.name}
               </span>
               <span className="text-[12px] text-brand-fog group-hover/opt:text-white/70">
-                {item.family} · {item.unitPrice}/unit
+                {item.family} · {item.unitPrice}/unit · {item.billingPeriod}
               </span>
             </button>
           ))
         )}
       </div>
+    </AnchoredMenu>
+  )
+}
+
+const LIMITED_PERIOD_OPTION = 'Limited Period'
+const LIMITED_PERIOD_UNITS = ['Week', 'Month', 'Year']
+
+/** `"6 weeks"` → `{ count: '6', unit: 'Week' }`. Returns null for the preset choices. */
+function parseLimitedPeriod(value: string) {
+  const match = /^(\d+)\s*(week|month|year)s?$/i.exec(value.trim())
+  if (!match) return null
+  const unit = match[2].toLowerCase()
+  return { count: match[1], unit: unit.charAt(0).toUpperCase() + unit.slice(1) }
+}
+
+function formatLimitedPeriod(count: string, unit: string) {
+  const amount = Number.parseInt(count, 10)
+  return `${amount} ${unit.toLowerCase()}${amount === 1 ? '' : 's'}`
+}
+
+/** Unit picker inside the limited-period step — kept inline so it can't close the parent menu. */
+function LimitedPeriodUnitSelect({
+  value,
+  onChange,
+}: {
+  value: string
+  onChange: (unit: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+
+  return (
+    <div className="relative shrink-0">
+      <button
+        type="button"
+        aria-label="Period unit"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex cursor-pointer items-center gap-1 rounded px-1.5 py-1 text-[14px] font-medium text-brand-navy transition-colors hover:bg-neutral-100"
+      >
+        {value}
+        <ChevronDown size={14} className="shrink-0 text-brand-mist" />
+      </button>
+      {isOpen && (
+        <div className="absolute right-0 top-full z-10 mt-1 min-w-[104px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+          {LIMITED_PERIOD_UNITS.map((unit) => (
+            <button
+              key={unit}
+              type="button"
+              onClick={() => {
+                onChange(unit)
+                setIsOpen(false)
+              }}
+              className={cn(
+                'w-full cursor-pointer px-3 py-1.5 text-left text-[14px] transition-colors',
+                unit === value
+                  ? 'bg-neutral-100 font-medium text-brand-navy'
+                  : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+              )}
+            >
+              {unit}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
+}
 
-  return usePortal ? createPortal(panel, document.body) : panel
+/** Second step of the discount-period menu — captures a custom duration like `6 weeks`. */
+function LimitedPeriodPanel({
+  initialCount,
+  initialUnit,
+  onBack,
+  onCancel,
+  onApply,
+}: {
+  initialCount?: string
+  initialUnit?: string
+  onBack: () => void
+  onCancel: () => void
+  onApply: (value: string) => void
+}) {
+  const [count, setCount] = useState(initialCount ?? '')
+  const [unit, setUnit] = useState(initialUnit ?? 'Month')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+    inputRef.current?.select()
+  }, [])
+
+  const canApply = Number.parseInt(count, 10) > 0
+  const apply = () => {
+    if (!canApply) return
+    onApply(formatLimitedPeriod(count, unit))
+  }
+
+  return (
+    <div className="w-[280px] p-3">
+      <div className="mb-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onBack}
+          aria-label="Back to discount period options"
+          className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-brand-mist transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+        >
+          <ChevronLeft size={14} />
+        </button>
+        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          Applicable discount period
+        </span>
+      </div>
+
+      <div className="flex items-center gap-1 rounded-lg border border-neutral-200 py-1 pl-2.5 pr-1 transition-colors focus-within:border-brand-navy">
+        <input
+          ref={inputRef}
+          type="text"
+          inputMode="numeric"
+          value={count}
+          placeholder="0"
+          onChange={(e) => setCount(e.target.value.replace(/[^\d]/g, ''))}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') apply()
+          }}
+          className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-mist"
+        />
+        <LimitedPeriodUnitSelect value={unit} onChange={setUnit} />
+      </div>
+
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="cursor-pointer rounded-md border border-neutral-200 px-3 py-1.5 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={apply}
+          disabled={!canApply}
+          className={cn(
+            'rounded-md px-3 py-1.5 text-[13px] font-semibold text-white transition-colors',
+            canApply ? 'cursor-pointer bg-brand-navy hover:bg-brand-soft' : 'cursor-not-allowed bg-neutral-300'
+          )}
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  )
 }
 
 interface MiniDropdownPopoverProps {
@@ -384,78 +429,80 @@ interface MiniDropdownPopoverProps {
   onSelect: (value: string) => void
   options: string[]
   currentValue: string
+  anchorRef: RefObject<HTMLElement | null>
+  /** Option that opens the duration step instead of committing straight away. */
+  limitedPeriodOption?: string
 }
 
-function MiniDropdownPopover({ isOpen, onClose, onSelect, options, currentValue }: MiniDropdownPopoverProps) {
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
+function MiniDropdownPopover({
+  isOpen,
+  onClose,
+  onSelect,
+  options,
+  currentValue,
+  anchorRef,
+  limitedPeriodOption,
+}: MiniDropdownPopoverProps) {
+  const [showLimitedPanel, setShowLimitedPanel] = useState(false)
+  const currentLimited = limitedPeriodOption ? parseLimitedPeriod(currentValue) : null
 
   useEffect(() => {
-    if (!isOpen || !popoverRef.current) return
-
-    const timer = setTimeout(() => {
-      const spaceBelow = window.innerHeight - popoverRef.current!.getBoundingClientRect().top
-      
-      if (spaceBelow < 200) {
-        setPosition({ bottom: '100%', top: 'auto' })
-      } else {
-        setPosition({ top: '100%', bottom: 'auto' })
-      }
-    }, 0)
-
-    return () => clearTimeout(timer)
+    if (!isOpen) setShowLimitedPanel(false)
   }, [isOpen])
 
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClose()
-      }
-    }
-
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose])
-
-  if (!isOpen) return null
-
   return (
-    <div
-      ref={popoverRef}
-      className="absolute left-0 z-50 min-w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-      style={{
-        top: position.top as any,
-        bottom: position.bottom as any,
-        marginTop: position.top === '100%' ? '4px' : '0',
-        marginBottom: position.bottom === '100%' ? '4px' : '0',
-      }}
+    <AnchoredMenu
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      className={cn(
+        'rounded-lg border border-neutral-200 bg-white shadow-lg',
+        showLimitedPanel ? '' : 'min-w-[120px] py-1'
+      )}
     >
-      {options.map((option) => (
-        <button
-          key={option}
-          type="button"
-          onClick={() => onSelect(option)}
-          className={cn(
-                    'w-full cursor-pointer px-3 py-1.5 text-left text-[14px] transition-colors',
-                    option === currentValue
-                      ? 'bg-neutral-100 font-medium text-brand-navy'
-                      : 'text-brand-navy hover:bg-brand-navy hover:text-white'
-                  )}
-        >
-          {option}
-        </button>
-      ))}
-    </div>
+      {showLimitedPanel ? (
+        <LimitedPeriodPanel
+          initialCount={currentLimited?.count}
+          initialUnit={currentLimited?.unit}
+          onBack={() => setShowLimitedPanel(false)}
+          onCancel={onClose}
+          onApply={(value) => onSelect(value)}
+        />
+      ) : (
+        options.map((option) => {
+          const isSelected =
+            option === currentValue ||
+            (option === limitedPeriodOption && currentLimited !== null)
+
+          return (
+            <button
+              key={option}
+              type="button"
+              onClick={() => {
+                if (option === limitedPeriodOption) {
+                  setShowLimitedPanel(true)
+                  return
+                }
+                onSelect(option)
+              }}
+              className={cn(
+                'group/period flex w-full cursor-pointer items-center justify-between gap-3 px-3 py-1.5 text-left text-[14px] transition-colors',
+                isSelected
+                  ? 'bg-neutral-100 font-medium text-brand-navy'
+                  : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+              )}
+            >
+              <span className="truncate">{option}</span>
+              {option === limitedPeriodOption && currentLimited && (
+                <span className="shrink-0 text-[12px] text-brand-mist group-hover/period:text-white/70">
+                  {formatLimitedPeriod(currentLimited.count, currentLimited.unit)}
+                </span>
+              )}
+            </button>
+          )
+        })
+      )}
+    </AnchoredMenu>
   )
 }
 
@@ -544,6 +591,7 @@ function DiscountField({ value, unit, onChange, plain }: DiscountFieldProps) {
   const [draft, setDraft] = useState(value)
   const [isUnitOpen, setIsUnitOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const unitTriggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     setDraft(value)
@@ -590,6 +638,7 @@ function DiscountField({ value, unit, onChange, plain }: DiscountFieldProps) {
         />
         <div className="relative shrink-0">
           <button
+            ref={unitTriggerRef}
             type="button"
             aria-label="Discount unit"
             // Keeps the popover's outside-click listener from firing on the toggle itself.
@@ -612,6 +661,7 @@ function DiscountField({ value, unit, onChange, plain }: DiscountFieldProps) {
             }}
             options={[...DISCOUNT_UNITS]}
             currentValue={unit}
+            anchorRef={unitTriggerRef}
           />
         </div>
       </div>
@@ -626,16 +676,28 @@ interface SelectFieldProps {
   onChange: (value: string) => void
   disabled?: boolean
   plain?: boolean
+  /** Option that opens the duration step instead of committing straight away. */
+  limitedPeriodOption?: string
 }
 
 /** Pill-styled dropdown for the edit surface's plain choice columns. */
-function SelectField({ value, options, ariaLabel, onChange, disabled, plain }: SelectFieldProps) {
+function SelectField({
+  value,
+  options,
+  ariaLabel,
+  onChange,
+  disabled,
+  plain,
+  limitedPeriodOption,
+}: SelectFieldProps) {
   const [isOpen, setIsOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div className="min-w-0 pl-3" onClick={(e) => e.stopPropagation()}>
       <div className="relative">
         <button
+          ref={triggerRef}
           type="button"
           aria-label={ariaLabel}
           aria-expanded={isOpen}
@@ -669,6 +731,8 @@ function SelectField({ value, options, ariaLabel, onChange, disabled, plain }: S
             }}
             options={options}
             currentValue={value}
+            anchorRef={triggerRef}
+            limitedPeriodOption={limitedPeriodOption}
           />
         )}
       </div>
@@ -803,7 +867,6 @@ function ItemNameButton({
         }}
         anchorRef={buttonRef}
         currentName={name}
-        usePortal={!hangIcon}
       />
     </div>
   )
@@ -832,13 +895,13 @@ const EXPANDED_ITEM_W = 340
 const EXPANDED_ROW_PAD_L = 4
 
 /** How far the sticky-column shadow reaches into the scrolling columns. */
-const STICKY_SHADOW_W = 28
+const STICKY_SHADOW_W = 48
 /** Scroll distance over which the shadow deepens from resting to full strength. */
-const STICKY_SHADOW_RAMP = 40
+const STICKY_SHADOW_RAMP = 48
 /** Resting strength while the columns sit at scroll origin. */
-const STICKY_SHADOW_REST = 0.65
+const STICKY_SHADOW_REST = 0.42
 /** Vertical falloff so the shadow dissolves instead of ending on a hard line. */
-const STICKY_SHADOW_FADE_Y = 16
+const STICKY_SHADOW_FADE_Y = 28
 
 /**
  * Expanded-state horizontal scroller. Renders one continuous soft shadow at the
@@ -887,9 +950,9 @@ function ExpandedScrollContainer({ children }: { children: ReactNode }) {
           left: EXPANDED_ROW_PAD_L + EXPANDED_ITEM_W,
           width: STICKY_SHADOW_W,
           opacity: strength,
-          // Eased alpha stops keep the falloff smooth instead of banding out.
+          // Long, low-alpha ramp so the edge feathers rather than casting a hard band.
           background:
-            'linear-gradient(to right, rgba(28, 27, 46, 0.13) 0%, rgba(28, 27, 46, 0.08) 18%, rgba(28, 27, 46, 0.04) 40%, rgba(28, 27, 46, 0.014) 66%, rgba(28, 27, 46, 0) 100%)',
+            'linear-gradient(to right, rgba(28, 27, 46, 0.055) 0%, rgba(28, 27, 46, 0.038) 12%, rgba(28, 27, 46, 0.024) 28%, rgba(28, 27, 46, 0.012) 48%, rgba(28, 27, 46, 0.005) 70%, rgba(28, 27, 46, 0.001) 88%, rgba(28, 27, 46, 0) 100%)',
           maskImage: verticalFade,
           WebkitMaskImage: verticalFade,
         }}
@@ -967,264 +1030,37 @@ function measureExpandBounds(): ExpandBounds {
   }
 }
 
-type NewRowStep = 'idle' | 'item' | 'frequency' | 'quantity' | 'done'
-
-interface NewLineItemRowProps {
-  onComplete: (item: {
-    name: string
-    unitPrice: string
-    billingPeriod: string
-    quantity: string
-    discount: string
-    discountUnit: DiscountUnit
-    discountPeriod: DiscountPeriod
-  }) => void
-  onCancel: () => void
-  rowStyle?: CSSProperties
-  /** Expanded state — skip grey pills so the new row matches default table chrome. */
-  plainFields?: boolean
-}
-
-function NewLineItemRow({ onComplete, onCancel, rowStyle, plainFields }: NewLineItemRowProps) {
-  const useGrid = rowStyle != null
-  const fieldChrome = useGrid && !plainFields
-  const [step, setStep] = useState<NewRowStep>('idle')
-  const [selectedItem, setSelectedItem] = useState<CatalogLineItem | null>(null)
-  const [billingPeriod, setBillingPeriod] = useState('')
-  const [quantity, setQuantity] = useState('')
-  const [discount, setDiscount] = useState('')
-  const [discountUnit, setDiscountUnit] = useState<DiscountUnit>('%')
-  const [discountPeriod, setDiscountPeriod] = useState<DiscountPeriod>('None')
-  
-  const itemAnchorRef = useRef<HTMLDivElement>(null)
-  const frequencyAnchorRef = useRef<HTMLDivElement>(null)
-  const quantityInputRef = useRef<HTMLInputElement>(null)
-
-  const handleItemSelect = useCallback((item: CatalogLineItem) => {
-    setSelectedItem(item)
-    setStep('frequency')
-  }, [])
-
-  const handleFrequencySelect = useCallback((value: string) => {
-    setBillingPeriod(value)
-    setStep('quantity')
-  }, [])
-
-  useEffect(() => {
-    if (step === 'quantity' && quantityInputRef.current) {
-      quantityInputRef.current.focus()
-    }
-  }, [step])
-
-  const handleQuantityKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && quantity && selectedItem) {
-      onComplete({
-        name: selectedItem.name,
-        unitPrice: selectedItem.unitPrice,
-        billingPeriod,
-        quantity,
-        discount,
-        discountUnit,
-        discountPeriod,
-      })
-    }
-    if (e.key === 'Escape') {
-      onCancel()
-    }
-  }
-
-  const handleQuantityBlur = () => {
-    if (quantity && selectedItem) {
-      onComplete({
-        name: selectedItem.name,
-        unitPrice: selectedItem.unitPrice,
-        billingPeriod,
-        quantity,
-        discount,
-        discountUnit,
-        discountPeriod,
-      })
-    }
-  }
-
-  const calculateTotal = () => {
-    if (!selectedItem || !quantity) return '$0.00'
-    const unitPrice = parseFloat(selectedItem.unitPrice.replace(/[$,]/g, ''))
-    const qty = parseInt(quantity, 10) || 0
-    return (unitPrice * qty).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-  }
+/**
+ * Add line item — mirrors the Account section's "Add field": the button itself
+ * opens the catalog picker, and choosing an entry drops a populated row in.
+ */
+function AddLineItemButton({ onSelect }: { onSelect: (item: CatalogLineItem) => void }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const buttonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div
-      className={cn(
-        'items-center border-b border-neutral-100 bg-blue-50/50 py-1.5 pr-2',
-        !useGrid && 'flex'
-      )}
-      style={rowStyle}
-    >
-      {/* Item */}
-      <div
-        ref={itemAnchorRef}
-        className={cn('relative flex min-w-0 items-center', !useGrid && 'flex-1')}
+    <div className="relative">
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen((prev) => !prev)}
+        className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-100 py-2 pl-1 pr-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
       >
-        <button
-          type="button"
-          onClick={() => setStep('item')}
-          className={cn(
-            'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] transition-colors',
-            selectedItem ? 'text-brand-navy' : 'text-brand-mist',
-            useGrid &&
-              cn(
-                fieldChrome
-                  ? cn(ACTIVE_FIELD_STYLE, 'justify-between hover:bg-neutral-200')
-                  : 'justify-between rounded px-1 py-1 hover:bg-neutral-100',
-                !selectedItem && 'text-brand-mist'
-              )
-          )}
-        >
-          <span className="truncate font-medium">
-            {selectedItem?.name || 'Select item...'}
-          </span>
-          <ChevronDown size={14} className="shrink-0 text-brand-mist" />
-        </button>
-        <LineItemPopover
-          isOpen={step === 'item'}
-          onClose={() => setStep('idle')}
-          onSelect={handleItemSelect}
-          anchorRef={itemAnchorRef}
-          currentName={selectedItem?.name || ''}
-        />
-      </div>
-
-      <Separator hideLine={fieldChrome} />
-
-      {/* Frequency */}
-      <div
-        ref={frequencyAnchorRef}
-        className={cn('relative', !useGrid && 'shrink-0')}
-        style={useGrid ? undefined : { width: PERIOD_W }}
-      >
-        <button
-          type="button"
-          onClick={() => selectedItem && setStep('frequency')}
-          className={cn(
-            'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
-            billingPeriod ? 'text-brand-navy hover:bg-neutral-100' : 'text-brand-mist',
-            fieldChrome &&
-              cn(
-                ACTIVE_FIELD_STYLE,
-                'hover:bg-neutral-200',
-                !billingPeriod && 'text-brand-mist'
-              ),
-            !selectedItem && 'cursor-not-allowed opacity-50'
-          )}
-          disabled={!selectedItem}
-        >
-          <span>{billingPeriod || 'Frequency'}</span>
-          <ChevronDown size={14} className="text-brand-mist" />
-        </button>
-        <MiniDropdownPopover
-          isOpen={step === 'frequency'}
-          onClose={() => setStep('idle')}
-          onSelect={handleFrequencySelect}
-          options={BILLING_PERIODS}
-          currentValue={billingPeriod}
-        />
-      </div>
-
-      <Separator hideLine={fieldChrome} />
-
-      {/* Quantity */}
-      <div className={cn(!useGrid && 'shrink-0')} style={useGrid ? undefined : { width: QTY_W }}>
-        {step === 'quantity' ? (
-          <input
-            ref={quantityInputRef}
-            type="text"
-            value={quantity}
-            onChange={(e) => setQuantity(e.target.value.replace(/\D/g, ''))}
-            onKeyDown={handleQuantityKeyDown}
-            onBlur={handleQuantityBlur}
-            placeholder="Qty"
-            className={cn(
-              fieldChrome
-                ? cn(ACTIVE_FIELD_STYLE, 'text-center')
-                : 'w-full rounded bg-transparent px-1 py-1 text-center text-[14px] font-medium text-brand-navy outline-none'
-            )}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => billingPeriod && setStep('quantity')}
-            className={cn(
-              'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
-              quantity ? 'text-brand-navy hover:bg-neutral-100' : 'text-brand-mist',
-              fieldChrome &&
-                cn(ACTIVE_FIELD_STYLE, 'hover:bg-neutral-200', !quantity && 'text-brand-mist'),
-              !billingPeriod && 'cursor-not-allowed opacity-50'
-            )}
-            disabled={!billingPeriod}
-          >
-            <span>{quantity || 'Qty'}</span>
-            <ChevronDown size={14} className="text-brand-mist" />
-          </button>
-        )}
-      </div>
-
-      <Separator hideLine={fieldChrome} />
-
-      <div
-        style={useGrid ? undefined : { width: UNIT_W }}
-        className={cn(
-          'text-right text-[14px] font-medium text-brand-mist',
-          !useGrid && 'shrink-0'
-        )}
-      >
-        {selectedItem?.unitPrice || '—'}
-      </div>
-      {useGrid ? (
-        <>
-          <DiscountField
-            value={discount}
-            unit={discountUnit}
-            plain={plainFields}
-            onChange={(next) => {
-              setDiscount(next.value)
-              setDiscountUnit(next.unit)
-            }}
-          />
-          <SelectField
-            value={parseFloat(discount) > 0 ? discountPeriod : 'None'}
-            options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
-            ariaLabel="Discount period for new line item"
-            plain={plainFields}
-            onChange={(next) => setDiscountPeriod(next as DiscountPeriod)}
-            disabled={!(parseFloat(discount) > 0)}
-          />
-        </>
-      ) : null}
-      <Separator hideLine={fieldChrome} />
-      <div
-        style={useGrid ? undefined : { width: TOTAL_INLINE_W }}
-        className={cn(
-          'text-right text-[14px] font-medium text-brand-mist',
-          !useGrid && 'shrink-0'
-        )}
-      >
-        {selectedItem && quantity ? calculateTotal() : '—'}
-      </div>
-
-      <div
-        style={useGrid ? undefined : { width: MENU_W }}
-        className={cn('flex justify-end', !useGrid && 'shrink-0')}
-      >
-        <button
-          type="button"
-          onClick={onCancel}
-          className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-        >
-          <X size={15} />
-        </button>
-      </div>
+        <CirclePlus size={16} className="text-blue-700" />
+        Add line item
+      </button>
+      <LineItemPopover
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        onSelect={(item) => {
+          onSelect(item)
+          setIsOpen(false)
+        }}
+        anchorRef={buttonRef}
+        currentName=""
+      />
     </div>
   )
 }
@@ -1306,82 +1142,36 @@ function toDateKey(date: Date): string {
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
-/** In-app calendar popover aligned with Apex dropdown styling.
- *  Portaled to the body so sticky / overflow-x table chrome can’t clip it. */
+/** In-app calendar popover aligned with Apex dropdown styling. */
 function PeriodDateEdit({
   value,
   onChange,
+  defaultOpen = false,
+  onOpenChange,
 }: {
   value: string
   onChange: (value: string) => void
+  /** Open the calendar on mount — used after "Add period" to prompt for the from date. */
+  defaultOpen?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(defaultOpen)
   const selected = parsePeriodDate(value) ?? new Date()
   const [viewMonth, setViewMonth] = useState(
     () => new Date(selected.getFullYear(), selected.getMonth(), 1)
   )
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
-  const [coords, setCoords] = useState<{ top: number; left: number; openUp: boolean } | null>(
-    null
-  )
 
-  const updatePosition = useCallback(() => {
-    if (!buttonRef.current) return
-    const rect = buttonRef.current.getBoundingClientRect()
-    const popoverH = 320
-    const openUp = window.innerHeight - rect.bottom < popoverH && rect.top > popoverH
-    const width = 280
-    const left = Math.min(
-      Math.max(8, rect.left),
-      Math.max(8, window.innerWidth - width - 8)
-    )
-    setCoords({
-      top: openUp ? rect.top - 4 : rect.bottom + 6,
-      left,
-      openUp,
-    })
-  }, [])
+  const setPickerOpen = (next: boolean) => {
+    setOpen(next)
+    onOpenChange?.(next)
+  }
 
   useEffect(() => {
     if (!open) return
     const parsed = parsePeriodDate(value)
     if (parsed) setViewMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
   }, [open, value])
-
-  useLayoutEffect(() => {
-    if (!open) {
-      setCoords(null)
-      return
-    }
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    document.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      document.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [open, updatePosition])
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      const target = e.target as Node
-      if (buttonRef.current?.contains(target) || popoverRef.current?.contains(target)) {
-        return
-      }
-      setOpen(false)
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [open])
 
   const todayKey = toDateKey(new Date())
   const selectedKey = toDateKey(selected)
@@ -1401,22 +1191,16 @@ function PeriodDateEdit({
     year: 'numeric',
   })
 
-  const calendar =
-    open && coords
-      ? createPortal(
-          <div
-            ref={popoverRef}
-            role="dialog"
-            aria-label="Choose date"
-            onClick={(e) => e.stopPropagation()}
-            className="fixed z-[60] w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
-            style={
-              coords.openUp
-                ? { left: coords.left, bottom: window.innerHeight - coords.top }
-                : { left: coords.left, top: coords.top }
-            }
-          >
-            <div className="mb-3 flex items-center justify-between gap-1">
+  const calendar = (
+    <AnchoredMenu
+      isOpen={open}
+      onClose={() => setPickerOpen(false)}
+      anchorRef={buttonRef}
+      offset={6}
+      className="w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
+    >
+      <div role="dialog" aria-label="Choose date" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between gap-1">
               <div className="flex items-center">
                 <button
                   type="button"
@@ -1499,7 +1283,7 @@ function PeriodDateEdit({
                     type="button"
                     onClick={() => {
                       onChange(formatPeriodDate(date))
-                      setOpen(false)
+                      setPickerOpen(false)
                     }}
                     className={cn(
                       'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
@@ -1514,11 +1298,10 @@ function PeriodDateEdit({
                   </button>
                 )
               })}
-            </div>
-          </div>,
-          document.body
-        )
-      : null
+        </div>
+      </div>
+    </AnchoredMenu>
+  )
 
   return (
     <span className="relative inline-flex items-center gap-1">
@@ -1527,7 +1310,7 @@ function PeriodDateEdit({
         type="button"
         onClick={(e: MouseEvent) => {
           e.stopPropagation()
-          setOpen((prev) => !prev)
+          setPickerOpen(!open)
         }}
         className={cn(
           'cursor-text whitespace-nowrap rounded px-0.5 text-[12px] text-blue-700 transition-colors hover:bg-neutral-100',
@@ -1548,9 +1331,14 @@ function PeriodDateEdit({
 function PeriodIdentity({
   period,
   onChangeDates,
+  autoOpenStartDate = false,
+  onStartDatePickerClose,
 }: {
   period: RampPeriod
   onChangeDates?: (dates: { startDate: string; endDate: string }) => void
+  /** Opens the from-date picker once — used right after "Add period". */
+  autoOpenStartDate?: boolean
+  onStartDatePickerClose?: () => void
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
@@ -1560,6 +1348,10 @@ function PeriodIdentity({
         <Calendar size={14} className="shrink-0 text-brand-mist" />
         <PeriodDateEdit
           value={period.startDate}
+          defaultOpen={autoOpenStartDate}
+          onOpenChange={(next) => {
+            if (!next) onStartDatePickerClose?.()
+          }}
           onChange={(startDate) =>
             onChangeDates?.({ startDate, endDate: period.endDate })
           }
@@ -1598,29 +1390,12 @@ function PeriodHeader({
 
 function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [open])
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div ref={rootRef} className="relative flex w-full justify-end">
+    <div className="relative flex w-full justify-end">
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation()
@@ -1633,11 +1408,14 @@ function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
       >
         <MoreVertical size={15} />
       </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-        >
+      <AnchoredMenu
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        align="end"
+        className="min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        <div role="menu">
           <button
             type="button"
             role="menuitem"
@@ -1651,7 +1429,7 @@ function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
             Delete period
           </button>
         </div>
-      ) : null}
+      </AnchoredMenu>
     </div>
   )
 }
@@ -1665,29 +1443,12 @@ function LineItemOptionsMenu({
   onDelete: () => void
 }) {
   const [open, setOpen] = useState(false)
-  const rootRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!open) return
-    const handleClickOutside = (e: globalThis.MouseEvent) => {
-      if (rootRef.current && !rootRef.current.contains(e.target as Node)) {
-        setOpen(false)
-      }
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [open])
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div ref={rootRef} className="relative flex w-full justify-end">
+    <div className="relative flex w-full justify-end">
       <button
+        ref={triggerRef}
         type="button"
         onClick={(e) => {
           e.stopPropagation()
@@ -1700,11 +1461,14 @@ function LineItemOptionsMenu({
       >
         <MoreVertical size={15} />
       </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute right-0 top-full z-30 mt-1 min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-        >
+      <AnchoredMenu
+        isOpen={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        align="end"
+        className="min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        <div role="menu">
           <button
             type="button"
             role="menuitem"
@@ -1718,7 +1482,7 @@ function LineItemOptionsMenu({
             Delete item
           </button>
         </div>
-      ) : null}
+      </AnchoredMenu>
     </div>
   )
 }
@@ -1871,7 +1635,6 @@ export function ProductsPricingTable({
   const editHistory = useOptionalFieldEditHistory()
   const [items, setItems] = useState(initialItems)
   const [periods, setPeriods] = useState(initialPeriods)
-  const [isAddingNew, setIsAddingNew] = useState(false)
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [lineItemEditRequest, setLineItemEditRequest] = useState<Record<string, number>>({})
@@ -1898,7 +1661,8 @@ export function ProductsPricingTable({
     }
     return new Set()
   })
-  const [addingToPeriodId, setAddingToPeriodId] = useState<string | null>(null)
+  /** After "Add period", open this period's from-date picker once. */
+  const [openStartDatePeriodId, setOpenStartDatePeriodId] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<{
     period: RampPeriod
     index: number
@@ -2063,8 +1827,6 @@ export function ProductsPricingTable({
         next.delete(period.id)
         return next
       })
-      if (addingToPeriodId === period.id) setAddingToPeriodId(null)
-
       setPendingDelete({ period, index })
       pendingDeleteTimerRef.current = setTimeout(() => {
         setPendingDelete(null)
@@ -2083,7 +1845,7 @@ export function ProductsPricingTable({
         deleteValue
       )
     },
-    [addingToPeriodId, editHistory, periods]
+    [editHistory, periods]
   )
 
   const handleUndoDeletePeriod = useCallback(() => {
@@ -2110,44 +1872,32 @@ export function ProductsPricingTable({
     })
   }
 
-  const handleAddComplete = (newItem: {
-    name: string
-    unitPrice: string
-    billingPeriod: string
-    quantity: string
-    discount: string
-    discountUnit: DiscountUnit
-    discountPeriod: DiscountPeriod
-  }, periodId?: string) => {
-    const unitPrice = parseFloat(newItem.unitPrice.replace(/[$,]/g, ''))
-    const qty = parseInt(newItem.quantity, 10) || 0
-    const totalPrice = (unitPrice * qty).toLocaleString('en-US', { style: 'currency', currency: 'USD' })
-
+  /** Catalog pick from "Add line item" — lands as a ready row on sensible defaults. */
+  const handleAddCatalogItem = (catalogItem: CatalogLineItem, periodId?: string) => {
+    const quantity = '01'
     const newLineItem: ProductLineItem = {
       id: `li-new-${Date.now()}`,
-      name: newItem.name,
+      name: catalogItem.name,
       status: 'ready',
-      billingPeriod: newItem.billingPeriod,
-      quantity: newItem.quantity.padStart(2, '0'),
-      unitPrice: newItem.unitPrice,
-      discount: newItem.discount,
-      discountUnit: newItem.discountUnit,
-      discountPeriod: newItem.discountPeriod,
-      totalPrice,
+      billingPeriod: catalogItem.billingPeriod,
+      quantity,
+      unitPrice: catalogItem.unitPrice,
+      discount: '',
+      discountUnit: '%',
+      discountPeriod: 'None',
+      totalPrice: computeTotalPrice(catalogItem.unitPrice, quantity) ?? catalogItem.unitPrice,
     }
 
-    recordProductEdit(editHistory, newLineItem.id, 'Item', '', newItem.name)
+    recordProductEdit(editHistory, newLineItem.id, 'Item', '', catalogItem.name)
 
     if (periodId && periods) {
-      setPeriods(prev => prev?.map(p => 
-        p.id === periodId 
-          ? { ...p, items: [...p.items, newLineItem] }
-          : p
-      ))
-      setAddingToPeriodId(null)
+      setPeriods((prev) =>
+        prev?.map((p) =>
+          p.id === periodId ? { ...p, items: [...p.items, newLineItem] } : p
+        )
+      )
     } else {
       setItems((prev) => [...prev, newLineItem])
-      setIsAddingNew(false)
     }
   }
 
@@ -2217,7 +1967,7 @@ export function ProductsPricingTable({
     Math.round(
       baseWidth -
         ROW_PAD_X -
-        SEPARATOR_W * 4 -
+        SEPARATOR_W * 3 -
         (PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + TOTAL_W + MENU_W)
     )
   )
@@ -2226,12 +1976,11 @@ export function ProductsPricingTable({
         display: 'grid' as const,
         // Mirrors the flex row track for track, then adds Discount and its period
         // between unit and total — edit-only, so the expanded width absorbs them.
-        // Tracks: item | rule | frequency | rule | qty | rule | unit | discount |
+        // Tracks: item | frequency | rule | qty | rule | unit | discount |
         // discount period | rule | total | menu. Rules stay fixed; value columns
-        // share the extra space.
+        // share the extra space. No rule before Frequency.
         gridTemplateColumns: [
           `minmax(0, ${itemColWeight}fr)`,
-          `${SEPARATOR_W}px`,
           `minmax(0, ${PERIOD_W}fr)`,
           `${SEPARATOR_W}px`,
           `minmax(0, ${QTY_W}fr)`,
@@ -2268,11 +2017,10 @@ export function ProductsPricingTable({
       >
         Item
       </div>
-      <GhostSeparator />
       <div
         style={isEditMode ? undefined : { width: PERIOD_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -2344,13 +2092,16 @@ export function ProductsPricingTable({
         <PeriodIdentity
           period={period}
           onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
+          autoOpenStartDate={openStartDatePeriodId === period.id}
+          onStartDatePickerClose={() => {
+            if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
+          }}
         />
       </div>
-      <GhostSeparator />
       <div
         style={isEditMode ? undefined : { width: PERIOD_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -2416,8 +2167,7 @@ export function ProductsPricingTable({
       >
         Item
       </div>
-      <GhostSeparator />
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div style={{ width: PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Frequency
       </div>
       <GhostSeparator />
@@ -2463,10 +2213,13 @@ export function ProductsPricingTable({
         <PeriodIdentity
           period={period}
           onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
+          autoOpenStartDate={openStartDatePeriodId === period.id}
+          onStartDatePickerClose={() => {
+            if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
+          }}
         />
       </div>
-      <GhostSeparator />
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div style={{ width: PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Frequency
       </div>
       <GhostSeparator />
@@ -2582,19 +2335,19 @@ export function ProductsPricingTable({
           />
         </div>
 
-        <Separator />
-        <InteractiveMiniDropdown
-          label={item.billingPeriod}
-          width={PERIOD_W}
-          options={BILLING_PERIODS}
-          ariaLabel={`Frequency for ${item.name}`}
-          onSelect={(next) => {
-            recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
-            updateItems((prev) =>
-              prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
-            )
-          }}
-        />
+        <div className="shrink-0 pl-3" style={{ width: PERIOD_W }}>
+          <InteractiveMiniDropdown
+            label={item.billingPeriod}
+            options={BILLING_PERIODS}
+            ariaLabel={`Frequency for ${item.name}`}
+            onSelect={(next) => {
+              recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
+              updateItems((prev) =>
+                prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
+              )
+            }}
+          />
+        </div>
         <Separator />
         <InteractiveMiniDropdown
           label={item.quantity}
@@ -2646,6 +2399,7 @@ export function ProductsPricingTable({
             options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
             ariaLabel={`Discount period for ${item.name}`}
             disabled={!hasDiscount}
+            limitedPeriodOption={LIMITED_PERIOD_OPTION}
             onSelect={(next) => {
               recordProductEdit(
                 editHistory,
@@ -2772,28 +2526,31 @@ export function ProductsPricingTable({
           }}
         />
 
-        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={showFieldPills} />
-        {isExpandedVariant && isEditMode ? (
-          <InteractiveMiniDropdown
-            label={item.billingPeriod}
-            options={BILLING_PERIODS}
-            ariaLabel={`Frequency for ${item.name}`}
-            onSelect={(next) => {
-              recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
-              updateItems((prev) =>
-                prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
-              )
-            }}
-          />
-        ) : (
-          <MiniDropdown
-            label={item.billingPeriod}
-            width={isEditMode ? undefined : PERIOD_W}
-            isRowHovered={isRowFilled}
-            isRowActive={isRowFilled}
-            asField={showFieldPills}
-          />
-        )}
+        <div
+          className={cn('pl-3', !isEditMode && 'shrink-0')}
+          style={isEditMode ? undefined : { width: PERIOD_W }}
+        >
+          {isExpandedVariant && isEditMode ? (
+            <InteractiveMiniDropdown
+              label={item.billingPeriod}
+              options={BILLING_PERIODS}
+              ariaLabel={`Frequency for ${item.name}`}
+              onSelect={(next) => {
+                recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
+                updateItems((prev) =>
+                  prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
+                )
+              }}
+            />
+          ) : (
+            <MiniDropdown
+              label={item.billingPeriod}
+              isRowHovered={isRowFilled}
+              isRowActive={isRowFilled}
+              asField={showFieldPills}
+            />
+          )}
+        </div>
         <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={showFieldPills} />
         {isExpandedVariant && isEditMode ? (
           <InteractiveMiniDropdown
@@ -2901,6 +2658,7 @@ export function ProductsPricingTable({
             ariaLabel={`Discount period for ${item.name}`}
             disabled={!hasDiscount}
             plain={!showFieldPills}
+            limitedPeriodOption={LIMITED_PERIOD_OPTION}
             onChange={(next) => {
               recordProductEdit(
                 editHistory,
@@ -3103,20 +2861,6 @@ export function ProductsPricingTable({
     )
   }
 
-  const renderAddLineItemButton = (onClick: () => void) => (
-    <button
-      type="button"
-      onClick={() => {
-        enterEditMode()
-        onClick()
-      }}
-      className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-100 py-2 pl-1 pr-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-    >
-      <CirclePlus size={16} className="text-blue-700" />
-      Add line item
-    </button>
-  )
-
   const handleAddPeriod = () => {
     const lastPeriod = periods?.[periods.length - 1]
     let startDate = '17 Jul 2028'
@@ -3162,7 +2906,7 @@ export function ProductsPricingTable({
       next.add(newPeriod.id)
       return next
     })
-    setAddingToPeriodId(newPeriod.id)
+    setOpenStartDatePeriodId(newPeriod.id)
 
     const dateRange = `${added.startDate} to ${added.endDate}`
     const addValue =
@@ -3193,7 +2937,6 @@ export function ProductsPricingTable({
           if (!period) return null
 
           const isExpanded = expandedPeriods.has(period.id)
-          const isAddingToThisPeriod = addingToPeriodId === period.id
           const isLast = slotIndex === slotCount - 1
           const marginBottom = isLast ? 8 : isExpanded ? 24 : 16
 
@@ -3241,16 +2984,9 @@ export function ProductsPricingTable({
                 </>
               )}
 
-              {isAddingToThisPeriod ? (
-                <NewLineItemRow
-                  onComplete={(newItem) => handleAddComplete(newItem, period.id)}
-                  onCancel={() => setAddingToPeriodId(null)}
-                  rowStyle={editRowGridStyle}
-                  plainFields={isExpandedVariant}
-                />
-              ) : (
-                renderAddLineItemButton(() => setAddingToPeriodId(period.id))
-              )}
+              <AddLineItemButton
+                onSelect={(catalogItem) => handleAddCatalogItem(catalogItem, period.id)}
+              />
             </div>
           )
         })}
@@ -3286,18 +3022,7 @@ export function ProductsPricingTable({
         </>
       )}
 
-      {/* New line item row */}
-      {isAddingNew && (
-        <NewLineItemRow
-          onComplete={(newItem) => handleAddComplete(newItem)}
-          onCancel={() => setIsAddingNew(false)}
-          rowStyle={editRowGridStyle}
-          plainFields={isExpandedVariant}
-        />
-      )}
-
-      {/* Add line item button */}
-      {!isAddingNew && renderAddLineItemButton(() => setIsAddingNew(true))}
+      <AddLineItemButton onSelect={(catalogItem) => handleAddCatalogItem(catalogItem)} />
     </>
   )
 }

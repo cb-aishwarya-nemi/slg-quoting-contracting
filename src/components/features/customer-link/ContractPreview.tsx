@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { FileText, ZoomIn, ZoomOut, Download, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 
 const PDF_FILES = [
   { id: '1', name: 'MSA_Pioneer_Systems_2026.pdf' },
@@ -16,24 +17,15 @@ function truncateFileName(name: string, maxLength: number = 15): string {
 export function ContractPreview() {
   const [selectedPdf, setSelectedPdf] = useState(PDF_FILES[0])
   const [showDropdown, setShowDropdown] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-neutral-200 bg-neutral-50">
       {/* Control Bar */}
       <div className="flex shrink-0 items-center justify-between border-b border-neutral-200 bg-white px-4 py-2">
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative">
           <button
+            ref={triggerRef}
             type="button"
             onClick={() => setShowDropdown(!showDropdown)}
             className="flex items-center gap-2 rounded border border-neutral-200 bg-neutral-50 px-2 py-1 transition-colors hover:bg-neutral-100"
@@ -45,27 +37,30 @@ export function ContractPreview() {
             <ChevronDown size={14} className="text-brand-fog" />
           </button>
           
-          {showDropdown && (
-            <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-              {PDF_FILES.map((pdf) => (
-                <button
-                  key={pdf.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedPdf(pdf)
-                    setShowDropdown(false)
-                  }}
-                  className={cn(
-                    'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors hover:bg-neutral-50',
-                    selectedPdf.id === pdf.id ? 'bg-blue-50 text-blue-800' : 'text-brand-navy'
-                  )}
-                >
-                  <FileText size={14} className={selectedPdf.id === pdf.id ? 'text-blue-700' : 'text-brand-fog'} />
-                  <span className="truncate">{pdf.name}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <AnchoredMenu
+            isOpen={showDropdown}
+            onClose={() => setShowDropdown(false)}
+            anchorRef={triggerRef}
+            className="w-64 rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+          >
+            {PDF_FILES.map((pdf) => (
+              <button
+                key={pdf.id}
+                type="button"
+                onClick={() => {
+                  setSelectedPdf(pdf)
+                  setShowDropdown(false)
+                }}
+                className={cn(
+                  'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] transition-colors hover:bg-neutral-50',
+                  selectedPdf.id === pdf.id ? 'bg-blue-50 text-blue-800' : 'text-brand-navy'
+                )}
+              >
+                <FileText size={14} className={selectedPdf.id === pdf.id ? 'text-blue-700' : 'text-brand-fog'} />
+                <span className="truncate">{pdf.name}</span>
+              </button>
+            ))}
+          </AnchoredMenu>
         </div>
         
         <div className="flex items-center gap-4">

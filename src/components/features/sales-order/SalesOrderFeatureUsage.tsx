@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { ChevronDown, Maximize2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
   formatBillingCyclePeriod,
   formatFeatureUsageAxisValue,
@@ -815,23 +816,13 @@ function FeatureDropdown({
   onSelect: (id: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
   const selected = features.find((f) => f.id === selectedId) ?? features[0]
 
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
-
   return (
-    <div ref={ref} className="relative inline-block">
+    <div className="relative inline-block">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
         className="flex cursor-pointer items-center gap-2 text-[15px] font-semibold text-brand-navy transition-colors hover:text-brand-navy/80"
@@ -839,26 +830,29 @@ function FeatureDropdown({
         {selected.label}
         <ChevronDown size={16} className="text-brand-mist" />
       </button>
-      {isOpen && (
-        <div className="absolute left-0 z-20 mt-1 min-w-full overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-          {features.map((feature) => (
-            <button
-              key={feature.id}
-              type="button"
-              onClick={() => {
-                onSelect(feature.id)
-                setIsOpen(false)
-              }}
-              className={cn(
-                'w-full cursor-pointer px-3 py-2 text-left text-[13px] transition-colors hover:bg-brand-navy hover:text-white',
-                feature.id === selectedId ? 'font-medium text-brand-navy' : 'text-brand-navy'
-              )}
-            >
-              {feature.label}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnchoredMenu
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        anchorRef={triggerRef}
+        className="min-w-[200px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        {features.map((feature) => (
+          <button
+            key={feature.id}
+            type="button"
+            onClick={() => {
+              onSelect(feature.id)
+              setIsOpen(false)
+            }}
+            className={cn(
+              'w-full cursor-pointer px-3 py-2 text-left text-[13px] transition-colors hover:bg-brand-navy hover:text-white',
+              feature.id === selectedId ? 'font-medium text-brand-navy' : 'text-brand-navy'
+            )}
+          >
+            {feature.label}
+          </button>
+        ))}
+      </AnchoredMenu>
     </div>
   )
 }

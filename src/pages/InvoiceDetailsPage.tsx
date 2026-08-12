@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { FileText, MoreHorizontal, MessageCircleMore, ArrowLeft, MoveDiagonal2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { CommentsPanel } from '@/components/features/contract-processing/CommentsPanel'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
@@ -130,6 +131,7 @@ export function InvoiceDetailsPage() {
   const [isCommentsCollapsed, setIsCommentsCollapsed] = useState(false)
 
   const centerRef = useRef<HTMLDivElement>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   
   // Register this page with use case context
@@ -177,14 +179,6 @@ export function InvoiceDetailsPage() {
     container.addEventListener('scroll', handleScroll)
     return () => container.removeEventListener('scroll', handleScroll)
   }, [])
-
-  useEffect(() => {
-    const handleClickOutside = () => setShowMoreMenu(false)
-    if (showMoreMenu) {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [showMoreMenu])
 
   return (
     <div className="flex h-full flex-col">
@@ -267,6 +261,7 @@ export function InvoiceDetailsPage() {
             </button>
             <div className="relative">
               <button
+                ref={moreButtonRef}
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation()
@@ -276,22 +271,26 @@ export function InvoiceDetailsPage() {
               >
                 <MoreHorizontal size={18} />
               </button>
-              {showMoreMenu && (
-                <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                  >
-                    Issue credit note
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                  >
-                    Regenerate invoice
-                  </button>
-                </div>
-              )}
+              <AnchoredMenu
+                isOpen={showMoreMenu}
+                onClose={() => setShowMoreMenu(false)}
+                anchorRef={moreButtonRef}
+                align="end"
+                className="min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+              >
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                >
+                  Issue credit note
+                </button>
+                <button
+                  type="button"
+                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+                >
+                  Regenerate invoice
+                </button>
+              </AnchoredMenu>
             </div>
           </div>
         </div>

@@ -19,7 +19,8 @@ export const DISCOUNT_UNITS = ['%', 'USD'] as const
 export type DiscountUnit = (typeof DISCOUNT_UNITS)[number]
 
 export const DISCOUNT_PERIODS = ['None', 'One Time', 'Forever', 'Limited Period'] as const
-export type DiscountPeriod = (typeof DISCOUNT_PERIODS)[number]
+/** A preset choice, or a custom duration such as "6 weeks" entered for Limited Period. */
+export type DiscountPeriod = (typeof DISCOUNT_PERIODS)[number] | (string & {})
 
 export interface ProductLineItem {
   id: string
@@ -899,6 +900,7 @@ export interface CatalogLineItem {
   name: string
   family: string
   unitPrice: string
+  billingPeriod: string
 }
 
 // Payment schedule data for simulating contract payments over time
@@ -1313,18 +1315,18 @@ export const scheduledInvoices: Record<string, ScheduledInvoice> = {
 }
 
 export const lineItemCatalog: CatalogLineItem[] = [
-  { id: 'cat-1', name: 'Apex platform - growth services', family: 'Platform Services', unitPrice: '$2,400.00' },
-  { id: 'cat-2', name: 'Apex platform - enterprise services', family: 'Platform Services', unitPrice: '$4,800.00' },
-  { id: 'cat-3', name: 'Apex platform - starter services', family: 'Platform Services', unitPrice: '$1,200.00' },
-  { id: 'cat-4', name: 'Implementation services', family: 'Professional Services', unitPrice: '$18,000.00' },
-  { id: 'cat-5', name: 'Onboarding Services', family: 'Professional Services', unitPrice: '$9,500.00' },
-  { id: 'cat-6', name: 'Training & Enablement', family: 'Professional Services', unitPrice: '$7,500.00' },
-  { id: 'cat-7', name: 'Premium support SLA', family: 'Support', unitPrice: '$12,000.00' },
-  { id: 'cat-8', name: 'Enterprise support SLA', family: 'Support', unitPrice: '$24,000.00' },
-  { id: 'cat-9', name: 'Standard support SLA', family: 'Support', unitPrice: '$6,000.00' },
-  { id: 'cat-10', name: 'Sandbox add-on', family: 'Add-ons', unitPrice: '$1,500.00' },
-  { id: 'cat-11', name: 'API access add-on', family: 'Add-ons', unitPrice: '$3,000.00' },
-  { id: 'cat-12', name: 'Custom integrations', family: 'Add-ons', unitPrice: '$5,000.00' },
-  { id: 'cat-13', name: 'Data migration services', family: 'Professional Services', unitPrice: '$15,000.00' },
-  { id: 'cat-14', name: 'Consulting hours', family: 'Professional Services', unitPrice: '$250.00' },
+  { id: 'cat-1', name: 'Apex platform - growth services', family: 'Platform Services', unitPrice: '$2,400.00', billingPeriod: 'Yearly' },
+  { id: 'cat-2', name: 'Apex platform - enterprise services', family: 'Platform Services', unitPrice: '$4,800.00', billingPeriod: 'Yearly' },
+  { id: 'cat-3', name: 'Apex platform - starter services', family: 'Platform Services', unitPrice: '$1,200.00', billingPeriod: 'Yearly' },
+  { id: 'cat-4', name: 'Implementation services', family: 'Professional Services', unitPrice: '$18,000.00', billingPeriod: 'One-time' },
+  { id: 'cat-5', name: 'Onboarding Services', family: 'Professional Services', unitPrice: '$9,500.00', billingPeriod: 'One-time' },
+  { id: 'cat-6', name: 'Training & Enablement', family: 'Professional Services', unitPrice: '$7,500.00', billingPeriod: 'One-time' },
+  { id: 'cat-7', name: 'Premium support SLA', family: 'Support', unitPrice: '$12,000.00', billingPeriod: 'Yearly' },
+  { id: 'cat-8', name: 'Enterprise support SLA', family: 'Support', unitPrice: '$24,000.00', billingPeriod: 'Yearly' },
+  { id: 'cat-9', name: 'Standard support SLA', family: 'Support', unitPrice: '$6,000.00', billingPeriod: 'Yearly' },
+  { id: 'cat-10', name: 'Sandbox add-on', family: 'Add-ons', unitPrice: '$1,500.00', billingPeriod: 'Monthly' },
+  { id: 'cat-11', name: 'API access add-on', family: 'Add-ons', unitPrice: '$3,000.00', billingPeriod: 'Monthly' },
+  { id: 'cat-12', name: 'Custom integrations', family: 'Add-ons', unitPrice: '$5,000.00', billingPeriod: 'One-time' },
+  { id: 'cat-13', name: 'Data migration services', family: 'Professional Services', unitPrice: '$15,000.00', billingPeriod: 'One-time' },
+  { id: 'cat-14', name: 'Consulting hours', family: 'Professional Services', unitPrice: '$250.00', billingPeriod: 'Monthly' },
 ]

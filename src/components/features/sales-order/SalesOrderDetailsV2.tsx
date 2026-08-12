@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useRef, useState } from 'react'
 import { Download, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { SalesOrderFeatureUsageSection } from './SalesOrderFeatureUsage'
 import { SalesOrderCollapsedSections } from './SalesOrderCollapsedSections'
 import { type SalesOrder } from '@/data/salesOrderMock'
@@ -99,6 +100,7 @@ export function SalesOrderDetailsV2({
   onSelectOrder,
 }: SalesOrderDetailsV2Props) {
   const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   const listItem = resolveListItem(order)
   const statusStyle = SALES_ORDER_STATUS_STYLES[listItem.status]
@@ -110,14 +112,6 @@ export function SalesOrderDetailsV2({
     status: o.dealTag,
     customer: o.customerName,
   }))
-
-  useEffect(() => {
-    const handleClickOutside = () => setShowMoreMenu(false)
-    if (showMoreMenu) {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [showMoreMenu])
 
   return (
     <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
@@ -168,6 +162,7 @@ export function SalesOrderDetailsV2({
           </button>
           <div className="relative">
             <button
+              ref={moreButtonRef}
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
@@ -178,22 +173,26 @@ export function SalesOrderDetailsV2({
               <MoreHorizontal size={15} />
               More
             </button>
-            {showMoreMenu && (
-              <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Download order form
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Cancel order
-                </button>
-              </div>
-            )}
+            <AnchoredMenu
+              isOpen={showMoreMenu}
+              onClose={() => setShowMoreMenu(false)}
+              anchorRef={moreButtonRef}
+              align="end"
+              className="min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+            >
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+              >
+                Download order form
+              </button>
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+              >
+                Cancel order
+              </button>
+            </AnchoredMenu>
           </div>
         </div>
       </div>

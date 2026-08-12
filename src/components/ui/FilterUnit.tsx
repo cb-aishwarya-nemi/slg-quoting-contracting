@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { PlusCircle, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AnchoredMenu } from './AnchoredMenu'
 
 export interface Filter {
   id: string
@@ -82,10 +83,23 @@ interface BuildingFilter {
 export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEmpty = true }: FilterUnitProps) {
   const [buildingFilter, setBuildingFilter] = useState<BuildingFilter | null>(null)
   const [editingFilter, setEditingFilter] = useState<{ id: string; field: 'attribute' | 'condition' | 'value' } | null>(null)
-  const popoverRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  // Mirrors the trigger the popover hangs off, set synchronously with the state
+  // that opens it so the menu measures against the right button on first paint.
+  const anchorRef = useRef<HTMLButtonElement | null>(null)
   const [activePopoverTrigger, setActivePopoverTrigger] = useState<HTMLButtonElement | null>(null)
   const hasAutoStartedRef = useRef(false)
+
+  const openPopoverFrom = (trigger: HTMLButtonElement | null) => {
+    anchorRef.current = trigger
+    setActivePopoverTrigger(trigger)
+  }
+
+  const closePopover = () => {
+    setBuildingFilter(null)
+    setEditingFilter(null)
+    setActivePopoverTrigger(null)
+  }
 
   // Auto-start building filter when expanded with no filters
   useEffect(() => {
@@ -94,7 +108,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
       // Use setTimeout to ensure the DOM is ready
       setTimeout(() => {
         if (triggerRef.current) {
-          setActivePopoverTrigger(triggerRef.current)
+          openPopoverFrom(triggerRef.current)
           const newId = `filter-${Date.now()}`
           setBuildingFilter({
             id: newId,
@@ -110,68 +124,9 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
     }
   }, [isExpanded, filters.length, autoStartOnEmpty])
 
-  // Close popover on click outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node
-      
-      // Check if click is outside popover and not on any trigger button
-      if (
-        popoverRef.current &&
-        !popoverRef.current.contains(target) &&
-        !activePopoverTrigger?.contains(target)
-      ) {
-        // Don't close if clicking on another filter part button
-        const clickedButton = (event.target as HTMLElement).closest('button')
-        if (clickedButton && clickedButton.getAttribute('type') === 'button') {
-          return
-        }
-        
-        setBuildingFilter(null)
-        setEditingFilter(null)
-        setActivePopoverTrigger(null)
-      }
-    }
-
-    if (buildingFilter || editingFilter) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [buildingFilter, editingFilter, activePopoverTrigger])
-
-  // Position popover to prevent screen cutoff
-  useEffect(() => {
-    if (popoverRef.current && activePopoverTrigger) {
-      const popover = popoverRef.current
-      const trigger = activePopoverTrigger
-      const rect = trigger.getBoundingClientRect()
-      const popoverRect = popover.getBoundingClientRect()
-
-      // Position relative to viewport (fixed positioning)
-      popover.style.position = 'fixed'
-      popover.style.left = `${rect.left}px`
-      popover.style.top = `${rect.bottom + 4}px`
-
-      // Check if popover goes off right edge
-      if (rect.left + popoverRect.width > window.innerWidth - 20) {
-        popover.style.left = 'auto'
-        popover.style.right = '20px'
-      }
-
-      // Check if popover goes off bottom edge
-      if (rect.bottom + popoverRect.height + 4 > window.innerHeight - 20) {
-        popover.style.top = `${rect.top - popoverRect.height - 4}px`
-      }
-    }
-  }, [buildingFilter, editingFilter, activePopoverTrigger])
-
   const startNewFilter = (event?: React.MouseEvent<HTMLButtonElement>) => {
     const newId = `filter-${Date.now()}`
-    if (event) {
-      setActivePopoverTrigger(event.currentTarget)
-    } else if (triggerRef.current) {
-      setActivePopoverTrigger(triggerRef.current)
-    }
+    openPopoverFrom(event ? event.currentTarget : triggerRef.current)
     setBuildingFilter({
       id: newId,
       step: 'attribute',
@@ -225,7 +180,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
     const filter = filters.find(f => f.id === id)
     if (!filter) return
 
-    setActivePopoverTrigger(event.currentTarget)
+    openPopoverFrom(event.currentTarget)
     setEditingFilter({ id, field })
     
     if (field === 'attribute') {
@@ -248,9 +203,7 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
 
   const updateFilter = (id: string, updates: Partial<Filter>) => {
     onFiltersChange(filters.map(f => f.id === id ? { ...f, ...updates } : f))
-    setBuildingFilter(null)
-    setEditingFilter(null)
-    setActivePopoverTrigger(null)
+    closePopover()
   }
 
   const getAttributeLabel = (id: string) => {
@@ -264,129 +217,111 @@ export function FilterUnit({ filters, onFiltersChange, isExpanded, autoStartOnEm
   }
 
   const renderPopover = () => {
-    if (!buildingFilter) return null
-
     const isEditing = editingFilter !== null
-    const currentFilter = isEditing ? filters.find(f => f.id === buildingFilter.id) : null
+    const currentFilter =
+      isEditing && buildingFilter ? filters.find(f => f.id === buildingFilter.id) : null
 
-    if (buildingFilter.step === 'attribute') {
-      return (
-        <div
-          ref={popoverRef}
-          className="absolute z-50 mt-1 w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+    let panelClassName = 'w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg'
+    let content: ReactNode = null
+
+    if (buildingFilter?.step === 'attribute') {
+      content = FILTER_ATTRIBUTES.map(attr => (
+        <button
+          key={attr.id}
+          type="button"
+          onClick={() => {
+            if (isEditing && currentFilter) {
+              updateFilter(buildingFilter.id, { attribute: attr.id })
+            } else {
+              selectAttribute(attr.id)
+            }
+          }}
+          className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] text-brand-navy transition-colors hover:bg-blue-50"
         >
-          {FILTER_ATTRIBUTES.map(attr => (
-            <button
-              key={attr.id}
-              type="button"
-              onClick={() => {
-                if (isEditing && currentFilter) {
-                  updateFilter(buildingFilter.id, { attribute: attr.id })
-                } else {
-                  selectAttribute(attr.id)
-                }
-              }}
-              className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] text-brand-navy transition-colors hover:bg-blue-50"
-            >
-              {attr.label}
-            </button>
-          ))}
-        </div>
-      )
-    }
-
-    if (buildingFilter.step === 'condition' && buildingFilter.attribute) {
+          {attr.label}
+        </button>
+      ))
+    } else if (buildingFilter?.step === 'condition' && buildingFilter.attribute) {
       const attributeType = ATTRIBUTE_TYPES[buildingFilter.attribute]
       const conditions = CONDITIONS[attributeType] || CONDITIONS.text
 
-      return (
-        <div
-          ref={popoverRef}
-          className="fixed z-50 w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      content = conditions.map(cond => (
+        <button
+          key={cond.id}
+          type="button"
+          onClick={() => {
+            if (isEditing && currentFilter) {
+              updateFilter(buildingFilter.id, { condition: cond.id })
+            } else {
+              selectCondition(cond.id)
+            }
+          }}
+          className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] italic text-brand-navy transition-colors hover:bg-blue-50"
         >
-          {conditions.map(cond => (
-            <button
-              key={cond.id}
-              type="button"
-              onClick={() => {
-                if (isEditing && currentFilter) {
-                  updateFilter(buildingFilter.id, { condition: cond.id })
-                } else {
-                  selectCondition(cond.id)
-                }
-              }}
-              className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] italic text-brand-navy transition-colors hover:bg-blue-50"
-            >
-              {cond.label}
-            </button>
-          ))}
-        </div>
-      )
-    }
-
-    if (buildingFilter.step === 'value' && buildingFilter.attribute) {
+          {cond.label}
+        </button>
+      ))
+    } else if (buildingFilter?.step === 'value' && buildingFilter.attribute) {
       const options = VALUE_OPTIONS[buildingFilter.attribute]
 
       if (options) {
-        return (
-          <div
-            ref={popoverRef}
-            className="fixed z-50 w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-          >
-            {options.map(option => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => {
-                  if (isEditing && currentFilter) {
-                    updateFilter(buildingFilter.id, { value: option })
-                  } else {
-                    selectValue(option)
-                  }
-                }}
-                className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] font-semibold text-brand-navy transition-colors hover:bg-blue-50"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        )
-      }
-
-      // Text input for free-form values
-      return (
-        <div
-          ref={popoverRef}
-          className="fixed z-50 w-[240px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
-        >
-          <input
-            type="text"
-            autoFocus
-            placeholder="Enter value..."
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                const value = e.currentTarget.value
-                if (value.trim()) {
-                  if (isEditing && currentFilter) {
-                    updateFilter(buildingFilter.id, { value })
-                  } else {
-                    selectValue(value)
-                  }
-                }
-              }
-              if (e.key === 'Escape') {
-                setBuildingFilter(null)
-                setEditingFilter(null)
+        content = options.map(option => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => {
+              if (isEditing && currentFilter) {
+                updateFilter(buildingFilter.id, { value: option })
+              } else {
+                selectValue(option)
               }
             }}
-            className="w-full rounded-md border border-neutral-200 px-3 py-2 text-[13px] font-semibold text-brand-navy focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-          />
-          <p className="mt-2 text-[11px] text-brand-fog">Press Enter to add</p>
-        </div>
-      )
+            className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] font-semibold text-brand-navy transition-colors hover:bg-blue-50"
+          >
+            {option}
+          </button>
+        ))
+      } else {
+        panelClassName = 'w-[240px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg'
+        content = (
+          <>
+            <input
+              type="text"
+              autoFocus
+              placeholder="Enter value..."
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  const value = e.currentTarget.value
+                  if (value.trim()) {
+                    if (isEditing && currentFilter) {
+                      updateFilter(buildingFilter.id, { value })
+                    } else {
+                      selectValue(value)
+                    }
+                  }
+                }
+                if (e.key === 'Escape') {
+                  closePopover()
+                }
+              }}
+              className="w-full rounded-md border border-neutral-200 px-3 py-2 text-[13px] font-semibold text-brand-navy focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <p className="mt-2 text-[11px] text-brand-fog">Press Enter to add</p>
+          </>
+        )
+      }
     }
 
-    return null
+    return (
+      <AnchoredMenu
+        isOpen={content != null && activePopoverTrigger != null}
+        onClose={closePopover}
+        anchorRef={anchorRef}
+        className={panelClassName}
+      >
+        {content}
+      </AnchoredMenu>
+    )
   }
 
   return (

@@ -653,16 +653,22 @@ export function Customer360Page() {
                       onLiftedChange={setIsProductsLifted}
                       header={
                         <>
-                          <SectionSourceThumbnails
-                            sources={sectionSources.products}
-                            onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                          />
+                          {!isProductsLifted && (
+                            <SectionSourceThumbnails
+                              sources={sectionSources.products}
+                              onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
+                            />
+                          )}
                           <SectionHeader
                             title="Products and pricing"
                             status="ai-created"
                             statusLabel="Created 2 items"
                             isFlashing={false}
-                            commentCount={commentCountsBySection['products']}
+                            commentCount={
+                              isProductsLifted
+                                ? undefined
+                                : commentCountsBySection['products']
+                            }
                             trailing={
                               <button
                                 type="button"

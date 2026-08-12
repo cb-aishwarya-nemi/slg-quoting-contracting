@@ -18,6 +18,7 @@ import {
   type NavSection,
 } from '@/components/features/contract-processing'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { STATUS_STYLES, type InvoiceStatus } from '@/data/invoiceListMock'
 import {
   type SalesOrder,
@@ -782,24 +783,14 @@ function UsageCycleDropdown({
   onSelect: (id: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen])
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   const selectedCycle = cycles.find((cycle) => cycle.id === selectedId) ?? cycles[0]
 
   return (
-    <div ref={dropdownRef} className="relative flex items-center">
+    <div className="relative flex items-center">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((open) => !open)}
         className="inline-flex cursor-pointer items-center gap-1 text-[12px] font-medium leading-none text-brand-navy transition-colors hover:text-blue-700"
@@ -810,31 +801,34 @@ function UsageCycleDropdown({
           className={cn('text-brand-fog transition-transform', isOpen && 'rotate-180')}
         />
       </button>
-      {isOpen && (
-        <div className="absolute left-0 top-full z-20 mt-1 min-w-[148px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-          {cycles.map((cycle) => (
-            <button
-              key={cycle.id}
-              type="button"
-              onClick={() => {
-                onSelect(cycle.id)
-                setIsOpen(false)
-              }}
-              className={cn(
-                'flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-[13px] transition-colors hover:bg-neutral-50',
-                cycle.id === selectedId
-                  ? 'font-medium text-brand-navy'
-                  : 'font-normal text-brand-navy'
-              )}
-            >
-              <span>{cycle.label}</span>
-              {cycle.isCurrent && (
-                <span className="text-[11px] font-medium text-brand-fog">Current</span>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+      <AnchoredMenu
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        anchorRef={triggerRef}
+        className="min-w-[148px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        {cycles.map((cycle) => (
+          <button
+            key={cycle.id}
+            type="button"
+            onClick={() => {
+              onSelect(cycle.id)
+              setIsOpen(false)
+            }}
+            className={cn(
+              'flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-[13px] transition-colors hover:bg-neutral-50',
+              cycle.id === selectedId
+                ? 'font-medium text-brand-navy'
+                : 'font-normal text-brand-navy'
+            )}
+          >
+            <span>{cycle.label}</span>
+            {cycle.isCurrent && (
+              <span className="text-[11px] font-medium text-brand-fog">Current</span>
+            )}
+          </button>
+        ))}
+      </AnchoredMenu>
     </div>
   )
 }
@@ -1078,6 +1072,7 @@ export function SalesOrderDetailsV1({
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
   const scrollTargetRef = useRef<string | null>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   // Reset active section + scroll when the order changes
   useEffect(() => {
@@ -1139,14 +1134,6 @@ export function SalesOrderDetailsV1({
       container.removeEventListener('scrollend', handleScrollEnd)
     }
   }, [])
-
-  useEffect(() => {
-    const handleClickOutside = () => setShowMoreMenu(false)
-    if (showMoreMenu) {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [showMoreMenu])
 
   // Rich list-row items — mirrors the Contract Processing task switcher popover
   const switcherItems: SwitcherItem[] = orders.map((o) => ({
@@ -1210,6 +1197,7 @@ export function SalesOrderDetailsV1({
           </button>
           <div className="relative">
             <button
+              ref={moreButtonRef}
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
@@ -1220,22 +1208,26 @@ export function SalesOrderDetailsV1({
               <MoreHorizontal size={15} />
               More
             </button>
-            {showMoreMenu && (
-              <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Download order form
-                </button>
-                <button
-                  type="button"
-                  className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                >
-                  Cancel order
-                </button>
-              </div>
-            )}
+            <AnchoredMenu
+              isOpen={showMoreMenu}
+              onClose={() => setShowMoreMenu(false)}
+              anchorRef={moreButtonRef}
+              align="end"
+              className="min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+            >
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+              >
+                Download order form
+              </button>
+              <button
+                type="button"
+                className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+              >
+                Cancel order
+              </button>
+            </AnchoredMenu>
           </div>
         </div>
       </div>

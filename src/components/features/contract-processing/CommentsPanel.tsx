@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, type RefObject } from 'react'
 import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { type Comment } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
 import {
@@ -108,7 +109,7 @@ function AddNoteTextarea({
   const [status, setStatus] = useState<ContractStatus>('In progress')
   const [showStatusDropdown, setShowStatusDropdown] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
+  const statusTriggerRef = useRef<HTMLButtonElement>(null)
   const defaultHeight = compact ? 100 : 220
 
   useEffect(() => {
@@ -126,16 +127,6 @@ function AddNoteTextarea({
       textarea.style.height = Math.min(scrollHeight, 400) + 'px'
     }
   }, [value, defaultHeight])
-
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setShowStatusDropdown(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
@@ -181,8 +172,9 @@ function AddNoteTextarea({
         )}
       </div>
       <div className="mt-2 flex items-center justify-between">
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative">
           <button
+            ref={statusTriggerRef}
             type="button"
             onClick={() => setShowStatusDropdown(!showStatusDropdown)}
             className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-blue-500 transition-colors hover:text-blue-700"
@@ -190,30 +182,34 @@ function AddNoteTextarea({
             {status}
             <ChevronDown size={12} />
           </button>
-          {showStatusDropdown && (
-            <div className="absolute bottom-full left-0 mb-1 w-[140px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg z-20">
-              <button
-                type="button"
-                onClick={() => handleStatusSelect('In progress')}
-                className={cn(
-                  'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
-                  status === 'In progress' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
-                )}
-              >
-                In progress
-              </button>
-              <button
-                type="button"
-                onClick={() => handleStatusSelect('Blocked')}
-                className={cn(
-                  'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
-                  status === 'Blocked' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
-                )}
-              >
-                Blocked
-              </button>
-            </div>
-          )}
+          <AnchoredMenu
+            isOpen={showStatusDropdown}
+            onClose={() => setShowStatusDropdown(false)}
+            anchorRef={statusTriggerRef}
+            placement="top"
+            className="w-[140px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+          >
+            <button
+              type="button"
+              onClick={() => handleStatusSelect('In progress')}
+              className={cn(
+                'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
+                status === 'In progress' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
+              )}
+            >
+              In progress
+            </button>
+            <button
+              type="button"
+              onClick={() => handleStatusSelect('Blocked')}
+              className={cn(
+                'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] transition-colors hover:bg-neutral-50',
+                status === 'Blocked' ? 'font-semibold text-brand-navy' : 'text-brand-navy'
+              )}
+            >
+              Blocked
+            </button>
+          </AnchoredMenu>
         </div>
         <button
           type="button"
@@ -230,14 +226,26 @@ function AddNoteTextarea({
 }
 
 function DeleteConfirmationPopover({
+  isOpen,
+  anchorRef,
+  onClose,
   onConfirm,
   onCancel,
 }: {
+  isOpen: boolean
+  anchorRef: RefObject<HTMLElement | null>
+  onClose: () => void
   onConfirm: () => void
   onCancel: () => void
 }) {
   return (
-    <div className="absolute right-2 top-8 z-10 w-[120px] rounded-lg border border-neutral-200 bg-white py-1.5 shadow-lg">
+    <AnchoredMenu
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      align="end"
+      className="w-[120px] rounded-lg border border-neutral-200 bg-white py-1.5 shadow-lg"
+    >
       <button
         type="button"
         onClick={onConfirm}
@@ -253,23 +261,35 @@ function DeleteConfirmationPopover({
       >
         Cancel
       </button>
-    </div>
+    </AnchoredMenu>
   )
 }
 
 function CommentMoreMenu({
+  isOpen,
+  anchorRef,
+  onClose,
   onResolve,
   onEdit,
   onDelete,
   isResolved,
 }: {
+  isOpen: boolean
+  anchorRef: RefObject<HTMLElement | null>
+  onClose: () => void
   onResolve: () => void
   onEdit: () => void
   onDelete: () => void
   isResolved: boolean
 }) {
   return (
-    <div className="absolute right-2 top-8 z-10 w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+    <AnchoredMenu
+      isOpen={isOpen}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      align="end"
+      className="w-[120px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+    >
       {!isResolved && (
         <>
           <button
@@ -295,7 +315,7 @@ function CommentMoreMenu({
       >
         Delete
       </button>
-    </div>
+    </AnchoredMenu>
   )
 }
 
@@ -333,6 +353,7 @@ function CommentCard({
   const [isExpanded, setIsExpanded] = useState(false)
   const isResolved = commentStatus === 'resolved'
   const commentRef = useRef<HTMLDivElement>(null)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleClick = (e?: React.MouseEvent | React.KeyboardEvent) => {
     if (isResolved) {
@@ -358,21 +379,19 @@ function CommentCard({
 
   const bodyParts = parseCommentBody(comment.body)
 
+  // The menus close themselves; this only collapses an expanded resolved comment.
   useEffect(() => {
+    if (!isResolved || !isExpanded) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (commentRef.current && !commentRef.current.contains(e.target as Node)) {
-        setShowMoreMenu(false)
-        setShowDeleteConfirm(false)
-        if (isResolved && isExpanded) {
-          setIsExpanded(false)
-        }
+      const target = e.target as HTMLElement
+      if (target.closest('[data-anchored-menu]')) return
+      if (commentRef.current && !commentRef.current.contains(target)) {
+        setIsExpanded(false)
       }
     }
-    if (showMoreMenu || showDeleteConfirm || (isResolved && isExpanded)) {
-      document.addEventListener('click', handleClickOutside)
-      return () => document.removeEventListener('click', handleClickOutside)
-    }
-  }, [showMoreMenu, showDeleteConfirm, isResolved, isExpanded])
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [isResolved, isExpanded])
 
   return (
     <div
@@ -412,24 +431,26 @@ function CommentCard({
         />
       )}
 
-      {showMoreMenu && (
-        <CommentMoreMenu
-          onResolve={handleResolve}
-          onEdit={() => setShowMoreMenu(false)}
-          onDelete={() => {
-            setShowMoreMenu(false)
-            setShowDeleteConfirm(true)
-          }}
-          isResolved={isResolved}
-        />
-      )}
+      <CommentMoreMenu
+        isOpen={showMoreMenu}
+        anchorRef={moreButtonRef}
+        onClose={() => setShowMoreMenu(false)}
+        onResolve={handleResolve}
+        onEdit={() => setShowMoreMenu(false)}
+        onDelete={() => {
+          setShowMoreMenu(false)
+          setShowDeleteConfirm(true)
+        }}
+        isResolved={isResolved}
+      />
 
-      {showDeleteConfirm && (
-        <DeleteConfirmationPopover
-          onConfirm={handleDelete}
-          onCancel={() => setShowDeleteConfirm(false)}
-        />
-      )}
+      <DeleteConfirmationPopover
+        isOpen={showDeleteConfirm}
+        anchorRef={moreButtonRef}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={handleDelete}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       {/* Body */}
       {isResolved && !isExpanded ? (
@@ -479,6 +500,7 @@ function CommentCard({
         <div className="h-px flex-1 bg-neutral-200" />
         {!comment.isAI && (onDelete || onResolve) && (
           <button
+            ref={moreButtonRef}
             type="button"
             onClick={(e) => {
               e.stopPropagation()

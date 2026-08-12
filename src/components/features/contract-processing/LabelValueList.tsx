@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useCallback, type CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { ChevronDown, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
 import { GradientSparkle } from './GradientSparkle'
@@ -148,12 +148,9 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   const [isOpen, setIsOpen] = useState(false)
   const [editValue, setEditValue] = useState(item.value)
   const [accountSearch, setAccountSearch] = useState('')
-  const [dropdownPosition, setDropdownPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
-  const [accountDropdownStyle, setAccountDropdownStyle] = useState<CSSProperties>({})
   const inputRef = useRef<HTMLInputElement>(null)
   const accountSearchRef = useRef<HTMLInputElement>(null)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const accountTriggerRef = useRef<HTMLButtonElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
     setEditValue(item.value)
@@ -180,64 +177,6 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
       return () => window.clearTimeout(timer)
     }
   }, [isOpen, item.label])
-
-  // Account menu: always open fixed directly below the clicked value
-  useEffect(() => {
-    if (!isOpen || item.label !== 'Account' || !accountTriggerRef.current) return
-
-    const updatePosition = () => {
-      const rect = accountTriggerRef.current!.getBoundingClientRect()
-      const menuWidth = 380
-      const left = Math.min(rect.left, window.innerWidth - menuWidth - 8)
-      setAccountDropdownStyle({
-        position: 'fixed',
-        top: rect.bottom + 4,
-        left: Math.max(8, left),
-        width: menuWidth,
-        zIndex: 9999,
-      })
-    }
-
-    updatePosition()
-    window.addEventListener('resize', updatePosition)
-    window.addEventListener('scroll', updatePosition, true)
-    return () => {
-      window.removeEventListener('resize', updatePosition)
-      window.removeEventListener('scroll', updatePosition, true)
-    }
-  }, [isOpen, item.label])
-
-  useEffect(() => {
-    if (!isOpen || !dropdownRef.current || item.label === 'Account') return
-    const timer = setTimeout(() => {
-      const spaceBelow = window.innerHeight - dropdownRef.current!.getBoundingClientRect().top
-      if (spaceBelow < 200) {
-        setDropdownPosition({ bottom: '100%', top: 'auto' })
-      } else {
-        setDropdownPosition({ top: '100%', bottom: 'auto' })
-      }
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [isOpen, item.label])
-
-  useEffect(() => {
-    if (!isOpen) return
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node
-      if (dropdownRef.current?.contains(target)) return
-      if (accountTriggerRef.current?.contains(target)) return
-      setIsOpen(false)
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsOpen(false)
-    }
-    document.addEventListener('mousedown', handleClickOutside)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen])
 
   const handleRowClick = () => {
     if (isEditing || isOpen) return
@@ -297,23 +236,15 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         })
       : options
 
-  const dropdownContent = isOpen && options ? (
-    <div
-      ref={dropdownRef}
+  const selectDropdown = options ? (
+    <AnchoredMenu
+      isOpen={isOpen}
+      onClose={() => setIsOpen(false)}
+      anchorRef={triggerRef}
       className={cn(
         'overflow-hidden rounded-xl border border-neutral-200 bg-white shadow-lg',
-        isAccountSelect ? 'w-[380px]' : 'absolute left-0 z-50 min-w-[220px] py-1'
+        isAccountSelect ? 'w-[380px]' : 'min-w-[220px] py-1'
       )}
-      style={
-        isAccountSelect
-          ? accountDropdownStyle
-          : {
-              top: dropdownPosition.top as any,
-              bottom: dropdownPosition.bottom as any,
-              marginTop: dropdownPosition.top === '100%' ? '4px' : '0',
-              marginBottom: dropdownPosition.bottom === '100%' ? '4px' : '0',
-            }
-      }
     >
       {isAccountSelect && (
         <div className="border-b border-neutral-100 px-3 py-2">
@@ -433,13 +364,8 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
           })
         )}
       </div>
-    </div>
+    </AnchoredMenu>
   ) : null
-
-  const selectDropdown =
-    isAccountSelect && dropdownContent
-      ? createPortal(dropdownContent, document.body)
-      : dropdownContent
 
   return (
     <div
@@ -475,8 +401,9 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
       <div className="flex flex-1 items-center justify-between gap-2">
         <div className="min-w-0 flex-1 text-left">
         {isUnresolvedActive && isSelect ? (
-          <div ref={dropdownRef} className="relative w-full" onClick={(e) => e.stopPropagation()}>
+          <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
             <button
+              ref={triggerRef}
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
@@ -520,7 +447,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         ) : isSelect ? (
           <div className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
-              ref={isAccountSelect ? accountTriggerRef : undefined}
+              ref={triggerRef}
               type="button"
               onClick={() => setIsOpen(!isOpen)}
               className={cn(
@@ -621,8 +548,6 @@ interface AccountFieldPopoverProps {
 
 function AccountFieldPopover({ isOpen, onClose, onAdd, alreadyAdded, anchorRef }: AccountFieldPopoverProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set())
-  const [position, setPosition] = useState<{ top?: string; bottom?: string }>({ top: '100%' })
-  const popoverRef = useRef<HTMLDivElement>(null)
 
   const available = ACCOUNT_ADDABLE_FIELDS.filter(f => !alreadyAdded.includes(f))
 
@@ -641,67 +566,18 @@ function AccountFieldPopover({ isOpen, onClose, onAdd, alreadyAdded, anchorRef }
     setSelected(new Set())
   }
 
-  // Calculate position on open
   useEffect(() => {
-    if (!isOpen || !anchorRef.current) return
-    const timer = setTimeout(() => {
-      const anchorRect = anchorRef.current!.getBoundingClientRect()
-      const popoverHeight = popoverRef.current?.offsetHeight ?? 340
-      const spaceBelow = window.innerHeight - anchorRect.bottom
-      const spaceAbove = anchorRect.top
-      if (spaceBelow < popoverHeight + 8 && spaceAbove > popoverHeight + 8) {
-        setPosition({ bottom: '100%', top: 'auto' })
-      } else {
-        setPosition({ top: '100%', bottom: 'auto' })
-      }
-    }, 0)
-    return () => clearTimeout(timer)
-  }, [isOpen, anchorRef])
-
-  // Reset selection when closed
-  useEffect(() => {
-    if (!isOpen) {
-      setSelected(new Set())
-      setPosition({ top: '100%' })
-    }
+    if (!isOpen) setSelected(new Set())
   }, [isOpen])
-
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return
-    const handleMouseDown = (e: MouseEvent) => {
-      if (
-        popoverRef.current && !popoverRef.current.contains(e.target as Node) &&
-        anchorRef.current && !anchorRef.current.contains(e.target as Node)
-      ) {
-        onClose()
-      }
-    }
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
-    }
-    document.addEventListener('mousedown', handleMouseDown)
-    document.addEventListener('keydown', handleEscape)
-    return () => {
-      document.removeEventListener('mousedown', handleMouseDown)
-      document.removeEventListener('keydown', handleEscape)
-    }
-  }, [isOpen, onClose, anchorRef])
-
-  if (!isOpen || available.length === 0) return null
 
   const count = selected.size
 
   return (
-    <div
-      ref={popoverRef}
-      className="absolute left-0 z-50 w-[260px] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg"
-      style={{
-        top: position.top as any,
-        bottom: position.bottom as any,
-        marginTop: position.top === '100%' ? '4px' : '0',
-        marginBottom: position.bottom === '100%' ? '4px' : '0',
-      }}
+    <AnchoredMenu
+      isOpen={isOpen && available.length > 0}
+      onClose={onClose}
+      anchorRef={anchorRef}
+      className="w-[260px] overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg"
     >
       <div className="max-h-[280px] overflow-y-auto py-1">
         {available.map((label) => {
@@ -741,7 +617,7 @@ function AccountFieldPopover({ isOpen, onClose, onAdd, alreadyAdded, anchorRef }
           {count > 0 ? `Add ${count} field${count > 1 ? 's' : ''}` : 'Add fields'}
         </button>
       </div>
-    </div>
+    </AnchoredMenu>
   )
 }
 
