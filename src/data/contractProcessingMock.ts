@@ -28,6 +28,31 @@ export interface ProductLineItem {
   rampPriceChange?: number
 }
 
+export interface AllocationSourceItem {
+  id: string
+  name: string
+  units: string
+  frequency: string
+  /** Usage-based only */
+  rollover?: string
+  /** Usage-based only */
+  expiry?: string
+}
+
+/**
+ * Feature/credit allocation.
+ * - `usage`: metered credits — may roll up from multiple line items; has rollover/expiry
+ * - `entitlement`: non-usage features — usually a single item; no rollover/expiry
+ */
+export interface AllocationGroup {
+  id: string
+  feature: string
+  units: string
+  kind: 'usage' | 'entitlement'
+  /** Usage: sources should sum to `units`. Entitlement: typically one source. */
+  sources: AllocationSourceItem[]
+}
+
 export interface RampPeriod {
   id: string
   label: string
@@ -279,6 +304,85 @@ export const contractProcessing = {
       totalPrice: '$4,500.00',
     },
   ] as ProductLineItem[],
+
+  allocations: [
+    {
+      id: 'alloc-1',
+      feature: 'API calls',
+      units: '50,000',
+      kind: 'usage',
+      sources: [
+        {
+          id: 'alloc-1-s1',
+          name: 'Apex platform - growth services',
+          units: '25,000',
+          frequency: 'Yearly',
+          rollover: 'No rollover',
+          expiry: 'Expires every month',
+        },
+        {
+          id: 'alloc-1-s2',
+          name: 'Implementation services',
+          units: '25,000',
+          frequency: 'Monthly',
+          rollover: 'End of term',
+          expiry: 'Never expires',
+        },
+      ],
+    },
+    {
+      id: 'alloc-2',
+      feature: 'Tokens',
+      units: '20,000',
+      kind: 'usage',
+      sources: [
+        {
+          id: 'alloc-2-s1',
+          name: 'Apex platform - growth services',
+          units: '12,000',
+          frequency: 'Yearly',
+          rollover: 'No rollover',
+          expiry: 'Expires every month',
+        },
+        {
+          id: 'alloc-2-s2',
+          name: 'Onboarding & Training',
+          units: '8,000',
+          frequency: 'Monthly',
+          rollover: 'End of term',
+          expiry: 'Never expires',
+        },
+      ],
+    },
+    {
+      id: 'alloc-3',
+      feature: 'Sandbox environments',
+      units: '03',
+      kind: 'entitlement',
+      sources: [
+        {
+          id: 'alloc-3-s1',
+          name: 'Implementation services',
+          units: '03',
+          frequency: 'Yearly',
+        },
+      ],
+    },
+    {
+      id: 'alloc-4',
+      feature: 'Premium support seats',
+      units: '10',
+      kind: 'entitlement',
+      sources: [
+        {
+          id: 'alloc-4-s1',
+          name: 'Apex platform - growth services',
+          units: '10',
+          frequency: 'Yearly',
+        },
+      ],
+    },
+  ] as AllocationGroup[],
 
   rampPeriods: [
     {
@@ -589,6 +693,7 @@ export const verdantHealthContract: ContractProcessing = {
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
   rampPeriods: [],
+  allocations: [] as AllocationGroup[],
   comments: [] as Comment[],
 }
 
@@ -672,6 +777,7 @@ export const zenithAnalyticsContract: ContractProcessing = {
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
   rampPeriods: [],
+  allocations: [] as AllocationGroup[],
   comments: [] as Comment[],
 }
 
@@ -755,6 +861,7 @@ export const quantumInnovationsContract: ContractProcessing = {
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
   rampPeriods: [],
+  allocations: [] as AllocationGroup[],
   comments: [] as Comment[],
 }
 
@@ -838,6 +945,7 @@ export const nexusPaymentsContract: ContractProcessing = {
   invoice: contractProcessing.invoice,
   sourceDocuments: contractProcessing.sourceDocuments,
   rampPeriods: [],
+  allocations: [] as AllocationGroup[],
   comments: [] as Comment[],
 }
 

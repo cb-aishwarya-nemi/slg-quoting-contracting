@@ -25,6 +25,7 @@ import {
   ContractSummaryHeadline,
   LabelValueList,
   ProductsPricingTable,
+  AllocationTable,
   InvoicePreview,
   PaymentSchedule,
   InPageNav,
@@ -65,6 +66,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
+  { id: 'allocation', label: 'Allocation', status: 'neutral' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
@@ -714,6 +716,28 @@ export function Customer360Page() {
                     />
                     <div className="mt-6">
                       <ProductsPricingTable items={data.products} periods={data.rampPeriods} />
+                    </div>
+                  </ContractSectionRow>
+                </section>
+
+                {/* Allocation */}
+                <section ref={setSectionRef('allocation')} className="group/section">
+                  <ContractSectionRow
+                    sectionId="allocation"
+                    sectionLabel="Allocation"
+                    isPanelsExpanded={isPanelsExpanded}
+                    comments={commentsBySection['allocation'] ?? []}
+                    onAddNote={(text, status) => handleAddComment('allocation', 'Allocation', text, status)}
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
+                    <SectionHeader
+                      title="Allocation"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['allocation']}
+                    />
+                    <div className="mt-6">
+                      <AllocationTable items={data.allocations} />
                     </div>
                   </ContractSectionRow>
                 </section>

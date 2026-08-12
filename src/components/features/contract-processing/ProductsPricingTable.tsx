@@ -31,18 +31,16 @@ function recordProductEdit(
 }
 
 function Separator({
-  isRowHovered,
   isRowActive,
   alignTop,
 }: {
-  isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
 }) {
   return <div className={cn(
     "mx-3 w-px shrink-0 transition-colors",
     alignTop ? "mt-1 h-4 self-start" : "h-5",
-    (isRowActive || isRowHovered) ? "bg-white/20" : "bg-neutral-200"
+    isRowActive ? "bg-white/20" : "bg-neutral-200"
   )} />
 }
 
@@ -53,13 +51,11 @@ function GhostSeparator() {
 function MiniDropdown({
   label,
   width,
-  isRowHovered,
   isRowActive,
   alignTop,
 }: {
   label: string
   width: number
-  isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
 }) {
@@ -70,7 +66,7 @@ function MiniDropdown({
       className={cn(
         "flex shrink-0 items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors",
         alignTop && "self-start",
-        (isRowActive || isRowHovered)
+        isRowActive
           ? "text-white hover:bg-white/10"
           : "text-brand-navy hover:bg-neutral-100"
       )}
@@ -78,7 +74,7 @@ function MiniDropdown({
       <span>{label}</span>
       <ChevronDown size={14} className={cn(
         "transition-colors",
-        (isRowActive || isRowHovered) ? "text-white/70" : "text-brand-mist"
+        isRowActive ? "text-white/70" : "text-brand-mist"
       )} />
     </button>
   )
@@ -328,7 +324,6 @@ interface ItemNameButtonProps {
   isAttention: boolean
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
-  isRowHovered?: boolean
   isRowActive?: boolean
   isEdited?: boolean
   isViewEditsFocused?: boolean
@@ -340,7 +335,6 @@ function ItemNameButton({
   isAttention,
   onSelect,
   onOpenChange,
-  isRowHovered,
   isRowActive,
   isEdited,
   isViewEditsFocused,
@@ -360,7 +354,7 @@ function ItemNameButton({
       {isAttention && (
         <div className="relative -ml-6 mr-2 shrink-0">
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
-          {!isOpen && !isRowHovered && (
+          {!isOpen && (
             <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
               Created this item based on your contract
             </span>
@@ -373,7 +367,7 @@ function ItemNameButton({
         onClick={() => handleOpenChange(!isOpen)}
         className={cn(
           'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
-          (isOpen || isRowHovered)
+          isOpen
             ? 'text-white'
             : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
         )}
@@ -381,7 +375,7 @@ function ItemNameButton({
         <span className="truncate">{name}</span>
         <ChevronDown size={14} className={cn(
           "shrink-0 transition-colors",
-          (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
+          isOpen ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
       {isEdited && !isOpen && !isRowActive && (
@@ -393,15 +387,12 @@ function ItemNameButton({
           }}
           className={cn(
             'inline-flex shrink-0 cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
-            isRowHovered
-              ? 'bg-white/15 text-white/80'
-              : isViewEditsFocused
-                ? 'bg-amber-100/70 text-amber-800/80'
-                : 'bg-amber-50 text-amber-700/70'
+            isViewEditsFocused
+              ? 'bg-amber-100/70 text-amber-800/80'
+              : 'bg-amber-50 text-amber-700/70'
           )}
         >
-          <span className={isRowHovered ? 'hidden' : 'inline'}>Edited</span>
-          <span className={isRowHovered ? 'inline' : 'hidden'}>View edits</span>
+          Edited
         </button>
       )}
       <LineItemPopover
@@ -1023,8 +1014,8 @@ function RampPriceChangeBadge({ change }: { change: number }) {
   const Icon = isIncrease ? TrendingUp : TrendingDown
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700 group-hover:text-green-400">
-      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700 group-hover:text-green-400" />
+    <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
+      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
       {Math.abs(change)}%
     </span>
   )
@@ -1041,7 +1032,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   const [periods, setPeriods] = useState(initialPeriods)
   const [isAddingNew, setIsAddingNew] = useState(false)
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
-  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     if (initialPeriods) {
       return new Set(initialPeriods.map(p => p.id))
@@ -1290,7 +1280,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
   const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
-    const isHovered = hoveredRowId === item.id
     const isEdited =
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
       !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
@@ -1298,14 +1287,12 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
     return (
       <div
         key={item.id}
-        onMouseEnter={() => setHoveredRowId(item.id)}
-        onMouseLeave={() => setHoveredRowId(null)}
         className={cn(
-          "group row-hover-trail flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
+          "group flex items-center border-b py-1.5 pl-1 pr-2 transition-colors",
           isActive 
             ? "bg-brand-navy border-brand-navy cursor-pointer"
             : cn(
-                "border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy",
+                "border-neutral-100 cursor-pointer",
                 isEdited && "bg-amber-50"
               )
         )}
@@ -1314,7 +1301,6 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         <ItemNameButton
           name={item.name}
           isAttention={isAttention}
-          isRowHovered={isHovered && !isActive}
           isRowActive={isActive}
           isEdited={isEdited}
           isViewEditsFocused={
@@ -1349,11 +1335,11 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
           }}
         />
 
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
-        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowHovered={isHovered} isRowActive={isActive} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
-        <MiniDropdown label={item.quantity} width={QTY_W} isRowHovered={isHovered} isRowActive={isActive} />
-        <Separator isRowHovered={isHovered} isRowActive={isActive} />
+        <Separator isRowActive={isActive} />
+        <MiniDropdown label={item.billingPeriod} width={PERIOD_W} isRowActive={isActive} />
+        <Separator isRowActive={isActive} />
+        <MiniDropdown label={item.quantity} width={QTY_W} isRowActive={isActive} />
+        <Separator isRowActive={isActive} />
 
         <div
           style={{ width: UNIT_W }}
@@ -1366,7 +1352,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             <span
               className={cn(
                 'text-right text-[14px] font-medium transition-colors',
-                isActive || isHovered ? 'text-white' : 'text-brand-navy'
+                isActive ? 'text-white' : 'text-brand-navy'
               )}
             >
               {item.unitPrice}
@@ -1375,7 +1361,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
         </div>
         <div style={{ width: TOTAL_W }} className={cn(
           "shrink-0 text-right text-[14px] font-medium transition-colors",
-          (isActive || isHovered) ? "text-white" : "text-brand-navy"
+          isActive ? "text-white" : "text-brand-navy"
         )}>
           {item.totalPrice}
         </div>
@@ -1388,7 +1374,7 @@ export function ProductsPricingTable({ items: initialItems, periods: initialPeri
             type="button"
             className={cn(
               "flex h-6 w-6 cursor-pointer items-center justify-center rounded transition-colors",
-              (isActive || isHovered)
+              isActive
                 ? "text-white/70 hover:bg-white/10"
                 : "text-neutral-500 hover:bg-neutral-100 hover:text-brand-navy"
             )}
