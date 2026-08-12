@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus, Expand, Shrink } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -651,6 +651,11 @@ export function Customer360Page() {
                       variant={productsPricingVariant}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}
+                      fullPageTitle={
+                        productsPricingVariant === 'expanded-state'
+                          ? `${customerName} – ${taskTitle}`
+                          : undefined
+                      }
                       header={
                         <>
                           {!isProductsLifted && (
@@ -670,23 +675,17 @@ export function Customer360Page() {
                                 : commentCountsBySection['products']
                             }
                             trailing={
-                              <button
-                                type="button"
-                                onClick={() => setIsProductsLifted((prev) => !prev)}
-                                className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
-                                aria-label={
-                                  isProductsLifted
-                                    ? 'Collapse products and pricing'
-                                    : 'Expand products and pricing'
-                                }
-                                title={isProductsLifted ? 'Collapse' : 'Expand'}
-                              >
-                                {isProductsLifted ? (
-                                  <Shrink size={14} strokeWidth={2} />
-                                ) : (
-                                  <Expand size={14} strokeWidth={2} />
-                                )}
-                              </button>
+                              !isProductsLifted ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setIsProductsLifted(true)}
+                                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+                                  aria-label="Expand products and pricing"
+                                  title="Expand"
+                                >
+                                  <Maximize2 size={14} strokeWidth={2} />
+                                </button>
+                              ) : undefined
                             }
                           />
                         </>

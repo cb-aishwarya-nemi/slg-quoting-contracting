@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2 } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
@@ -508,7 +508,7 @@ function MiniDropdownPopover({
 
 /** Renders the stored amount + unit as a single label, e.g. `10%` or `$500`. */
 function formatDiscount(value?: string, unit?: DiscountUnit) {
-  if (!value) return '–'
+  if (!value || !(parseFloat(value) > 0)) return '–'
   return unit === 'USD' ? `$${value}` : `${value}%`
 }
 
@@ -909,7 +909,17 @@ const STICKY_SHADOW_FADE_Y = 28
  * The overlay lives outside the scroll box — inside it, an absolute element would
  * scroll away with the columns — and it deepens as content slides underneath.
  */
-function ExpandedScrollContainer({ children }: { children: ReactNode }) {
+function ExpandedScrollContainer({
+  children,
+  pauseShadow,
+  fullWidth,
+}: {
+  children: ReactNode
+  /** Freeze shadow updates while a full-page morph is in flight. */
+  pauseShadow?: boolean
+  /** Stretch rows to the container — used in the full-page expand view. */
+  fullWidth?: boolean
+}) {
   const ref = useRef<HTMLDivElement>(null)
   const [strength, setStrength] = useState(0)
 
@@ -918,6 +928,10 @@ function ExpandedScrollContainer({ children }: { children: ReactNode }) {
     if (!el) return
 
     const sync = () => {
+      if (pauseShadow || fullWidth) {
+        setStrength(0)
+        return
+      }
       if (el.scrollWidth - el.clientWidth <= 1) {
         setStrength(0)
         return
@@ -934,29 +948,31 @@ function ExpandedScrollContainer({ children }: { children: ReactNode }) {
       el.removeEventListener('scroll', sync)
       ro.disconnect()
     }
-  }, [])
+  }, [pauseShadow, fullWidth])
 
   const verticalFade = `linear-gradient(to bottom, transparent 0, #000 ${STICKY_SHADOW_FADE_Y}px, #000 calc(100% - ${STICKY_SHADOW_FADE_Y}px), transparent 100%)`
 
   return (
-    <div className="relative">
-      <div ref={ref} className="overflow-x-auto">
+    <div className={cn('relative', fullWidth && 'w-full')}>
+      <div ref={ref} className={cn(fullWidth ? 'w-full' : 'overflow-x-auto')}>
         {children}
       </div>
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-y-0 z-20 transition-opacity duration-300 ease-out"
-        style={{
-          left: EXPANDED_ROW_PAD_L + EXPANDED_ITEM_W,
-          width: STICKY_SHADOW_W,
-          opacity: strength,
-          // Long, low-alpha ramp so the edge feathers rather than casting a hard band.
-          background:
-            'linear-gradient(to right, rgba(28, 27, 46, 0.055) 0%, rgba(28, 27, 46, 0.038) 12%, rgba(28, 27, 46, 0.024) 28%, rgba(28, 27, 46, 0.012) 48%, rgba(28, 27, 46, 0.005) 70%, rgba(28, 27, 46, 0.001) 88%, rgba(28, 27, 46, 0) 100%)',
-          maskImage: verticalFade,
-          WebkitMaskImage: verticalFade,
-        }}
-      />
+      {!fullWidth ? (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-y-0 z-20 transition-opacity duration-300 ease-out"
+          style={{
+            left: EXPANDED_ROW_PAD_L + EXPANDED_ITEM_W,
+            width: STICKY_SHADOW_W,
+            opacity: strength,
+            // Long, low-alpha ramp so the edge feathers rather than casting a hard band.
+            background:
+              'linear-gradient(to right, rgba(28, 27, 46, 0.055) 0%, rgba(28, 27, 46, 0.038) 12%, rgba(28, 27, 46, 0.024) 28%, rgba(28, 27, 46, 0.012) 48%, rgba(28, 27, 46, 0.005) 70%, rgba(28, 27, 46, 0.001) 88%, rgba(28, 27, 46, 0) 100%)',
+            maskImage: verticalFade,
+            WebkitMaskImage: verticalFade,
+          }}
+        />
+      ) : null}
     </div>
   )
 }
@@ -980,20 +996,32 @@ const COLLAPSE_TRANSITION = `${COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
 /** Small cushion so the last pixel of the tween lands before the layout swaps back. */
 const COLLAPSE_SETTLE_MS = COLLAPSE_MS + 40
 
+/**
+ * Expanded-state full-page view — opacity + a hair of scale on a layer whose
+ * layout never changes mid-flight. Geometric morphs read as janky here because
+ * the panel's aspect ratio and column tracks would have to retarget every frame.
+ */
+const FULLPAGE_EXPAND_MS = 320
+const FULLPAGE_EXPAND_TRANSITION = `${FULLPAGE_EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
+const FULLPAGE_COLLAPSE_MS = 260
+const FULLPAGE_COLLAPSE_TRANSITION = `${FULLPAGE_COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
+const FULLPAGE_COLLAPSE_SETTLE_MS = FULLPAGE_COLLAPSE_MS + 30
+/** Resting scale before open / after close — enough to feel like depth, not a zoom. */
+const FULLPAGE_REST_SCALE = 0.985
+const FULLPAGE_PAD_TOP = 32
+const FULLPAGE_PAD_X = 48
+const FULLPAGE_PAD_BOTTOM = 64
+
 interface ExpandBounds {
   centerX: number
   maxWidth: number
 }
 
 /**
- * The edit-mode table is lifted into a fixed layer, so it no longer inherits its
- * column's width. It centers on the page rather than on its own column, which is
- * offset by the in-page nav and the comments column. When the secondary nav row
- * (holding the task title and "Create Sales Order") is on screen, its bounds are
- * used directly so the expanded table lines up with it exactly. Otherwise this
- * falls back to `main` — the page area next to the app rail — with margins that
- * keep both edges (including the icons hanging off the left) inside it while
- * staying symmetric around the centre.
+ * Edit-state only: the table is lifted into a fixed layer and no longer inherits
+ * its column's width. It centers on the page rather than on its own column. When
+ * the secondary nav row is on screen, its bounds are used directly; otherwise this
+ * falls back to `main` with margins that keep both edges inside it.
  */
 function measureExpandBounds(): ExpandBounds {
   const secondaryNav = document.querySelector('[data-c360-secondary-nav]')
@@ -1608,17 +1636,22 @@ interface ProductsPricingTableProps {
   items: ProductLineItem[]
   periods?: RampPeriod[]
   /**
-   * Section title and source thumbnails. They live inside the table so they get
-   * lifted, centred and blurred along with it when edit mode expands.
+   * Section title and source thumbnails. They live inside the table so they
+   * travel with it into edit lift / full-page expand.
    */
   header?: ReactNode
   /**
+   * Expanded-state full-page title (e.g. "Pioneer Systems – New deal: …").
+   * Fades in with the morph so the table chrome stays continuous.
+   */
+  fullPageTitle?: string
+  /**
    * 'expanded-state' default table shows Discount + Discount period columns,
-   * with Item sticky and the rest horizontally scrollable. Lift/focus is only
-   * entered via the Expand icon (not on mount).
+   * with Item sticky and the rest horizontally scrollable. Expand opens a
+   * clear full-page view (Edit state keeps the lifted blur surface).
    */
   variant?: ProductsPricingVariant
-  /** Controlled lift/focus — driven by the section Expand / Shrink control. */
+  /** Controlled expand — Expand/Shrink (expanded-state) or lift (edit-state). */
   lifted?: boolean
   onLiftedChange?: (lifted: boolean) => void
 }
@@ -1627,6 +1660,7 @@ export function ProductsPricingTable({
   items: initialItems,
   periods: initialPeriods,
   header,
+  fullPageTitle,
   variant = 'edit-state',
   lifted,
   onLiftedChange,
@@ -1639,7 +1673,7 @@ export function ProductsPricingTable({
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [lineItemEditRequest, setLineItemEditRequest] = useState<Record<string, number>>({})
   const [isEditMode, setIsEditMode] = useState(false)
-  // Expanded lift (Expand icon) uses the same surface as Edit — without grey pills.
+  // Expanded full-page view uses the same editable surface as Edit — without grey pills.
   const showFieldPills = isEditMode && !isExpandedVariant
   const [editExpanded, setEditExpanded] = useState(false)
   const [editLayout, setEditLayout] = useState<{
@@ -1652,6 +1686,7 @@ export function ProductsPricingTable({
   const [editAnimReady, setEditAnimReady] = useState(false)
   const [isCollapsing, setIsCollapsing] = useState(false)
   const collapseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const isCollapsingRef = useRef(false)
   const tableRootRef = useRef<HTMLDivElement>(null)
   const tableSpacerRef = useRef<HTMLDivElement>(null)
   const editBaseWidthRef = useRef<number | null>(null)
@@ -1674,24 +1709,31 @@ export function ProductsPricingTable({
     const el = tableRootRef.current
     if (el) {
       const rect = el.getBoundingClientRect()
-      setEditLayout({
+      const origin = {
         top: rect.top,
         left: rect.left,
         width: rect.width,
         height: rect.height,
-      })
+      }
+      setEditLayout(origin)
       editBaseWidthRef.current = rect.width
-      setEditBounds(measureExpandBounds())
+      // Edit-state lift needs page bounds for the blur/card animation.
+      if (!isExpandedVariant) {
+        setEditBounds(measureExpandBounds())
+      }
     }
     setEditExpanded(false)
     setEditAnimReady(false)
+    setIsCollapsing(false)
+    isCollapsingRef.current = false
     setIsEditMode(true)
     onLiftedChange?.(true)
-  }, [isEditMode, onLiftedChange])
+  }, [isEditMode, isExpandedVariant, onLiftedChange])
 
   /** Drops the table out of the fixed layer and back into the page flow. */
   const finishExitEditMode = useCallback(() => {
     collapseTimerRef.current = null
+    isCollapsingRef.current = false
     setIsCollapsing(false)
     setIsEditMode(false)
     setEditExpanded(false)
@@ -1705,11 +1747,27 @@ export function ProductsPricingTable({
   }, [onLiftedChange])
 
   const exitEditMode = useCallback(() => {
-    if (collapseTimerRef.current) return
+    if (collapseTimerRef.current || isCollapsingRef.current) return
     if (!isEditMode || editBaseWidthRef.current == null) {
       finishExitEditMode()
       return
     }
+
+    // Expanded-state: fade the full-page layer back out. Nothing inside it is
+    // re-laid out, so the close plays as one continuous motion.
+    if (isExpandedVariant) {
+      setActiveRowId(null)
+      setHoveredRowId(null)
+      isCollapsingRef.current = true
+      setIsCollapsing(true)
+      setEditExpanded(false)
+      collapseTimerRef.current = setTimeout(
+        finishExitEditMode,
+        FULLPAGE_COLLAPSE_SETTLE_MS
+      )
+      return
+    }
+
     // Play the expansion in reverse first. Tearing down straight away would swap
     // the grid rows back to flex and the fixed shell back into the flow on the
     // same frame, which reads as a snap however smooth the opening was.
@@ -1718,17 +1776,17 @@ export function ProductsPricingTable({
     setIsCollapsing(true)
     setEditExpanded(false)
     collapseTimerRef.current = setTimeout(finishExitEditMode, COLLAPSE_SETTLE_MS)
-  }, [isEditMode, finishExitEditMode])
+  }, [isEditMode, isExpandedVariant, finishExitEditMode])
 
-  // Expand / Shrink on the section header controls lift — never auto-lift on
-  // Expanded use case mount (default there is the sticky discount table).
+  // Expand / Shrink on the section header controls lift / full-page — never
+  // auto-open on Expanded use case mount (default there is the sticky discount table).
   useEffect(() => {
     if (lifted === undefined) return
     if (lifted && !isEditMode) enterEditMode()
     if (!lifted && isEditMode) exitEditMode()
   }, [lifted, isEditMode, enterEditMode, exitEditMode])
 
-  // Leaving the Expanded use case while lifted — drop the overlay.
+  // Leaving the Expanded use case while open — drop the overlay.
   const wasExpandedVariantRef = useRef(isExpandedVariant)
   useEffect(() => {
     if (wasExpandedVariantRef.current && !isExpandedVariant && isEditMode) {
@@ -1748,23 +1806,33 @@ export function ProductsPricingTable({
     }
   }, [])
 
-  // The table enters edit mode with `transition: none` at its exact pixel width.
-  // Reading layout here resolves that width before the tween is enabled — without
-  // it the browser interpolates from the old `w-full`, which now means 100% of the
-  // viewport (the fixed containing block), so the table flew out past the page and
-  // shrank back in.
+  // Resolve layout before enabling the open tween (edit lift + full-page morph).
+  // Expanded-state needs a painted origin frame first — otherwise the browser
+  // skips straight to the end and the morph reads as a snap.
   useLayoutEffect(() => {
     if (!isEditMode || editBaseWidthRef.current == null) return
     void tableRootRef.current?.offsetWidth
-    setEditAnimReady(true)
-    const frame = requestAnimationFrame(() => setEditExpanded(true))
-    return () => cancelAnimationFrame(frame)
-  }, [isEditMode])
 
-  // Scroll only moves the table vertically. Resyncing width mid-transition is what
-  // made columns overshoot and snap back, so width/bounds only change on resize.
+    if (!isExpandedVariant) {
+      setEditAnimReady(true)
+      const frame = requestAnimationFrame(() => setEditExpanded(true))
+      return () => cancelAnimationFrame(frame)
+    }
+
+    let frame2 = 0
+    const frame1 = requestAnimationFrame(() => {
+      setEditAnimReady(true)
+      frame2 = requestAnimationFrame(() => setEditExpanded(true))
+    })
+    return () => {
+      cancelAnimationFrame(frame1)
+      cancelAnimationFrame(frame2)
+    }
+  }, [isEditMode, isExpandedVariant])
+
+  // Edit-state only: keep the lifted card pinned as the page scrolls / resizes.
   useEffect(() => {
-    if (!isEditMode) return
+    if (isExpandedVariant || !isEditMode) return
     const syncPosition = () => {
       const spacer = tableSpacerRef.current
       if (!spacer) return
@@ -1783,14 +1851,16 @@ export function ProductsPricingTable({
       window.removeEventListener('resize', syncBounds)
       document.removeEventListener('scroll', syncPosition, true)
     }
-  }, [isEditMode])
+  }, [isEditMode, isExpandedVariant])
 
   useEffect(() => {
     if (!isEditMode) return
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') exitEditMode()
     }
+    // Outside-click dismiss is Edit-state only — full page covers the viewport.
     const handlePointerDown = (event: globalThis.MouseEvent) => {
+      if (isExpandedVariant) return
       if (!tableRootRef.current?.contains(event.target as Node)) {
         exitEditMode()
       }
@@ -1801,7 +1871,7 @@ export function ProductsPricingTable({
       document.removeEventListener('keydown', handleKeyDown)
       document.removeEventListener('mousedown', handlePointerDown)
     }
-  }, [isEditMode, exitEditMode])
+  }, [isEditMode, isExpandedVariant, exitEditMode])
 
   const clearPendingDeleteBanner = useCallback(() => {
     if (pendingDeleteTimerRef.current) {
@@ -2158,41 +2228,119 @@ export function ProductsPricingTable({
 
   // Expanded-state header — Item is pinned (sticky) and Discount / Discount
   // period sit inline as their own columns alongside the rest, which scroll
-  // together as one group when they don't fit.
+  // together as one group when they don't fit. Full-page uses a proportional
+  // grid so every column grows with the viewport.
+  const isFullPageExpanded = isExpandedVariant && isEditMode
+  const expandedFullPageGridStyle = isFullPageExpanded
+    ? {
+        display: 'grid' as const,
+        // Tracks: item | frequency | rule | qty | rule | unit | rule |
+        // discount | rule | discount period | rule | total | menu
+        gridTemplateColumns: [
+          `minmax(0, ${EXPANDED_ITEM_W}fr)`,
+          `minmax(0, ${PERIOD_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${QTY_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${UNIT_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${DISCOUNT_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${DISCOUNT_PERIOD_W}fr)`,
+          `${SEPARATOR_W}px`,
+          `minmax(0, ${TOTAL_W}fr)`,
+          `minmax(0, ${MENU_W}fr)`,
+        ].join(' '),
+        columnGap: 0,
+        alignItems: 'center' as const,
+        width: '100%',
+        minWidth: 0,
+      }
+    : undefined
+
   const renderExpandedTableHeader = () => (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
+    <div
+      className={cn(
+        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        !isFullPageExpanded && 'flex'
+      )}
+      style={expandedFullPageGridStyle}
+    >
       <div
-        style={{ width: EXPANDED_ITEM_W }}
-        className="sticky left-0 z-10 shrink-0 truncate bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
+        style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
+        className={cn(
+          'sticky left-0 z-10 truncate bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0',
+          isFullPageExpanded && 'min-w-0'
+        )}
       >
         Item
       </div>
-      <div style={{ width: PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
+        className={cn(
+          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Frequency
       </div>
       <GhostSeparator />
-      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: QTY_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Qty
       </div>
       <GhostSeparator />
-      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: UNIT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Unit price
       </div>
       <GhostSeparator />
-      <div style={{ width: DISCOUNT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Discount
       </div>
       <GhostSeparator />
-      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Discount period
       </div>
       <GhostSeparator />
-      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Total price
       </div>
       <div
-        style={{ width: MENU_W }}
-        className="sticky right-0 z-10 shrink-0 bg-white"
+        style={isFullPageExpanded ? undefined : { width: MENU_W }}
+        className={cn(
+          'sticky right-0 z-10 bg-white',
+          !isFullPageExpanded && 'shrink-0'
+        )}
       />
     </div>
   )
@@ -2204,10 +2352,19 @@ export function ProductsPricingTable({
     onToggle: () => void,
     onDelete: () => void
   ) => (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
+    <div
+      className={cn(
+        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        !isFullPageExpanded && 'flex'
+      )}
+      style={expandedFullPageGridStyle}
+    >
       <div
-        style={{ width: EXPANDED_ITEM_W }}
-        className="sticky left-0 z-10 flex min-w-0 shrink-0 items-center overflow-hidden bg-white"
+        style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
+        className={cn(
+          'sticky left-0 z-10 flex min-w-0 items-center overflow-hidden bg-white',
+          !isFullPageExpanded && 'shrink-0'
+        )}
       >
         <PeriodChevron isExpanded onToggle={onToggle} hangIcon={false} />
         <PeriodIdentity
@@ -2219,32 +2376,71 @@ export function ProductsPricingTable({
           }}
         />
       </div>
-      <div style={{ width: PERIOD_W }} className="shrink-0 pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
+        className={cn(
+          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Frequency
       </div>
       <GhostSeparator />
-      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: QTY_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Qty
       </div>
       <GhostSeparator />
-      <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: UNIT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Unit price
       </div>
       <GhostSeparator />
-      <div style={{ width: DISCOUNT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Discount
       </div>
       <GhostSeparator />
-      <div style={{ width: DISCOUNT_PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
+        className={cn(
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Discount period
       </div>
       <GhostSeparator />
-      <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div
+        style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+        className={cn(
+          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'shrink-0'
+        )}
+      >
         Total price
       </div>
       <div
-        style={{ width: MENU_W }}
-        className="sticky right-0 z-10 flex shrink-0 items-center justify-end bg-white"
+        style={isFullPageExpanded ? undefined : { width: MENU_W }}
+        className={cn(
+          'sticky right-0 z-10 flex items-center justify-end bg-white',
+          !isFullPageExpanded && 'shrink-0'
+        )}
       >
         <PeriodOptionsMenu onDelete={onDelete} />
       </div>
@@ -2271,18 +2467,21 @@ export function ProductsPricingTable({
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail flex items-center border-b border-neutral-100 py-1.5 pl-1 pr-2',
+          'group row-hover-trail items-center border-b border-neutral-100 py-1.5 pl-1 pr-2',
+          !isFullPageExpanded && 'flex',
           isEdited && 'bg-amber-50',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
           activeRowId === item.id && 'relative z-40'
         )}
+        style={expandedFullPageGridStyle}
       >
         {/* Item — pinned to the left of the scrollable group */}
         <div
-          style={{ width: EXPANDED_ITEM_W }}
+          style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
           className={cn(
-            'sticky left-0 shrink-0',
+            'sticky left-0 min-w-0',
+            !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-10',
             isEdited ? 'bg-amber-50' : 'bg-white'
           )}
@@ -2335,7 +2534,10 @@ export function ProductsPricingTable({
           />
         </div>
 
-        <div className="shrink-0 pl-3" style={{ width: PERIOD_W }}>
+        <div
+          className={cn('min-w-0 pl-3', !isFullPageExpanded && 'shrink-0')}
+          style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
+        >
           <InteractiveMiniDropdown
             label={item.billingPeriod}
             options={BILLING_PERIODS}
@@ -2351,7 +2553,7 @@ export function ProductsPricingTable({
         <Separator />
         <InteractiveMiniDropdown
           label={item.quantity}
-          width={QTY_W}
+          width={isFullPageExpanded ? undefined : QTY_W}
           options={quantityOptions}
           ariaLabel={`Quantity for ${item.name}`}
           onSelect={(next) => {
@@ -2371,7 +2573,13 @@ export function ProductsPricingTable({
         />
         <Separator />
 
-        <div style={{ width: UNIT_W }} className="flex shrink-0 flex-col items-end gap-0.5 pl-3">
+        <div
+          style={isFullPageExpanded ? undefined : { width: UNIT_W }}
+          className={cn(
+            'flex min-w-0 flex-col items-end gap-0.5 pl-3',
+            !isFullPageExpanded && 'shrink-0'
+          )}
+        >
           <div className="flex w-full items-center justify-end gap-2">
             {item.rampPriceChange && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
@@ -2384,16 +2592,20 @@ export function ProductsPricingTable({
 
         <Separator />
         <div
-          style={{ width: DISCOUNT_W }}
+          style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
           className={cn(
-            'shrink-0 text-right text-[14px] font-medium',
+            'min-w-0 text-right text-[14px] font-medium',
+            !isFullPageExpanded && 'shrink-0',
             hasDiscount ? 'text-brand-navy' : 'text-brand-mist'
           )}
         >
           {formatDiscount(item.discount, item.discountUnit)}
         </div>
         <Separator />
-        <div style={{ width: DISCOUNT_PERIOD_W }} className="min-w-0 shrink-0">
+        <div
+          style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
+          className={cn('min-w-0', !isFullPageExpanded && 'shrink-0')}
+        >
           <InteractiveMiniDropdown
             label={hasDiscount ? (item.discountPeriod ?? 'None') : '–'}
             options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
@@ -2419,17 +2631,21 @@ export function ProductsPricingTable({
 
         <Separator />
         <div
-          style={{ width: TOTAL_W }}
-          className="shrink-0 text-right text-[14px] font-medium text-brand-navy"
+          style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+          className={cn(
+            'min-w-0 text-right text-[14px] font-medium text-brand-navy',
+            !isFullPageExpanded && 'shrink-0'
+          )}
         >
           {item.totalPrice}
         </div>
 
         {/* Ellipsis menu — pinned to the right of the scrollable group */}
         <div
-          style={{ width: MENU_W }}
+          style={isFullPageExpanded ? undefined : { width: MENU_W }}
           className={cn(
-            'sticky right-0 z-10 flex shrink-0 items-center justify-end',
+            'sticky right-0 z-10 flex items-center justify-end',
+            !isFullPageExpanded && 'shrink-0',
             isEdited ? 'bg-amber-50' : 'bg-white'
           )}
         >
@@ -2764,18 +2980,103 @@ export function ProductsPricingTable({
   }
 
   const wrapTableShell = (content: ReactNode) => {
-    const isFixedEditing = isEditMode && editLayout != null
+    const isOverlayOpen = isEditMode && editLayout != null
+
+    // Expanded-state full page. The layer is laid out at its final size from the
+    // first frame and only opacity/scale animate, so open and close are one
+    // uninterrupted motion in both directions.
+    if (isExpandedVariant) {
+      const isFull = isOverlayOpen && editExpanded
+      const timing = isCollapsing ? FULLPAGE_COLLAPSE_TRANSITION : FULLPAGE_EXPAND_TRANSITION
+
+      return (
+        <div className="overflow-visible pl-6">
+          {isOverlayOpen ? (
+            <div
+              ref={tableSpacerRef}
+              style={{ height: editLayout.height }}
+              aria-hidden
+            />
+          ) : null}
+          {/* Page veil — hides the page behind the panel as it resolves. */}
+          {isOverlayOpen ? (
+            <div
+              aria-hidden
+              className="pointer-events-none fixed inset-0 z-[55] bg-white"
+              style={{
+                opacity: isFull ? 1 : 0,
+                transition: editAnimReady ? `opacity ${timing}` : 'none',
+              }}
+            />
+          ) : null}
+          <div
+            ref={tableRootRef}
+            className={cn(
+              'bg-white',
+              isOverlayOpen
+                ? cn(
+                    'fixed inset-0 z-[60] flex flex-col',
+                    isFull ? 'overflow-y-auto' : 'overflow-hidden'
+                  )
+                : 'relative z-0 w-full'
+            )}
+            style={
+              isOverlayOpen
+                ? {
+                    padding: `${FULLPAGE_PAD_TOP}px ${FULLPAGE_PAD_X}px ${FULLPAGE_PAD_BOTTOM}px`,
+                    transformOrigin: 'center top',
+                    opacity: isFull ? 1 : 0,
+                    transform: isFull ? 'scale(1)' : `scale(${FULLPAGE_REST_SCALE})`,
+                    transition: editAnimReady
+                      ? `opacity ${timing}, transform ${timing}`
+                      : 'none',
+                    willChange: 'opacity, transform',
+                    pointerEvents: isCollapsing ? 'none' : undefined,
+                  }
+                : undefined
+            }
+          >
+            {isOverlayOpen ? (
+              <div className="flex shrink-0 items-start justify-between gap-4" style={{ marginBottom: fullPageTitle ? 24 : 0 }}>
+                {fullPageTitle ? (
+                  <h1
+                    className="font-heading min-w-0 text-[18px] font-semibold text-brand-navy"
+                    style={{ letterSpacing: '-0.5px' }}
+                  >
+                    {fullPageTitle}
+                  </h1>
+                ) : (
+                  <span />
+                )}
+                <button
+                  type="button"
+                  onClick={exitEditMode}
+                  aria-label="Collapse full page view"
+                  title="Collapse"
+                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+                >
+                  <Minimize2 size={18} strokeWidth={2} />
+                </button>
+              </div>
+            ) : null}
+            {header ? (
+              <div className={cn('mb-6', !isOverlayOpen && '-ml-6')}>{header}</div>
+            ) : null}
+            <div className={cn(isOverlayOpen && 'min-w-0')}>{content}</div>
+          </div>
+        </div>
+      )
+    }
+
+    // Edit-state: original lifted blur card.
+    const isFixedEditing = isOverlayOpen
     const baseW = editBaseWidthRef.current ?? editLayout?.width ?? 0
-    // The lifted surface adds padding so rows don't run into the rounded corners.
-    // Width/top absorb it, keeping the content itself exactly where it was.
     const contentWidth = isFixedEditing
       ? editExpanded
         ? Math.max(baseW, expandMaxWidth - SHELL_PAD_X * 2)
         : baseW
       : 0
     const displayWidth = isFixedEditing ? contentWidth + SHELL_PAD_X * 2 : undefined
-    // Start from where the table already sits, then glide to the page centre so
-    // both edges travel outward instead of the table jumping sideways first.
     const displayCenterX = isFixedEditing
       ? editExpanded
         ? editBounds?.centerX ?? editLayout.left + baseW / 2
@@ -2795,7 +3096,6 @@ export function ProductsPricingTable({
         {isFixedEditing ? (
           <div
             aria-hidden
-            // Below the app rail (z-50) so the chrome stays crisp, above page content.
             className="pointer-events-none fixed z-[45]"
             style={{
               top: editLayout.top - HALO_SPREAD_Y,
@@ -2808,8 +3108,6 @@ export function ProductsPricingTable({
               WebkitBackdropFilter: 'blur(14px)',
               background:
                 'radial-gradient(ellipse at center, rgba(255,255,255,0.72) 0%, rgba(255,255,255,0.55) 55%, rgba(255,255,255,0) 100%)',
-              // Feathers the blur itself into an ellipse so it dissolves outward
-              // instead of ending on a hard rectangular edge.
               maskImage:
                 'radial-gradient(ellipse at center, #000 0%, #000 48%, rgba(0,0,0,0.55) 70%, transparent 100%)',
               WebkitMaskImage:
@@ -2835,25 +3133,18 @@ export function ProductsPricingTable({
                   transform: 'translateX(-50%)',
                   borderRadius: 20,
                   padding: `${SHELL_PAD_Y}px ${SHELL_PAD_X}px`,
-                  // A wide white glow dissolves the surface into the blur behind it
-                  // so the edges read as soft rather than as a cut-out rectangle.
                   boxShadow: editExpanded
                     ? '0 0 48px 24px rgba(255,255,255,0.9), 0 28px 68px -36px rgba(28,27,46,0.26)'
                     : '0 0 0 0 rgba(255,255,255,0)',
-                  // Inline (not a class) so the very first fixed frame can never
-                  // inherit a live transition and tween in from `w-full`.
                   transition: editAnimReady
                     ? `width ${timing}, left ${timing}, box-shadow ${timing}`
                     : 'none',
                   willChange: 'width, left',
-                  // Rows would light up under the cursor as the table slides back.
                   pointerEvents: isCollapsing ? 'none' : undefined,
                 }
               : undefined
           }
         >
-          {/* The shell is inset by pl-6 so row icons can hang left; pull the title
-              back out to the section's own left edge. */}
           {header ? <div className="-ml-6 mb-6">{header}</div> : null}
           {content}
         </div>
@@ -2964,8 +3255,11 @@ export function ProductsPricingTable({
 
           return (
             <div key={period.id} style={{ marginBottom }}>
-              {isExpandedVariant && !isEditMode ? (
-                <ExpandedScrollContainer>
+              {isExpandedVariant ? (
+                <ExpandedScrollContainer
+                  pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
+                  fullWidth={isEditMode}
+                >
                   {renderExpandedPeriodTableHeader(
                     period,
                     () => togglePeriod(period.id),
@@ -3010,8 +3304,11 @@ export function ProductsPricingTable({
   // Default single-table view (backward compatible)
   return wrapTableShell(
     <>
-      {isExpandedVariant && !isEditMode ? (
-        <ExpandedScrollContainer>
+      {isExpandedVariant ? (
+        <ExpandedScrollContainer
+          pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
+          fullWidth={isEditMode}
+        >
           {renderExpandedTableHeader()}
           {items.map((item) => renderExpandedLineItem(item, setItems))}
         </ExpandedScrollContainer>

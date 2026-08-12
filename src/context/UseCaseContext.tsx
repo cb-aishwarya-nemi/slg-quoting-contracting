@@ -50,7 +50,7 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
       {
         id: 'expanded-state',
         label: 'Expanded State',
-        description: 'Same as Edit state’s lifted edit surface',
+        description: 'Expand opens a clear full-page products table',
       },
     ],
   },
