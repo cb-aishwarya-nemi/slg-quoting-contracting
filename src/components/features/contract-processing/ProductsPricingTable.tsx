@@ -24,6 +24,41 @@ function productFieldLabel(itemId: string, field: string) {
   return `${itemId} · ${field}`
 }
 
+function isProductFieldEdited(
+  editHistory: ReturnType<typeof useOptionalFieldEditHistory>,
+  itemId: string,
+  field: string
+) {
+  return !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(itemId, field))
+}
+
+/** Full-bleed edited cell — stretches to the row border so amber isn't a text pill. */
+const CELL_BOX = 'relative flex min-h-0 items-center self-stretch py-1.5'
+/**
+ * Sticky cells paint their own bottom edge so an opaque fill doesn't cover the
+ * row’s `border-b`. Non-sticky cells rely on the parent stroke — putting the
+ * line on every track turns the gutter rules into a full column grid.
+ */
+const STICKY_CELL_ROW_STROKE = 'border-b border-neutral-100'
+/** Half of the separator track on each side of the 1px rule (`mx-3` ≡ 12px). */
+const SEPARATOR_GUTTER_PX = 12
+/** A separator's gutters plus its 1px rule. */
+const SEPARATOR_W = SEPARATOR_GUTTER_PX * 2 + 1
+
+/**
+ * Amber fill clipped to the cell box. Gutter bridges to the column rule are
+ * painted by `Separator` (`fillStart` / `fillEnd`) so nothing overflows the
+ * horizontal scroller and nothing gets clipped.
+ */
+function EditedCellFill() {
+  return (
+    <div
+      aria-hidden
+      className="pointer-events-none absolute inset-0 z-0 bg-amber-50"
+    />
+  )
+}
+
 function recordProductEdit(
   editHistory: ReturnType<typeof useOptionalFieldEditHistory>,
   itemId: string,
@@ -46,24 +81,46 @@ function Separator({
   isRowActive,
   alignTop,
   hideLine,
+  /** Paint the left gutter amber when the preceding cell is edited. */
+  fillStart,
+  /** Paint the right gutter amber when the following cell is edited. */
+  fillEnd,
 }: {
   isRowHovered?: boolean
   isRowActive?: boolean
   alignTop?: boolean
   /** Keeps the column gap but drops the rule — the lifted table runs without them. */
   hideLine?: boolean
+  fillStart?: boolean
+  fillEnd?: boolean
 }) {
-  return <div className={cn(
-    "mx-3 w-px shrink-0 transition-colors",
-    alignTop ? "mt-1 h-4 self-start" : "h-5",
-    hideLine
-      ? "bg-transparent"
-      : (isRowActive || isRowHovered) ? "bg-white/20" : "bg-neutral-200"
-  )} />
+  const lineColor = hideLine
+    ? 'bg-transparent'
+    : (isRowActive || isRowHovered) ? 'bg-white/20' : 'bg-neutral-200'
+
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 self-stretch',
+        alignTop && 'mt-1 h-4 self-start'
+      )}
+      style={{ width: SEPARATOR_W }}
+    >
+      <div
+        className={cn('self-stretch', fillStart && !isRowHovered && !isRowActive && 'bg-amber-50')}
+        style={{ width: SEPARATOR_GUTTER_PX }}
+      />
+      <div className={cn('w-px shrink-0 self-stretch transition-colors', lineColor)} />
+      <div
+        className={cn('self-stretch', fillEnd && !isRowHovered && !isRowActive && 'bg-amber-50')}
+        style={{ width: SEPARATOR_GUTTER_PX }}
+      />
+    </div>
+  )
 }
 
 function GhostSeparator() {
-  return <div className="mx-3 h-5 w-px shrink-0" />
+  return <div className="shrink-0" style={{ width: SEPARATOR_W }} />
 }
 
 function MiniDropdown({
@@ -73,6 +130,7 @@ function MiniDropdown({
   isRowActive,
   alignTop,
   asField,
+  className,
 }: {
   label: string
   width?: number
@@ -81,6 +139,7 @@ function MiniDropdown({
   alignTop?: boolean
   /** Wear the page's grey edit pill instead of reading as plain row text. */
   asField?: boolean
+  className?: string
 }) {
   return (
     <button
@@ -94,7 +153,8 @@ function MiniDropdown({
           ? cn(ACTIVE_FIELD_STYLE, 'cursor-pointer hover:bg-neutral-200')
           : isRowActive || isRowHovered
             ? 'text-white hover:bg-white/10'
-            : 'text-brand-navy hover:bg-neutral-100'
+            : 'text-brand-navy hover:bg-neutral-100',
+        className
       )}
     >
       <span className="truncate">{label}</span>
@@ -118,6 +178,7 @@ function InteractiveMiniDropdown({
   disabled,
   ariaLabel,
   limitedPeriodOption,
+  className,
 }: {
   label: string
   width?: number
@@ -126,13 +187,14 @@ function InteractiveMiniDropdown({
   disabled?: boolean
   ariaLabel?: string
   limitedPeriodOption?: string
+  className?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
     <div
-      className={cn('relative', width != null ? 'shrink-0' : 'min-w-0 w-full')}
+      className={cn('relative', width != null ? 'shrink-0' : 'min-w-0 w-full', className)}
       style={width != null ? { width } : undefined}
       onClick={(e) => e.stopPropagation()}
     >
@@ -530,12 +592,26 @@ interface PriceFieldProps {
   value: string
   ariaLabel: string
   onCommit: (value: string) => void
-  /** Skip the grey edit pill — Expanded state keeps default table chrome. */
-  plain?: boolean
+  /** Right-align amounts (unit / total). */
+  align?: 'left' | 'right'
+  className?: string
+  /** Soften the resting label (e.g. row is navy-filled). */
+  muted?: boolean
 }
 
-/** Currency cell that edits in place, wearing the same pill as every other field. */
-function PriceField({ value, ariaLabel, onCommit, plain }: PriceFieldProps) {
+/**
+ * Click-to-edit currency cell — same interaction as Account Contact name / Phone:
+ * blue resting label → grey pill input on click → commit on blur / Enter.
+ */
+function PriceField({
+  value,
+  ariaLabel,
+  onCommit,
+  align = 'right',
+  className,
+  muted,
+}: PriceFieldProps) {
+  const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -543,39 +619,72 @@ function PriceField({ value, ariaLabel, onCommit, plain }: PriceFieldProps) {
     setDraft(value)
   }, [value])
 
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus()
+  }, [isEditing])
+
   const commit = () => {
     const next = formatCurrency(draft)
     setDraft(next)
+    setIsEditing(false)
     if (next !== value) onCommit(next)
   }
 
+  const cancel = () => {
+    setDraft(value)
+    setIsEditing(false)
+  }
+
+  if (isEditing) {
+    return (
+      <input
+        ref={inputRef}
+        value={draft}
+        inputMode="decimal"
+        aria-label={ariaLabel}
+        onClick={(e) => e.stopPropagation()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            commit()
+          }
+          if (e.key === 'Escape') {
+            e.stopPropagation()
+            cancel()
+          }
+        }}
+        className={cn(
+          ACTIVE_FIELD_STYLE,
+          align === 'right' && 'text-right',
+          className
+        )}
+      />
+    )
+  }
+
   return (
-    <input
-      ref={inputRef}
-      value={draft}
-      inputMode="decimal"
+    <button
+      type="button"
       aria-label={ariaLabel}
-      onClick={(e) => e.stopPropagation()}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={commit}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter') {
-          commit()
-          inputRef.current?.blur()
-        }
-        if (e.key === 'Escape') {
-          // Otherwise the table's Escape handler collapses the whole edit surface.
-          e.stopPropagation()
-          setDraft(value)
-          inputRef.current?.blur()
-        }
+      onClick={(e) => {
+        e.stopPropagation()
+        setDraft(value)
+        setIsEditing(true)
       }}
       className={cn(
-        plain
-          ? 'w-full bg-transparent px-1 py-1 text-right text-[14px] font-medium text-brand-navy outline-none'
-          : cn(ACTIVE_FIELD_STYLE, 'text-right')
+        'w-full cursor-pointer truncate text-[14px] font-medium transition-colors',
+        align === 'right' && 'text-right',
+        muted
+          ? 'text-white'
+          : value
+            ? 'text-brand-navy'
+            : 'text-brand-mist',
+        className
       )}
-    />
+    >
+      {value || '–'}
+    </button>
   )
 }
 
@@ -583,89 +692,129 @@ interface DiscountFieldProps {
   value: string
   unit: DiscountUnit
   onChange: (next: { value: string; unit: DiscountUnit }) => void
-  plain?: boolean
+  className?: string
+  muted?: boolean
 }
 
-/** Amount input with the % / USD switch built into the same pill. */
-function DiscountField({ value, unit, onChange, plain }: DiscountFieldProps) {
+/**
+ * Click-to-edit discount — resting label matches Account fields; the grey pill
+ * carries the amount input plus the % / USD switch.
+ */
+function DiscountField({ value, unit, onChange, className, muted }: DiscountFieldProps) {
+  const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(value)
   const [isUnitOpen, setIsUnitOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const unitTriggerRef = useRef<HTMLButtonElement>(null)
+  const display = formatDiscount(value, unit)
+  const hasValue = parseFloat(value || '') > 0
 
   useEffect(() => {
     setDraft(value)
   }, [value])
 
-  const commit = () => {
-    if (draft !== value) onChange({ value: draft, unit })
+  useEffect(() => {
+    if (isEditing) inputRef.current?.focus()
+  }, [isEditing])
+
+  const commit = (nextValue = draft, nextUnit = unit) => {
+    setIsEditing(false)
+    setIsUnitOpen(false)
+    if (nextValue !== value || nextUnit !== unit) {
+      onChange({ value: nextValue, unit: nextUnit })
+    }
+  }
+
+  const cancel = () => {
+    setDraft(value)
+    setIsEditing(false)
+    setIsUnitOpen(false)
+  }
+
+  if (isEditing) {
+    return (
+      <div className={cn('min-w-0 w-full', className)} onClick={(e) => e.stopPropagation()}>
+        <div
+          className={cn(
+            ACTIVE_FIELD_STYLE,
+            'flex items-center gap-1 transition-colors focus-within:bg-neutral-200'
+          )}
+        >
+          <input
+            ref={inputRef}
+            value={draft}
+            inputMode="decimal"
+            placeholder="0"
+            aria-label="Discount"
+            onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
+            onBlur={() => {
+              // Don't commit while the unit menu is open — selecting a unit
+              // blurs the input first and would close edit prematurely.
+              if (!isUnitOpen) commit()
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit()
+              if (e.key === 'Escape') {
+                e.stopPropagation()
+                cancel()
+              }
+            }}
+            className="w-full min-w-0 bg-transparent text-right text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-mist"
+          />
+          <div className="relative shrink-0">
+            <button
+              ref={unitTriggerRef}
+              type="button"
+              aria-label="Discount unit"
+              onMouseDown={(e) => {
+                // Keep the amount input focused so blur doesn't commit mid-toggle.
+                e.preventDefault()
+                e.stopPropagation()
+              }}
+              onClick={() => setIsUnitOpen((open) => !open)}
+              className="flex cursor-pointer items-center gap-0.5 rounded px-1 text-[12px] font-medium text-brand-fog transition-colors hover:bg-neutral-300/60 hover:text-brand-navy"
+            >
+              {unit}
+              <ChevronDown size={12} className="text-brand-mist" />
+            </button>
+            <MiniDropdownPopover
+              isOpen={isUnitOpen}
+              onClose={() => setIsUnitOpen(false)}
+              onSelect={(next) => {
+                setIsUnitOpen(false)
+                commit(draft, next as DiscountUnit)
+              }}
+              options={[...DISCOUNT_UNITS]}
+              currentValue={unit}
+              anchorRef={unitTriggerRef}
+            />
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    // The wrapper's padding keeps the pill off its neighbour without pushing it
-    // past the end of its grid track, which a margin on a full-width pill would.
-    <div className="min-w-0 pl-3" onClick={(e) => e.stopPropagation()}>
-      <div
-        className={cn(
-          plain
-            ? 'flex w-full items-center gap-1 rounded px-1 py-1 transition-colors hover:bg-neutral-100 focus-within:bg-neutral-100'
-            : cn(
-                ACTIVE_FIELD_STYLE,
-                'flex items-center gap-1 transition-colors focus-within:bg-neutral-200'
-              )
-        )}
-      >
-        <input
-          ref={inputRef}
-          value={draft}
-          inputMode="decimal"
-          placeholder="0"
-          aria-label="Discount"
-          onChange={(e) => setDraft(e.target.value.replace(/[^\d.]/g, ''))}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              commit()
-              inputRef.current?.blur()
-            }
-            if (e.key === 'Escape') {
-              e.stopPropagation()
-              setDraft(value)
-              inputRef.current?.blur()
-            }
-          }}
-          className="w-full min-w-0 bg-transparent text-right text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-mist"
-        />
-        <div className="relative shrink-0">
-          <button
-            ref={unitTriggerRef}
-            type="button"
-            aria-label="Discount unit"
-            // Keeps the popover's outside-click listener from firing on the toggle itself.
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={() => setIsUnitOpen((open) => !open)}
-            className={cn(
-              'flex cursor-pointer items-center gap-0.5 rounded px-1 text-[12px] font-medium text-brand-fog transition-colors',
-              plain ? 'hover:text-brand-navy' : 'hover:bg-neutral-300/60 hover:text-brand-navy'
-            )}
-          >
-            {unit}
-            <ChevronDown size={12} className="text-brand-mist" />
-          </button>
-          <MiniDropdownPopover
-            isOpen={isUnitOpen}
-            onClose={() => setIsUnitOpen(false)}
-            onSelect={(next) => {
-              setIsUnitOpen(false)
-              onChange({ value: draft, unit: next as DiscountUnit })
-            }}
-            options={[...DISCOUNT_UNITS]}
-            currentValue={unit}
-            anchorRef={unitTriggerRef}
-          />
-        </div>
-      </div>
-    </div>
+    <button
+      type="button"
+      aria-label="Discount"
+      onClick={(e) => {
+        e.stopPropagation()
+        setDraft(value)
+        setIsEditing(true)
+      }}
+      className={cn(
+        'w-full cursor-pointer truncate text-right text-[14px] font-medium transition-colors',
+        muted
+          ? 'text-white'
+          : hasValue
+            ? 'text-brand-navy'
+            : 'text-brand-mist',
+        className
+      )}
+    >
+      {display}
+    </button>
   )
 }
 
@@ -678,6 +827,7 @@ interface SelectFieldProps {
   plain?: boolean
   /** Option that opens the duration step instead of committing straight away. */
   limitedPeriodOption?: string
+  className?: string
 }
 
 /** Pill-styled dropdown for the edit surface's plain choice columns. */
@@ -689,12 +839,13 @@ function SelectField({
   disabled,
   plain,
   limitedPeriodOption,
+  className,
 }: SelectFieldProps) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div className="min-w-0 pl-3" onClick={(e) => e.stopPropagation()}>
+    <div className={cn('min-w-0 pl-3', className)} onClick={(e) => e.stopPropagation()}>
       <div className="relative">
         <button
           ref={triggerRef}
@@ -746,10 +897,6 @@ interface ItemNameButtonProps {
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
   isRowHovered?: boolean
-  isRowActive?: boolean
-  isEdited?: boolean
-  isViewEditsFocused?: boolean
-  onViewEdits?: () => void
   /** Increment to programmatically open the item picker (e.g. from row Edit). */
   openRequestId?: number
   /** Wear the page's grey edit pill instead of reading as plain row text. */
@@ -760,6 +907,7 @@ interface ItemNameButtonProps {
    * into (it would be clipped by the scroll container), so this keeps it inline.
    */
   hangIcon?: boolean
+  className?: string
 }
 
 function ItemNameButton({
@@ -768,13 +916,10 @@ function ItemNameButton({
   onSelect,
   onOpenChange,
   isRowHovered,
-  isRowActive,
-  isEdited,
-  isViewEditsFocused,
-  onViewEdits,
   openRequestId,
   asField,
   hangIcon = true,
+  className,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -792,7 +937,7 @@ function ItemNameButton({
   }, [openRequestId])
 
   return (
-    <div className="group/item relative flex min-w-0 flex-1 items-center gap-1.5">
+    <div className={cn('group/item relative flex min-w-0 flex-1 items-center gap-1.5', className)}>
       {/* Edit-state: hang the attention icon in the left gutter outside the column. */}
       {isAttention && hangIcon && (
         <div className="relative -ml-6 mr-2 shrink-0">
@@ -811,7 +956,11 @@ function ItemNameButton({
         className={cn(
           'flex min-w-0 cursor-pointer items-center gap-1.5 text-left text-[14px] font-medium transition-colors',
           asField
-            ? cn(ACTIVE_FIELD_STYLE, 'justify-between hover:bg-neutral-200', isOpen && 'bg-neutral-200')
+            ? cn(
+                ACTIVE_FIELD_STYLE,
+                'justify-between hover:bg-neutral-200',
+                isOpen && 'bg-neutral-200'
+              )
             : hangIcon
               ? (isOpen || isRowHovered)
                 ? 'text-white'
@@ -827,26 +976,6 @@ function ItemNameButton({
           hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
-      {isEdited && !isOpen && !isRowActive && (
-        <button
-          type="button"
-          onClick={(e) => {
-            e.stopPropagation()
-            onViewEdits?.()
-          }}
-          className={cn(
-            'inline-flex shrink-0 cursor-pointer items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium tracking-[-0.01em] transition-colors',
-            isRowHovered
-              ? 'bg-white/15 text-white/80'
-              : isViewEditsFocused
-                ? 'bg-amber-100/70 text-amber-800/80'
-                : 'bg-amber-50 text-amber-700/70'
-          )}
-        >
-          <span className={isRowHovered ? 'hidden' : 'inline'}>Edited</span>
-          <span className={isRowHovered ? 'inline' : 'hidden'}>View edits</span>
-        </button>
-      )}
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
@@ -883,12 +1012,10 @@ const TOTAL_W = 124
 /** Inline layout only — leaves room for the discount tag beside the amount. */
 const TOTAL_INLINE_W = 172
 const MENU_W = 48
-/** A separator's `mx-3` margins plus its 1px rule. */
-const SEPARATOR_W = 25
 /** The `pl-1 pr-2` every row carries. */
 const ROW_PAD_X = 12
 /** Expanded-state only — fixed width of the sticky first (Item / period) column.
- *  Sized to fit "Period N · 📅 17 Jul 2026 to 17 Jun 2028" without spilling
+ *  Sized to fit "Period N 📅 17 Jul 2026 to 17 Jun 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
 const EXPANDED_ITEM_W = 340
 /** `pl-1` on expanded rows — sticky Item starts after this inset. */
@@ -1332,7 +1459,7 @@ function PeriodDateEdit({
   )
 
   return (
-    <span className="relative inline-flex items-center gap-1">
+    <span className="relative inline-flex min-w-0 items-center">
       <button
         ref={buttonRef}
         type="button"
@@ -1341,21 +1468,22 @@ function PeriodDateEdit({
           setPickerOpen(!open)
         }}
         className={cn(
-          'cursor-text whitespace-nowrap rounded px-0.5 text-[12px] text-blue-700 transition-colors hover:bg-neutral-100',
-          open && 'bg-neutral-100'
+          'inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-none px-1.5 py-0.5 text-[12px] font-normal text-blue-700 transition-colors',
+          open ? 'bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'
         )}
         aria-label={`Edit date ${value}`}
         aria-expanded={open}
         aria-haspopup="dialog"
       >
-        {value}
+        <Calendar size={14} className="shrink-0 text-blue-700" />
+        <span className="truncate">{value}</span>
       </button>
       {calendar}
     </span>
   )
 }
 
-/** Period identity: label + editable date range. */
+/** Period identity: label + separate from / to date pills. */
 function PeriodIdentity({
   period,
   onChangeDates,
@@ -1371,9 +1499,7 @@ function PeriodIdentity({
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
-      <span className="shrink-0 text-[13px] text-brand-fog">·</span>
-      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden text-[12px] text-brand-fog">
-        <Calendar size={14} className="shrink-0 text-brand-mist" />
+      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
         <PeriodDateEdit
           value={period.startDate}
           defaultOpen={autoOpenStartDate}
@@ -1384,7 +1510,7 @@ function PeriodIdentity({
             onChangeDates?.({ startDate, endDate: period.endDate })
           }
         />
-        <span className="shrink-0">to</span>
+        <span className="shrink-0 text-[12px] text-brand-fog">to</span>
         <PeriodDateEdit
           value={period.endDate}
           onChange={(endDate) =>
@@ -2063,7 +2189,7 @@ export function ProductsPricingTable({
           `minmax(0, ${MENU_W}fr)`,
         ].join(' '),
         columnGap: 0,
-        alignItems: 'center' as const,
+        alignItems: 'stretch' as const,
         width: '100%',
         minWidth: 0,
       }
@@ -2110,7 +2236,7 @@ export function ProductsPricingTable({
       <div
         style={isEditMode ? undefined : { width: UNIT_W }}
         className={cn(
-          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -2191,7 +2317,7 @@ export function ProductsPricingTable({
       <div
         style={isEditMode ? undefined : { width: UNIT_W }}
         className={cn(
-          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -2252,7 +2378,7 @@ export function ProductsPricingTable({
           `minmax(0, ${MENU_W}fr)`,
         ].join(' '),
         columnGap: 0,
-        alignItems: 'center' as const,
+        alignItems: 'stretch' as const,
         width: '100%',
         minWidth: 0,
       }
@@ -2299,7 +2425,7 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: UNIT_W }}
         className={cn(
-          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
@@ -2399,7 +2525,7 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: UNIT_W }}
         className={cn(
-          'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pl-3 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
@@ -2456,9 +2582,13 @@ export function ProductsPricingTable({
   ) => {
     const isAttention = item.status === 'attention'
     const hasDiscount = parseFloat(item.discount ?? '') > 0
-    const isEdited =
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
+    const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
+    const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
+    const isQtyEdited = isProductFieldEdited(editHistory, item.id, 'Qty')
+    const isUnitPriceEdited = isProductFieldEdited(editHistory, item.id, 'Unit price')
+    const isDiscountEdited = isProductFieldEdited(editHistory, item.id, 'Discount')
+    const isDiscountPeriodEdited = isProductFieldEdited(editHistory, item.id, 'Discount period')
+    const isTotalEdited = isProductFieldEdited(editHistory, item.id, 'Total price')
     const quantityOptions = QUANTITY_OPTIONS.includes(item.quantity)
       ? QUANTITY_OPTIONS
       : [item.quantity, ...QUANTITY_OPTIONS]
@@ -2467,9 +2597,8 @@ export function ProductsPricingTable({
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail items-center border-b border-neutral-100 py-1.5 pl-1 pr-2',
+          'group row-hover-trail items-stretch border-b border-neutral-100 pl-1 pr-2',
           !isFullPageExpanded && 'flex',
-          isEdited && 'bg-amber-50',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
           activeRowId === item.id && 'relative z-40'
@@ -2480,173 +2609,238 @@ export function ProductsPricingTable({
         <div
           style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
           className={cn(
+            CELL_BOX,
+            STICKY_CELL_ROW_STROKE,
             'sticky left-0 min-w-0',
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-10',
-            isEdited ? 'bg-amber-50' : 'bg-white'
+            isItemEdited ? 'bg-amber-50' : 'bg-white'
           )}
         >
-          <ItemNameButton
-            name={item.name}
-            isAttention={isAttention}
-            isEdited={isEdited}
-            hangIcon={false}
-            openRequestId={lineItemEditRequest[item.id]}
-            isViewEditsFocused={
-              editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
-              editHistory?.viewEditsFocus?.fieldLabel === item.id
-            }
-            onViewEdits={() => {
-              editHistory?.focusViewEdits({
-                sectionId: PRODUCTS_SECTION_ID,
-                fieldLabel: item.id,
-                itemPrefix: true,
-              })
-            }}
-            onOpenChange={(isOpen) => {
-              setActiveRowId(isOpen ? item.id : null)
-            }}
-            onSelect={(catalogItem) => {
-              recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
-              recordProductEdit(
-                editHistory,
-                item.id,
-                'Unit price',
-                item.unitPrice,
-                catalogItem.unitPrice
-              )
-              updateItems((prev) =>
-                prev.map((i) =>
-                  i.id === item.id
-                    ? {
-                        ...i,
-                        name: catalogItem.name,
-                        unitPrice: catalogItem.unitPrice,
-                        totalPrice:
-                          computeTotalPrice(catalogItem.unitPrice, i.quantity) ?? i.totalPrice,
-                        status: 'ready',
-                      }
-                    : i
+          {isItemEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 flex-1">
+            <ItemNameButton
+              name={item.name}
+              isAttention={isAttention}
+              hangIcon={false}
+              openRequestId={lineItemEditRequest[item.id]}
+              onOpenChange={(isOpen) => {
+                setActiveRowId(isOpen ? item.id : null)
+              }}
+              onSelect={(catalogItem) => {
+                recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
+                recordProductEdit(
+                  editHistory,
+                  item.id,
+                  'Unit price',
+                  item.unitPrice,
+                  catalogItem.unitPrice
                 )
-              )
-              setActiveRowId(null)
-            }}
-          />
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id
+                      ? {
+                          ...i,
+                          name: catalogItem.name,
+                          unitPrice: catalogItem.unitPrice,
+                          totalPrice:
+                            computeTotalPrice(catalogItem.unitPrice, i.quantity) ?? i.totalPrice,
+                          status: 'ready',
+                        }
+                      : i
+                  )
+                )
+                setActiveRowId(null)
+              }}
+            />
+          </div>
         </div>
 
         <div
-          className={cn('min-w-0 pl-3', !isFullPageExpanded && 'shrink-0')}
+          className={cn(
+            CELL_BOX,
+            'min-w-0 pl-3',
+            !isFullPageExpanded && 'shrink-0'
+          )}
           style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
         >
-          <InteractiveMiniDropdown
-            label={item.billingPeriod}
-            options={BILLING_PERIODS}
-            ariaLabel={`Frequency for ${item.name}`}
-            onSelect={(next) => {
-              recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
-              updateItems((prev) =>
-                prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
-              )
-            }}
-          />
+          {isFrequencyEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            <InteractiveMiniDropdown
+              label={item.billingPeriod}
+              options={BILLING_PERIODS}
+              ariaLabel={`Frequency for ${item.name}`}
+              onSelect={(next) => {
+                recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
+                updateItems((prev) =>
+                  prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
+                )
+              }}
+            />
+          </div>
         </div>
-        <Separator />
-        <InteractiveMiniDropdown
-          label={item.quantity}
-          width={isFullPageExpanded ? undefined : QTY_W}
-          options={quantityOptions}
-          ariaLabel={`Quantity for ${item.name}`}
-          onSelect={(next) => {
-            recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
-            updateItems((prev) =>
-              prev.map((i) =>
-                i.id === item.id
-                  ? {
-                      ...i,
-                      quantity: next,
-                      totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
-                    }
-                  : i
-              )
-            )
-          }}
-        />
-        <Separator />
+        <Separator fillStart={isFrequencyEdited} fillEnd={isQtyEdited} />
+        <div
+          className={cn(CELL_BOX, !isFullPageExpanded && 'shrink-0')}
+          style={isFullPageExpanded ? undefined : { width: QTY_W }}
+        >
+          {isQtyEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            <InteractiveMiniDropdown
+              label={item.quantity}
+              options={quantityOptions}
+              ariaLabel={`Quantity for ${item.name}`}
+              onSelect={(next) => {
+                recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id
+                      ? {
+                          ...i,
+                          quantity: next,
+                          totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
+                        }
+                      : i
+                  )
+                )
+              }}
+            />
+          </div>
+        </div>
+        <Separator fillStart={isQtyEdited} fillEnd={isUnitPriceEdited} />
 
         <div
           style={isFullPageExpanded ? undefined : { width: UNIT_W }}
           className={cn(
-            'flex min-w-0 flex-col items-end gap-0.5 pl-3',
+            CELL_BOX,
+            'min-w-0 justify-end pl-3',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
-          <div className="flex w-full items-center justify-end gap-2">
+          {isUnitPriceEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] flex w-full items-center justify-end gap-2">
             {item.rampPriceChange && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
-            <span className="text-right text-[14px] font-medium text-brand-navy">
-              {item.unitPrice}
-            </span>
+            <PriceField
+              value={item.unitPrice}
+              ariaLabel={`Unit price for ${item.name}`}
+              onCommit={(nextPrice) => {
+                recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id
+                      ? {
+                          ...i,
+                          unitPrice: nextPrice,
+                          totalPrice: computeTotalPrice(nextPrice, i.quantity) ?? i.totalPrice,
+                        }
+                      : i
+                  )
+                )
+              }}
+            />
           </div>
         </div>
 
-        <Separator />
+        <Separator fillStart={isUnitPriceEdited} fillEnd={isDiscountEdited} />
         <div
           style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
           className={cn(
-            'min-w-0 text-right text-[14px] font-medium',
-            !isFullPageExpanded && 'shrink-0',
-            hasDiscount ? 'text-brand-navy' : 'text-brand-mist'
-          )}
-        >
-          {formatDiscount(item.discount, item.discountUnit)}
-        </div>
-        <Separator />
-        <div
-          style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
-          className={cn('min-w-0', !isFullPageExpanded && 'shrink-0')}
-        >
-          <InteractiveMiniDropdown
-            label={hasDiscount ? (item.discountPeriod ?? 'None') : '–'}
-            options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
-            ariaLabel={`Discount period for ${item.name}`}
-            disabled={!hasDiscount}
-            limitedPeriodOption={LIMITED_PERIOD_OPTION}
-            onSelect={(next) => {
-              recordProductEdit(
-                editHistory,
-                item.id,
-                'Discount period',
-                item.discountPeriod ?? 'None',
-                next
-              )
-              updateItems((prev) =>
-                prev.map((i) =>
-                  i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
-                )
-              )
-            }}
-          />
-        </div>
-
-        <Separator />
-        <div
-          style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
-          className={cn(
-            'min-w-0 text-right text-[14px] font-medium text-brand-navy',
+            CELL_BOX,
+            'min-w-0 justify-end',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
-          {item.totalPrice}
+          {isDiscountEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            <DiscountField
+              value={item.discount ?? ''}
+              unit={item.discountUnit ?? '%'}
+              onChange={({ value, unit }) => {
+                recordProductEdit(
+                  editHistory,
+                  item.id,
+                  'Discount',
+                  formatDiscount(item.discount, item.discountUnit),
+                  formatDiscount(value, unit)
+                )
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
+                  )
+                )
+              }}
+            />
+          </div>
+        </div>
+        <Separator fillStart={isDiscountEdited} fillEnd={isDiscountPeriodEdited} />
+        <div
+          style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
+          className={cn(
+            CELL_BOX,
+            'min-w-0',
+            !isFullPageExpanded && 'shrink-0'
+          )}
+        >
+          {isDiscountPeriodEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            <InteractiveMiniDropdown
+              label={hasDiscount ? (item.discountPeriod ?? 'None') : '–'}
+              options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
+              ariaLabel={`Discount period for ${item.name}`}
+              disabled={!hasDiscount}
+              limitedPeriodOption={LIMITED_PERIOD_OPTION}
+              onSelect={(next) => {
+                recordProductEdit(
+                  editHistory,
+                  item.id,
+                  'Discount period',
+                  item.discountPeriod ?? 'None',
+                  next
+                )
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
+                  )
+                )
+              }}
+            />
+          </div>
+        </div>
+
+        <Separator fillStart={isDiscountPeriodEdited} fillEnd={isTotalEdited} />
+        <div
+          style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+          className={cn(
+            CELL_BOX,
+            'min-w-0 justify-end',
+            !isFullPageExpanded && 'shrink-0'
+          )}
+        >
+          {isTotalEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            <PriceField
+              value={item.totalPrice}
+              ariaLabel={`Total price for ${item.name}`}
+              onCommit={(nextTotal) => {
+                recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
+                updateItems((prev) =>
+                  prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
+                )
+              }}
+            />
+          </div>
         </div>
 
         {/* Ellipsis menu — pinned to the right of the scrollable group */}
         <div
           style={isFullPageExpanded ? undefined : { width: MENU_W }}
           className={cn(
-            'sticky right-0 z-10 flex items-center justify-end',
-            !isFullPageExpanded && 'shrink-0',
-            isEdited ? 'bg-amber-50' : 'bg-white'
+            CELL_BOX,
+            STICKY_CELL_ROW_STROKE,
+            'sticky right-0 z-10 justify-end bg-white',
+            !isFullPageExpanded && 'shrink-0'
           )}
         >
           <LineItemOptionsMenu
@@ -2670,9 +2864,13 @@ export function ProductsPricingTable({
     // would only add noise — it stays behind for the inline table.
     const isRowFilled = !isEditMode && (isActive || isHovered)
     const hasDiscount = parseFloat(item.discount ?? '') > 0
-    const isEdited =
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Item')) ||
-      !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(item.id, 'Unit price'))
+    const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
+    const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
+    const isQtyEdited = isProductFieldEdited(editHistory, item.id, 'Qty')
+    const isUnitPriceEdited = isProductFieldEdited(editHistory, item.id, 'Unit price')
+    const isDiscountEdited = isProductFieldEdited(editHistory, item.id, 'Discount')
+    const isDiscountPeriodEdited = isProductFieldEdited(editHistory, item.id, 'Discount period')
+    const isTotalEdited = isProductFieldEdited(editHistory, item.id, 'Total price')
     
     return (
       <div
@@ -2681,144 +2879,155 @@ export function ProductsPricingTable({
         onMouseLeave={() => setHoveredRowId(null)}
         onClick={() => enterEditMode()}
         className={cn(
-          'group row-hover-trail items-center border-b py-1.5 pl-1 pr-2 transition-colors',
+          'group row-hover-trail items-stretch border-b pl-1 pr-2 transition-colors',
           !isEditMode && 'flex',
           isEditMode
             ? cn(
                 showFieldPills && 'rounded-lg',
-                'border-neutral-100',
-                isEdited && 'bg-amber-50'
+                'border-neutral-100'
               )
             : isActive
               ? 'bg-brand-navy border-brand-navy cursor-pointer'
-              : cn(
-                  'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
-                  isEdited && 'bg-amber-50'
-                )
+              : 'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
         )}
         style={editRowGridStyle}
       >
         {/* Item */}
-        <ItemNameButton
-          name={item.name}
-          isAttention={isAttention}
-          isRowHovered={isRowFilled && !isActive}
-          isRowActive={isRowFilled && isActive}
-          isEdited={isEdited}
-          openRequestId={lineItemEditRequest[item.id]}
-          asField={showFieldPills}
-          isViewEditsFocused={
-            editHistory?.viewEditsFocus?.sectionId === PRODUCTS_SECTION_ID &&
-            editHistory?.viewEditsFocus?.fieldLabel === item.id
-          }
-          onViewEdits={() => {
-            editHistory?.focusViewEdits({
-              sectionId: PRODUCTS_SECTION_ID,
-              fieldLabel: item.id,
-              itemPrefix: true,
-            })
-          }}
-          onOpenChange={(isOpen) => {
-            setActiveRowId(isOpen ? item.id : null)
-            if (isOpen) enterEditMode()
-          }}
-          onSelect={(catalogItem) => {
-            recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
-            recordProductEdit(
-              editHistory,
-              item.id,
-              'Unit price',
-              item.unitPrice,
-              catalogItem.unitPrice
-            )
-            updateItems((prev) =>
-              prev.map((i) =>
-                i.id === item.id
-                  ? { ...i, name: catalogItem.name, unitPrice: catalogItem.unitPrice, status: 'ready' }
-                  : i
-              )
-            )
-            setActiveRowId(null)
-          }}
-        />
-
-        <div
-          className={cn('pl-3', !isEditMode && 'shrink-0')}
-          style={isEditMode ? undefined : { width: PERIOD_W }}
-        >
-          {isExpandedVariant && isEditMode ? (
-            <InteractiveMiniDropdown
-              label={item.billingPeriod}
-              options={BILLING_PERIODS}
-              ariaLabel={`Frequency for ${item.name}`}
-              onSelect={(next) => {
-                recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
-                updateItems((prev) =>
-                  prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
+        <div className={cn(CELL_BOX, 'min-w-0 flex-1')}>
+          {!isRowFilled && isItemEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 flex-1">
+            <ItemNameButton
+              name={item.name}
+              isAttention={isAttention}
+              isRowHovered={isRowFilled && !isActive}
+              openRequestId={lineItemEditRequest[item.id]}
+              asField={showFieldPills}
+              onOpenChange={(isOpen) => {
+                setActiveRowId(isOpen ? item.id : null)
+                if (isOpen) enterEditMode()
+              }}
+              onSelect={(catalogItem) => {
+                recordProductEdit(editHistory, item.id, 'Item', item.name, catalogItem.name)
+                recordProductEdit(
+                  editHistory,
+                  item.id,
+                  'Unit price',
+                  item.unitPrice,
+                  catalogItem.unitPrice
                 )
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id
+                      ? { ...i, name: catalogItem.name, unitPrice: catalogItem.unitPrice, status: 'ready' }
+                      : i
+                  )
+                )
+                setActiveRowId(null)
               }}
             />
-          ) : (
-            <MiniDropdown
-              label={item.billingPeriod}
-              isRowHovered={isRowFilled}
-              isRowActive={isRowFilled}
-              asField={showFieldPills}
-            />
-          )}
+          </div>
         </div>
-        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={showFieldPills} />
-        {isExpandedVariant && isEditMode ? (
-          <InteractiveMiniDropdown
-            label={item.quantity}
-            options={
-              QUANTITY_OPTIONS.includes(item.quantity)
-                ? QUANTITY_OPTIONS
-                : [item.quantity, ...QUANTITY_OPTIONS]
-            }
-            ariaLabel={`Quantity for ${item.name}`}
-            onSelect={(next) => {
-              recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
-              updateItems((prev) =>
-                prev.map((i) =>
-                  i.id === item.id
-                    ? {
-                        ...i,
-                        quantity: next,
-                        totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
-                      }
-                    : i
-                )
-              )
-            }}
-          />
-        ) : (
-          <MiniDropdown
-            label={item.quantity}
-            width={isEditMode ? undefined : QTY_W}
-            isRowHovered={isRowFilled}
-            isRowActive={isRowFilled}
-            asField={showFieldPills}
-          />
-        )}
-        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={showFieldPills} />
+
+        <div
+          className={cn(CELL_BOX, 'pl-3', !isEditMode && 'shrink-0')}
+          style={isEditMode ? undefined : { width: PERIOD_W }}
+        >
+          {!isRowFilled && isFrequencyEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            {isExpandedVariant && isEditMode ? (
+              <InteractiveMiniDropdown
+                label={item.billingPeriod}
+                options={BILLING_PERIODS}
+                ariaLabel={`Frequency for ${item.name}`}
+                onSelect={(next) => {
+                  recordProductEdit(editHistory, item.id, 'Frequency', item.billingPeriod, next)
+                  updateItems((prev) =>
+                    prev.map((i) => (i.id === item.id ? { ...i, billingPeriod: next } : i))
+                  )
+                }}
+              />
+            ) : (
+              <MiniDropdown
+                label={item.billingPeriod}
+                isRowHovered={isRowFilled}
+                isRowActive={isRowFilled}
+                asField={showFieldPills}
+              />
+            )}
+          </div>
+        </div>
+        <Separator
+          isRowHovered={isRowFilled}
+          isRowActive={isRowFilled}
+          hideLine={showFieldPills}
+          fillStart={!isRowFilled && isFrequencyEdited}
+          fillEnd={!isRowFilled && isQtyEdited}
+        />
+        <div
+          className={cn(CELL_BOX, !isEditMode && 'shrink-0')}
+          style={isEditMode ? undefined : { width: QTY_W }}
+        >
+          {!isRowFilled && isQtyEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] min-w-0 w-full">
+            {isExpandedVariant && isEditMode ? (
+              <InteractiveMiniDropdown
+                label={item.quantity}
+                options={
+                  QUANTITY_OPTIONS.includes(item.quantity)
+                    ? QUANTITY_OPTIONS
+                    : [item.quantity, ...QUANTITY_OPTIONS]
+                }
+                ariaLabel={`Quantity for ${item.name}`}
+                onSelect={(next) => {
+                  recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
+                  updateItems((prev) =>
+                    prev.map((i) =>
+                      i.id === item.id
+                        ? {
+                            ...i,
+                            quantity: next,
+                            totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
+                          }
+                        : i
+                    )
+                  )
+                }}
+              />
+            ) : (
+              <MiniDropdown
+                label={item.quantity}
+                isRowHovered={isRowFilled}
+                isRowActive={isRowFilled}
+                asField={showFieldPills}
+              />
+            )}
+          </div>
+        </div>
+        <Separator
+          isRowHovered={isRowFilled}
+          isRowActive={isRowFilled}
+          hideLine={showFieldPills}
+          fillStart={!isRowFilled && isQtyEdited}
+          fillEnd={!isRowFilled && isUnitPriceEdited}
+        />
 
         <div
           style={isEditMode ? undefined : { width: UNIT_W }}
           className={cn(
-            'flex flex-col items-end gap-0.5 pl-3',
+            CELL_BOX,
+            'justify-end pl-3',
             !isEditMode && 'shrink-0'
           )}
         >
-          <div className="flex w-full items-center justify-end gap-2">
-            {item.rampPriceChange && !(isRowFilled && isActive) && (
+          {!isRowFilled && isUnitPriceEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] flex w-full items-center justify-end gap-2">
+            {item.rampPriceChange && !isRowFilled && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
             {isEditMode ? (
               <PriceField
                 value={item.unitPrice}
                 ariaLabel={`Unit price for ${item.name}`}
-                plain={!showFieldPills}
                 onCommit={(nextPrice) => {
                   recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
                   updateItems((prev) =>
@@ -2847,73 +3056,105 @@ export function ProductsPricingTable({
           </div>
         </div>
         {isEditMode ? (
-          <DiscountField
-            value={item.discount ?? ''}
-            unit={item.discountUnit ?? '%'}
-            plain={!showFieldPills}
-            onChange={({ value, unit }) => {
-              recordProductEdit(
-                editHistory,
-                item.id,
-                'Discount',
-                formatDiscount(item.discount, item.discountUnit),
-                formatDiscount(value, unit)
-              )
-              updateItems((prev) =>
-                prev.map((i) =>
-                  i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
-                )
-              )
-            }}
-          />
+          <div className={cn(CELL_BOX, 'min-w-0')}>
+            {isDiscountEdited ? <EditedCellFill /> : null}
+            <div className="relative z-[1] min-w-0 w-full">
+              <DiscountField
+                value={item.discount ?? ''}
+                unit={item.discountUnit ?? '%'}
+                onChange={({ value, unit }) => {
+                  recordProductEdit(
+                    editHistory,
+                    item.id,
+                    'Discount',
+                    formatDiscount(item.discount, item.discountUnit),
+                    formatDiscount(value, unit)
+                  )
+                  updateItems((prev) =>
+                    prev.map((i) =>
+                      i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
+                    )
+                  )
+                }}
+              />
+            </div>
+          </div>
         ) : null}
         {isEditMode ? (
-          <SelectField
-            value={hasDiscount ? (item.discountPeriod ?? 'None') : 'None'}
-            options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
-            ariaLabel={`Discount period for ${item.name}`}
-            disabled={!hasDiscount}
-            plain={!showFieldPills}
-            limitedPeriodOption={LIMITED_PERIOD_OPTION}
-            onChange={(next) => {
-              recordProductEdit(
-                editHistory,
-                item.id,
-                'Discount period',
-                item.discountPeriod ?? 'None',
-                next
-              )
-              updateItems((prev) =>
-                prev.map((i) =>
-                  i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
-                )
-              )
-            }}
-          />
+          <div className={cn(CELL_BOX, 'min-w-0')}>
+            {isDiscountPeriodEdited ? <EditedCellFill /> : null}
+            <div className="relative z-[1] min-w-0 w-full">
+              <SelectField
+                value={hasDiscount ? (item.discountPeriod ?? 'None') : 'None'}
+                options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
+                ariaLabel={`Discount period for ${item.name}`}
+                disabled={!hasDiscount}
+                plain={!showFieldPills}
+                limitedPeriodOption={LIMITED_PERIOD_OPTION}
+                onChange={(next) => {
+                  recordProductEdit(
+                    editHistory,
+                    item.id,
+                    'Discount period',
+                    item.discountPeriod ?? 'None',
+                    next
+                  )
+                  updateItems((prev) =>
+                    prev.map((i) =>
+                      i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
+                    )
+                  )
+                }}
+              />
+            </div>
+          </div>
         ) : null}
-        <Separator isRowHovered={isRowFilled} isRowActive={isRowFilled} hideLine={showFieldPills} />
+        <Separator
+          isRowHovered={isRowFilled}
+          isRowActive={isRowFilled}
+          hideLine={showFieldPills}
+          fillStart={!isRowFilled && (isEditMode ? isDiscountPeriodEdited : isUnitPriceEdited)}
+          fillEnd={!isRowFilled && isTotalEdited}
+        />
         <div
           style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
           className={cn(
-            'text-right text-[14px] font-medium transition-colors',
-            !isEditMode && 'flex shrink-0 items-center justify-end gap-1.5',
+            CELL_BOX,
+            'justify-end text-right text-[14px] font-medium transition-colors',
+            !isEditMode && 'shrink-0 gap-1.5',
             isRowFilled ? 'text-white' : 'text-brand-navy'
           )}
         >
-          {!isEditMode && hasDiscount && (
-            <DiscountBadge
-              isRowFilled={isRowFilled}
-              discount={item.discount}
-              discountUnit={item.discountUnit}
-              discountPeriod={item.discountPeriod}
-              baseAmount={item.totalPrice}
-            />
-          )}
-          {item.totalPrice}
+          {!isRowFilled && isTotalEdited ? <EditedCellFill /> : null}
+          <div className="relative z-[1] flex min-w-0 w-full items-center justify-end gap-1.5">
+            {!isEditMode && hasDiscount && (
+              <DiscountBadge
+                isRowFilled={isRowFilled}
+                discount={item.discount}
+                discountUnit={item.discountUnit}
+                discountPeriod={item.discountPeriod}
+                baseAmount={item.totalPrice}
+              />
+            )}
+            {isEditMode ? (
+              <PriceField
+                value={item.totalPrice}
+                ariaLabel={`Total price for ${item.name}`}
+                onCommit={(nextTotal) => {
+                  recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
+                  updateItems((prev) =>
+                    prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
+                  )
+                }}
+              />
+            ) : (
+              item.totalPrice
+            )}
+          </div>
         </div>
 
         <div
-          className={cn('flex items-center justify-end gap-0.5', !isEditMode && 'shrink-0')}
+          className={cn(CELL_BOX, 'justify-end gap-0.5', !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: MENU_W }}
         >
           {isExpandedVariant ? (
