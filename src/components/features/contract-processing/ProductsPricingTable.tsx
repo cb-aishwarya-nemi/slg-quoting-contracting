@@ -32,18 +32,39 @@ function isProductFieldEdited(
   return !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(itemId, field))
 }
 
-/** Full-bleed edited cell — stretches to the row border so amber isn't a text pill. */
-const CELL_BOX = 'relative flex min-h-0 items-center self-stretch py-1.5'
-/**
- * Sticky cells paint their own bottom edge so an opaque fill doesn't cover the
- * row’s `border-b`. Non-sticky cells rely on the parent stroke — putting the
- * line on every track turns the gutter rules into a full column grid.
- */
-const STICKY_CELL_ROW_STROKE = 'border-b border-neutral-100'
+/** Cell shell — vertical padding lives here unless the cell is edited. */
+const CELL_BOX = 'relative flex min-h-0 items-center self-stretch'
+const CELL_PAD_Y = 'py-1.5'
 /** Half of the separator track on each side of the 1px rule (`mx-3` ≡ 12px). */
 const SEPARATOR_GUTTER_PX = 12
 /** A separator's gutters plus its 1px rule. */
 const SEPARATOR_W = SEPARATOR_GUTTER_PX * 2 + 1
+
+/**
+ * Row rules live on the row box itself so sticky opaque cells can't paint over
+ * them. The row must be content-wide (the expanded scroller's inner track is
+ * `w-max`) — a viewport-wide row leaves Total/menu outside the stroke.
+ */
+const ROW_STROKE = 'border-b border-neutral-100'
+const HEADER_STROKE = 'border-b border-neutral-200'
+
+/** Cell chrome. Edited cells drop py so amber is flush to the row stroke. */
+function cellChrome(isEdited?: boolean, ...extra: Array<string | false | null | undefined>) {
+  return cn(CELL_BOX, isEdited ? 'py-0' : CELL_PAD_Y, ...extra)
+}
+
+/**
+ * Inline/edit cells keep the parent row `border-b`; only the vertical pad
+ * collapses when amber is showing so the fill meets the stroke.
+ */
+function cellBoxPad(isEdited?: boolean, ...extra: Array<string | false | null | undefined>) {
+  return cn(CELL_BOX, isEdited ? 'py-0' : CELL_PAD_Y, ...extra)
+}
+
+/** Inner content pad — restores the py that edited cells removed from the shell. */
+function cellInner(isEdited?: boolean, ...extra: Array<string | false | null | undefined>) {
+  return cn('relative z-[1]', isEdited && CELL_PAD_Y, ...extra)
+}
 
 /**
  * Amber fill clipped to the cell box. Gutter bridges to the column rule are
@@ -350,6 +371,44 @@ function parseLimitedPeriod(value: string) {
 function formatLimitedPeriod(count: string, unit: string) {
   const amount = Number.parseInt(count, 10)
   return `${amount} ${unit.toLowerCase()}${amount === 1 ? '' : 's'}`
+}
+
+/**
+ * Filling in Limited Period (e.g. "5 months") is normal configuration, not a
+ * field edit — skip amber / edit history for those values.
+ */
+function shouldRecordDiscountPeriodEdit(next: string) {
+  return parseLimitedPeriod(next) == null
+}
+
+/** Closed-cell label — bare "Limited Period" reads as the default duration. */
+function discountPeriodLabel(value?: string) {
+  if (!value || value === 'None') return value ?? 'None'
+  if (value === LIMITED_PERIOD_OPTION || /^limited\s*period$/i.test(value.trim())) {
+    return '5 months'
+  }
+  return value
+}
+
+/** Resolve legacy "Limited Period" placeholders into a concrete duration. */
+function resolveLineItemDiscountPeriod(item: ProductLineItem): ProductLineItem {
+  const raw = item.discountPeriod
+  if (raw == null) return item
+  const resolved = discountPeriodLabel(raw)
+  return resolved === raw ? item : { ...item, discountPeriod: resolved }
+}
+
+function resolveProductsData(
+  items: ProductLineItem[],
+  periods: RampPeriod[] | undefined
+): { items: ProductLineItem[]; periods: RampPeriod[] | undefined } {
+  return {
+    items: items.map(resolveLineItemDiscountPeriod),
+    periods: periods?.map((period) => ({
+      ...period,
+      items: period.items.map(resolveLineItemDiscountPeriod),
+    })),
+  }
 }
 
 /** Unit picker inside the limited-period step — kept inline so it can't close the parent menu. */
@@ -1014,27 +1073,16 @@ const TOTAL_INLINE_W = 172
 const MENU_W = 48
 /** The `pl-1 pr-2` every row carries. */
 const ROW_PAD_X = 12
+/** The `pl-1` half of it — the sticky Item cell's resting offset. */
+const ROW_PAD_LEFT = 4
 /** Expanded-state only — fixed width of the sticky first (Item / period) column.
  *  Sized to fit "Period N 📅 17 Jul 2026 to 17 Jun 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
 const EXPANDED_ITEM_W = 340
-/** `pl-1` on expanded rows — sticky Item starts after this inset. */
-const EXPANDED_ROW_PAD_L = 4
-
-/** How far the sticky-column shadow reaches into the scrolling columns. */
-const STICKY_SHADOW_W = 48
-/** Scroll distance over which the shadow deepens from resting to full strength. */
-const STICKY_SHADOW_RAMP = 48
-/** Resting strength while the columns sit at scroll origin. */
-const STICKY_SHADOW_REST = 0.42
-/** Vertical falloff so the shadow dissolves instead of ending on a hard line. */
-const STICKY_SHADOW_FADE_Y = 28
 
 /**
- * Expanded-state horizontal scroller. Renders one continuous soft shadow at the
- * sticky Item column’s right edge so the pin + scrollable remainder read clearly.
- * The overlay lives outside the scroll box — inside it, an absolute element would
- * scroll away with the columns — and it deepens as content slides underneath.
+ * Expanded-state horizontal scroller. Always owns overflow-x so `sticky left`
+ * on the Item column can pin; an inner track sizes to the columns.
  */
 function ExpandedScrollContainer({
   children,
@@ -1042,64 +1090,60 @@ function ExpandedScrollContainer({
   fullWidth,
 }: {
   children: ReactNode
-  /** Freeze shadow updates while a full-page morph is in flight. */
+  /** Suppress the pin cue mid-transition (edit mode collapsing). */
   pauseShadow?: boolean
-  /** Stretch rows to the container — used in the full-page expand view. */
+  /** Stretch the inner track to the container (full-page expand). */
   fullWidth?: boolean
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [strength, setStrength] = useState(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  /** Rows start at `pl-1`, so at rest the Item cell sits 4px in; it slides to 0 once pinned. */
+  const [pin, setPin] = useState({ hasOverflow: false, offset: ROW_PAD_LEFT })
 
   useEffect(() => {
-    const el = ref.current
+    const el = scrollRef.current
     if (!el) return
-
-    const sync = () => {
-      if (pauseShadow || fullWidth) {
-        setStrength(0)
-        return
-      }
-      if (el.scrollWidth - el.clientWidth <= 1) {
-        setStrength(0)
-        return
-      }
-      const progress = Math.min(1, el.scrollLeft / STICKY_SHADOW_RAMP)
-      setStrength(STICKY_SHADOW_REST + (1 - STICKY_SHADOW_REST) * progress)
-    }
-
+    const sync = () =>
+      setPin({
+        hasOverflow: el.scrollWidth - el.clientWidth > 1,
+        offset: Math.max(0, ROW_PAD_LEFT - el.scrollLeft),
+      })
     sync()
     el.addEventListener('scroll', sync, { passive: true })
-    const ro = new ResizeObserver(sync)
-    ro.observe(el)
+    window.addEventListener('resize', sync)
+    const observer = new ResizeObserver(sync)
+    observer.observe(el)
     return () => {
       el.removeEventListener('scroll', sync)
-      ro.disconnect()
+      window.removeEventListener('resize', sync)
+      observer.disconnect()
     }
-  }, [pauseShadow, fullWidth])
-
-  const verticalFade = `linear-gradient(to bottom, transparent 0, #000 ${STICKY_SHADOW_FADE_Y}px, #000 calc(100% - ${STICKY_SHADOW_FADE_Y}px), transparent 100%)`
+  }, [])
 
   return (
     <div className={cn('relative', fullWidth && 'w-full')}>
-      <div ref={ref} className={cn(fullWidth ? 'w-full' : 'overflow-x-auto')}>
-        {children}
+      <div ref={scrollRef} className="overflow-x-auto">
+        <div className={cn(fullWidth ? 'w-full min-w-full' : 'w-max min-w-full')}>
+          {children}
+        </div>
       </div>
-      {!fullWidth ? (
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-y-0 z-20 transition-opacity duration-300 ease-out"
-          style={{
-            left: EXPANDED_ROW_PAD_L + EXPANDED_ITEM_W,
-            width: STICKY_SHADOW_W,
-            opacity: strength,
-            // Long, low-alpha ramp so the edge feathers rather than casting a hard band.
-            background:
-              'linear-gradient(to right, rgba(28, 27, 46, 0.055) 0%, rgba(28, 27, 46, 0.038) 12%, rgba(28, 27, 46, 0.024) 28%, rgba(28, 27, 46, 0.012) 48%, rgba(28, 27, 46, 0.005) 70%, rgba(28, 27, 46, 0.001) 88%, rgba(28, 27, 46, 0) 100%)',
-            maskImage: verticalFade,
-            WebkitMaskImage: verticalFade,
-          }}
-        />
-      ) : null}
+      {/*
+       * Pin cue for the sticky Item column — shown whenever the table can
+       * scroll, not just once it has. A horizontal-only gradient (never a
+       * box-shadow) so the falloff can't bleed onto the row rules, and an
+       * overlay above the scrolling cells so values pass underneath it.
+       */}
+      <div
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-y-0 z-50 w-3 transition-opacity duration-150',
+          pin.hasOverflow && !pauseShadow && !fullWidth ? 'opacity-100' : 'opacity-0'
+        )}
+        style={{
+          left: EXPANDED_ITEM_W + pin.offset,
+          backgroundImage:
+            'linear-gradient(to right, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
+        }}
+      />
     </div>
   )
 }
@@ -1124,20 +1168,20 @@ const COLLAPSE_TRANSITION = `${COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
 const COLLAPSE_SETTLE_MS = COLLAPSE_MS + 40
 
 /**
- * Expanded-state full-page view — opacity + a hair of scale on a layer whose
- * layout never changes mid-flight. Geometric morphs read as janky here because
- * the panel's aspect ratio and column tracks would have to retarget every frame.
+ * Expanded-state full-page view — morph the fixed shell from the in-page table
+ * bounds to the viewport. Opacity-only felt like a snap because the table left
+ * the flow at 0 opacity and only then faded in at full size.
  */
-const FULLPAGE_EXPAND_MS = 320
+const FULLPAGE_EXPAND_MS = 420
 const FULLPAGE_EXPAND_TRANSITION = `${FULLPAGE_EXPAND_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`
-const FULLPAGE_COLLAPSE_MS = 260
+const FULLPAGE_COLLAPSE_MS = 340
 const FULLPAGE_COLLAPSE_TRANSITION = `${FULLPAGE_COLLAPSE_MS}ms cubic-bezier(0.4, 0, 0.2, 1)`
-const FULLPAGE_COLLAPSE_SETTLE_MS = FULLPAGE_COLLAPSE_MS + 30
-/** Resting scale before open / after close — enough to feel like depth, not a zoom. */
-const FULLPAGE_REST_SCALE = 0.985
+const FULLPAGE_COLLAPSE_SETTLE_MS = FULLPAGE_COLLAPSE_MS + 40
 const FULLPAGE_PAD_TOP = 32
 const FULLPAGE_PAD_X = 48
 const FULLPAGE_PAD_BOTTOM = 64
+/** Matches the table shell's `pl-6` hanging-icon gutter. */
+const FULLPAGE_ORIGIN_GUTTER = 24
 
 interface ExpandBounds {
   centerX: number
@@ -1684,8 +1728,8 @@ function RampPriceChangeBadge({ change }: { change: number }) {
   const Icon = isIncrease ? TrendingUp : TrendingDown
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700 group-hover:text-green-400">
-      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700 group-hover:text-green-400" />
+    <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
+      <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
       {Math.abs(change)}%
     </span>
   )
@@ -1748,7 +1792,9 @@ function DiscountBadge({
         </span>
         <span className="flex items-center justify-between gap-4">
           <span className="text-[11px] text-white/60">Period</span>
-          <span className="text-[11px] font-medium text-white">{discountPeriod ?? 'None'}</span>
+          <span className="text-[11px] font-medium text-white">
+            {discountPeriodLabel(discountPeriod ?? 'None')}
+          </span>
         </span>
       </span>
     </span>
@@ -1757,6 +1803,9 @@ function DiscountBadge({
 
 /** Use case switcher variants for this section — see UseCaseContext's `customer360` entry. */
 export type ProductsPricingVariant = 'edit-state' | 'expanded-state'
+
+/** Put on the Expand control so the table can measure origin before chrome unmounts. */
+export const PRODUCTS_PRICING_EXPAND_ATTR = 'data-products-pricing-expand'
 
 interface ProductsPricingTableProps {
   items: ProductLineItem[]
@@ -1793,8 +1842,17 @@ export function ProductsPricingTable({
 }: ProductsPricingTableProps) {
   const isExpandedVariant = variant === 'expanded-state'
   const editHistory = useOptionalFieldEditHistory()
-  const [items, setItems] = useState(initialItems)
-  const [periods, setPeriods] = useState(initialPeriods)
+  const resolvedInitial = resolveProductsData(initialItems, initialPeriods)
+  const [items, setItems] = useState(resolvedInitial.items)
+  const [periods, setPeriods] = useState(resolvedInitial.periods)
+
+  // Always re-resolve when props change — Fast Refresh can keep a stale snapshot
+  // where discountPeriod is still the legacy "Limited Period" placeholder.
+  useEffect(() => {
+    const next = resolveProductsData(initialItems, initialPeriods)
+    setItems(next.items)
+    setPeriods(next.periods)
+  }, [initialItems, initialPeriods])
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [lineItemEditRequest, setLineItemEditRequest] = useState<Record<string, number>>({})
@@ -1816,6 +1874,13 @@ export function ProductsPricingTable({
   const tableRootRef = useRef<HTMLDivElement>(null)
   const tableSpacerRef = useRef<HTMLDivElement>(null)
   const editBaseWidthRef = useRef<number | null>(null)
+  /** Origin captured on Expand pointerdown — before the header chrome unmounts. */
+  const pendingExpandOriginRef = useRef<{
+    top: number
+    left: number
+    width: number
+    height: number
+  } | null>(null)
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     if (initialPeriods) {
       return new Set(initialPeriods.map(p => p.id))
@@ -1833,20 +1898,27 @@ export function ProductsPricingTable({
   const enterEditMode = useCallback(() => {
     if (isEditMode) return
     const el = tableRootRef.current
-    if (el) {
+    const pending = pendingExpandOriginRef.current
+    pendingExpandOriginRef.current = null
+    if (pending) {
+      setEditLayout(pending)
+      editBaseWidthRef.current = pending.width - (isExpandedVariant ? FULLPAGE_ORIGIN_GUTTER : 0)
+    } else if (el) {
       const rect = el.getBoundingClientRect()
-      const origin = {
+      // Expanded full-page morph includes the hanging-icon gutter so the shell
+      // lines up with what the user sees (header uses -ml-6 into pl-6).
+      const gutter = isExpandedVariant ? FULLPAGE_ORIGIN_GUTTER : 0
+      setEditLayout({
         top: rect.top,
-        left: rect.left,
-        width: rect.width,
+        left: rect.left - gutter,
+        width: rect.width + gutter,
         height: rect.height,
-      }
-      setEditLayout(origin)
+      })
       editBaseWidthRef.current = rect.width
-      // Edit-state lift needs page bounds for the blur/card animation.
-      if (!isExpandedVariant) {
-        setEditBounds(measureExpandBounds())
-      }
+    }
+    // Edit-state lift needs page bounds for the blur/card animation.
+    if (!isExpandedVariant) {
+      setEditBounds(measureExpandBounds())
     }
     setEditExpanded(false)
     setEditAnimReady(false)
@@ -1855,6 +1927,29 @@ export function ProductsPricingTable({
     setIsEditMode(true)
     onLiftedChange?.(true)
   }, [isEditMode, isExpandedVariant, onLiftedChange])
+
+  // Capture origin on Expand pointerdown — runs before the click setState
+  // removes thumbnails / the button and shrinks the measured box.
+  useEffect(() => {
+    if (!isExpandedVariant) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (!target.closest(`[${PRODUCTS_PRICING_EXPAND_ATTR}]`)) return
+      const el = tableRootRef.current
+      if (!el || isEditMode) return
+      const rect = el.getBoundingClientRect()
+      const gutter = FULLPAGE_ORIGIN_GUTTER
+      pendingExpandOriginRef.current = {
+        top: rect.top,
+        left: rect.left - gutter,
+        width: rect.width + gutter,
+        height: rect.height,
+      }
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [isExpandedVariant, isEditMode])
 
   /** Drops the table out of the fixed layer and back into the page flow. */
   const finishExitEditMode = useCallback(() => {
@@ -1906,7 +2001,7 @@ export function ProductsPricingTable({
 
   // Expand / Shrink on the section header controls lift / full-page — never
   // auto-open on Expanded use case mount (default there is the sticky discount table).
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (lifted === undefined) return
     if (lifted && !isEditMode) enterEditMode()
     if (!lifted && isEditMode) exitEditMode()
@@ -1933,8 +2028,9 @@ export function ProductsPricingTable({
   }, [])
 
   // Resolve layout before enabling the open tween (edit lift + full-page morph).
-  // Expanded-state needs a painted origin frame first — otherwise the browser
-  // skips straight to the end and the morph reads as a snap.
+  // Paint one frame at the origin bounds with transitions off, then enable
+  // transitions and flip to the expanded target — otherwise the browser skips
+  // straight to the end and the morph reads as a snap.
   useLayoutEffect(() => {
     if (!isEditMode || editBaseWidthRef.current == null) return
     void tableRootRef.current?.offsetWidth
@@ -2360,10 +2456,11 @@ export function ProductsPricingTable({
   const expandedFullPageGridStyle = isFullPageExpanded
     ? {
         display: 'grid' as const,
-        // Tracks: item | frequency | rule | qty | rule | unit | rule |
+        // Tracks: item | rule | frequency | rule | qty | rule | unit | rule |
         // discount | rule | discount period | rule | total | menu
         gridTemplateColumns: [
           `minmax(0, ${EXPANDED_ITEM_W}fr)`,
+          `${SEPARATOR_W}px`,
           `minmax(0, ${PERIOD_W}fr)`,
           `${SEPARATOR_W}px`,
           `minmax(0, ${QTY_W}fr)`,
@@ -2387,7 +2484,8 @@ export function ProductsPricingTable({
   const renderExpandedTableHeader = () => (
     <div
       className={cn(
-        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        'relative items-center bg-white pb-2 pl-1 pr-2',
+        HEADER_STROKE,
         !isFullPageExpanded && 'flex'
       )}
       style={expandedFullPageGridStyle}
@@ -2395,18 +2493,19 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
         className={cn(
-          'sticky left-0 z-10 truncate bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'sticky left-0 z-30 bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0',
           isFullPageExpanded && 'min-w-0'
         )}
       >
-        Item
+        <span className="block truncate">Item</span>
       </div>
+      {isFullPageExpanded ? <GhostSeparator /> : null}
       <div
         style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
         className={cn(
-          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
-          !isFullPageExpanded && 'shrink-0'
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'pl-3 shrink-0'
         )}
       >
         Frequency
@@ -2480,7 +2579,8 @@ export function ProductsPricingTable({
   ) => (
     <div
       className={cn(
-        'items-center border-b border-neutral-200 pb-2 pl-1 pr-2',
+        'relative items-center bg-white pb-2 pl-1 pr-2',
+        HEADER_STROKE,
         !isFullPageExpanded && 'flex'
       )}
       style={expandedFullPageGridStyle}
@@ -2488,25 +2588,28 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
         className={cn(
-          'sticky left-0 z-10 flex min-w-0 items-center overflow-hidden bg-white',
+          'sticky left-0 z-30 flex min-w-0 items-center bg-white',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
-        <PeriodChevron isExpanded onToggle={onToggle} hangIcon={false} />
-        <PeriodIdentity
-          period={period}
-          onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
-          autoOpenStartDate={openStartDatePeriodId === period.id}
-          onStartDatePickerClose={() => {
-            if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
-          }}
-        />
+        <div className="flex min-w-0 flex-1 items-center overflow-hidden">
+          <PeriodChevron isExpanded onToggle={onToggle} hangIcon={false} />
+          <PeriodIdentity
+            period={period}
+            onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
+            autoOpenStartDate={openStartDatePeriodId === period.id}
+            onStartDatePickerClose={() => {
+              if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
+            }}
+          />
+        </div>
       </div>
+      {isFullPageExpanded ? <GhostSeparator /> : null}
       <div
         style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
         className={cn(
-          'pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
-          !isFullPageExpanded && 'shrink-0'
+          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          !isFullPageExpanded && 'pl-3 shrink-0'
         )}
       >
         Frequency
@@ -2597,28 +2700,28 @@ export function ProductsPricingTable({
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail items-stretch border-b border-neutral-100 pl-1 pr-2',
+          'group row-hover-trail relative items-stretch bg-white pl-1 pr-2',
+          ROW_STROKE,
           !isFullPageExpanded && 'flex',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
-          activeRowId === item.id && 'relative z-40'
+          activeRowId === item.id && 'z-40'
         )}
         style={expandedFullPageGridStyle}
       >
         {/* Item — pinned to the left of the scrollable group */}
         <div
           style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
-          className={cn(
-            CELL_BOX,
-            STICKY_CELL_ROW_STROKE,
+          className={cellChrome(
+            isItemEdited,
             'sticky left-0 min-w-0',
             !isFullPageExpanded && 'shrink-0',
-            activeRowId === item.id ? 'z-40' : 'z-10',
+            activeRowId === item.id ? 'z-40' : 'z-30',
             isItemEdited ? 'bg-amber-50' : 'bg-white'
           )}
         >
           {isItemEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 flex-1">
+          <div className={cellInner(isItemEdited, 'min-w-0 flex-1')}>
             <ItemNameButton
               name={item.name}
               isAttention={isAttention}
@@ -2655,17 +2758,20 @@ export function ProductsPricingTable({
             />
           </div>
         </div>
+        {isFullPageExpanded ? (
+          <Separator fillStart={isItemEdited} fillEnd={isFrequencyEdited} />
+        ) : null}
 
         <div
-          className={cn(
-            CELL_BOX,
-            'min-w-0 pl-3',
-            !isFullPageExpanded && 'shrink-0'
+          className={cellChrome(
+            isFrequencyEdited,
+            'min-w-0',
+            !isFullPageExpanded && 'pl-3 shrink-0'
           )}
           style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
         >
           {isFrequencyEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(isFrequencyEdited, 'min-w-0 w-full')}>
             <InteractiveMiniDropdown
               label={item.billingPeriod}
               options={BILLING_PERIODS}
@@ -2681,11 +2787,11 @@ export function ProductsPricingTable({
         </div>
         <Separator fillStart={isFrequencyEdited} fillEnd={isQtyEdited} />
         <div
-          className={cn(CELL_BOX, !isFullPageExpanded && 'shrink-0')}
+          className={cellChrome(isQtyEdited, !isFullPageExpanded && 'shrink-0')}
           style={isFullPageExpanded ? undefined : { width: QTY_W }}
         >
           {isQtyEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(isQtyEdited, 'min-w-0 w-full')}>
             <InteractiveMiniDropdown
               label={item.quantity}
               options={quantityOptions}
@@ -2711,14 +2817,14 @@ export function ProductsPricingTable({
 
         <div
           style={isFullPageExpanded ? undefined : { width: UNIT_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellChrome(
+            isUnitPriceEdited,
             'min-w-0 justify-end pl-3',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
           {isUnitPriceEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] flex w-full items-center justify-end gap-2">
+          <div className={cellInner(isUnitPriceEdited, 'flex w-full items-center justify-end gap-2')}>
             {item.rampPriceChange && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
@@ -2746,14 +2852,14 @@ export function ProductsPricingTable({
         <Separator fillStart={isUnitPriceEdited} fillEnd={isDiscountEdited} />
         <div
           style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellChrome(
+            isDiscountEdited,
             'min-w-0 justify-end',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
           {isDiscountEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(isDiscountEdited, 'min-w-0 w-full')}>
             <DiscountField
               value={item.discount ?? ''}
               unit={item.discountUnit ?? '%'}
@@ -2777,28 +2883,32 @@ export function ProductsPricingTable({
         <Separator fillStart={isDiscountEdited} fillEnd={isDiscountPeriodEdited} />
         <div
           style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellChrome(
+            isDiscountPeriodEdited,
             'min-w-0',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
           {isDiscountPeriodEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(isDiscountPeriodEdited, 'min-w-0 w-full')}>
             <InteractiveMiniDropdown
-              label={hasDiscount ? (item.discountPeriod ?? 'None') : '–'}
+              label={
+                hasDiscount ? discountPeriodLabel(item.discountPeriod ?? 'None') : '–'
+              }
               options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
               ariaLabel={`Discount period for ${item.name}`}
               disabled={!hasDiscount}
               limitedPeriodOption={LIMITED_PERIOD_OPTION}
               onSelect={(next) => {
-                recordProductEdit(
-                  editHistory,
-                  item.id,
-                  'Discount period',
-                  item.discountPeriod ?? 'None',
-                  next
-                )
+                if (shouldRecordDiscountPeriodEdit(next)) {
+                  recordProductEdit(
+                    editHistory,
+                    item.id,
+                    'Discount period',
+                    item.discountPeriod ?? 'None',
+                    next
+                  )
+                }
                 updateItems((prev) =>
                   prev.map((i) =>
                     i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
@@ -2812,14 +2922,14 @@ export function ProductsPricingTable({
         <Separator fillStart={isDiscountPeriodEdited} fillEnd={isTotalEdited} />
         <div
           style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellChrome(
+            isTotalEdited,
             'min-w-0 justify-end',
             !isFullPageExpanded && 'shrink-0'
           )}
         >
           {isTotalEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(isTotalEdited, 'min-w-0 w-full')}>
             <PriceField
               value={item.totalPrice}
               ariaLabel={`Total price for ${item.name}`}
@@ -2836,9 +2946,8 @@ export function ProductsPricingTable({
         {/* Ellipsis menu — pinned to the right of the scrollable group */}
         <div
           style={isFullPageExpanded ? undefined : { width: MENU_W }}
-          className={cn(
-            CELL_BOX,
-            STICKY_CELL_ROW_STROKE,
+          className={cellChrome(
+            false,
             'sticky right-0 z-10 justify-end bg-white',
             !isFullPageExpanded && 'shrink-0'
           )}
@@ -2893,9 +3002,9 @@ export function ProductsPricingTable({
         style={editRowGridStyle}
       >
         {/* Item */}
-        <div className={cn(CELL_BOX, 'min-w-0 flex-1')}>
+        <div className={cellBoxPad(!isRowFilled && isItemEdited, 'min-w-0 flex-1')}>
           {!isRowFilled && isItemEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 flex-1">
+          <div className={cellInner(!isRowFilled && isItemEdited, 'min-w-0 flex-1')}>
             <ItemNameButton
               name={item.name}
               isAttention={isAttention}
@@ -2929,11 +3038,15 @@ export function ProductsPricingTable({
         </div>
 
         <div
-          className={cn(CELL_BOX, 'pl-3', !isEditMode && 'shrink-0')}
+          className={cellBoxPad(
+            !isRowFilled && isFrequencyEdited,
+            'pl-3',
+            !isEditMode && 'shrink-0'
+          )}
           style={isEditMode ? undefined : { width: PERIOD_W }}
         >
           {!isRowFilled && isFrequencyEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(!isRowFilled && isFrequencyEdited, 'min-w-0 w-full')}>
             {isExpandedVariant && isEditMode ? (
               <InteractiveMiniDropdown
                 label={item.billingPeriod}
@@ -2964,11 +3077,11 @@ export function ProductsPricingTable({
           fillEnd={!isRowFilled && isQtyEdited}
         />
         <div
-          className={cn(CELL_BOX, !isEditMode && 'shrink-0')}
+          className={cellBoxPad(!isRowFilled && isQtyEdited, !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: QTY_W }}
         >
           {!isRowFilled && isQtyEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] min-w-0 w-full">
+          <div className={cellInner(!isRowFilled && isQtyEdited, 'min-w-0 w-full')}>
             {isExpandedVariant && isEditMode ? (
               <InteractiveMiniDropdown
                 label={item.quantity}
@@ -3013,14 +3126,19 @@ export function ProductsPricingTable({
 
         <div
           style={isEditMode ? undefined : { width: UNIT_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellBoxPad(
+            !isRowFilled && isUnitPriceEdited,
             'justify-end pl-3',
             !isEditMode && 'shrink-0'
           )}
         >
           {!isRowFilled && isUnitPriceEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] flex w-full items-center justify-end gap-2">
+          <div
+            className={cellInner(
+              !isRowFilled && isUnitPriceEdited,
+              'flex w-full items-center justify-end gap-2'
+            )}
+          >
             {item.rampPriceChange && !isRowFilled && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
@@ -3056,9 +3174,9 @@ export function ProductsPricingTable({
           </div>
         </div>
         {isEditMode ? (
-          <div className={cn(CELL_BOX, 'min-w-0')}>
+          <div className={cellBoxPad(isDiscountEdited, 'min-w-0')}>
             {isDiscountEdited ? <EditedCellFill /> : null}
-            <div className="relative z-[1] min-w-0 w-full">
+            <div className={cellInner(isDiscountEdited, 'min-w-0 w-full')}>
               <DiscountField
                 value={item.discount ?? ''}
                 unit={item.discountUnit ?? '%'}
@@ -3081,24 +3199,30 @@ export function ProductsPricingTable({
           </div>
         ) : null}
         {isEditMode ? (
-          <div className={cn(CELL_BOX, 'min-w-0')}>
+          <div className={cellBoxPad(isDiscountPeriodEdited, 'min-w-0')}>
             {isDiscountPeriodEdited ? <EditedCellFill /> : null}
-            <div className="relative z-[1] min-w-0 w-full">
+            <div className={cellInner(isDiscountPeriodEdited, 'min-w-0 w-full')}>
               <SelectField
-                value={hasDiscount ? (item.discountPeriod ?? 'None') : 'None'}
+                value={
+                  hasDiscount
+                    ? discountPeriodLabel(item.discountPeriod ?? 'None')
+                    : '–'
+                }
                 options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
                 ariaLabel={`Discount period for ${item.name}`}
                 disabled={!hasDiscount}
                 plain={!showFieldPills}
                 limitedPeriodOption={LIMITED_PERIOD_OPTION}
                 onChange={(next) => {
-                  recordProductEdit(
-                    editHistory,
-                    item.id,
-                    'Discount period',
-                    item.discountPeriod ?? 'None',
-                    next
-                  )
+                  if (shouldRecordDiscountPeriodEdit(next)) {
+                    recordProductEdit(
+                      editHistory,
+                      item.id,
+                      'Discount period',
+                      item.discountPeriod ?? 'None',
+                      next
+                    )
+                  }
                   updateItems((prev) =>
                     prev.map((i) =>
                       i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
@@ -3118,15 +3242,20 @@ export function ProductsPricingTable({
         />
         <div
           style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
-          className={cn(
-            CELL_BOX,
+          className={cellBoxPad(
+            !isRowFilled && isTotalEdited,
             'justify-end text-right text-[14px] font-medium transition-colors',
             !isEditMode && 'shrink-0 gap-1.5',
             isRowFilled ? 'text-white' : 'text-brand-navy'
           )}
         >
           {!isRowFilled && isTotalEdited ? <EditedCellFill /> : null}
-          <div className="relative z-[1] flex min-w-0 w-full items-center justify-end gap-1.5">
+          <div
+            className={cellInner(
+              !isRowFilled && isTotalEdited,
+              'flex min-w-0 w-full items-center justify-end gap-1.5'
+            )}
+          >
             {!isEditMode && hasDiscount && (
               <DiscountBadge
                 isRowFilled={isRowFilled}
@@ -3154,7 +3283,7 @@ export function ProductsPricingTable({
         </div>
 
         <div
-          className={cn(CELL_BOX, 'justify-end gap-0.5', !isEditMode && 'shrink-0')}
+          className={cellBoxPad(false, 'justify-end gap-0.5', !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: MENU_W }}
         >
           {isExpandedVariant ? (
@@ -3223,12 +3352,22 @@ export function ProductsPricingTable({
   const wrapTableShell = (content: ReactNode) => {
     const isOverlayOpen = isEditMode && editLayout != null
 
-    // Expanded-state full page. The layer is laid out at its final size from the
-    // first frame and only opacity/scale animate, so open and close are one
-    // uninterrupted motion in both directions.
+    // Expanded-state full page — morph the shell from the in-page origin rect
+    // to the viewport so the table never disappears and pops back in.
     if (isExpandedVariant) {
       const isFull = isOverlayOpen && editExpanded
       const timing = isCollapsing ? FULLPAGE_COLLAPSE_TRANSITION : FULLPAGE_EXPAND_TRANSITION
+      const viewportW = typeof window !== 'undefined' ? window.innerWidth : 0
+      const viewportH = typeof window !== 'undefined' ? window.innerHeight : 0
+      const shellTransition = editAnimReady
+        ? [
+            `top ${timing}`,
+            `left ${timing}`,
+            `width ${timing}`,
+            `height ${timing}`,
+            `padding ${timing}`,
+          ].join(', ')
+        : 'none'
 
       return (
         <div className="overflow-visible pl-6">
@@ -3239,7 +3378,7 @@ export function ProductsPricingTable({
               aria-hidden
             />
           ) : null}
-          {/* Page veil — hides the page behind the panel as it resolves. */}
+          {/* Page veil — softens the page behind the growing panel. */}
           {isOverlayOpen ? (
             <div
               aria-hidden
@@ -3256,7 +3395,7 @@ export function ProductsPricingTable({
               'bg-white',
               isOverlayOpen
                 ? cn(
-                    'fixed inset-0 z-[60] flex flex-col',
+                    'fixed z-[60] flex flex-col',
                     isFull ? 'overflow-y-auto' : 'overflow-hidden'
                   )
                 : 'relative z-0 w-full'
@@ -3264,21 +3403,32 @@ export function ProductsPricingTable({
             style={
               isOverlayOpen
                 ? {
-                    padding: `${FULLPAGE_PAD_TOP}px ${FULLPAGE_PAD_X}px ${FULLPAGE_PAD_BOTTOM}px`,
-                    transformOrigin: 'center top',
-                    opacity: isFull ? 1 : 0,
-                    transform: isFull ? 'scale(1)' : `scale(${FULLPAGE_REST_SCALE})`,
-                    transition: editAnimReady
-                      ? `opacity ${timing}, transform ${timing}`
-                      : 'none',
-                    willChange: 'opacity, transform',
+                    top: isFull ? 0 : editLayout.top,
+                    left: isFull ? 0 : editLayout.left,
+                    width: isFull ? viewportW : editLayout.width,
+                    height: isFull ? viewportH : editLayout.height,
+                    padding: isFull
+                      ? `${FULLPAGE_PAD_TOP}px ${FULLPAGE_PAD_X}px ${FULLPAGE_PAD_BOTTOM}px`
+                      : `0px 0px 0px ${FULLPAGE_ORIGIN_GUTTER}px`,
+                    transition: shellTransition,
+                    willChange: 'top, left, width, height, padding',
                     pointerEvents: isCollapsing ? 'none' : undefined,
                   }
                 : undefined
             }
           >
             {isOverlayOpen ? (
-              <div className="flex shrink-0 items-start justify-between gap-4" style={{ marginBottom: fullPageTitle ? 24 : 0 }}>
+              <div
+                className="flex shrink-0 items-start justify-between gap-4 overflow-hidden"
+                style={{
+                  minHeight: isFull ? 32 : 0,
+                  marginBottom: isFull && fullPageTitle ? 24 : 0,
+                  opacity: isFull ? 1 : 0,
+                  transition: editAnimReady
+                    ? `opacity ${timing}, min-height ${timing}, margin-bottom ${timing}`
+                    : 'none',
+                }}
+              >
                 {fullPageTitle ? (
                   <h1
                     className="font-heading min-w-0 text-[18px] font-semibold text-brand-navy"
@@ -3303,7 +3453,7 @@ export function ProductsPricingTable({
             {header ? (
               <div className={cn('mb-6', !isOverlayOpen && '-ml-6')}>{header}</div>
             ) : null}
-            <div className={cn(isOverlayOpen && 'min-w-0')}>{content}</div>
+            <div className={cn(isOverlayOpen && 'min-w-0 flex-1')}>{content}</div>
           </div>
         </div>
       )

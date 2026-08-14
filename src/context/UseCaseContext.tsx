@@ -40,7 +40,7 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'customer360',
     label: 'Products & Pricing',
-    defaultVariant: 'edit-state',
+    defaultVariant: 'expanded-state',
     variants: [
       {
         id: 'edit-state',

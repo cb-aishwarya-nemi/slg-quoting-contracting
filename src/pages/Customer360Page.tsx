@@ -646,6 +646,7 @@ export function Customer360Page() {
                     onResolve={handleResolveComment}
                   >
                     <ProductsPricingTable
+                      key="products-pricing-discount-period-v2"
                       items={data.products}
                       periods={data.rampPeriods}
                       variant={productsPricingVariant}
@@ -678,6 +679,7 @@ export function Customer360Page() {
                               !isProductsLifted ? (
                                 <button
                                   type="button"
+                                  data-products-pricing-expand=""
                                   onClick={() => setIsProductsLifted(true)}
                                   className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
                                   aria-label="Expand products and pricing"
