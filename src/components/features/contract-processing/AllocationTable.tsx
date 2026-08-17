@@ -51,7 +51,7 @@ export function AllocationTable({ items }: AllocationTableProps) {
         style={{ gridTemplateColumns: COLS }}
       >
         <div className="pr-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Feature/Credit
+          Entitlement/Credit
         </div>
         <div className="pl-3 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
           Item
@@ -125,7 +125,7 @@ export function AllocationTable({ items }: AllocationTableProps) {
                     </div>
                     <div
                       className={cn(
-                        'flex items-center justify-end py-1.5 text-[14px] font-medium tabular-nums text-brand-navy',
+                        'flex items-center justify-end py-1.5 text-[14px] tabular-nums text-brand-navy',
                         showItemRule && 'border-b border-neutral-100'
                       )}
                     >

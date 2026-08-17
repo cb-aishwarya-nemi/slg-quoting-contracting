@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus, Expand } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -66,7 +66,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
-  { id: 'allocation', label: 'Allocation', status: 'neutral' },
+  { id: 'allocation', label: 'Entitlements and credits', status: 'neutral' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
@@ -720,29 +720,31 @@ export function Customer360Page() {
                   </ContractSectionRow>
                 </section>
 
-                {/* Allocation */}
+                {/* Entitlements and credits */}
                 <section ref={setSectionRef('allocation')} className="group/section">
                   <ContractSectionRow
                     sectionId="allocation"
-                    sectionLabel="Allocation"
+                    sectionLabel="Entitlements and credits"
                     isPanelsExpanded={isPanelsExpanded}
                     comments={commentsBySection['allocation'] ?? []}
-                    onAddNote={(text, status) => handleAddComment('allocation', 'Allocation', text, status)}
+                    onAddNote={(text, status) =>
+                      handleAddComment('allocation', 'Entitlements and credits', text, status)
+                    }
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
                   >
                     <SectionHeader
-                      title="Allocation"
+                      title="Entitlements and credits"
                       isFlashing={false}
                       commentCount={commentCountsBySection['allocation']}
                       trailing={
                         <button
                           type="button"
                           className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
-                          aria-label="Expand allocation"
+                          aria-label="Expand entitlements and credits"
                           title="Expand"
                         >
-                          <Expand size={14} strokeWidth={2} />
+                          <Maximize2 size={14} strokeWidth={2} />
                         </button>
                       }
                     />
