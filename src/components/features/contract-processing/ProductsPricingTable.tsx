@@ -1062,7 +1062,8 @@ function ItemNameButton({
 
 const PERIOD_W = 96
 const QTY_W = 60
-const UNIT_W = 110
+/** Fits `$2,568.00` beside a ramp badge (`↑ 7%`) without truncating the price. */
+const UNIT_W = 152
 /** Edit-mode-only column between unit price and total — fits the amount + unit control. */
 const DISCOUNT_W = 78
 /** Edit-mode-only column for how long the discount runs. */

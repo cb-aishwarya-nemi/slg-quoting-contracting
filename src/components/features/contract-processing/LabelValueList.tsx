@@ -8,8 +8,11 @@ import { AttentionFlagIcon } from './AttentionFlagIcon'
 import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
 import { ACTIVE_FIELD_STYLE } from './fieldStyles'
+import { DatePickerField } from './DatePickerField'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
+
+const DATE_FIELD_LABELS = new Set(['Effective date', 'End date'])
 
 function getUnresolvedMessage(label: string): string {
   return `Data not found. Enter ${label.toLowerCase()}.`
@@ -140,12 +143,14 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         ? ACCOUNT_NAME_OPTIONS
         : undefined
   const isSelect = !!options
+  const isDateField = DATE_FIELD_LABELS.has(item.label)
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
   const isEdited =
     !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
+  const [dateActive, setDateActive] = useState(false)
   const [editValue, setEditValue] = useState(item.value)
   const [accountSearch, setAccountSearch] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -156,10 +161,10 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
     setEditValue(item.value)
   }, [item.value])
 
-  // Dropdown fields never use the text-input edit path.
+  // Dropdown / date fields never use the plain text-input edit path.
   useEffect(() => {
-    if (isSelect) setIsEditing(false)
-  }, [isSelect])
+    if (isSelect || isDateField) setIsEditing(false)
+  }, [isSelect, isDateField])
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -179,8 +184,9 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   }, [isOpen, item.label])
 
   const handleRowClick = () => {
-    if (isEditing || isOpen) return
+    if (isEditing || isOpen || dateActive) return
     if (isSelect) setIsOpen(true)
+    else if (isDateField) setDateActive(true)
     else {
       setEditValue(item.value)
       setIsEditing(true)
@@ -372,15 +378,15 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
       onClick={handleRowClick}
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
-        isEdited && !isEditing && !isOpen && 'bg-amber-50',
-        !isEditing && !isOpen && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
+        isEdited && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
+        !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
     >
       <div
         className={cn(
           'relative z-10 flex w-[210px] shrink-0 items-center',
-          !isEditing && !isOpen && 'group-hover:[&_.label-text]:text-white'
+          !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
         )}
       >
         <span className={FLAG_SLOT}>
@@ -391,7 +397,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         <span
           className={cn(
             'label-text min-w-0 flex-1 text-left text-[12px] uppercase tracking-[-0.25px] text-brand-navy transition-colors',
-            (isEditing || isOpen) && 'text-brand-navy'
+            (isEditing || isOpen || dateActive) && 'text-brand-navy'
           )}
         >
           {item.label}
@@ -444,6 +450,14 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
               {getUnresolvedMessage(item.label)}
             </span>
           )
+        ) : isDateField ? (
+          <DatePickerField
+            value={item.value}
+            active={dateActive}
+            onActiveChange={setDateActive}
+            ariaLabel={item.label}
+            onChange={(next) => commitValue(next)}
+          />
         ) : isSelect ? (
           <div className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
@@ -495,7 +509,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {!isEditing && !isOpen && (
+          {!isEditing && !isOpen && !dateActive && (
             onRemove ? (
               <button
                 type="button"
