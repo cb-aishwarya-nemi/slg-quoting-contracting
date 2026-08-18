@@ -129,14 +129,14 @@ export function InvoicePreview({ isFlashing, invoiceLevelDiscount }: InvoicePrev
             <span className="text-[13px] text-brand-fog">Subtotal</span>
             <span className="text-[14px] text-brand-navy">{formatMoney(subtotal)}</span>
           </div>
-          <div className="flex w-[280px] items-center justify-between">
-            <span className="text-[13px] text-brand-fog">Additional discount</span>
-            <span className="text-[14px] text-brand-navy">
-              {discount > 0
-                ? `(${formatMoney(discount).replace('$', '$ ')})`
-                : formatMoney(0)}
-            </span>
-          </div>
+          {discount > 0 ? (
+            <div className="flex w-[280px] items-center justify-between">
+              <span className="text-[13px] text-brand-fog">Additional discount</span>
+              <span className="text-[14px] text-brand-navy">
+                {`(${formatMoney(discount).replace('$', '$ ')})`}
+              </span>
+            </div>
+          ) : null}
           <div className="flex w-[280px] items-center justify-between">
             <span className="text-[13px] text-brand-fog">Tax</span>
             <span className="text-[14px] text-brand-navy">{formatMoney(tax)}</span>
