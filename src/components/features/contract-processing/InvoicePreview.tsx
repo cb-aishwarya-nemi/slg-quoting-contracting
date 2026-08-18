@@ -22,6 +22,13 @@ function formatMoney(amount: number): string {
   return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
+function invoiceDiscountLabel(discount: InvoiceLevelDiscount): string {
+  const raw = parseFloat(discount.value)
+  if (!Number.isFinite(raw) || raw <= 0) return ''
+  if (discount.unit === 'USD') return `${formatMoney(raw)} off`
+  return `${raw}% off`
+}
+
 function invoiceDiscountDollars(
   discount: InvoiceLevelDiscount | null | undefined,
   subtotal: number
@@ -129,9 +136,11 @@ export function InvoicePreview({ isFlashing, invoiceLevelDiscount }: InvoicePrev
             <span className="text-[13px] text-brand-fog">Subtotal</span>
             <span className="text-[14px] text-brand-navy">{formatMoney(subtotal)}</span>
           </div>
-          {discount > 0 ? (
+          {discount > 0 && invoiceLevelDiscount ? (
             <div className="flex w-[280px] items-center justify-between">
-              <span className="text-[13px] text-brand-fog">Additional discount</span>
+              <span className="text-[13px] text-brand-fog">
+                {invoiceDiscountLabel(invoiceLevelDiscount)}
+              </span>
               <span className="text-[14px] text-brand-navy">
                 {`(${formatMoney(discount).replace('$', '$ ')})`}
               </span>
