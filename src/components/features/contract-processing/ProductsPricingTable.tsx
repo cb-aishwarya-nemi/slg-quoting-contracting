@@ -709,7 +709,7 @@ function formatNegativeCurrency(amount: number): string {
 function createOverallDiscountItem(periodId: string): ProductLineItem {
   return {
     id: `overall-discount-${periodId}`,
-    name: 'Overall discount',
+    name: 'Invoice level discount',
     status: 'ready',
     billingPeriod: '',
     quantity: '',
@@ -883,9 +883,7 @@ function DiscountField({
   }, [showField])
 
   const commit = (nextValue = draft, nextUnit = unit) => {
-    if (!forceField) {
-      setIsEditing(false)
-    }
+    setIsEditing(false)
     setIsUnitOpen(false)
     const normalized = nextValue === '' ? (forceField ? '0' : nextValue) : nextValue
     setDraft(normalized)
@@ -896,7 +894,7 @@ function DiscountField({
 
   const cancel = () => {
     setDraft(value || (forceField ? '0' : value))
-    if (!forceField) setIsEditing(false)
+    setIsEditing(false)
     setIsUnitOpen(false)
   }
 
@@ -1829,7 +1827,7 @@ function PeriodOptionsMenu({
               }}
               className="flex w-full cursor-pointer px-3 py-2 text-left text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
             >
-              Add overall discount
+              Add invoice level discount
             </button>
           ) : null}
           <button
@@ -2046,6 +2044,8 @@ interface ProductsPricingTableProps {
   /** Controlled expand — Expand/Shrink (window/item-pinned) or lift (discount tag). */
   lifted?: boolean
   onLiftedChange?: (lifted: boolean) => void
+  /** First-period invoice-level discount so Invoice preview can tally totals. */
+  onInvoiceLevelDiscountChange?: (discount: { value: string; unit: DiscountUnit } | null) => void
 }
 
 export function ProductsPricingTable({
@@ -2056,6 +2056,7 @@ export function ProductsPricingTable({
   variant = 'edit-state',
   lifted,
   onLiftedChange,
+  onInvoiceLevelDiscountChange,
 }: ProductsPricingTableProps) {
   const isExpandedVariant = variant === 'expanded-state' || variant === 'item-pinned'
   /** Window table pins Total + ellipsis and shows the right pin cue. */
@@ -2074,6 +2075,21 @@ export function ProductsPricingTable({
     setItems(next.items)
     setPeriods(next.periods)
   }, [initialItems, initialPeriods])
+
+  useEffect(() => {
+    if (!onInvoiceLevelDiscountChange) return
+    const source = periods?.[0]?.items ?? items
+    const row = source.find((item) => item.isOverallDiscount)
+    const raw = parseFloat(row?.discount ?? '')
+    if (!row || !Number.isFinite(raw) || raw <= 0) {
+      onInvoiceLevelDiscountChange(null)
+      return
+    }
+    onInvoiceLevelDiscountChange({
+      value: row.discount ?? '0',
+      unit: row.discountUnit ?? '%',
+    })
+  }, [items, periods, onInvoiceLevelDiscountChange])
   const [activeRowId, setActiveRowId] = useState<string | null>(null)
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
   const [lineItemEditRequest, setLineItemEditRequest] = useState<Record<string, number>>({})
@@ -3124,7 +3140,7 @@ export function ProductsPricingTable({
               }
               placeholder="Select"
               options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
-              ariaLabel="Overall discount period"
+              ariaLabel="Invoice level discount period"
               limitedPeriodOption={LIMITED_PERIOD_OPTION}
               onSelect={(next) => {
                 updateItems((prev) =>
@@ -3557,7 +3573,7 @@ export function ProductsPricingTable({
                     }
                     placeholder="Select"
                     options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
-                    ariaLabel="Overall discount period"
+                    ariaLabel="Invoice level discount period"
                     plain={!showFieldPills}
                     limitedPeriodOption={LIMITED_PERIOD_OPTION}
                     onChange={(next) => {

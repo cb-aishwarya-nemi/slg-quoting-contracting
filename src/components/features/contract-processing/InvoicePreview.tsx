@@ -3,12 +3,42 @@ import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 
 const FIRST_INVOICE_ID = 'INV-2026-0042'
 
-interface InvoicePreviewProps {
-  isFlashing?: boolean
+export interface InvoiceLevelDiscount {
+  value: string
+  unit: '%' | 'USD'
 }
 
-export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
+interface InvoicePreviewProps {
+  isFlashing?: boolean
+  invoiceLevelDiscount?: InvoiceLevelDiscount | null
+}
+
+function parseMoney(value: string): number {
+  const amount = parseFloat(value.replace(/[^\d.]/g, ''))
+  return Number.isFinite(amount) ? amount : 0
+}
+
+function formatMoney(amount: number): string {
+  return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+function invoiceDiscountDollars(
+  discount: InvoiceLevelDiscount | null | undefined,
+  subtotal: number
+): number {
+  if (!discount) return 0
+  const raw = parseFloat(discount.value)
+  if (!Number.isFinite(raw) || raw <= 0) return 0
+  if (discount.unit === 'USD') return Math.min(raw, subtotal)
+  return subtotal * (raw / 100)
+}
+
+export function InvoicePreview({ isFlashing, invoiceLevelDiscount }: InvoicePreviewProps) {
   const invoice = scheduledInvoices[FIRST_INVOICE_ID]
+  const subtotal = parseMoney(invoice.subtotal)
+  const tax = parseMoney(invoice.tax)
+  const discount = invoiceDiscountDollars(invoiceLevelDiscount, subtotal)
+  const total = subtotal - discount + tax
 
   return (
     <div className="group/section">
@@ -97,15 +127,25 @@ export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
         <div className="mt-4 flex flex-col items-end gap-2">
           <div className="flex w-[280px] items-center justify-between">
             <span className="text-[13px] text-brand-fog">Subtotal</span>
-            <span className="text-[14px] text-brand-navy">{invoice.subtotal}</span>
+            <span className="text-[14px] text-brand-navy">{formatMoney(subtotal)}</span>
+          </div>
+          <div className="flex w-[280px] items-center justify-between">
+            <span className="text-[13px] text-brand-fog">Additional discount</span>
+            <span className="text-[14px] text-brand-navy">
+              {discount > 0
+                ? `(${formatMoney(discount).replace('$', '$ ')})`
+                : formatMoney(0)}
+            </span>
           </div>
           <div className="flex w-[280px] items-center justify-between">
             <span className="text-[13px] text-brand-fog">Tax</span>
-            <span className="text-[14px] text-brand-navy">{invoice.tax}</span>
+            <span className="text-[14px] text-brand-navy">{formatMoney(tax)}</span>
           </div>
           <div className="flex w-[280px] items-center justify-between border-t border-neutral-200 pt-2">
             <span className="text-[13px] font-semibold text-brand-navy">Total due</span>
-            <span className="font-heading text-[16px] font-bold text-brand-navy">{invoice.total}</span>
+            <span className="font-heading text-[16px] font-bold text-brand-navy">
+              {formatMoney(total)}
+            </span>
           </div>
         </div>
       </div>

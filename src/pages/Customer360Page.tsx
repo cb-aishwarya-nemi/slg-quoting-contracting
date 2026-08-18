@@ -50,7 +50,7 @@ const C360_TABS: TabItem[] = [
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
   { id: 'account', label: 'Account', status: 'attention' },
-  { id: 'addresses', label: 'Addresses', status: 'ready' },
+  { id: 'addresses', label: 'Billing and Shipping addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
@@ -151,6 +151,10 @@ export function Customer360Page() {
 
   const [createdAccountCustomer, setCreatedAccountCustomer] = useState<string | null>(null)
   const [customerTitleConfirmed, setCustomerTitleConfirmed] = useState(false)
+  const [invoiceLevelDiscount, setInvoiceLevelDiscount] = useState<{
+    value: string
+    unit: '%' | 'USD'
+  } | null>(null)
 
   useEffect(() => {
     setAccountItems(data.account.map((item) => ({ ...item })))
@@ -612,7 +616,7 @@ export function Customer360Page() {
                     onResolve={handleResolveComment}
                   >
                     <SectionHeader
-                      title="Addresses"
+                      title="Billing and Shipping addresses"
                       status="ready"
                       statusLabel="Ready"
                       isFlashing={false}
@@ -681,6 +685,7 @@ export function Customer360Page() {
                       variant={productsPricingVariant}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}
+                      onInvoiceLevelDiscountChange={setInvoiceLevelDiscount}
                       fullPageTitle={
                         productsPricingVariant === 'expanded-state' ||
                         productsPricingVariant === 'item-pinned'
@@ -762,7 +767,10 @@ export function Customer360Page() {
                     onResolve={handleResolveComment}
                   >
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <InvoicePreview isFlashing={false} />
+                      <InvoicePreview
+                        isFlashing={false}
+                        invoiceLevelDiscount={invoiceLevelDiscount}
+                      />
                     </div>
                   </ContractSectionRow>
                 </section>
