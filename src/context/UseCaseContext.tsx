@@ -44,13 +44,15 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
     variants: [
       {
         id: 'edit-state',
-        label: 'Edit State',
-        description: 'Inline table — click a row to lift into edit',
+        label: 'Discount tag',
       },
       {
         id: 'expanded-state',
-        label: 'Expanded State',
-        description: 'Expand opens a clear full-page products table',
+        label: 'Window table',
+      },
+      {
+        id: 'item-pinned',
+        label: 'Item pinned',
       },
     ],
   },

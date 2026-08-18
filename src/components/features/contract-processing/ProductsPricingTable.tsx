@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2 } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
@@ -199,6 +199,7 @@ function InteractiveMiniDropdown({
   disabled,
   ariaLabel,
   limitedPeriodOption,
+  placeholder,
   className,
 }: {
   label: string
@@ -208,10 +209,14 @@ function InteractiveMiniDropdown({
   disabled?: boolean
   ariaLabel?: string
   limitedPeriodOption?: string
+  /** Shown in mist when `label` is empty (e.g. overall discount period). */
+  placeholder?: string
   className?: string
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const isPlaceholder = !label && !!placeholder
+  const displayLabel = label || placeholder || ''
 
   return (
     <div
@@ -231,10 +236,11 @@ function InteractiveMiniDropdown({
           'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
           disabled
             ? 'cursor-not-allowed opacity-50 text-brand-mist'
-            : 'cursor-pointer text-brand-navy hover:bg-neutral-100'
+            : 'cursor-pointer hover:bg-neutral-100',
+          isPlaceholder ? 'text-brand-mist' : 'text-brand-navy'
         )}
       >
-        <span className="truncate">{label}</span>
+        <span className="truncate">{displayLabel}</span>
         <ChevronDown size={14} className="shrink-0 text-brand-mist" />
       </button>
       {!disabled ? (
@@ -265,6 +271,8 @@ interface LineItemPopoverProps {
   onSelect: (item: CatalogLineItem) => void
   anchorRef: RefObject<HTMLElement | null>
   currentName: string
+  /** Item pinned — selected catalog row uses a blue fill instead of grey. */
+  highlightSelected?: boolean
 }
 
 function LineItemPopover({
@@ -273,6 +281,7 @@ function LineItemPopover({
   onSelect,
   anchorRef,
   currentName,
+  highlightSelected,
 }: LineItemPopoverProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
@@ -331,7 +340,10 @@ function LineItemPopover({
         {filteredItems.length === 0 ? (
           <div className="p-4 text-center text-[13px] text-brand-fog">No items found</div>
         ) : (
-          filteredItems.map((item) => (
+          filteredItems.map((item) => {
+            const isSelected = item.name === currentName
+            const useBlueSelected = isSelected && highlightSelected
+            return (
             <button
               key={item.id}
               type="button"
@@ -340,17 +352,36 @@ function LineItemPopover({
               }}
               className={cn(
                 'group/opt flex w-full cursor-pointer flex-col gap-0.5 border-b border-neutral-100 px-4 py-3 text-left transition-colors last:border-b-0',
-                item.name === currentName ? 'bg-neutral-100' : 'hover:bg-brand-navy'
+                useBlueSelected
+                  ? 'bg-blue-50'
+                  : isSelected
+                    ? 'bg-neutral-100 hover:bg-brand-navy'
+                    : 'hover:bg-brand-navy'
               )}
             >
-              <span className="text-[14px] font-medium text-brand-navy group-hover/opt:text-white">
+              <span
+                className={cn(
+                  'text-[14px]',
+                  useBlueSelected
+                    ? 'font-semibold text-blue-700'
+                    : 'font-medium text-brand-navy group-hover/opt:text-white'
+                )}
+              >
                 {item.name}
               </span>
-              <span className="text-[12px] text-brand-fog group-hover/opt:text-white/70">
+              <span
+                className={cn(
+                  'text-[12px]',
+                  useBlueSelected
+                    ? 'text-blue-700/70'
+                    : 'text-brand-fog group-hover/opt:text-white/70'
+                )}
+              >
                 {item.family} · {item.unitPrice}/unit · {item.billingPeriod}
               </span>
             </button>
-          ))
+            )
+          })
         )}
       </div>
     </AnchoredMenu>
@@ -640,6 +671,67 @@ function formatCurrency(input: string): string {
   return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
+function parseMoney(value: string): number {
+  const amount = parseFloat(value.replace(/[^\d.]/g, ''))
+  return Number.isFinite(amount) ? amount : 0
+}
+
+/** Sum of line-item total prices for a period footer. */
+function sumLineItemTotals(items: ProductLineItem[]): string {
+  const total = items.reduce((sum, item) => {
+    if (item.isOverallDiscount) return sum
+    return sum + parseMoney(item.totalPrice)
+  }, 0)
+  return total.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+function periodNetAmount(items: ProductLineItem[]): number {
+  return items.reduce((sum, item) => {
+    if (item.isOverallDiscount) return sum
+    return sum + parseMoney(item.totalPrice)
+  }, 0)
+}
+
+/** Dollar value of an overall discount against the period net total. */
+function overallDiscountDollars(item: ProductLineItem, items: ProductLineItem[]): number | null {
+  const raw = parseFloat(item.discount ?? '')
+  if (!Number.isFinite(raw) || raw <= 0) return null
+  if (item.discountUnit === 'USD') return raw
+  return periodNetAmount(items) * (raw / 100)
+}
+
+/** e.g. `($ 100.00)` — accounting-style negative. */
+function formatNegativeCurrency(amount: number): string {
+  const formatted = amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+  return `(${formatted.replace('$', '$ ')})`
+}
+
+function createOverallDiscountItem(periodId: string): ProductLineItem {
+  return {
+    id: `overall-discount-${periodId}`,
+    name: 'Overall discount',
+    status: 'ready',
+    billingPeriod: '',
+    quantity: '',
+    unitPrice: '',
+    discount: '0',
+    discountUnit: '%',
+    discountPeriod: '',
+    totalPrice: '',
+    isOverallDiscount: true,
+  }
+}
+
+/** Keep the overall-discount row last when inserting product lines. */
+function insertBeforeOverallDiscount(
+  items: ProductLineItem[],
+  newItem: ProductLineItem
+): ProductLineItem[] {
+  const overallIdx = items.findIndex((item) => item.isOverallDiscount)
+  if (overallIdx < 0) return [...items, newItem]
+  return [...items.slice(0, overallIdx), newItem, ...items.slice(overallIdx)]
+}
+
 function computeTotalPrice(unitPrice: string, quantity: string): string | null {
   const price = parseFloat(unitPrice.replace(/[^\d.]/g, ''))
   const qty = parseInt(quantity, 10)
@@ -753,44 +845,62 @@ interface DiscountFieldProps {
   onChange: (next: { value: string; unit: DiscountUnit }) => void
   className?: string
   muted?: boolean
+  /**
+   * Always show the grey pill + amount + unit control (overall discount empty state).
+   * Starts focused so the cell matches the active edit chrome on insert.
+   */
+  forceField?: boolean
 }
 
 /**
  * Click-to-edit discount — resting label matches Account fields; the grey pill
  * carries the amount input plus the % / USD switch.
  */
-function DiscountField({ value, unit, onChange, className, muted }: DiscountFieldProps) {
-  const [isEditing, setIsEditing] = useState(false)
-  const [draft, setDraft] = useState(value)
+function DiscountField({
+  value,
+  unit,
+  onChange,
+  className,
+  muted,
+  forceField,
+}: DiscountFieldProps) {
+  const [isEditing, setIsEditing] = useState(!!forceField)
+  const [draft, setDraft] = useState(value || (forceField ? '0' : value))
   const [isUnitOpen, setIsUnitOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const unitTriggerRef = useRef<HTMLButtonElement>(null)
   const display = formatDiscount(value, unit)
   const hasValue = parseFloat(value || '') > 0
+  const showField = forceField || isEditing
+  const draftIsEmpty = !(parseFloat(draft || '') > 0)
 
   useEffect(() => {
-    setDraft(value)
-  }, [value])
+    setDraft(value || (forceField ? '0' : value))
+  }, [value, forceField])
 
   useEffect(() => {
-    if (isEditing) inputRef.current?.focus()
-  }, [isEditing])
+    if (showField) inputRef.current?.focus()
+  }, [showField])
 
   const commit = (nextValue = draft, nextUnit = unit) => {
-    setIsEditing(false)
+    if (!forceField) {
+      setIsEditing(false)
+    }
     setIsUnitOpen(false)
-    if (nextValue !== value || nextUnit !== unit) {
-      onChange({ value: nextValue, unit: nextUnit })
+    const normalized = nextValue === '' ? (forceField ? '0' : nextValue) : nextValue
+    setDraft(normalized)
+    if (normalized !== value || nextUnit !== unit) {
+      onChange({ value: normalized, unit: nextUnit })
     }
   }
 
   const cancel = () => {
-    setDraft(value)
-    setIsEditing(false)
+    setDraft(value || (forceField ? '0' : value))
+    if (!forceField) setIsEditing(false)
     setIsUnitOpen(false)
   }
 
-  if (isEditing) {
+  if (showField) {
     return (
       <div className={cn('min-w-0 w-full', className)} onClick={(e) => e.stopPropagation()}>
         <div
@@ -818,7 +928,10 @@ function DiscountField({ value, unit, onChange, className, muted }: DiscountFiel
                 cancel()
               }
             }}
-            className="w-full min-w-0 bg-transparent text-right text-[14px] font-medium text-brand-navy outline-none placeholder:text-brand-mist"
+            className={cn(
+              'w-full min-w-0 bg-transparent text-right text-[14px] font-medium outline-none placeholder:text-brand-mist',
+              draftIsEmpty ? 'text-brand-mist' : 'text-brand-navy'
+            )}
           />
           <div className="relative shrink-0">
             <button
@@ -886,6 +999,7 @@ interface SelectFieldProps {
   plain?: boolean
   /** Option that opens the duration step instead of committing straight away. */
   limitedPeriodOption?: string
+  placeholder?: string
   className?: string
 }
 
@@ -898,10 +1012,13 @@ function SelectField({
   disabled,
   plain,
   limitedPeriodOption,
+  placeholder,
   className,
 }: SelectFieldProps) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const isPlaceholder = !value && !!placeholder
+  const displayValue = value || placeholder || ''
 
   return (
     <div className={cn('min-w-0 pl-3', className)} onClick={(e) => e.stopPropagation()}>
@@ -917,9 +1034,10 @@ function SelectField({
           onClick={() => setIsOpen((open) => !open)}
           className={cn(
             plain
-              ? 'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] font-medium text-brand-navy'
+              ? 'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] font-medium'
               : ACTIVE_FIELD_STYLE,
             !plain && 'flex items-center justify-between gap-1',
+            isPlaceholder ? 'text-brand-mist' : 'text-brand-navy',
             disabled
               ? 'cursor-not-allowed opacity-50'
               : plain
@@ -928,7 +1046,7 @@ function SelectField({
             isOpen && (plain ? 'bg-neutral-100' : 'bg-neutral-200')
           )}
         >
-          <span className="truncate">{value}</span>
+          <span className="truncate">{displayValue}</span>
           <ChevronDown size={14} className="shrink-0 text-brand-mist" />
         </button>
         {!disabled && (
@@ -967,6 +1085,8 @@ interface ItemNameButtonProps {
    */
   hangIcon?: boolean
   className?: string
+  /** Item pinned — selected catalog row uses a blue fill instead of grey. */
+  highlightSelected?: boolean
 }
 
 function ItemNameButton({
@@ -979,6 +1099,7 @@ function ItemNameButton({
   asField,
   hangIcon = true,
   className,
+  highlightSelected,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1055,6 +1176,7 @@ function ItemNameButton({
         }}
         anchorRef={buttonRef}
         currentName={name}
+        highlightSelected={highlightSelected}
       />
     </div>
   )
@@ -1072,6 +1194,8 @@ const TOTAL_W = 124
 /** Inline layout only — leaves room for the discount tag beside the amount. */
 const TOTAL_INLINE_W = 172
 const MENU_W = 48
+/** Expanded sticky Total + ellipsis group pinned to the right. */
+const EXPANDED_PINNED_RIGHT_W = TOTAL_W + MENU_W
 /** The `pl-1 pr-2` every row carries. */
 const ROW_PAD_X = 12
 /** The `pl-1` half of it — the sticky Item cell's resting offset. */
@@ -1080,6 +1204,17 @@ const ROW_PAD_LEFT = 4
  *  Sized to fit "Period N 📅 17 Jul 2026 to 17 Jun 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
 const EXPANDED_ITEM_W = 340
+/** Frequency → Discount period + separators between sticky Item and Total. */
+const EXPANDED_SCROLL_MIDDLE_W =
+  PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + SEPARATOR_W * 5
+
+/** Inline `position: sticky` wins over cellChrome's `relative`. */
+function pinLeftStyle(width: number): CSSProperties {
+  return { width, left: 0, position: 'sticky' }
+}
+function pinRightStyle(width: number, right: number): CSSProperties {
+  return { width, right, position: 'sticky' }
+}
 
 /**
  * Expanded-state horizontal scroller. Always owns overflow-x so `sticky left`
@@ -1087,16 +1222,23 @@ const EXPANDED_ITEM_W = 340
  */
 function ExpandedScrollContainer({
   children,
+  footer,
   pauseShadow,
   fullWidth,
+  pinRight,
 }: {
   children: ReactNode
+  /** Item pinned only — own scroller, scroll-synced, so pin cues stay on the table. */
+  footer?: ReactNode
   /** Suppress the pin cue mid-transition (edit mode collapsing). */
   pauseShadow?: boolean
   /** Stretch the inner track to the container (full-page expand). */
   fullWidth?: boolean
+  /** Show the right pin cue for Total + menu (Window table only). */
+  pinRight?: boolean
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
+  const footerScrollRef = useRef<HTMLDivElement>(null)
   /** Rows start at `pl-1`, so at rest the Item cell sits 4px in; it slides to 0 once pinned. */
   const [pin, setPin] = useState({ hasOverflow: false, offset: ROW_PAD_LEFT })
 
@@ -1108,43 +1250,86 @@ function ExpandedScrollContainer({
         hasOverflow: el.scrollWidth - el.clientWidth > 1,
         offset: Math.max(0, ROW_PAD_LEFT - el.scrollLeft),
       })
+    const onTableScroll = () => {
+      sync()
+      const footerEl = footerScrollRef.current
+      if (footerEl && footerEl.scrollLeft !== el.scrollLeft) {
+        footerEl.scrollLeft = el.scrollLeft
+      }
+    }
     sync()
-    el.addEventListener('scroll', sync, { passive: true })
+    el.addEventListener('scroll', onTableScroll, { passive: true })
     window.addEventListener('resize', sync)
     const observer = new ResizeObserver(sync)
     observer.observe(el)
     return () => {
-      el.removeEventListener('scroll', sync)
+      el.removeEventListener('scroll', onTableScroll)
       window.removeEventListener('resize', sync)
       observer.disconnect()
     }
   }, [])
 
+  useEffect(() => {
+    const footerEl = footerScrollRef.current
+    const tableEl = scrollRef.current
+    if (!footerEl || !tableEl) return
+    const onFooterScroll = () => {
+      if (tableEl.scrollLeft !== footerEl.scrollLeft) {
+        tableEl.scrollLeft = footerEl.scrollLeft
+      }
+    }
+    footerEl.addEventListener('scroll', onFooterScroll, { passive: true })
+    return () => footerEl.removeEventListener('scroll', onFooterScroll)
+  }, [footer])
+
+  const showPinCue = pin.hasOverflow && !pauseShadow && !fullWidth
+  const trackClass = fullWidth ? 'w-full min-w-full' : 'w-max min-w-full'
+
   return (
-    <div className={cn('relative', fullWidth && 'w-full')}>
-      <div ref={scrollRef} className="overflow-x-auto">
-        <div className={cn(fullWidth ? 'w-full min-w-full' : 'w-max min-w-full')}>
-          {children}
+    <div className={cn(fullWidth && 'w-full')}>
+      <div className="relative">
+        <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden">
+          <div className={trackClass}>{children}</div>
         </div>
+        {/*
+         * Pin cues sit outside overflow-x so they stay on the sticky edges
+         * while columns scroll underneath. They only cover the table, not the footer.
+         */}
+        <div
+          aria-hidden
+          className={cn(
+            'pointer-events-none absolute inset-y-0 z-50 w-3 transition-opacity duration-150',
+            showPinCue ? 'opacity-100' : 'opacity-0'
+          )}
+          style={{
+            left: EXPANDED_ITEM_W + pin.offset,
+            backgroundImage:
+              'linear-gradient(to right, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
+          }}
+        />
+        {pinRight ? (
+          <div
+            aria-hidden
+            className={cn(
+              'pointer-events-none absolute inset-y-0 z-50 w-3 transition-opacity duration-150',
+              showPinCue ? 'opacity-100' : 'opacity-0'
+            )}
+            style={{
+              right: EXPANDED_PINNED_RIGHT_W,
+              backgroundImage:
+                'linear-gradient(to left, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
+            }}
+          />
+        ) : null}
       </div>
-      {/*
-       * Pin cue for the sticky Item column — shown whenever the table can
-       * scroll, not just once it has. A horizontal-only gradient (never a
-       * box-shadow) so the falloff can't bleed onto the row rules, and an
-       * overlay above the scrolling cells so values pass underneath it.
-       */}
-      <div
-        aria-hidden
-        className={cn(
-          'pointer-events-none absolute inset-y-0 z-50 w-3 transition-opacity duration-150',
-          pin.hasOverflow && !pauseShadow && !fullWidth ? 'opacity-100' : 'opacity-0'
-        )}
-        style={{
-          left: EXPANDED_ITEM_W + pin.offset,
-          backgroundImage:
-            'linear-gradient(to right, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
-        }}
-      />
+      {footer ? (
+        <div
+          ref={footerScrollRef}
+          className="overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className={trackClass}>{footer}</div>
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -1181,8 +1366,8 @@ const FULLPAGE_COLLAPSE_SETTLE_MS = FULLPAGE_COLLAPSE_MS + 40
 const FULLPAGE_PAD_TOP = 32
 const FULLPAGE_PAD_X = 48
 const FULLPAGE_PAD_BOTTOM = 64
-/** Matches the table shell's `pl-6` hanging-icon gutter. */
-const FULLPAGE_ORIGIN_GUTTER = 24
+/** Left padding on the full-page morph shell at origin (hang icons use -ml-6 into page gutter). */
+const FULLPAGE_ORIGIN_GUTTER = 0
 
 interface ExpandBounds {
   centerX: number
@@ -1234,17 +1419,29 @@ function measureExpandBounds(): ExpandBounds {
  * Add line item — mirrors the Account section's "Add field": the button itself
  * opens the catalog picker, and choosing an entry drops a populated row in.
  */
-function AddLineItemButton({ onSelect }: { onSelect: (item: CatalogLineItem) => void }) {
+function AddLineItemButton({
+  onSelect,
+  inline,
+}: {
+  onSelect: (item: CatalogLineItem) => void
+  /** Sit beside a period total instead of spanning a full row. */
+  inline?: boolean
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   return (
-    <div className="relative">
+    <div className={cn('relative', inline && 'shrink-0')}>
       <button
         ref={buttonRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex w-full cursor-pointer items-center gap-2 border-b border-neutral-100 py-2 pl-1 pr-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+        className={cn(
+          'flex cursor-pointer items-center gap-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50',
+          inline
+            ? 'rounded-lg py-1.5 pl-1 pr-2'
+            : 'w-full border-b border-neutral-100 py-2 pl-1 pr-2'
+        )}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
       >
@@ -1587,7 +1784,13 @@ function PeriodHeader({
   )
 }
 
-function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
+function PeriodOptionsMenu({
+  onDelete,
+  onAddOverallDiscount,
+}: {
+  onDelete: () => void
+  onAddOverallDiscount?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
 
@@ -1612,9 +1815,23 @@ function PeriodOptionsMenu({ onDelete }: { onDelete: () => void }) {
         onClose={() => setOpen(false)}
         anchorRef={triggerRef}
         align="end"
-        className="min-w-[160px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+        className="min-w-[200px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
       >
         <div role="menu">
+          {onAddOverallDiscount ? (
+            <button
+              type="button"
+              role="menuitem"
+              onClick={(e) => {
+                e.stopPropagation()
+                setOpen(false)
+                onAddOverallDiscount()
+              }}
+              className="flex w-full cursor-pointer px-3 py-2 text-left text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+            >
+              Add overall discount
+            </button>
+          ) : null}
           <button
             type="button"
             role="menuitem"
@@ -1803,7 +2020,7 @@ function DiscountBadge({
 }
 
 /** Use case switcher variants for this section — see UseCaseContext's `customer360` entry. */
-export type ProductsPricingVariant = 'edit-state' | 'expanded-state'
+export type ProductsPricingVariant = 'edit-state' | 'expanded-state' | 'item-pinned'
 
 /** Put on the Expand control so the table can measure origin before chrome unmounts. */
 export const PRODUCTS_PRICING_EXPAND_ATTR = 'data-products-pricing-expand'
@@ -1822,12 +2039,11 @@ interface ProductsPricingTableProps {
    */
   fullPageTitle?: string
   /**
-   * 'expanded-state' default table shows Discount + Discount period columns,
-   * with Item sticky and the rest horizontally scrollable. Expand opens a
-   * clear full-page view (Edit state keeps the lifted blur surface).
+   * Window table / Item pinned: Discount columns + sticky Item (and Total+menu
+   * only for Window table). Discount tag: inline lift-to-edit.
    */
   variant?: ProductsPricingVariant
-  /** Controlled expand — Expand/Shrink (expanded-state) or lift (edit-state). */
+  /** Controlled expand — Expand/Shrink (window/item-pinned) or lift (discount tag). */
   lifted?: boolean
   onLiftedChange?: (lifted: boolean) => void
 }
@@ -1841,7 +2057,11 @@ export function ProductsPricingTable({
   lifted,
   onLiftedChange,
 }: ProductsPricingTableProps) {
-  const isExpandedVariant = variant === 'expanded-state'
+  const isExpandedVariant = variant === 'expanded-state' || variant === 'item-pinned'
+  /** Window table pins Total + ellipsis and shows the right pin cue. */
+  const pinRightColumns = variant === 'expanded-state'
+  /** Window table and Item pinned both pin the ellipsis; Item pinned has no right cue. */
+  const pinMenuColumn = isExpandedVariant
   const editHistory = useOptionalFieldEditHistory()
   const resolvedInitial = resolveProductsData(initialItems, initialPeriods)
   const [items, setItems] = useState(resolvedInitial.items)
@@ -1906,8 +2126,6 @@ export function ProductsPricingTable({
       editBaseWidthRef.current = pending.width - (isExpandedVariant ? FULLPAGE_ORIGIN_GUTTER : 0)
     } else if (el) {
       const rect = el.getBoundingClientRect()
-      // Expanded full-page morph includes the hanging-icon gutter so the shell
-      // lines up with what the user sees (header uses -ml-6 into pl-6).
       const gutter = isExpandedVariant ? FULLPAGE_ORIGIN_GUTTER : 0
       setEditLayout({
         top: rect.top,
@@ -2186,12 +2404,24 @@ export function ProductsPricingTable({
     if (periodId && periods) {
       setPeriods((prev) =>
         prev?.map((p) =>
-          p.id === periodId ? { ...p, items: [...p.items, newLineItem] } : p
+          p.id === periodId
+            ? { ...p, items: insertBeforeOverallDiscount(p.items, newLineItem) }
+            : p
         )
       )
     } else {
       setItems((prev) => [...prev, newLineItem])
     }
+  }
+
+  const handleAddOverallDiscount = (periodId: string) => {
+    setPeriods((prev) =>
+      prev?.map((p) => {
+        if (p.id !== periodId) return p
+        if (p.items.some((item) => item.isOverallDiscount)) return p
+        return { ...p, items: [...p.items, createOverallDiscountItem(periodId)] }
+      })
+    )
   }
 
   const updatePeriodDates = (
@@ -2444,7 +2674,14 @@ export function ProductsPricingTable({
         className={cn('flex items-center justify-end', !isEditMode && 'shrink-0')}
         style={isEditMode ? undefined : { width: MENU_W }}
       >
-        <PeriodOptionsMenu onDelete={onDelete} />
+        <PeriodOptionsMenu
+          onDelete={onDelete}
+          onAddOverallDiscount={
+            period.items.some((item) => item.isOverallDiscount)
+              ? undefined
+              : () => handleAddOverallDiscount(period.id)
+          }
+        />
       </div>
     </div>
   )
@@ -2480,7 +2717,95 @@ export function ProductsPricingTable({
         width: '100%',
         minWidth: 0,
       }
-    : undefined
+      : undefined
+
+  const renderPeriodFooter = (
+    period: RampPeriod,
+    onAddLineItem: (item: CatalogLineItem) => void
+  ) => {
+    const amount = sumLineItemTotals(period.items)
+    const label = 'Net total'
+
+    // Item pinned: sit in the scroll track so the amount lines up under Total price.
+    if (isExpandedVariant && !pinRightColumns) {
+      if (isFullPageExpanded) {
+        return (
+          <div
+            className="items-center border-t border-neutral-200 py-2 pl-1 pr-2"
+            style={expandedFullPageGridStyle}
+          >
+            <div className="min-w-0">
+              <AddLineItemButton inline onSelect={onAddLineItem} />
+            </div>
+            {/* Tracks 2–10: rules + Frequency…Discount */}
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            <div aria-hidden />
+            {/* Track 11: Discount period — label sits just left of Total */}
+            <div className="flex min-w-0 items-center justify-end">
+              <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{label}</span>
+            </div>
+            <div aria-hidden />
+            <div className="text-right text-[14px] font-semibold tabular-nums text-brand-navy">
+              {amount}
+            </div>
+            <div aria-hidden />
+          </div>
+        )
+      }
+
+      return (
+        <div className="flex items-center border-t border-neutral-200 py-2 pl-1 pr-2">
+          <div
+            style={pinLeftStyle(EXPANDED_ITEM_W)}
+            className="z-30 shrink-0 bg-white"
+          >
+            <AddLineItemButton inline onSelect={onAddLineItem} />
+          </div>
+          <div
+            className="flex shrink-0 items-center justify-end gap-3"
+            style={{ width: EXPANDED_SCROLL_MIDDLE_W }}
+          >
+            <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{label}</span>
+          </div>
+          <div
+            style={{ width: TOTAL_W }}
+            className="shrink-0 text-right text-[14px] font-semibold tabular-nums text-brand-navy"
+          >
+            {amount}
+          </div>
+          <div
+            style={pinRightStyle(MENU_W, 0)}
+            className="z-20 shrink-0 bg-white"
+            aria-hidden
+          />
+        </div>
+      )
+    }
+
+    return (
+      <div className="flex items-center justify-between gap-4 border-t border-neutral-200 py-2 pl-1">
+        <AddLineItemButton inline onSelect={onAddLineItem} />
+        <div className="flex shrink-0 items-center gap-3">
+          <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{label}</span>
+          <span
+            style={{ width: isExpandedVariant ? TOTAL_W : TOTAL_INLINE_W }}
+            className="shrink-0 text-right text-[14px] font-semibold tabular-nums text-brand-navy"
+          >
+            {amount}
+          </span>
+          {/* Matches sticky Total (`right: MENU_W`) + menu (`right: 0`) — no row `pr-2`. */}
+          <span style={{ width: MENU_W }} className="shrink-0" aria-hidden />
+        </div>
+      </div>
+    )
+  }
 
   const renderExpandedTableHeader = () => (
     <div
@@ -2492,9 +2817,9 @@ export function ProductsPricingTable({
       style={expandedFullPageGridStyle}
     >
       <div
-        style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
+        style={isFullPageExpanded ? undefined : pinLeftStyle(EXPANDED_ITEM_W)}
         className={cn(
-          'sticky left-0 z-30 bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'z-30 bg-white text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0',
           isFullPageExpanded && 'min-w-0'
         )}
@@ -2553,19 +2878,33 @@ export function ProductsPricingTable({
       </div>
       <GhostSeparator />
       <div
-        style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+        style={
+          isFullPageExpanded
+            ? undefined
+            : pinRightColumns
+              ? pinRightStyle(TOTAL_W, MENU_W)
+              : { width: TOTAL_W }
+        }
         className={cn(
           'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
-          !isFullPageExpanded && 'shrink-0'
+          !isFullPageExpanded && 'shrink-0',
+          !isFullPageExpanded && pinRightColumns && 'z-20 bg-white'
         )}
       >
         Total price
       </div>
       <div
-        style={isFullPageExpanded ? undefined : { width: MENU_W }}
+        style={
+          isFullPageExpanded
+            ? undefined
+            : pinMenuColumn
+              ? pinRightStyle(MENU_W, 0)
+              : { width: MENU_W }
+        }
         className={cn(
-          'sticky right-0 z-10 bg-white',
-          !isFullPageExpanded && 'shrink-0'
+          'bg-white',
+          !isFullPageExpanded && 'shrink-0',
+          pinMenuColumn && !isFullPageExpanded && 'z-20'
         )}
       />
     </div>
@@ -2587,9 +2926,9 @@ export function ProductsPricingTable({
       style={expandedFullPageGridStyle}
     >
       <div
-        style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
+        style={isFullPageExpanded ? undefined : pinLeftStyle(EXPANDED_ITEM_W)}
         className={cn(
-          'sticky left-0 z-30 flex min-w-0 items-center bg-white',
+          'z-30 flex min-w-0 items-center bg-white',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
@@ -2657,33 +2996,203 @@ export function ProductsPricingTable({
       </div>
       <GhostSeparator />
       <div
-        style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+        style={
+          isFullPageExpanded
+            ? undefined
+            : pinRightColumns
+              ? pinRightStyle(TOTAL_W, MENU_W)
+              : { width: TOTAL_W }
+        }
         className={cn(
           'text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
-          !isFullPageExpanded && 'shrink-0'
+          !isFullPageExpanded && 'shrink-0',
+          !isFullPageExpanded && pinRightColumns && 'z-20 bg-white'
         )}
       >
         Total price
       </div>
       <div
-        style={isFullPageExpanded ? undefined : { width: MENU_W }}
+        style={
+          isFullPageExpanded
+            ? undefined
+            : pinMenuColumn
+              ? pinRightStyle(MENU_W, 0)
+              : { width: MENU_W }
+        }
         className={cn(
-          'sticky right-0 z-10 flex items-center justify-end bg-white',
-          !isFullPageExpanded && 'shrink-0'
+          'flex items-center justify-end bg-white',
+          !isFullPageExpanded && 'shrink-0',
+          pinMenuColumn && !isFullPageExpanded && 'z-20'
         )}
       >
-        <PeriodOptionsMenu onDelete={onDelete} />
+        <PeriodOptionsMenu
+          onDelete={onDelete}
+          onAddOverallDiscount={
+            period.items.some((item) => item.isOverallDiscount)
+              ? undefined
+              : () => handleAddOverallDiscount(period.id)
+          }
+        />
       </div>
     </div>
   )
 
   // Expanded-state row — Discount / Discount period are always visible as
-  // plain columns. Item is pinned left and the ellipsis menu is pinned right.
+  // plain columns. Item is pinned left; Total price + ellipsis are pinned right.
   // Cells open their own menus in place — no lifted edit surface.
+  const renderExpandedOverallDiscountRow = (
+    item: ProductLineItem,
+    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
+    periodItems: ProductLineItem[]
+  ) => {
+    const hasDiscountValue = parseFloat(item.discount ?? '') > 0
+    const discountDollars = overallDiscountDollars(item, periodItems)
+    const discountTotalLabel =
+      discountDollars != null ? formatNegativeCurrency(discountDollars) : ''
+
+    return (
+      <div
+        key={item.id}
+        className={cn(
+          'group relative items-stretch bg-white pl-1 pr-2',
+          ROW_STROKE,
+          !isFullPageExpanded && 'flex'
+        )}
+        style={expandedFullPageGridStyle}
+      >
+        <div
+          style={isFullPageExpanded ? undefined : pinLeftStyle(EXPANDED_ITEM_W)}
+          className={cellChrome(
+            false,
+            'z-30 min-w-0 bg-white',
+            !isFullPageExpanded && 'shrink-0'
+          )}
+        >
+          <div className={cellInner(false, 'min-w-0')}>
+            <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
+          </div>
+        </div>
+        {isFullPageExpanded ? <GhostSeparator /> : null}
+        <div
+          className={cellChrome(false, 'min-w-0', !isFullPageExpanded && 'pl-3 shrink-0')}
+          style={isFullPageExpanded ? undefined : { width: PERIOD_W }}
+          aria-hidden
+        />
+        <GhostSeparator />
+        <div
+          className={cellChrome(false, !isFullPageExpanded && 'shrink-0')}
+          style={isFullPageExpanded ? undefined : { width: QTY_W }}
+          aria-hidden
+        />
+        <GhostSeparator />
+        <div
+          className={cellChrome(false, 'min-w-0 justify-end pl-3', !isFullPageExpanded && 'shrink-0')}
+          style={isFullPageExpanded ? undefined : { width: UNIT_W }}
+          aria-hidden
+        />
+        <GhostSeparator />
+        <div
+          style={isFullPageExpanded ? undefined : { width: DISCOUNT_W }}
+          className={cellChrome(false, 'min-w-0 justify-end', !isFullPageExpanded && 'shrink-0')}
+        >
+          <div className={cellInner(false, 'min-w-0 w-full')}>
+            <DiscountField
+              forceField={!hasDiscountValue}
+              value={item.discount ?? '0'}
+              unit={item.discountUnit ?? '%'}
+              onChange={({ value, unit }) => {
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
+                  )
+                )
+              }}
+            />
+          </div>
+        </div>
+        <Separator />
+        <div
+          style={isFullPageExpanded ? undefined : { width: DISCOUNT_PERIOD_W }}
+          className={cellChrome(false, 'min-w-0', !isFullPageExpanded && 'shrink-0')}
+        >
+          <div className={cellInner(false, 'min-w-0 w-full')}>
+            <InteractiveMiniDropdown
+              label={
+                item.discountPeriod
+                  ? discountPeriodLabel(item.discountPeriod)
+                  : ''
+              }
+              placeholder="Select"
+              options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
+              ariaLabel="Overall discount period"
+              limitedPeriodOption={LIMITED_PERIOD_OPTION}
+              onSelect={(next) => {
+                updateItems((prev) =>
+                  prev.map((i) =>
+                    i.id === item.id ? { ...i, discountPeriod: next as DiscountPeriod } : i
+                  )
+                )
+              }}
+            />
+          </div>
+        </div>
+        <Separator />
+        <div
+          style={
+            isFullPageExpanded
+              ? undefined
+              : pinRightColumns
+                ? pinRightStyle(TOTAL_W, MENU_W)
+                : { width: TOTAL_W }
+          }
+          className={cellChrome(
+            false,
+            'min-w-0 justify-end bg-white',
+            !isFullPageExpanded && 'shrink-0',
+            !isFullPageExpanded && pinRightColumns && 'z-20'
+          )}
+        >
+          {discountTotalLabel ? (
+            <span className="w-full text-right text-[14px] font-medium tabular-nums text-brand-navy">
+              {discountTotalLabel}
+            </span>
+          ) : null}
+        </div>
+        <div
+          style={
+            isFullPageExpanded
+              ? undefined
+              : pinMenuColumn
+                ? pinRightStyle(MENU_W, 0)
+                : { width: MENU_W }
+          }
+          className={cellChrome(
+            false,
+            'justify-end bg-white',
+            !isFullPageExpanded && 'shrink-0',
+            pinMenuColumn && !isFullPageExpanded && 'z-20'
+          )}
+        >
+          <LineItemOptionsMenu
+            itemName={item.name}
+            onDelete={() => {
+              updateItems((prev) => prev.filter((i) => i.id !== item.id))
+            }}
+          />
+        </div>
+      </div>
+    )
+  }
+
   const renderExpandedLineItem = (
     item: ProductLineItem,
-    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void
+    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
+    periodItems: ProductLineItem[]
   ) => {
+    if (item.isOverallDiscount) {
+      return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
+    }
+
     const isAttention = item.status === 'attention'
     const hasDiscount = parseFloat(item.discount ?? '') > 0
     const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
@@ -2712,10 +3221,10 @@ export function ProductsPricingTable({
       >
         {/* Item — pinned to the left of the scrollable group */}
         <div
-          style={isFullPageExpanded ? undefined : { width: EXPANDED_ITEM_W }}
+          style={isFullPageExpanded ? undefined : pinLeftStyle(EXPANDED_ITEM_W)}
           className={cellChrome(
             isItemEdited,
-            'sticky left-0 min-w-0',
+            'min-w-0',
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-30',
             isItemEdited ? 'bg-amber-50' : 'bg-white'
@@ -2727,6 +3236,7 @@ export function ProductsPricingTable({
               name={item.name}
               isAttention={isAttention}
               hangIcon={false}
+              highlightSelected={variant === 'item-pinned'}
               openRequestId={lineItemEditRequest[item.id]}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
@@ -2922,11 +3432,19 @@ export function ProductsPricingTable({
 
         <Separator fillStart={isDiscountPeriodEdited} fillEnd={isTotalEdited} />
         <div
-          style={isFullPageExpanded ? undefined : { width: TOTAL_W }}
+          style={
+            isFullPageExpanded
+              ? undefined
+              : pinRightColumns
+                ? pinRightStyle(TOTAL_W, MENU_W)
+                : { width: TOTAL_W }
+          }
           className={cellChrome(
             isTotalEdited,
             'min-w-0 justify-end',
-            !isFullPageExpanded && 'shrink-0'
+            !isFullPageExpanded && 'shrink-0',
+            !isFullPageExpanded && pinRightColumns && 'z-20',
+            isTotalEdited ? 'bg-amber-50' : 'bg-white'
           )}
         >
           {isTotalEdited ? <EditedCellFill /> : null}
@@ -2944,13 +3462,20 @@ export function ProductsPricingTable({
           </div>
         </div>
 
-        {/* Ellipsis menu — pinned to the right of the scrollable group */}
+        {/* Ellipsis menu — pinned on the right (Window table + Item pinned) */}
         <div
-          style={isFullPageExpanded ? undefined : { width: MENU_W }}
+          style={
+          isFullPageExpanded
+            ? undefined
+            : pinMenuColumn
+              ? pinRightStyle(MENU_W, 0)
+              : { width: MENU_W }
+        }
           className={cellChrome(
             false,
-            'sticky right-0 z-10 justify-end bg-white',
-            !isFullPageExpanded && 'shrink-0'
+            'justify-end bg-white',
+            !isFullPageExpanded && 'shrink-0',
+            pinMenuColumn && !isFullPageExpanded && 'z-20'
           )}
         >
           <LineItemOptionsMenu
@@ -2967,6 +3492,109 @@ export function ProductsPricingTable({
   }
 
   const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
+    if (item.isOverallDiscount) {
+      const hasDiscountValue = parseFloat(item.discount ?? '') > 0
+
+      return (
+        <div
+          key={item.id}
+          className={cn(
+            'items-stretch border-b border-neutral-100 pl-1 pr-2',
+            !isEditMode && 'flex'
+          )}
+          style={editRowGridStyle}
+          onClick={() => {
+            if (!isEditMode) enterEditMode()
+          }}
+        >
+          <div className={cellBoxPad(false, 'min-w-0 flex-1')}>
+            <div className={cellInner(false, 'min-w-0')}>
+              <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
+            </div>
+          </div>
+          <div
+            className={cellBoxPad(false, 'pl-3', !isEditMode && 'shrink-0')}
+            style={isEditMode ? undefined : { width: PERIOD_W }}
+            aria-hidden
+          />
+          <GhostSeparator />
+          <div
+            className={cellBoxPad(false, !isEditMode && 'shrink-0')}
+            style={isEditMode ? undefined : { width: QTY_W }}
+            aria-hidden
+          />
+          <GhostSeparator />
+          <div
+            className={cellBoxPad(false, 'pl-3', !isEditMode && 'shrink-0')}
+            style={isEditMode ? undefined : { width: UNIT_W }}
+            aria-hidden
+          />
+          {isEditMode ? (
+            <>
+              <div className={cellBoxPad(false, 'min-w-0 justify-end')}>
+                <div className={cellInner(false, 'min-w-0 w-full')}>
+                  <DiscountField
+                    forceField={!hasDiscountValue}
+                    value={item.discount ?? '0'}
+                    unit={item.discountUnit ?? '%'}
+                    onChange={({ value, unit }) => {
+                      updateItems((prev) =>
+                        prev.map((i) =>
+                          i.id === item.id ? { ...i, discount: value, discountUnit: unit } : i
+                        )
+                      )
+                    }}
+                  />
+                </div>
+              </div>
+              <div className={cellBoxPad(false, 'min-w-0')}>
+                <div className={cellInner(false, 'min-w-0 w-full')}>
+                  <SelectField
+                    value={
+                      item.discountPeriod
+                        ? discountPeriodLabel(item.discountPeriod)
+                        : ''
+                    }
+                    placeholder="Select"
+                    options={DISCOUNT_PERIODS.filter((period) => period !== 'None')}
+                    ariaLabel="Overall discount period"
+                    plain={!showFieldPills}
+                    limitedPeriodOption={LIMITED_PERIOD_OPTION}
+                    onChange={(next) => {
+                      updateItems((prev) =>
+                        prev.map((i) =>
+                          i.id === item.id
+                            ? { ...i, discountPeriod: next as DiscountPeriod }
+                            : i
+                        )
+                      )
+                    }}
+                  />
+                </div>
+              </div>
+            </>
+          ) : null}
+          <GhostSeparator />
+          <div
+            style={isEditMode ? undefined : { width: TOTAL_INLINE_W }}
+            className={cellBoxPad(false, !isEditMode && 'shrink-0')}
+            aria-hidden
+          />
+          <div
+            style={isEditMode ? undefined : { width: MENU_W }}
+            className={cellBoxPad(false, 'justify-end', !isEditMode && 'shrink-0')}
+          >
+            <LineItemOptionsMenu
+              itemName={item.name}
+              onDelete={() => {
+                updateItems((prev) => prev.filter((i) => i.id !== item.id))
+              }}
+            />
+          </div>
+        </div>
+      )
+    }
+
     const isAttention = item.status === 'attention'
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
@@ -3371,7 +3999,7 @@ export function ProductsPricingTable({
         : 'none'
 
       return (
-        <div className="overflow-visible pl-6">
+        <div className="overflow-visible">
           {isOverlayOpen ? (
             <div
               ref={tableSpacerRef}
@@ -3451,9 +4079,7 @@ export function ProductsPricingTable({
                 </button>
               </div>
             ) : null}
-            {header ? (
-              <div className={cn('mb-6', !isOverlayOpen && '-ml-6')}>{header}</div>
-            ) : null}
+            {header ? <div className="mb-6">{header}</div> : null}
             <div className={cn(isOverlayOpen && 'min-w-0 flex-1')}>{content}</div>
           </div>
         </div>
@@ -3477,7 +4103,7 @@ export function ProductsPricingTable({
     const timing = isCollapsing ? COLLAPSE_TRANSITION : EXPAND_TRANSITION
 
     return (
-      <div className="overflow-visible pl-6">
+      <div className="overflow-visible">
         {isFixedEditing ? (
           <div
             ref={tableSpacerRef}
@@ -3537,7 +4163,7 @@ export function ProductsPricingTable({
               : undefined
           }
         >
-          {header ? <div className="-ml-6 mb-6">{header}</div> : null}
+          {header ? <div className="mb-6">{header}</div> : null}
           {content}
         </div>
       </div>
@@ -3651,13 +4277,23 @@ export function ProductsPricingTable({
                 <ExpandedScrollContainer
                   pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
                   fullWidth={isEditMode}
+                  pinRight={pinRightColumns}
+                  footer={
+                    !pinRightColumns
+                      ? renderPeriodFooter(period, (catalogItem) =>
+                          handleAddCatalogItem(catalogItem, period.id)
+                        )
+                      : undefined
+                  }
                 >
                   {renderExpandedPeriodTableHeader(
                     period,
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item) => renderExpandedLineItem(item, updatePeriodItems))}
+                  {period.items.map((item) =>
+                    renderExpandedLineItem(item, updatePeriodItems, period.items)
+                  )}
                 </ExpandedScrollContainer>
               ) : (
                 <>
@@ -3670,9 +4306,11 @@ export function ProductsPricingTable({
                 </>
               )}
 
-              <AddLineItemButton
-                onSelect={(catalogItem) => handleAddCatalogItem(catalogItem, period.id)}
-              />
+              {pinRightColumns || !isExpandedVariant
+                ? renderPeriodFooter(period, (catalogItem) =>
+                    handleAddCatalogItem(catalogItem, period.id)
+                  )
+                : null}
             </div>
           )
         })}
@@ -3700,9 +4338,10 @@ export function ProductsPricingTable({
         <ExpandedScrollContainer
           pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
           fullWidth={isEditMode}
+          pinRight={pinRightColumns}
         >
           {renderExpandedTableHeader()}
-          {items.map((item) => renderExpandedLineItem(item, setItems))}
+          {items.map((item) => renderExpandedLineItem(item, setItems, items))}
         </ExpandedScrollContainer>
       ) : (
         <>

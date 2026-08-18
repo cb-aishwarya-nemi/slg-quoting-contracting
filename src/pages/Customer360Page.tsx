@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus } from 'lucide-react'
+import { ChevronLeft, Maximize2, Focus, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -149,6 +149,9 @@ export function Customer360Page() {
   )
   const [customerName, setCustomerName] = useState(data.customerName)
 
+  const [createdAccountCustomer, setCreatedAccountCustomer] = useState<string | null>(null)
+  const [customerTitleConfirmed, setCustomerTitleConfirmed] = useState(false)
+
   useEffect(() => {
     setAccountItems(data.account.map((item) => ({ ...item })))
   }, [data.account])
@@ -165,7 +168,20 @@ export function Customer360Page() {
 
   const handleAccountItemChange = useCallback((label: string, newValue: string) => {
     setAccountItems((prev) => applyFieldValue(prev, label, newValue))
-    if (label === 'Account') setCustomerName(newValue)
+    if (label === 'Account') {
+      setCustomerName(newValue)
+      setCreatedAccountCustomer(null)
+      setCustomerTitleConfirmed(true)
+    }
+  }, [])
+
+  const handleCreateAccountCustomer = useCallback((name?: string) => {
+    const createdName = name?.trim()
+    if (!createdName) return
+    setCreatedAccountCustomer(createdName)
+    setCustomerName(createdName)
+    setCustomerTitleConfirmed(true)
+    setAccountItems((prev) => applyFieldValue(prev, 'Account', createdName))
   }, [])
   const cameFromSalesOrders =
     view.name === 'customer360' && view.returnTo === 'salesOrders'
@@ -391,7 +407,10 @@ export function Customer360Page() {
           </button>
           <div className="flex items-center gap-3">
             <h1
-              className="font-heading text-[16px] font-semibold ai-gradient-text"
+              className={cn(
+                'font-heading text-[16px] font-semibold',
+                customerTitleConfirmed ? 'text-brand-navy' : 'ai-gradient-text'
+              )}
               style={{ letterSpacing: '-0.5px' }}
             >
               {customerName}
@@ -551,6 +570,14 @@ export function Customer360Page() {
                       title="Account"
                       status={accountAttention.status}
                       statusLabel={accountAttention.statusLabel}
+                      extraStatus={
+                        createdAccountCustomer
+                          ? {
+                              icon: <UserPlus size={14} />,
+                              label: 'Created customer',
+                            }
+                          : undefined
+                      }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                     />
@@ -562,6 +589,8 @@ export function Customer360Page() {
                         showAddField
                         controlled
                         onItemChange={handleAccountItemChange}
+                        onCreateAsNewCustomer={handleCreateAccountCustomer}
+                        createdCustomerName={createdAccountCustomer}
                       />
                     </div>
                   </ContractSectionRow>
@@ -653,7 +682,8 @@ export function Customer360Page() {
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}
                       fullPageTitle={
-                        productsPricingVariant === 'expanded-state'
+                        productsPricingVariant === 'expanded-state' ||
+                        productsPricingVariant === 'item-pinned'
                           ? `${customerName} – ${taskTitle}`
                           : undefined
                       }

@@ -38,6 +38,8 @@ export interface ProductLineItem {
   totalPrice: string
   /** Price change percentage from previous period (e.g., 7 for 7% increase) */
   rampPriceChange?: number
+  /** Period-level row: label in Item; only Discount / Discount period are editable. */
+  isOverallDiscount?: boolean
 }
 
 export interface RampPeriod {
@@ -273,7 +275,7 @@ export const contractProcessing = {
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$9,500.00',
-      discount: '475',
+      discount: '5',
       discountUnit: 'USD',
       discountPeriod: 'One Time',
       totalPrice: '$9,500.00',
@@ -442,11 +444,11 @@ export const contractProcessing = {
       country: 'United States',
     },
     lineItems: [
-      { name: 'Apex platform - growth services (Year 1, Q1)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
-      { name: 'Implementation services (Year 1, Q1)', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
-      { name: 'Onboarding & Training (Year 1, Q1)', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
-      { name: 'Premium support SLA (Year 1, Q1)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
-      { name: 'Sandbox environments (Year 1, Q1)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+      { name: 'Apex platform - growth services', qty: '50', unitPrice: '$600.00', discount: '$3,000.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', discount: '$5.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments', qty: '3', unitPrice: '$375.00', discount: '$168.75', amount: '$1,125.00' },
     ],
     subtotal: '$41,000.00',
     tax: '$0.00',
@@ -928,6 +930,8 @@ export interface ScheduledInvoice {
     name: string
     qty: string
     unitPrice: string
+    /** Dollar discount on this line, shown as e.g. ($100.00). Omit when none. */
+    discount?: string
     amount: string
   }[]
   subtotal: string
@@ -1048,11 +1052,11 @@ export const scheduledInvoices: Record<string, ScheduledInvoice> = {
       country: 'United States',
     },
     lineItems: [
-      { name: 'Apex platform - growth services (Year 1, Q1)', qty: '50', unitPrice: '$600.00', amount: '$30,000.00' },
-      { name: 'Implementation services (Year 1, Q1)', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
-      { name: 'Onboarding & Training (Year 1, Q1)', qty: '1', unitPrice: '$2,375.00', amount: '$2,375.00' },
-      { name: 'Premium support SLA (Year 1, Q1)', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
-      { name: 'Sandbox environments (Year 1, Q1)', qty: '3', unitPrice: '$375.00', amount: '$1,125.00' },
+      { name: 'Apex platform - growth services', qty: '50', unitPrice: '$600.00', discount: '$3,000.00', amount: '$30,000.00' },
+      { name: 'Implementation services', qty: '1', unitPrice: '$4,500.00', amount: '$4,500.00' },
+      { name: 'Onboarding & Training', qty: '1', unitPrice: '$2,375.00', discount: '$5.00', amount: '$2,375.00' },
+      { name: 'Premium support SLA', qty: '1', unitPrice: '$3,000.00', amount: '$3,000.00' },
+      { name: 'Sandbox environments', qty: '3', unitPrice: '$375.00', discount: '$168.75', amount: '$1,125.00' },
     ],
     subtotal: '$41,000.00',
     tax: '$0.00',

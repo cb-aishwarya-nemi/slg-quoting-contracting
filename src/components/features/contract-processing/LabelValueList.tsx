@@ -4,6 +4,7 @@ import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
+import { useUseCase } from '@/context/UseCaseContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
 import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
@@ -115,6 +116,9 @@ const ACCOUNT_STATUS_STYLES: Record<AccountCustomerOption['status'], string> = {
   Inactive: 'bg-neutral-100 text-brand-navy',
 }
 
+const NEW_CUSTOMER_TAG =
+  'shrink-0 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] font-medium text-white'
+
 function resolveAccountOption(name: string): AccountCustomerOption {
   return (
     ACCOUNT_CUSTOMER_OPTIONS.find((option) => option.name === name) ?? {
@@ -132,10 +136,22 @@ interface LabelValueRowProps {
   sectionLabel?: string
   onItemChange?: (label: string, newValue: string) => void
   onRemove?: () => void
+  onCreateAsNewCustomer?: (name?: string) => void
+  createdCustomerName?: string | null
 }
 
-function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }: LabelValueRowProps) {
+function LabelValueRow({
+  item,
+  sectionId,
+  sectionLabel,
+  onItemChange,
+  onRemove,
+  onCreateAsNewCustomer,
+  createdCustomerName,
+}: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
+  const { activePage, activeVariant } = useUseCase()
+  const selectedOptionBlue = activePage === 'customer360' && activeVariant === 'item-pinned'
   const options =
     item.options?.length
       ? item.options
@@ -227,12 +243,19 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
   const isUnresolvedActive = isUnresolved && (isEditing || isOpen)
   const isAccountSelect = isSelect && item.label === 'Account'
   const isBestMatch =
-    isAccountSelect && item.value === ACCOUNT_CUSTOMER_OPTIONS[0].name
+    isAccountSelect &&
+    item.value === ACCOUNT_CUSTOMER_OPTIONS[0].name &&
+    createdCustomerName !== item.value
   const accountQuery = accountSearch.trim().toLowerCase()
-  const visibleOptions = !options
+  const rankedOptions = !options
+    ? []
+    : isAccountSelect && createdCustomerName
+      ? [createdCustomerName, ...options.filter((option) => option !== createdCustomerName)]
+      : options
+  const visibleOptions = !rankedOptions.length
     ? []
     : isAccountSelect && accountQuery
-      ? options.filter((option) => {
+      ? rankedOptions.filter((option) => {
           const customer = resolveAccountOption(option)
           return (
             customer.name.toLowerCase().includes(accountQuery) ||
@@ -240,7 +263,7 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
             customer.email.toLowerCase().includes(accountQuery)
           )
         })
-      : options
+      : rankedOptions
 
   const selectDropdown = options ? (
     <AnchoredMenu
@@ -315,32 +338,77 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
                     setIsOpen(false)
                   }}
                   className={cn(
-                    'flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition-colors',
+                    'group/account flex w-full cursor-pointer flex-col gap-1 px-3 py-2.5 text-left transition-colors',
                     !isLast && 'border-b border-neutral-100',
-                    isSelected ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                    isSelected && selectedOptionBlue
+                      ? 'bg-blue-50'
+                      : isSelected
+                        ? 'bg-neutral-100 hover:bg-brand-navy'
+                        : 'hover:bg-brand-navy'
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+                      <span
+                        className={cn(
+                          'truncate text-[13px] font-semibold tracking-[-0.25px]',
+                          isSelected && selectedOptionBlue
+                            ? 'text-blue-700'
+                            : 'text-brand-navy transition-colors group-hover/account:text-white'
+                        )}
+                      >
                         {customer.name}
                       </span>
-                      {isPioneerMatch(customer.name) && (
-                        <GradientSparkle size={12} />
+                      {createdCustomerName === customer.name ? (
+                        <span className={NEW_CUSTOMER_TAG}>New</span>
+                      ) : (
+                        isPioneerMatch(customer.name) &&
+                        (customer.name === ACCOUNT_CUSTOMER_OPTIONS[0].name ? (
+                          <span
+                            className={cn(
+                              'inline-flex shrink-0 items-center gap-1 text-[11px] font-medium ai-gradient-text',
+                              !(isSelected && selectedOptionBlue) &&
+                                'group-hover/account:text-white'
+                            )}
+                          >
+                            <GradientSparkle size={12} />
+                            Best match
+                          </span>
+                        ) : (
+                          <GradientSparkle size={12} />
+                        ))
                       )}
                     </span>
                     <span
                       className={cn(
-                        'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium',
-                        ACCOUNT_STATUS_STYLES[customer.status]
+                        'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium transition-colors',
+                        ACCOUNT_STATUS_STYLES[customer.status],
+                        !(isSelected && selectedOptionBlue) &&
+                          'group-hover/account:bg-white/15 group-hover/account:text-white'
                       )}
                     >
                       {customer.status}
                     </span>
                   </div>
-                  <div className="flex min-w-0 items-center gap-1.5 text-[12px] text-brand-fog">
+                  <div
+                    className={cn(
+                      'flex min-w-0 items-center gap-1.5 text-[12px]',
+                      isSelected && selectedOptionBlue
+                        ? 'text-blue-700/70'
+                        : 'text-brand-fog transition-colors group-hover/account:text-white/70'
+                    )}
+                  >
                     <span className="truncate">{customer.contactName}</span>
-                    <span className="shrink-0 text-brand-mist">·</span>
+                    <span
+                      className={cn(
+                        'shrink-0',
+                        isSelected && selectedOptionBlue
+                          ? 'text-blue-700/40'
+                          : 'text-brand-mist transition-colors group-hover/account:text-white/50'
+                      )}
+                    >
+                      ·
+                    </span>
                     <span className="truncate">{customer.email}</span>
                   </div>
                 </button>
@@ -370,6 +438,23 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
           })
         )}
       </div>
+      {isAccountSelect ? (
+        <div className="border-t border-neutral-100">
+          <button
+            type="button"
+            onMouseDown={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              onCreateAsNewCustomer?.(accountSearch.trim() || item.value)
+              setIsOpen(false)
+            }}
+            className="flex w-full cursor-pointer items-center justify-center gap-2 px-3 py-2.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+          >
+            <CirclePlus size={16} className="shrink-0 text-blue-700" />
+            Create as new customer
+          </button>
+        </div>
+      ) : null}
     </AnchoredMenu>
   ) : null
 
@@ -477,12 +562,12 @@ function LabelValueRow({ item, sectionId, sectionLabel, onItemChange, onRemove }
                 isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
-            {isBestMatch && (
+            {isBestMatch ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
                 <GradientSparkle size={12} />
                 Best match
               </span>
-            )}
+            ) : null}
             {selectDropdown}
           </div>
         ) : isEditing ? (
@@ -627,6 +712,8 @@ interface LabelValueListProps {
   onItemChange?: (label: string, newValue: string) => void
   onItemsChange?: (items: LabelValue[]) => void
   showAddField?: boolean
+  onCreateAsNewCustomer?: (name?: string) => void
+  createdCustomerName?: string | null
 }
 
 export function LabelValueList({
@@ -637,6 +724,8 @@ export function LabelValueList({
   onItemChange,
   onItemsChange,
   showAddField,
+  onCreateAsNewCustomer,
+  createdCustomerName,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -699,6 +788,12 @@ export function LabelValueList({
           sectionId={sectionId}
           sectionLabel={sectionLabel}
           onItemChange={handleItemChange}
+          onCreateAsNewCustomer={
+            item.label === 'Account' ? onCreateAsNewCustomer : undefined
+          }
+          createdCustomerName={
+            item.label === 'Account' ? createdCustomerName : undefined
+          }
         />
       ))}
       {customFields.map((field) => (

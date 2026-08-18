@@ -122,13 +122,13 @@ export function UseCaseSwitcher() {
                     type="button"
                     onClick={() => handleSelectVariant(variant)}
                     className={cn(
-                      'flex w-full items-start gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                      'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
                       isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
                     )}
                   >
                     <div
                       className={cn(
-                        'mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
                         isActive
                           ? 'border-brand-navy bg-brand-navy'
                           : 'border-neutral-300 bg-white'
@@ -140,11 +140,6 @@ export function UseCaseSwitcher() {
                       <span className="block text-[13px] font-medium text-brand-navy">
                         {variant.label}
                       </span>
-                      {variant.description && (
-                        <span className="block mt-0.5 text-[12px] text-brand-fog leading-snug">
-                          {variant.description}
-                        </span>
-                      )}
                     </div>
                   </button>
                 )

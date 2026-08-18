@@ -73,6 +73,9 @@ export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
           <div className="w-[110px] shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
             Unit price
           </div>
+          <div className="w-[110px] shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+            Discount
+          </div>
           <div className="w-[124px] shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
             Amount
           </div>
@@ -83,6 +86,9 @@ export function InvoicePreview({ isFlashing }: InvoicePreviewProps) {
             <div className="flex-1 text-[14px] text-brand-navy">{line.name}</div>
             <div className="w-[56px] shrink-0 text-right text-[14px] text-brand-navy">{line.qty}</div>
             <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">{line.unitPrice}</div>
+            <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">
+              {line.discount ? `(${line.discount})` : '–'}
+            </div>
             <div className="w-[124px] shrink-0 text-right text-[14px] text-brand-navy">{line.amount}</div>
           </div>
         ))}
