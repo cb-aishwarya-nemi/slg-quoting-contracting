@@ -104,26 +104,15 @@ export function SectionHeader({
           {/* Optional trailing action */}
           {trailing && <div className="shrink-0">{trailing}</div>}
 
-          {/* Bubble glyph with a notification-style count badge. Sections with no
-              comments still render it — same slot, just no badge. */}
-          {(hasComments || onToggleComments) && (
+          {/* Item-pinned mode wires a toggle and gets the interactive bubble. */}
+          {onToggleComments ? (
             <button
               type="button"
               onClick={onToggleComments}
-              disabled={!onToggleComments}
-              className={cn(
-                'relative inline-flex shrink-0 rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors focus:outline-none focus-visible:outline-none',
-                onToggleComments ? 'cursor-pointer hover:bg-blue-50' : 'cursor-default'
-              )}
+              className="relative inline-flex shrink-0 cursor-pointer rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:outline-none"
               aria-label={commentLabel}
-              aria-pressed={onToggleComments ? commentsVisible : undefined}
-              title={
-                onToggleComments
-                  ? commentsVisible
-                    ? 'Hide comments'
-                    : 'Show comments'
-                  : commentLabel
-              }
+              aria-pressed={commentsVisible}
+              title={commentsVisible ? 'Hide comments' : 'Show comments'}
             >
               {/* On = solid bubble with knocked-out dots; off = plain outline. */}
               <MessageCircleMore
@@ -150,7 +139,12 @@ export function SectionHeader({
                 </span>
               )}
             </button>
-          )}
+          ) : hasComments ? (
+            /* Other use cases keep the original comment-count pill. */
+            <span className="flex items-center gap-1 rounded-full border border-brand-navy px-2 py-0.5 text-[11px] font-medium text-brand-navy">
+              {commentLabel}
+            </span>
+          ) : null}
         </>
       )}
     </div>

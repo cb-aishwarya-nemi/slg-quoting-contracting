@@ -1180,20 +1180,33 @@ function ItemNameButton({
   )
 }
 
-const PERIOD_W = 108
-const QTY_W = 68
-/** Fits `$2,568.00` beside a ramp badge (`↑ 7%`) without truncating the price. */
-const UNIT_W = 170
-/** Edit-mode-only column between unit price and total — fits the amount + unit control. */
-const DISCOUNT_W = 90
-/** Edit-mode-only column for how long the discount runs. */
-const DISCOUNT_PERIOD_W = 132
-const TOTAL_W = 136
-/** Inline layout only — leaves room for the discount tag beside the amount. */
-const TOTAL_INLINE_W = 184
+const BASE_COLUMN_WIDTHS = {
+  PERIOD_W: 96,
+  QTY_W: 60,
+  /** Fits `$2,568.00` beside a ramp badge (`↑ 7%`) without truncating the price. */
+  UNIT_W: 152,
+  /** Edit-mode-only column between unit price and total — fits the amount + unit control. */
+  DISCOUNT_W: 78,
+  /** Edit-mode-only column for how long the discount runs. */
+  DISCOUNT_PERIOD_W: 116,
+  TOTAL_W: 124,
+  /** Inline layout only — leaves room for the discount tag beside the amount. */
+  TOTAL_INLINE_W: 172,
+  EXPANDED_ITEM_W: 340,
+} as const
 const MENU_W = 48
+const ITEM_PINNED_COLUMN_WIDTHS = {
+  PERIOD_W: 108,
+  QTY_W: 68,
+  UNIT_W: 170,
+  DISCOUNT_W: 90,
+  DISCOUNT_PERIOD_W: 132,
+  TOTAL_W: 136,
+  TOTAL_INLINE_W: 184,
+  EXPANDED_ITEM_W: 360,
+} as const
 /** Expanded sticky Total + ellipsis group pinned to the right. */
-const EXPANDED_PINNED_RIGHT_W = TOTAL_W + MENU_W
+const EXPANDED_PINNED_RIGHT_W = BASE_COLUMN_WIDTHS.TOTAL_W + MENU_W
 /** The `pl-1 pr-2` every row carries. */
 const ROW_PAD_X = 12
 /** The `pl-1` half of it — the sticky Item cell's resting offset. */
@@ -1208,11 +1221,6 @@ const EXPANDED_BODY_ROW_STROKE =
 /** Expanded-state only — fixed width of the sticky first (Item / period) column.
  *  Sized to fit "Period N 📅 Jul 17, 2026 to Jun 17, 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
-const EXPANDED_ITEM_W = 360
-/** Frequency → Discount period + separators between sticky Item and Total. */
-const EXPANDED_SCROLL_MIDDLE_W =
-  PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + SEPARATOR_W * 5
-
 /** Inline `position: sticky` wins over cellChrome's `relative`. */
 function pinLeftStyle(width: number): CSSProperties {
   return { width, left: 0, position: 'sticky' }
@@ -1232,6 +1240,8 @@ function ExpandedScrollContainer({
   fullWidth,
   pinRight,
   leadingGutter,
+  itemColumnWidth = BASE_COLUMN_WIDTHS.EXPANDED_ITEM_W,
+  pinnedRightWidth = EXPANDED_PINNED_RIGHT_W,
 }: {
   children: ReactNode
   /** Item pinned only — own scroller, scroll-synced, so pin cues stay on the table. */
@@ -1242,6 +1252,10 @@ function ExpandedScrollContainer({
   fullWidth?: boolean
   /** Show the right pin cue for Total + menu (Window table only). */
   pinRight?: boolean
+  /** Variant-specific sticky Item track width. */
+  itemColumnWidth?: number
+  /** Variant-specific sticky Total + menu width. */
+  pinnedRightWidth?: number
   /**
    * Sits in the 24px gutter left of the table, level with the header row.
    * overflow-x would clip it inside the scroller, so it lives out here.
@@ -1354,7 +1368,7 @@ function ExpandedScrollContainer({
             showPinCue ? 'opacity-100' : 'opacity-0'
           )}
           style={{
-            left: EXPANDED_ITEM_W + pin.offset,
+            left: itemColumnWidth + pin.offset,
             backgroundImage:
               'linear-gradient(to right, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
           }}
@@ -1367,7 +1381,7 @@ function ExpandedScrollContainer({
               showPinCue ? 'opacity-100' : 'opacity-0'
             )}
             style={{
-              right: EXPANDED_PINNED_RIGHT_W,
+              right: pinnedRightWidth,
               backgroundImage:
                 'linear-gradient(to left, rgba(28,27,46,0.07), rgba(28,27,46,0.02) 45%, rgba(28,27,46,0))',
             }}
@@ -2234,6 +2248,19 @@ export function ProductsPricingTable({
   onInvoiceLevelDiscountChange,
 }: ProductsPricingTableProps) {
   const isExpandedVariant = variant === 'expanded-state' || variant === 'item-pinned'
+  const isItemPinnedVariant = variant === 'item-pinned'
+  const {
+    PERIOD_W,
+    QTY_W,
+    UNIT_W,
+    DISCOUNT_W,
+    DISCOUNT_PERIOD_W,
+    TOTAL_W,
+    TOTAL_INLINE_W,
+    EXPANDED_ITEM_W,
+  } = isItemPinnedVariant ? ITEM_PINNED_COLUMN_WIDTHS : BASE_COLUMN_WIDTHS
+  const EXPANDED_SCROLL_MIDDLE_W =
+    PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + SEPARATOR_W * 5
   /** Window table pins Total + ellipsis and shows the right pin cue. */
   const pinRightColumns = variant === 'expanded-state'
   /** Window table and Item pinned both pin the ellipsis; Item pinned has no right cue. */
@@ -3257,7 +3284,7 @@ export function ProductsPricingTable({
             false,
             'z-30 min-w-0 bg-white',
             !isFullPageExpanded && 'shrink-0',
-            EXPANDED_BODY_ROW_STROKE
+            isItemPinnedVariant && EXPANDED_BODY_ROW_STROKE
           )}
         >
           <div className={cellInner(false, 'min-w-0')}>
@@ -3420,7 +3447,7 @@ export function ProductsPricingTable({
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-30',
             isItemEdited ? 'bg-amber-50' : 'bg-white',
-            EXPANDED_BODY_ROW_STROKE
+            isItemPinnedVariant && EXPANDED_BODY_ROW_STROKE
           )}
         >
           {isItemEdited ? <EditedCellFill /> : null}
@@ -4469,6 +4496,8 @@ export function ProductsPricingTable({
                   pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
                   fullWidth={isEditMode}
                   pinRight={pinRightColumns}
+                  itemColumnWidth={EXPANDED_ITEM_W}
+                  pinnedRightWidth={TOTAL_W + MENU_W}
                   leadingGutter={
                     <PeriodChevron
                       isExpanded
@@ -4537,6 +4566,8 @@ export function ProductsPricingTable({
           pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
           fullWidth={isEditMode}
           pinRight={pinRightColumns}
+          itemColumnWidth={EXPANDED_ITEM_W}
+          pinnedRightWidth={TOTAL_W + MENU_W}
         >
           {renderExpandedTableHeader()}
           {items.map((item) => renderExpandedLineItem(item, setItems, items))}

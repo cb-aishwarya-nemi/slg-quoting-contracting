@@ -6,10 +6,21 @@ import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
-import { GradientSparkle } from './GradientSparkle'
 import { applyFieldValue } from './sectionAttention'
 import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 import { DatePickerField } from './DatePickerField'
+import {
+  ACCOUNT_CUSTOMER_OPTIONS,
+  ACCOUNT_NAME_OPTIONS,
+  ACCOUNT_STATUS_STYLES,
+  DEFAULT_ACCOUNT_NAME,
+  NEW_CUSTOMER_TAG,
+  AccountCustomerPicker,
+  isPioneerMatch,
+  resolveAccountOption,
+} from './AccountCustomerPicker'
+import { AccountCustomerPickerV2 } from './AccountCustomerPickerV2'
+import { GradientSparkle } from './GradientSparkle'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
 
@@ -35,101 +46,6 @@ const ACCOUNT_ADDABLE_FIELDS = [
   'Renewal owner',
 ]
 
-/** Fallback so Account stays a dropdown even if page state is stale. */
-const ACCOUNT_NAME_OPTIONS = [
-  'Pioneer Systems',
-  'Pioneer systems',
-  'Pioneer System',
-  'Pioneers Systems',
-  'Pinoeer Systems',
-  'Atlas BioSystems',
-  'Cascade Networks',
-  'Horizon Analytics',
-]
-
-interface AccountCustomerOption {
-  name: string
-  status: 'Active' | 'Inactive'
-  contactName: string
-  email: string
-}
-
-/** Near-matches for Pioneer (including typo variants shown in the picker). */
-function isPioneerMatch(name: string): boolean {
-  return /pione+r/i.test(name) || /pinoeer/i.test(name)
-}
-
-/** Rich rows for the Account customer picker (SecondaryNavSwitcher-style). */
-const ACCOUNT_CUSTOMER_OPTIONS: AccountCustomerOption[] = [
-  {
-    name: 'Pioneer Systems',
-    status: 'Active',
-    contactName: 'Alex Nguyen',
-    email: 'alex.nguyen@pioneersystems.com',
-  },
-  {
-    name: 'Pioneer systems',
-    status: 'Active',
-    contactName: 'David Chen',
-    email: 'd.chen@pioneersystems.com',
-  },
-  {
-    name: 'Pioneer System',
-    status: 'Active',
-    contactName: 'Rachel Torres',
-    email: 'r.torres@pioneer-system.com',
-  },
-  {
-    name: 'Pioneers Systems',
-    status: 'Active',
-    contactName: 'Samira Patel',
-    email: 's.patel@pioneers-systems.com',
-  },
-  {
-    name: 'Pinoeer Systems',
-    status: 'Inactive',
-    contactName: 'Morgan Lee',
-    email: 'm.lee@pinoeersystems.com',
-  },
-  {
-    name: 'Atlas BioSystems',
-    status: 'Active',
-    contactName: 'Priya Mehta',
-    email: 'p.mehta@atlasbio.com',
-  },
-  {
-    name: 'Cascade Networks',
-    status: 'Active',
-    contactName: 'James Wilson',
-    email: 'j.wilson@cascadenet.com',
-  },
-  {
-    name: 'Horizon Analytics',
-    status: 'Active',
-    contactName: 'Linda Wang',
-    email: 'l.wang@horizonanalytics.com',
-  },
-]
-
-const ACCOUNT_STATUS_STYLES: Record<AccountCustomerOption['status'], string> = {
-  Active: 'bg-green-50 text-green-700',
-  Inactive: 'bg-neutral-100 text-brand-navy',
-}
-
-const NEW_CUSTOMER_TAG =
-  'shrink-0 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] font-medium text-white'
-
-function resolveAccountOption(name: string): AccountCustomerOption {
-  return (
-    ACCOUNT_CUSTOMER_OPTIONS.find((option) => option.name === name) ?? {
-      name,
-      status: 'Active',
-      contactName: '—',
-      email: '—',
-    }
-  )
-}
-
 interface LabelValueRowProps {
   item: LabelValue
   sectionId?: string
@@ -138,6 +54,7 @@ interface LabelValueRowProps {
   onRemove?: () => void
   onCreateAsNewCustomer?: (name?: string) => void
   createdCustomerName?: string | null
+  accountPickerVariant?: 'current' | 'v2'
 }
 
 function LabelValueRow({
@@ -148,10 +65,13 @@ function LabelValueRow({
   onRemove,
   onCreateAsNewCustomer,
   createdCustomerName,
+  accountPickerVariant = 'current',
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
-  const selectedOptionBlue = activePage === 'customer360' && activeVariant === 'item-pinned'
+  const selectedOptionBlue =
+    activePage === 'customer360' &&
+    (activeVariant === 'item-pinned' || activeVariant === 'account-picker-v2')
   const options =
     item.options?.length
       ? item.options
@@ -244,7 +164,7 @@ function LabelValueRow({
   const isAccountSelect = isSelect && item.label === 'Account'
   const isBestMatch =
     isAccountSelect &&
-    item.value === ACCOUNT_CUSTOMER_OPTIONS[0].name &&
+    item.value === DEFAULT_ACCOUNT_NAME &&
     createdCustomerName !== item.value
   const accountQuery = accountSearch.trim().toLowerCase()
   const rankedOptions = !options
@@ -265,7 +185,8 @@ function LabelValueRow({
         })
       : rankedOptions
 
-  const selectDropdown = options ? (
+  // Kept for generic select fields. Account uses the extracted picker below.
+  const genericSelectDropdown = options ? (
     <AnchoredMenu
       isOpen={isOpen}
       onClose={() => setIsOpen(false)}
@@ -457,6 +378,25 @@ function LabelValueRow({
       ) : null}
     </AnchoredMenu>
   ) : null
+
+  const AccountPicker =
+    accountPickerVariant === 'v2' ? AccountCustomerPickerV2 : AccountCustomerPicker
+  const selectDropdown =
+    isAccountSelect && options ? (
+      <AccountPicker
+        isOpen={isOpen}
+        onClose={() => setIsOpen(false)}
+        anchorRef={triggerRef}
+        options={options}
+        value={item.value}
+        createdCustomerName={createdCustomerName}
+        highlightSelected={selectedOptionBlue}
+        onSelect={commitValue}
+        onCreateAsNewCustomer={onCreateAsNewCustomer}
+      />
+    ) : (
+      genericSelectDropdown
+    )
 
   return (
     <div
@@ -714,6 +654,8 @@ interface LabelValueListProps {
   showAddField?: boolean
   onCreateAsNewCustomer?: (name?: string) => void
   createdCustomerName?: string | null
+  /** Explicit Account picker implementation; current remains the default. */
+  accountPickerVariant?: 'current' | 'v2'
 }
 
 export function LabelValueList({
@@ -726,6 +668,7 @@ export function LabelValueList({
   showAddField,
   onCreateAsNewCustomer,
   createdCustomerName,
+  accountPickerVariant = 'current',
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -794,6 +737,7 @@ export function LabelValueList({
           createdCustomerName={
             item.label === 'Account' ? createdCustomerName : undefined
           }
+          accountPickerVariant={accountPickerVariant}
         />
       ))}
       {customFields.map((field) => (

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, UserPlus } from 'lucide-react'
+import { ChevronLeft, Maximize2, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -155,12 +155,22 @@ export function Customer360Page() {
   const { view, goToCustomers, goToSalesOrders } = useNavigation()
   const { activePage, activeVariant, setActivePage, getPage } = useUseCase()
   const productsPricingPage = getPage('customer360')
-  const productsPricingVariant =
+  const activeCustomer360Variant =
     (activePage === 'customer360' &&
       activeVariant &&
       productsPricingPage?.variants.some((v) => v.id === activeVariant)
       ? activeVariant
-      : productsPricingPage?.defaultVariant) as ProductsPricingVariant | undefined
+      : productsPricingPage?.defaultVariant) as
+      | ProductsPricingVariant
+      | 'account-picker-v2'
+      | undefined
+  const isAccountPickerV2 = activeCustomer360Variant === 'account-picker-v2'
+  // Account V2 starts from the Item pinned page baseline; only its picker differs.
+  const productsPricingVariant: ProductsPricingVariant | undefined =
+    activeCustomer360Variant === 'account-picker-v2'
+      ? 'item-pinned'
+      : activeCustomer360Variant
+  const isItemPinnedVariant = productsPricingVariant === 'item-pinned'
   const [isProductsLifted, setIsProductsLifted] = useState(false)
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
@@ -270,6 +280,7 @@ export function Customer360Page() {
   const toggleComments = useCallback(() => {
     setAreCommentsVisible((prev) => !prev)
   }, [])
+  const arePageCommentsVisible = isItemPinnedVariant ? areCommentsVisible : true
 
   useEffect(() => {
     setActivePage('customer360')
@@ -509,7 +520,10 @@ export function Customer360Page() {
             {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
             <div
               ref={centerRef}
-              className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12 pl-6 pr-4"
+              className={cn(
+                'min-w-0 flex-1 overflow-y-auto pb-20 pt-12 pr-4',
+                isItemPinnedVariant ? 'pl-6' : 'pl-16'
+              )}
             >
               <div className="space-y-16">
                 {/* Summary — AI header + headline, no comments column */}
@@ -567,7 +581,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="account"
                     sectionLabel="Account"
-                    areCommentsVisible={areCommentsVisible}
+                    areCommentsVisible={arePageCommentsVisible}
                     comments={commentsBySection['account'] ?? []}
                     onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
                     onDelete={handleDeleteComment}
@@ -587,8 +601,8 @@ export function Customer360Page() {
                       }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
-                      commentsVisible={areCommentsVisible}
-                      onToggleComments={toggleComments}
+                      commentsVisible={arePageCommentsVisible}
+                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -600,6 +614,7 @@ export function Customer360Page() {
                         onItemChange={handleAccountItemChange}
                         onCreateAsNewCustomer={handleCreateAccountCustomer}
                         createdCustomerName={createdAccountCustomer}
+                        accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
                       />
                     </div>
                   </ContractSectionRow>
@@ -614,7 +629,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="addresses"
                     sectionLabel="Addresses"
-                    areCommentsVisible={areCommentsVisible}
+                    areCommentsVisible={arePageCommentsVisible}
                     comments={commentsBySection['addresses'] ?? []}
                     onAddNote={(text, status) => handleAddComment('addresses', 'Addresses', text, status)}
                     onDelete={handleDeleteComment}
@@ -626,8 +641,8 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['addresses']}
-                      commentsVisible={areCommentsVisible}
-                      onToggleComments={toggleComments}
+                      commentsVisible={arePageCommentsVisible}
+                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -648,7 +663,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="terms"
                     sectionLabel="Terms and billing"
-                    areCommentsVisible={areCommentsVisible}
+                    areCommentsVisible={arePageCommentsVisible}
                     comments={commentsBySection['terms'] ?? []}
                     onAddNote={(text, status) => handleAddComment('terms', 'Terms and billing', text, status)}
                     onDelete={handleDeleteComment}
@@ -660,8 +675,8 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['terms']}
-                      commentsVisible={areCommentsVisible}
-                      onToggleComments={toggleComments}
+                      commentsVisible={arePageCommentsVisible}
+                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -678,8 +693,8 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="products"
                     sectionLabel="Products and pricing"
-                    areCommentsVisible={areCommentsVisible}
-                    expandIntoCommentsWhenHidden
+                    areCommentsVisible={arePageCommentsVisible}
+                    expandIntoCommentsWhenHidden={isItemPinnedVariant}
                     expandedPaddingRight={24}
                     comments={commentsBySection['products'] ?? []}
                     commentsOffsetTop={
@@ -721,8 +736,22 @@ export function Customer360Page() {
                                 ? undefined
                                 : commentCountsBySection['products']
                             }
-                            commentsVisible={areCommentsVisible}
-                            onToggleComments={toggleComments}
+                            commentsVisible={arePageCommentsVisible}
+                            onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                            trailing={
+                              !isItemPinnedVariant && !isProductsLifted ? (
+                                <button
+                                  type="button"
+                                  data-products-pricing-expand=""
+                                  onClick={() => setIsProductsLifted(true)}
+                                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+                                  aria-label="Expand products and pricing"
+                                  title="Expand"
+                                >
+                                  <Maximize2 size={14} strokeWidth={2} />
+                                </button>
+                              ) : undefined
+                            }
                           />
                         </>
                       }
@@ -730,27 +759,75 @@ export function Customer360Page() {
                   </ContractSectionRow>
                 </section>
 
-                {/* Billing schedule — no notes column */}
+                {/* Billing schedule — notes are omitted only in Item pinned. */}
                 <section ref={setSectionRef('schedule')} className="group/section">
-                  <SectionHeader
-                    title="Billing schedule"
-                    hideLine
-                    showRefreshIcon
-                    isFlashing={false}
-                  />
-                  <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                    <PaymentSchedule tcv={data.summary.contractValue} />
-                  </div>
+                  {isItemPinnedVariant ? (
+                    <>
+                      <SectionHeader
+                        title="Billing schedule"
+                        hideLine
+                        showRefreshIcon
+                        isFlashing={false}
+                      />
+                      <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                        <PaymentSchedule tcv={data.summary.contractValue} />
+                      </div>
+                    </>
+                  ) : (
+                    <ContractSectionRow
+                      sectionId="schedule"
+                      sectionLabel="Billing schedule"
+                      areCommentsVisible
+                      comments={commentsBySection['schedule'] ?? []}
+                      onAddNote={(text, status) =>
+                        handleAddComment('schedule', 'Billing schedule', text, status)
+                      }
+                      onDelete={handleDeleteComment}
+                      onResolve={handleResolveComment}
+                    >
+                      <SectionHeader
+                        title="Billing schedule"
+                        hideLine
+                        showRefreshIcon
+                        isFlashing={false}
+                        commentCount={commentCountsBySection['schedule']}
+                      />
+                      <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                        <PaymentSchedule tcv={data.summary.contractValue} />
+                      </div>
+                    </ContractSectionRow>
+                  )}
                 </section>
 
-                {/* Invoice preview — no notes column */}
+                {/* Invoice preview — notes are omitted only in Item pinned. */}
                 <section ref={setSectionRef('invoice')} className="group/section">
-                  <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                    <InvoicePreview
-                      isFlashing={false}
-                      invoiceLevelDiscount={invoiceLevelDiscount}
-                    />
-                  </div>
+                  {isItemPinnedVariant ? (
+                    <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                      <InvoicePreview
+                        isFlashing={false}
+                        invoiceLevelDiscount={invoiceLevelDiscount}
+                      />
+                    </div>
+                  ) : (
+                    <ContractSectionRow
+                      sectionId="invoice"
+                      sectionLabel="Invoice preview"
+                      areCommentsVisible
+                      comments={commentsBySection['invoice'] ?? []}
+                      onAddNote={(text, status) =>
+                        handleAddComment('invoice', 'Invoice preview', text, status)
+                      }
+                      onDelete={handleDeleteComment}
+                      onResolve={handleResolveComment}
+                    >
+                      <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                        <InvoicePreview
+                          isFlashing={false}
+                          invoiceLevelDiscount={invoiceLevelDiscount}
+                        />
+                      </div>
+                    </ContractSectionRow>
+                  )}
                 </section>
               </div>
             </div>

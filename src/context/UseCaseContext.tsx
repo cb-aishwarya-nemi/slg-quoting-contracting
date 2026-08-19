@@ -54,6 +54,11 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
         id: 'item-pinned',
         label: 'Item pinned',
       },
+      {
+        id: 'account-picker-v2',
+        label: 'Account picker V2',
+        description: 'Isolated exploration of the Account customer dropdown',
+      },
     ],
   },
 ]
