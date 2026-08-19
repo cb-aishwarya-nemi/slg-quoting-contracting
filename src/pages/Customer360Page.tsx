@@ -13,6 +13,7 @@ import {
   ContractSummaryHeadline,
   LabelValueList,
   ProductsPricingTable,
+  AllocationTable,
   InvoicePreview,
   PaymentSchedule,
   InPageNav,
@@ -53,6 +54,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'addresses', label: 'Billing and Shipping addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
+  { id: 'allocation', label: 'Entitlements and credits', status: 'neutral' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
@@ -756,6 +758,34 @@ export function Customer360Page() {
                         </>
                       }
                     />
+                  </ContractSectionRow>
+                </section>
+
+                {/* Entitlements and credits */}
+                <section ref={setSectionRef('allocation')} className="group/section">
+                  <ContractSectionRow
+                    sectionId="allocation"
+                    sectionLabel="Entitlements and credits"
+                    areCommentsVisible={arePageCommentsVisible}
+                    expandIntoCommentsWhenHidden={isItemPinnedVariant}
+                    expandedPaddingRight={24}
+                    comments={commentsBySection['allocation'] ?? []}
+                    onAddNote={(text, status) =>
+                      handleAddComment('allocation', 'Entitlements and credits', text, status)
+                    }
+                    onDelete={handleDeleteComment}
+                    onResolve={handleResolveComment}
+                  >
+                    <SectionHeader
+                      title="Entitlements and credits"
+                      isFlashing={false}
+                      commentCount={commentCountsBySection['allocation']}
+                      commentsVisible={arePageCommentsVisible}
+                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                    />
+                    <div className="mt-6">
+                      <AllocationTable items={data.allocations} />
+                    </div>
                   </ContractSectionRow>
                 </section>
 
