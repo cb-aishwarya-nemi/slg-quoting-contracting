@@ -62,7 +62,6 @@ const WIDE_CONTENT_WIDTH = 780
 const COMMENTS_COL_WIDTH = 250
 const COMMENTS_COL_GAP = 32
 const LEFT_NAV_WIDTH = 48
-const EXPANDED_MAX_WIDTH = 1000
 const ACTIVE_TASK_ID = 100
 
 /** Stable section layout — recreating this in render remounts children and wipes local state. */
