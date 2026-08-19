@@ -1180,17 +1180,17 @@ function ItemNameButton({
   )
 }
 
-const PERIOD_W = 96
-const QTY_W = 60
+const PERIOD_W = 108
+const QTY_W = 68
 /** Fits `$2,568.00` beside a ramp badge (`↑ 7%`) without truncating the price. */
-const UNIT_W = 152
+const UNIT_W = 170
 /** Edit-mode-only column between unit price and total — fits the amount + unit control. */
-const DISCOUNT_W = 78
+const DISCOUNT_W = 90
 /** Edit-mode-only column for how long the discount runs. */
-const DISCOUNT_PERIOD_W = 116
-const TOTAL_W = 124
+const DISCOUNT_PERIOD_W = 132
+const TOTAL_W = 136
 /** Inline layout only — leaves room for the discount tag beside the amount. */
-const TOTAL_INLINE_W = 172
+const TOTAL_INLINE_W = 184
 const MENU_W = 48
 /** Expanded sticky Total + ellipsis group pinned to the right. */
 const EXPANDED_PINNED_RIGHT_W = TOTAL_W + MENU_W
@@ -1198,10 +1198,17 @@ const EXPANDED_PINNED_RIGHT_W = TOTAL_W + MENU_W
 const ROW_PAD_X = 12
 /** The `pl-1` half of it — the sticky Item cell's resting offset. */
 const ROW_PAD_LEFT = 4
+/**
+ * Divider on the sticky first column of expanded body rows. The scroller flags
+ * its track while the pin shadow is up, and the stroke fades out so the two
+ * cues never stack on the same edge.
+ */
+const EXPANDED_BODY_ROW_STROKE =
+  'border-r border-neutral-200 [[data-pin-cue]_&]:border-r-transparent'
 /** Expanded-state only — fixed width of the sticky first (Item / period) column.
- *  Sized to fit "Period N 📅 17 Jul 2026 to 17 Jun 2028" without spilling
+ *  Sized to fit "Period N 📅 Jul 17, 2026 to Jun 17, 2028" without spilling
  *  into Frequency; item names truncate inside the same track. */
-const EXPANDED_ITEM_W = 340
+const EXPANDED_ITEM_W = 360
 /** Frequency → Discount period + separators between sticky Item and Total. */
 const EXPANDED_SCROLL_MIDDLE_W =
   PERIOD_W + QTY_W + UNIT_W + DISCOUNT_W + DISCOUNT_PERIOD_W + SEPARATOR_W * 5
@@ -1224,6 +1231,7 @@ function ExpandedScrollContainer({
   pauseShadow,
   fullWidth,
   pinRight,
+  leadingGutter,
 }: {
   children: ReactNode
   /** Item pinned only — own scroller, scroll-synced, so pin cues stay on the table. */
@@ -1234,11 +1242,19 @@ function ExpandedScrollContainer({
   fullWidth?: boolean
   /** Show the right pin cue for Total + menu (Window table only). */
   pinRight?: boolean
+  /**
+   * Sits in the 24px gutter left of the table, level with the header row.
+   * overflow-x would clip it inside the scroller, so it lives out here.
+   */
+  leadingGutter?: ReactNode
 }) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const footerScrollRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
   /** Rows start at `pl-1`, so at rest the Item cell sits 4px in; it slides to 0 once pinned. */
   const [pin, setPin] = useState({ hasOverflow: false, offset: ROW_PAD_LEFT })
+  /** Centre of the header row's first cell — the gutter icon lines up with it. */
+  const [gutterCenter, setGutterCenter] = useState<number | null>(null)
 
   useEffect(() => {
     const el = scrollRef.current
@@ -1280,14 +1296,52 @@ function ExpandedScrollContainer({
     return () => footerEl.removeEventListener('scroll', onFooterScroll)
   }, [footer])
 
+  useEffect(() => {
+    const track = trackRef.current
+    if (!leadingGutter || !track) return
+    const measure = () => {
+      // The header row bottom-pads away from its content, so centring on the
+      // row itself would sit low; measure the cell that holds the period label.
+      const headerRow = track.firstElementChild as HTMLElement | null
+      const target = (headerRow?.firstElementChild as HTMLElement | null) ?? headerRow
+      if (!target) return
+      const trackTop = track.getBoundingClientRect().top
+      const rect = target.getBoundingClientRect()
+      if (rect.height === 0) return
+      setGutterCenter(rect.top - trackTop + rect.height / 2)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(track)
+    window.addEventListener('resize', measure)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [leadingGutter])
+
   const showPinCue = pin.hasOverflow && !pauseShadow && !fullWidth
   const trackClass = fullWidth ? 'w-full min-w-full' : 'w-max min-w-full'
 
   return (
     <div className={cn(fullWidth && 'w-full')}>
       <div className="relative">
+        {leadingGutter ? (
+          <div
+            className="absolute -left-5 z-30"
+            style={
+              gutterCenter === null
+                ? { top: 0 }
+                : { top: gutterCenter, transform: 'translateY(-50%)' }
+            }
+          >
+            {leadingGutter}
+          </div>
+        ) : null}
         <div ref={scrollRef} className="overflow-x-auto overflow-y-hidden">
-          <div className={trackClass}>{children}</div>
+          <div ref={trackRef} className={trackClass} data-pin-cue={showPinCue || undefined}>
+            {children}
+          </div>
         </div>
         {/*
          * Pin cues sit outside overflow-x so they stay on the sticky edges
@@ -1501,10 +1555,11 @@ function parsePeriodDate(dateStr: string): Date | null {
   return new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate())
 }
 
+/** Matches the Effective date / End date fields, e.g. "May 1, 2026". */
 function formatPeriodDate(date: Date): string {
-  return date.toLocaleDateString('en-GB', {
-    day: 'numeric',
+  return date.toLocaleDateString('en-US', {
     month: 'short',
+    day: 'numeric',
     year: 'numeric',
   })
 }
@@ -1537,7 +1592,7 @@ function toDateKey(date: Date): string {
 
 const WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
 
-/** In-app calendar popover aligned with Apex dropdown styling. */
+/** In-app calendar + typed date, hugging the value instead of a fixed field width. */
 function PeriodDateEdit({
   value,
   onChange,
@@ -1551,22 +1606,82 @@ function PeriodDateEdit({
   onOpenChange?: (open: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
-  const selected = parsePeriodDate(value) ?? new Date()
+  const [draft, setDraft] = useState(value)
+  const [pickerOpen, setPickerOpen] = useState(defaultOpen)
+  const selected = parsePeriodDate(draft) ?? parsePeriodDate(value) ?? new Date()
   const [viewMonth, setViewMonth] = useState(
     () => new Date(selected.getFullYear(), selected.getMonth(), 1)
   )
-  const buttonRef = useRef<HTMLButtonElement>(null)
+  const rootRef = useRef<HTMLSpanElement>(null)
+  const anchorRef = useRef<HTMLElement | null>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
-  const setPickerOpen = (next: boolean) => {
-    setOpen(next)
-    onOpenChange?.(next)
-  }
+  const setEditing = useCallback(
+    (next: boolean) => {
+      setOpen(next)
+      onOpenChange?.(next)
+    },
+    [onOpenChange]
+  )
+
+  useEffect(() => {
+    if (!open) setDraft(value)
+  }, [value, open])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setPickerOpen(false)
+      return
+    }
+    setDraft(value)
+    const parsed = parsePeriodDate(value)
+    if (parsed) setViewMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
+    setPickerOpen(true)
+    const frame = requestAnimationFrame(() => {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [open, value])
+
+  const commitDraft = useCallback(
+    (raw: string) => {
+      const parsed = parsePeriodDate(raw.trim())
+      const next = parsed ? formatPeriodDate(parsed) : raw.trim() || value
+      setDraft(next)
+      if (next !== value) onChange(next)
+      return next
+    },
+    [onChange, value]
+  )
+
+  const close = useCallback(
+    (commit: boolean) => {
+      if (commit) commitDraft(draft)
+      else setDraft(value)
+      setPickerOpen(false)
+      setEditing(false)
+    },
+    [commitDraft, draft, setEditing, value]
+  )
 
   useEffect(() => {
     if (!open) return
-    const parsed = parsePeriodDate(value)
-    if (parsed) setViewMonth(new Date(parsed.getFullYear(), parsed.getMonth(), 1))
-  }, [open, value])
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target
+      if (!(target instanceof Node)) return
+      if (rootRef.current?.contains(target)) return
+      if (
+        target instanceof Element &&
+        target.closest('[data-date-picker-menu="true"], [data-anchored-menu]')
+      ) {
+        return
+      }
+      close(true)
+    }
+    document.addEventListener('pointerdown', onPointerDown, true)
+    return () => document.removeEventListener('pointerdown', onPointerDown, true)
+  }, [close, open])
 
   const todayKey = toDateKey(new Date())
   const selectedKey = toDateKey(selected)
@@ -1588,136 +1703,196 @@ function PeriodDateEdit({
 
   const calendar = (
     <AnchoredMenu
-      isOpen={open}
+      isOpen={open && pickerOpen}
       onClose={() => setPickerOpen(false)}
-      anchorRef={buttonRef}
+      anchorRef={anchorRef}
       offset={6}
       className="w-[280px] rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
     >
-      <div role="dialog" aria-label="Choose date" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-label="Choose date"
+        data-date-picker-menu="true"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="mb-3 flex items-center justify-between gap-1">
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1)
-                    )
-                  }
-                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                  aria-label="Previous year"
-                >
-                  <ChevronsLeft size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1)
-                    )
-                  }
-                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                  aria-label="Previous month"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-              </div>
-              <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
-                {monthLabel}
-              </span>
-              <div className="flex items-center">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1)
-                    )
-                  }
-                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                  aria-label="Next month"
-                >
-                  <ChevronRight size={16} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setViewMonth(
-                      new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1)
-                    )
-                  }
-                  className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
-                  aria-label="Next year"
-                >
-                  <ChevronsRight size={16} />
-                </button>
-              </div>
-            </div>
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() =>
+                setViewMonth(new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1))
+              }
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+              aria-label="Previous year"
+            >
+              <ChevronsLeft size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))
+              }
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+              aria-label="Previous month"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </div>
+          <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+            {monthLabel}
+          </span>
+          <div className="flex items-center">
+            <button
+              type="button"
+              onClick={() =>
+                setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))
+              }
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+              aria-label="Next month"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              type="button"
+              onClick={() =>
+                setViewMonth(new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1))
+              }
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+              aria-label="Next year"
+            >
+              <ChevronsRight size={16} />
+            </button>
+          </div>
+        </div>
 
-            <div className="mb-1 grid grid-cols-7 gap-0.5">
-              {WEEKDAYS.map((day) => (
-                <div
-                  key={day}
-                  className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
-                >
-                  {day}
-                </div>
-              ))}
+        <div className="mb-1 grid grid-cols-7 gap-0.5">
+          {WEEKDAYS.map((day) => (
+            <div
+              key={day}
+              className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
+            >
+              {day}
             </div>
+          ))}
+        </div>
 
-            <div className="grid grid-cols-7 gap-0.5">
-              {cells.map((date, idx) => {
-                if (!date) {
-                  return <div key={`empty-${idx}`} className="h-8" />
-                }
-                const key = toDateKey(date)
-                const isSelected = key === selectedKey
-                const isToday = key === todayKey
-                return (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => {
-                      onChange(formatPeriodDate(date))
-                      setPickerOpen(false)
-                    }}
-                    className={cn(
-                      'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
-                      isSelected
-                        ? 'bg-brand-navy font-semibold text-white'
-                        : isToday
-                          ? 'font-semibold text-blue-700 hover:bg-blue-50'
-                          : 'text-brand-navy hover:bg-neutral-100'
-                    )}
-                  >
-                    {date.getDate()}
-                  </button>
-                )
-              })}
+        <div className="grid grid-cols-7 gap-0.5">
+          {cells.map((date, idx) => {
+            if (!date) {
+              return <div key={`empty-${idx}`} className="h-8" />
+            }
+            const key = toDateKey(date)
+            const isSelected = key === selectedKey
+            const isToday = key === todayKey
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  const next = formatPeriodDate(date)
+                  setDraft(next)
+                  onChange(next)
+                  setPickerOpen(false)
+                  setEditing(false)
+                }}
+                className={cn(
+                  'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
+                  isSelected
+                    ? 'bg-brand-navy font-semibold text-white'
+                    : isToday
+                      ? 'font-semibold text-blue-700 hover:bg-blue-50'
+                      : 'text-brand-navy hover:bg-neutral-100'
+                )}
+              >
+                {date.getDate()}
+              </button>
+            )
+          })}
         </div>
       </div>
     </AnchoredMenu>
   )
 
   return (
-    <span className="relative inline-flex min-w-0 items-center">
-      <button
-        ref={buttonRef}
-        type="button"
-        onClick={(e: MouseEvent) => {
+    <span ref={rootRef} className="relative inline-flex min-w-0 items-center">
+      {/* Both states share one box — same padding, gap and text metrics — so
+          switching to edit doesn't nudge the row. */}
+      <span
+        ref={anchorRef}
+        role={open ? undefined : 'button'}
+        tabIndex={open ? undefined : 0}
+        aria-label={open ? undefined : `Edit date ${value}`}
+        aria-expanded={open ? undefined : false}
+        aria-haspopup={open ? undefined : 'dialog'}
+        onClick={(e) => {
           e.stopPropagation()
-          setPickerOpen(!open)
+          if (!open) setEditing(true)
+        }}
+        onKeyDown={(e) => {
+          if (open) return
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            setEditing(true)
+          }
         }}
         className={cn(
-          'inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-none px-1.5 py-0.5 text-[12px] font-normal text-blue-700 transition-colors',
-          open ? 'bg-blue-100' : 'bg-blue-50 hover:bg-blue-100'
+          'inline-flex max-w-full items-center gap-1.5 px-1.5 py-0.5 text-[12px] font-normal leading-4 transition-colors',
+          open
+            ? 'rounded bg-neutral-200 text-brand-navy'
+            : 'cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100'
         )}
-        aria-label={`Edit date ${value}`}
-        aria-expanded={open}
-        aria-haspopup="dialog"
       >
-        <Calendar size={14} className="shrink-0 text-blue-700" />
-        <span className="truncate">{value}</span>
-      </button>
+        {open ? (
+          <button
+            type="button"
+            aria-label="Open calendar"
+            aria-expanded={pickerOpen}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => setPickerOpen((next) => !next)}
+            className="flex h-4 w-3.5 shrink-0 cursor-pointer items-center justify-center text-brand-mist transition-colors hover:text-brand-navy"
+          >
+            <Calendar size={14} />
+          </button>
+        ) : (
+          <span className="flex h-4 w-3.5 shrink-0 items-center justify-center">
+            <Calendar size={14} className="text-blue-700" />
+          </span>
+        )}
+        {/* Hidden twin sets the width; the input floats over it so its
+            intrinsic size never widens the pill. */}
+        <span className="relative block min-w-0">
+          <span
+            className={cn('block whitespace-pre leading-4', open && 'invisible')}
+            aria-hidden={open}
+          >
+            {(open ? draft : value) || ' '}
+          </span>
+          {open && (
+            <input
+              ref={inputRef}
+              type="text"
+              size={1}
+              value={draft}
+              aria-label={`Edit date ${value}`}
+              onChange={(e) => setDraft(e.target.value)}
+              onFocus={() => setPickerOpen(true)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  close(true)
+                }
+                if (e.key === 'Escape') {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  close(false)
+                }
+              }}
+              className="absolute inset-0 w-full min-w-0 bg-transparent text-[12px] font-normal leading-4 text-brand-navy outline-none"
+            />
+          )}
+        </span>
+      </span>
       {calendar}
     </span>
   )
@@ -2780,7 +2955,7 @@ export function ProductsPricingTable({
         <div className="flex items-center border-t border-neutral-200 py-2 pl-1 pr-2">
           <div
             style={pinLeftStyle(EXPANDED_ITEM_W)}
-            className="z-30 shrink-0 bg-white"
+          className="z-30 shrink-0 bg-white"
           >
             <AddLineItemButton inline onSelect={onAddLineItem} />
           </div>
@@ -2928,9 +3103,10 @@ export function ProductsPricingTable({
 
   // Expanded-state ramp period header — mirrors renderExpandedTableHeader but
   // swaps the "Item" label for the period identity, same as the edit-grid version.
+  // The collapse chevron is rendered by ExpandedScrollContainer's gutter, not here.
   const renderExpandedPeriodTableHeader = (
     period: RampPeriod,
-    onToggle: () => void,
+    _onToggle: () => void,
     onDelete: () => void
   ) => (
     <div
@@ -2949,7 +3125,6 @@ export function ProductsPricingTable({
         )}
       >
         <div className="flex min-w-0 flex-1 items-center overflow-hidden">
-          <PeriodChevron isExpanded onToggle={onToggle} hangIcon={false} />
           <PeriodIdentity
             period={period}
             onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
@@ -3081,7 +3256,8 @@ export function ProductsPricingTable({
           className={cellChrome(
             false,
             'z-30 min-w-0 bg-white',
-            !isFullPageExpanded && 'shrink-0'
+            !isFullPageExpanded && 'shrink-0',
+            EXPANDED_BODY_ROW_STROKE
           )}
         >
           <div className={cellInner(false, 'min-w-0')}>
@@ -3243,7 +3419,8 @@ export function ProductsPricingTable({
             'min-w-0',
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-30',
-            isItemEdited ? 'bg-amber-50' : 'bg-white'
+            isItemEdited ? 'bg-amber-50' : 'bg-white',
+            EXPANDED_BODY_ROW_STROKE
           )}
         >
           {isItemEdited ? <EditedCellFill /> : null}
@@ -4188,8 +4365,8 @@ export function ProductsPricingTable({
 
   const handleAddPeriod = () => {
     const lastPeriod = periods?.[periods.length - 1]
-    let startDate = '17 Jul 2028'
-    let endDate = '17 Jul 2029'
+    let startDate = 'Jul 17, 2028'
+    let endDate = 'Jul 17, 2029'
     if (lastPeriod) {
       const lastEnd = new Date(lastPeriod.endDate)
       if (!isNaN(lastEnd.getTime())) {
@@ -4198,10 +4375,8 @@ export function ProductsPricingTable({
         const end = new Date(start)
         end.setFullYear(end.getFullYear() + 1)
         end.setDate(end.getDate() - 1)
-        const fmt = (d: Date) =>
-          d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-        startDate = fmt(start)
-        endDate = fmt(end)
+        startDate = formatPeriodDate(start)
+        endDate = formatPeriodDate(end)
       }
     }
     const newPeriod: RampPeriod = {
@@ -4294,6 +4469,13 @@ export function ProductsPricingTable({
                   pauseShadow={isEditMode && (!editExpanded || isCollapsing)}
                   fullWidth={isEditMode}
                   pinRight={pinRightColumns}
+                  leadingGutter={
+                    <PeriodChevron
+                      isExpanded
+                      onToggle={() => togglePeriod(period.id)}
+                      hangIcon={false}
+                    />
+                  }
                   footer={
                     !pinRightColumns
                       ? renderPeriodFooter(period, (catalogItem) =>

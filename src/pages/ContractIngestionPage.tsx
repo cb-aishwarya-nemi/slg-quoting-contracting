@@ -738,7 +738,6 @@ function ContractProcessingView({
           >
             <InPageNav
               sections={navSections}
-              sourceDocuments={data.sourceDocuments}
               activeId={activeSection}
               onNavigate={handleNavigate}
             />

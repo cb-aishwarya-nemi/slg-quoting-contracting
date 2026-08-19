@@ -1247,7 +1247,6 @@ export function SalesOrderDetailsV1({
           >
             <InPageNav
               sections={NAV_SECTIONS}
-              sourceDocuments={[]}
               activeId={activeSection}
               onNavigate={scrollToSection}
             />

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Focus, UserPlus } from 'lucide-react'
+import { ChevronLeft, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -48,7 +48,7 @@ const C360_TABS: TabItem[] = [
 ]
 
 const BASE_NAV_SECTIONS: NavSection[] = [
-  { id: 'summary', label: 'Summary', status: 'ai' },
+  { id: 'summary', label: 'New deal summary', status: 'ai' },
   { id: 'account', label: 'Account', status: 'attention' },
   { id: 'addresses', label: 'Billing and Shipping addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
@@ -60,6 +60,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
 const CONTENT_COL_WIDTH = 680
 const WIDE_CONTENT_WIDTH = 780
 const COMMENTS_COL_WIDTH = 250
+const COMMENTS_COL_GAP = 32
 const LEFT_NAV_WIDTH = 48
 const EXPANDED_MAX_WIDTH = 1000
 const ACTIVE_TASK_ID = 100
@@ -69,7 +70,9 @@ function ContractSectionRow({
   sectionId,
   sectionLabel,
   children,
-  isPanelsExpanded,
+  areCommentsVisible,
+  expandIntoCommentsWhenHidden = false,
+  expandedPaddingRight = 0,
   comments,
   commentsOffsetTop,
   onAddNote,
@@ -79,7 +82,9 @@ function ContractSectionRow({
   sectionId: string
   sectionLabel: string
   children: React.ReactNode
-  isPanelsExpanded: boolean
+  areCommentsVisible: boolean
+  expandIntoCommentsWhenHidden?: boolean
+  expandedPaddingRight?: number
   comments: Array<Comment & { status?: CommentStatus }>
   /** Pushes the notes down to the section title when the content column starts above it. */
   commentsOffsetTop?: number
@@ -87,11 +92,32 @@ function ContractSectionRow({
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
 }) {
+  const expansionWidth = COMMENTS_COL_WIDTH + COMMENTS_COL_GAP
+
   return (
     <div className="flex items-start gap-8">
-      <div className="min-w-0 flex-1">{children}</div>
-      {isPanelsExpanded && (
-        <div className="shrink-0" style={{ width: COMMENTS_COL_WIDTH, marginTop: commentsOffsetTop }}>
+      <div
+        className="min-w-0 flex-1 transition-[margin-right,width] duration-300 ease-out"
+        style={
+          expandIntoCommentsWhenHidden && !areCommentsVisible
+            ? {
+                width: `calc(100% + ${expansionWidth}px)`,
+                marginRight: -expansionWidth,
+                paddingRight: expandedPaddingRight,
+              }
+            : undefined
+        }
+      >
+        {children}
+      </div>
+      <div
+        className={cn(
+          'shrink-0 transition-opacity duration-200',
+          areCommentsVisible ? 'opacity-100' : 'pointer-events-none opacity-0'
+        )}
+        style={{ width: COMMENTS_COL_WIDTH, marginTop: commentsOffsetTop }}
+      >
+        {areCommentsVisible ? (
           <SectionCommentStack
             sectionId={sectionId}
             comments={comments}
@@ -100,8 +126,8 @@ function ContractSectionRow({
             onDelete={onDelete}
             onResolve={onResolve}
           />
-        </div>
-      )}
+        ) : null}
+      </div>
     </div>
   )
 }
@@ -143,7 +169,8 @@ export function Customer360Page() {
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
-  const [isPanelsExpanded, setIsPanelsExpanded] = useState(true)
+  /** One panel for the whole page — any section's bubble toggles all of it. */
+  const [areCommentsVisible, setAreCommentsVisible] = useState(true)
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
   )
@@ -240,6 +267,10 @@ export function Customer360Page() {
     }
     return counts
   }, [commentsBySection])
+
+  const toggleComments = useCallback(() => {
+    setAreCommentsVisible((prev) => !prev)
+  }, [])
 
   useEffect(() => {
     setActivePage('customer360')
@@ -437,7 +468,7 @@ export function Customer360Page() {
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
         <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
-        <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
+        <EnsurePanelsOnViewEdits onNeedPanels={() => setAreCommentsVisible(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div data-c360-secondary-nav className="flex shrink-0 items-center py-3">
@@ -453,42 +484,23 @@ export function Customer360Page() {
                 </span>
                 <span className="text-[11px] text-brand-fog">{taskId}</span>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsPanelsExpanded((prev) => !prev)}
-                className={cn(
-                  'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors hover:bg-neutral-100',
-                  isPanelsExpanded ? 'text-brand-navy' : 'text-blue-700'
-                )}
-                title={isPanelsExpanded ? 'Focus mode (hide panels)' : 'Restore panels'}
-              >
-                {isPanelsExpanded ? <Maximize2 size={16} /> : <Focus size={16} />}
-              </button>
             </div>
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-5">
               <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
             </div>
           </div>
 
           {/* Body: left nav + merged content+comments column */}
-          <div className="flex min-h-0 flex-1" style={{ paddingLeft: 40 }}>
+          {/* No left indent — the nav rail lines up with the switcher icon above it. */}
+          <div className="flex min-h-0 flex-1">
             {/* Grid 1 — in-page nav */}
-            <aside
-              className="shrink-0 overflow-visible pt-4 transition-all duration-300 ease-out"
-              style={{ width: isPanelsExpanded ? LEFT_NAV_WIDTH : 0 }}
-            >
-              <div
-                className={cn(
-                  'transition-opacity duration-200',
-                  isPanelsExpanded ? 'opacity-100 delay-100' : 'opacity-0'
-                )}
-              >
+            <aside className="shrink-0 overflow-visible pt-4 transition-all duration-300 ease-out" style={{ width: LEFT_NAV_WIDTH }}>
+              <div className="transition-opacity duration-200 opacity-100">
                 <InPageNav
                   sections={navSections}
-                  sourceDocuments={data.sourceDocuments}
                   activeId={activeSection}
                   onNavigate={handleNavigate}
                 />
@@ -498,17 +510,9 @@ export function Customer360Page() {
             {/* Grid 2+3 merged — content + inline comment stacks, both scroll together */}
             <div
               ref={centerRef}
-              className={cn(
-                'min-w-0 flex-1 overflow-y-auto pb-20 pt-12',
-                isPanelsExpanded ? 'pl-16 pr-4' : 'px-16'
-              )}
+              className="min-w-0 flex-1 overflow-y-auto pb-20 pt-12 pl-6 pr-4"
             >
-              <div
-                className="space-y-16"
-                style={
-                  !isPanelsExpanded ? { maxWidth: EXPANDED_MAX_WIDTH, margin: '0 auto' } : undefined
-                }
-              >
+              <div className="space-y-16">
                 {/* Summary — AI header + headline, no comments column */}
                 <section
                   ref={setSectionRef('summary')}
@@ -518,7 +522,7 @@ export function Customer360Page() {
                   <div className="mb-3 flex items-center gap-1.5">
                     <GradientSparkle size={16} />
                     <span className="text-[13px] font-semibold uppercase tracking-[-0.25px] ai-gradient-text">
-                      Summary
+                      New deal summary
                     </span>
                   </div>
                   <ContractSummaryHeadline
@@ -564,7 +568,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="account"
                     sectionLabel="Account"
-                    isPanelsExpanded={isPanelsExpanded}
+                    areCommentsVisible={areCommentsVisible}
                     comments={commentsBySection['account'] ?? []}
                     onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
                     onDelete={handleDeleteComment}
@@ -584,6 +588,8 @@ export function Customer360Page() {
                       }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
+                      commentsVisible={areCommentsVisible}
+                      onToggleComments={toggleComments}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -609,7 +615,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="addresses"
                     sectionLabel="Addresses"
-                    isPanelsExpanded={isPanelsExpanded}
+                    areCommentsVisible={areCommentsVisible}
                     comments={commentsBySection['addresses'] ?? []}
                     onAddNote={(text, status) => handleAddComment('addresses', 'Addresses', text, status)}
                     onDelete={handleDeleteComment}
@@ -621,6 +627,8 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['addresses']}
+                      commentsVisible={areCommentsVisible}
+                      onToggleComments={toggleComments}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -641,7 +649,7 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="terms"
                     sectionLabel="Terms and billing"
-                    isPanelsExpanded={isPanelsExpanded}
+                    areCommentsVisible={areCommentsVisible}
                     comments={commentsBySection['terms'] ?? []}
                     onAddNote={(text, status) => handleAddComment('terms', 'Terms and billing', text, status)}
                     onDelete={handleDeleteComment}
@@ -653,6 +661,8 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['terms']}
+                      commentsVisible={areCommentsVisible}
+                      onToggleComments={toggleComments}
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -669,7 +679,9 @@ export function Customer360Page() {
                   <ContractSectionRow
                     sectionId="products"
                     sectionLabel="Products and pricing"
-                    isPanelsExpanded={isPanelsExpanded}
+                    areCommentsVisible={areCommentsVisible}
+                    expandIntoCommentsWhenHidden
+                    expandedPaddingRight={24}
                     comments={commentsBySection['products'] ?? []}
                     commentsOffsetTop={
                       sectionSources.products?.length ? SECTION_SOURCE_THUMBNAILS_HEIGHT : 0
@@ -710,20 +722,8 @@ export function Customer360Page() {
                                 ? undefined
                                 : commentCountsBySection['products']
                             }
-                            trailing={
-                              !isProductsLifted ? (
-                                <button
-                                  type="button"
-                                  data-products-pricing-expand=""
-                                  onClick={() => setIsProductsLifted(true)}
-                                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
-                                  aria-label="Expand products and pricing"
-                                  title="Expand"
-                                >
-                                  <Maximize2 size={14} strokeWidth={2} />
-                                </button>
-                              ) : undefined
-                            }
+                            commentsVisible={areCommentsVisible}
+                            onToggleComments={toggleComments}
                           />
                         </>
                       }
@@ -731,48 +731,27 @@ export function Customer360Page() {
                   </ContractSectionRow>
                 </section>
 
-                {/* Billing schedule */}
+                {/* Billing schedule — no notes column */}
                 <section ref={setSectionRef('schedule')} className="group/section">
-                  <ContractSectionRow
-                    sectionId="schedule"
-                    sectionLabel="Billing schedule"
-                    isPanelsExpanded={isPanelsExpanded}
-                    comments={commentsBySection['schedule'] ?? []}
-                    onAddNote={(text, status) => handleAddComment('schedule', 'Billing schedule', text, status)}
-                    onDelete={handleDeleteComment}
-                    onResolve={handleResolveComment}
-                  >
-                    <SectionHeader
-                      title="Billing schedule"
-                      hideLine
-                      showRefreshIcon
-                      isFlashing={false}
-                      commentCount={commentCountsBySection['schedule']}
-                    />
-                    <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <PaymentSchedule tcv={data.summary.contractValue} />
-                    </div>
-                  </ContractSectionRow>
+                  <SectionHeader
+                    title="Billing schedule"
+                    hideLine
+                    showRefreshIcon
+                    isFlashing={false}
+                  />
+                  <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                    <PaymentSchedule tcv={data.summary.contractValue} />
+                  </div>
                 </section>
 
-                {/* Invoice preview */}
+                {/* Invoice preview — no notes column */}
                 <section ref={setSectionRef('invoice')} className="group/section">
-                  <ContractSectionRow
-                    sectionId="invoice"
-                    sectionLabel="Invoice preview"
-                    isPanelsExpanded={isPanelsExpanded}
-                    comments={commentsBySection['invoice'] ?? []}
-                    onAddNote={(text, status) => handleAddComment('invoice', 'Invoice preview', text, status)}
-                    onDelete={handleDeleteComment}
-                    onResolve={handleResolveComment}
-                  >
-                    <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <InvoicePreview
-                        isFlashing={false}
-                        invoiceLevelDiscount={invoiceLevelDiscount}
-                      />
-                    </div>
-                  </ContractSectionRow>
+                  <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
+                    <InvoicePreview
+                      isFlashing={false}
+                      invoiceLevelDiscount={invoiceLevelDiscount}
+                    />
+                  </div>
                 </section>
               </div>
             </div>

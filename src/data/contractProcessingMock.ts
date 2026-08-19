@@ -158,7 +158,7 @@ export const contractProcessing = {
   summary: {
     contractValue: '$492,000.00',
     termMonths: 24,
-    effectiveDate: 'August 27, 2026',
+    effectiveDate: 'Aug 27, 2026',
     lineItemsSummary:
       'covering 5 line items — Growth services (50 seats), Onboarding & Training, and more',
   },
@@ -233,7 +233,7 @@ export const contractProcessing = {
       options: ['Month-to-month', '6 months', '12 months', '24 months', '36 months']
     },
     { label: 'Effective date', value: 'May 1, 2026' },
-    { label: 'End date', value: 'April 30, 2029' },
+    { label: 'End date', value: 'Apr 30, 2029' },
     { 
       label: 'Auto-renewal', 
       value: 'No',
@@ -307,8 +307,8 @@ export const contractProcessing = {
     {
       id: 'period-1',
       label: 'Period 1',
-      startDate: '17 Jul 2026',
-      endDate: '17 Jun 2028',
+      startDate: 'Jul 17, 2026',
+      endDate: 'Jun 17, 2028',
       items: [
         {
           id: 'rp1-li-1',
@@ -369,8 +369,8 @@ export const contractProcessing = {
     {
       id: 'period-2',
       label: 'Period 2',
-      startDate: '17 Jul 2027',
-      endDate: '17 Jul 2028',
+      startDate: 'Jul 17, 2027',
+      endDate: 'Jul 17, 2028',
       items: [
         {
           id: 'rp2-li-1',
@@ -565,7 +565,7 @@ export const verdantHealthContract: ContractProcessing = {
   summary: {
     contractValue: '$720,000.00',
     termMonths: 36,
-    effectiveDate: 'June 1, 2026',
+    effectiveDate: 'Jun 1, 2026',
   },
 
   account: [
@@ -648,7 +648,7 @@ export const zenithAnalyticsContract: ContractProcessing = {
   summary: {
     contractValue: '$255,000.00',
     termMonths: 24,
-    effectiveDate: 'July 1, 2026',
+    effectiveDate: 'Jul 1, 2026',
   },
 
   account: [
@@ -731,7 +731,7 @@ export const quantumInnovationsContract: ContractProcessing = {
   summary: {
     contractValue: '$1,260,000.00',
     termMonths: 36,
-    effectiveDate: 'August 1, 2026',
+    effectiveDate: 'Aug 1, 2026',
   },
 
   account: [
@@ -814,7 +814,7 @@ export const nexusPaymentsContract: ContractProcessing = {
   summary: {
     contractValue: '$540,000.00',
     termMonths: 24,
-    effectiveDate: 'September 1, 2026',
+    effectiveDate: 'Sep 1, 2026',
   },
 
   account: [

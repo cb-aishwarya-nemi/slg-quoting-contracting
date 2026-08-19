@@ -25,7 +25,7 @@ export function parseDisplayDate(value: string): Date | null {
 
 export function formatDisplayDate(date: Date): string {
   return date.toLocaleDateString('en-US', {
-    month: 'long',
+    month: 'short',
     day: 'numeric',
     year: 'numeric',
   })

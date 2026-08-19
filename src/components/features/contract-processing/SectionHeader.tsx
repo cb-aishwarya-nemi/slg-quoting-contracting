@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { PackagePlus } from 'lucide-react'
+import { MessageCircleMore, PackagePlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
@@ -22,6 +22,10 @@ interface SectionHeaderProps {
   showRefreshIcon?: boolean
   /** extra status after the main label, e.g. Created customer */
   extraStatus?: { icon: ReactNode; label: string }
+  /** whether this section's comment stack is on screen — drives the bubble's filled state */
+  commentsVisible?: boolean
+  /** makes the bubble a toggle for this section's comment stack */
+  onToggleComments?: () => void
 }
 
 /**
@@ -39,8 +43,13 @@ export function SectionHeader({
   trailing,
   showRefreshIcon = false,
   extraStatus,
+  commentsVisible = true,
+  onToggleComments,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
+  const commentLabel = hasComments
+    ? `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`
+    : 'No comments'
 
   return (
     <div className="relative flex items-center gap-3">
@@ -95,11 +104,52 @@ export function SectionHeader({
           {/* Optional trailing action */}
           {trailing && <div className="shrink-0">{trailing}</div>}
 
-          {/* Comment count pill */}
-          {hasComments && (
-            <span className="flex items-center gap-1 rounded-full border border-brand-navy px-2 py-0.5 text-[11px] font-medium text-brand-navy">
-              {commentCount} {commentCount === 1 ? 'comment' : 'comments'}
-            </span>
+          {/* Bubble glyph with a notification-style count badge. Sections with no
+              comments still render it — same slot, just no badge. */}
+          {(hasComments || onToggleComments) && (
+            <button
+              type="button"
+              onClick={onToggleComments}
+              disabled={!onToggleComments}
+              className={cn(
+                'relative inline-flex shrink-0 rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors focus:outline-none focus-visible:outline-none',
+                onToggleComments ? 'cursor-pointer hover:bg-blue-50' : 'cursor-default'
+              )}
+              aria-label={commentLabel}
+              aria-pressed={onToggleComments ? commentsVisible : undefined}
+              title={
+                onToggleComments
+                  ? commentsVisible
+                    ? 'Hide comments'
+                    : 'Show comments'
+                  : commentLabel
+              }
+            >
+              {/* On = solid bubble with knocked-out dots; off = plain outline. */}
+              <MessageCircleMore
+                size={18}
+                strokeWidth={2}
+                aria-hidden
+                className={cn(
+                  'text-current',
+                  commentsVisible &&
+                    '[&>path:first-child]:fill-current [&>path:not(:first-child)]:stroke-white'
+                )}
+              />
+              {hasComments && (
+                <span
+                  aria-hidden
+                  className={cn(
+                    'absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none',
+                    commentsVisible
+                      ? 'border border-blue-700 bg-white text-blue-700'
+                      : 'bg-blue-700 text-white'
+                  )}
+                >
+                  {commentCount}
+                </span>
+              )}
+            </button>
           )}
         </>
       )}

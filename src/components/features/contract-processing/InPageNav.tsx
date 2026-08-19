@@ -1,7 +1,5 @@
 import { useState } from 'react'
-import { ArrowUpRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { type SourceDocument } from '@/data/contractProcessingMock'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 export interface NavSection {
@@ -12,7 +10,6 @@ export interface NavSection {
 
 interface InPageNavProps {
   sections: NavSection[]
-  sourceDocuments: SourceDocument[]
   activeId: string
   onNavigate: (id: string) => void
 }
@@ -28,9 +25,9 @@ const ROW_STRIDE = INACTIVE_HEIGHT + LINE_GAP
  * Compact "lines" in-page nav. Renders one horizontal line per section
  * (24px → 32px on active/scroll-spy, 1px → 2px, brand-navy → blue-700).
  * A sliding indicator animates fluidly as the active section changes during
- * scroll. Hovering the rail reveals a popover with full labels and PDF links.
+ * scroll. Hovering the rail reveals a popover with full section labels.
  */
-export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: InPageNavProps) {
+export function InPageNav({ sections, activeId, onNavigate }: InPageNavProps) {
   const [isHovered, setIsHovered] = useState(false)
   const [hoveredId, setHoveredId] = useState<string | null>(null)
 
@@ -148,35 +145,6 @@ export function InPageNav({ sections, sourceDocuments, activeId, onNavigate }: I
             )
           })}
         </ul>
-
-        {sourceDocuments.length > 0 && (
-          <>
-            <div className="my-3 ml-2.5 h-px w-4 bg-brand-navy" />
-            <ul className="flex flex-col gap-2.5 pl-2.5">
-              {sourceDocuments.map((doc) => (
-                <li key={doc.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      window.open(
-                        `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
-                        `pdf-${doc.id}`,
-                        'popup,width=680,height=800'
-                      )
-                    }}
-                    className="group flex w-full cursor-pointer items-center gap-2 text-left text-[13px] text-blue-700 hover:underline"
-                  >
-                    <span className="truncate">{doc.name}</span>
-                    <ArrowUpRight
-                      size={15}
-                      className="shrink-0 opacity-0 transition-opacity group-hover:opacity-100"
-                    />
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </>
-        )}
       </div>
     </div>
   )
