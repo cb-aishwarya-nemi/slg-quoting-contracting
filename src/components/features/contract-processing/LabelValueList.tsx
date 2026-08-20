@@ -19,7 +19,7 @@ import {
   isPioneerMatch,
   resolveAccountOption,
 } from './AccountCustomerPicker'
-import { AccountCustomerPickerV2 } from './AccountCustomerPickerV2'
+import { AccountCustomerPickerV2, isAccountPickerV2Variant } from './AccountCustomerPickerV2'
 import { GradientSparkle } from './GradientSparkle'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
@@ -55,6 +55,8 @@ interface LabelValueRowProps {
   onCreateAsNewCustomer?: (name?: string) => void
   createdCustomerName?: string | null
   accountPickerVariant?: 'current' | 'v2'
+  /** Contact details for a customer that only exists in this section. */
+  createdCustomerContact?: { contactName: string; email: string }
 }
 
 function LabelValueRow({
@@ -66,12 +68,13 @@ function LabelValueRow({
   onCreateAsNewCustomer,
   createdCustomerName,
   accountPickerVariant = 'current',
+  createdCustomerContact,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
   const selectedOptionBlue =
     activePage === 'customer360' &&
-    (activeVariant === 'item-pinned' || activeVariant === 'account-picker-v2')
+    (activeVariant === 'item-pinned' || isAccountPickerV2Variant(activeVariant))
   const options =
     item.options?.length
       ? item.options
@@ -379,11 +382,11 @@ function LabelValueRow({
     </AnchoredMenu>
   ) : null
 
-  const AccountPicker =
-    accountPickerVariant === 'v2' ? AccountCustomerPickerV2 : AccountCustomerPicker
+  /** V2 owns its trigger too — the field itself is the combobox input. */
+  const isAccountComboboxV2 = isAccountSelect && accountPickerVariant === 'v2'
   const selectDropdown =
     isAccountSelect && options ? (
-      <AccountPicker
+      <AccountCustomerPicker
         isOpen={isOpen}
         onClose={() => setIsOpen(false)}
         anchorRef={triggerRef}
@@ -483,6 +486,28 @@ function LabelValueRow({
             ariaLabel={item.label}
             onChange={(next) => commitValue(next)}
           />
+        ) : isAccountComboboxV2 && options ? (
+          <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
+            <AccountCustomerPickerV2
+              isOpen={isOpen}
+              onOpenChange={setIsOpen}
+              options={options}
+              value={item.value}
+              createdCustomerName={createdCustomerName}
+              createdCustomerContact={createdCustomerContact}
+              highlightSelected={selectedOptionBlue}
+              showBestMatch={isBestMatch}
+              bestMatchName={
+                options?.includes(DEFAULT_ACCOUNT_NAME) &&
+                createdCustomerName !== DEFAULT_ACCOUNT_NAME
+                  ? DEFAULT_ACCOUNT_NAME
+                  : null
+              }
+              editsCreatedName={!!createdCustomerName}
+              onSelect={commitValue}
+              onCreateAsNewCustomer={onCreateAsNewCustomer}
+            />
+          </div>
         ) : isSelect ? (
           <div className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
             <button
@@ -713,6 +738,13 @@ export function LabelValueList({
     ...customFields.map((f) => f.label),
   ]
 
+  // A created customer has no catalog record, so its row in the picker reads
+  // its details from the fields the user is editing right here.
+  const createdCustomerContact = {
+    contactName: listItems.find((i) => i.label === 'Contact name')?.value ?? '',
+    email: listItems.find((i) => i.label === 'Email')?.value ?? '',
+  }
+
   const handleAdd = useCallback((labels: string[]) => {
     setCustomFields(prev => [...prev, ...labels.map(l => ({ label: l, value: '' }))])
     setIsPopoverOpen(false)
@@ -736,6 +768,9 @@ export function LabelValueList({
           }
           createdCustomerName={
             item.label === 'Account' ? createdCustomerName : undefined
+          }
+          createdCustomerContact={
+            item.label === 'Account' ? createdCustomerContact : undefined
           }
           accountPickerVariant={accountPickerVariant}
         />

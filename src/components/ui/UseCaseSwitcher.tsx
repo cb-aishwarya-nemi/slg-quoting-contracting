@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
-import { GitBranch, Check, Copy, ExternalLink } from 'lucide-react'
+import { useState, useRef, useEffect, Fragment } from 'react'
+import { GitBranch, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUseCase, type UseCaseVariant } from '@/context/UseCaseContext'
 
@@ -7,11 +7,10 @@ const PRODUCTS_PRICING_PAGE_ID = 'customer360'
 
 export function UseCaseSwitcher() {
   const [isOpen, setIsOpen] = useState(false)
-  const [copied, setCopied] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
-  const { activeVariant, getPage, setActivePage, setVariant, getShareableUrl } = useUseCase()
+  const { activeVariant, getPage, setActivePage, setVariant } = useUseCase()
 
   const page = getPage(PRODUCTS_PRICING_PAGE_ID)
   const variants = page?.variants ?? []
@@ -45,17 +44,6 @@ export function UseCaseSwitcher() {
     document.addEventListener('keydown', handleEscape)
     return () => document.removeEventListener('keydown', handleEscape)
   }, [])
-
-  // Copy shareable URL to clipboard
-  const handleCopyUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(getShareableUrl())
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    } catch (err) {
-      console.error('Failed to copy URL:', err)
-    }
-  }
 
   // Handle variant selection
   const handleSelectVariant = (variant: UseCaseVariant) => {
@@ -106,84 +94,55 @@ export function UseCaseSwitcher() {
                 Prototype
               </span>
             </div>
-            {page && (
-              <p className="mt-1 text-[13px] font-medium text-brand-navy">{page.label}</p>
-            )}
           </div>
 
           {/* Variants List */}
           <div className="p-2">
             <div className="space-y-1">
-              {variants.map((variant) => {
+              {variants.map((variant, index) => {
                 const isActive = currentVariant === variant.id
+                const showGroupHeader =
+                  !!variant.group && variant.group !== variants[index - 1]?.group
                 return (
-                  <button
-                    key={variant.id}
-                    type="button"
-                    onClick={() => handleSelectVariant(variant)}
-                    className={cn(
-                      'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
-                      isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
-                    )}
-                  >
-                    <div
+                  <Fragment key={variant.id}>
+                    {showGroupHeader ? (
+                      <div
+                        className={cn(
+                          'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-brand-fog',
+                          index > 0 && 'mt-1 border-t border-neutral-100'
+                        )}
+                      >
+                        {variant.group}
+                      </div>
+                    ) : null}
+                    <button
+                      type="button"
+                      onClick={() => handleSelectVariant(variant)}
                       className={cn(
-                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                        isActive
-                          ? 'border-brand-navy bg-brand-navy'
-                          : 'border-neutral-300 bg-white'
+                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                        isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
                       )}
                     >
-                      {isActive && <Check size={10} className="text-white" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="block text-[13px] font-medium text-brand-navy">
-                        {variant.label}
-                      </span>
-                    </div>
-                  </button>
+                      <div
+                        className={cn(
+                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                          isActive
+                            ? 'border-brand-navy bg-brand-navy'
+                            : 'border-neutral-300 bg-white'
+                        )}
+                      >
+                        {isActive && <Check size={10} className="text-white" />}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-[13px] font-medium text-brand-navy">
+                          {variant.label}
+                        </span>
+                      </div>
+                    </button>
+                  </Fragment>
                 )
               })}
             </div>
-          </div>
-
-          {/* Footer - Share URL */}
-          <div className="border-t border-neutral-100 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleCopyUrl}
-                className={cn(
-                  'flex flex-1 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-[12px] font-medium transition-colors',
-                  copied
-                    ? 'border-green-300 bg-green-50 text-green-700'
-                    : 'border-neutral-200 bg-white text-brand-navy hover:bg-neutral-50'
-                )}
-              >
-                {copied ? (
-                  <>
-                    <Check size={14} />
-                    Copied!
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} />
-                    Copy shareable URL
-                  </>
-                )}
-              </button>
-              <button
-                type="button"
-                onClick={() => window.open(getShareableUrl(), '_blank')}
-                className="flex h-[34px] w-[34px] items-center justify-center rounded-lg border border-neutral-200 text-brand-fog transition-colors hover:bg-neutral-50 hover:text-brand-navy"
-                title="Open in new tab"
-              >
-                <ExternalLink size={14} />
-              </button>
-            </div>
-            <p className="mt-2 text-[11px] text-brand-mist text-center">
-              Share this URL with stakeholders to view this exact state
-            </p>
           </div>
         </div>
       )}

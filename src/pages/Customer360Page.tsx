@@ -6,7 +6,7 @@ import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
-import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
+import { contractProcessing, sectionSources, type Comment, type LabelValue, type SourceDocument } from '@/data/contractProcessingMock'
 import {
   GradientSparkle,
   SectionHeader,
@@ -27,6 +27,12 @@ import {
   type ProductsPricingVariant,
 } from '@/components/features/contract-processing'
 import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import {
+  applyAccountPickerV2Seed,
+  getAccountPickerV2Scenario,
+  getAccountPickerV2Seed,
+  isAccountPickerV2Variant,
+} from '@/components/features/contract-processing/AccountCustomerPickerV2'
 import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
@@ -165,13 +171,14 @@ export function Customer360Page() {
       : productsPricingPage?.defaultVariant) as
       | ProductsPricingVariant
       | 'account-picker-v2'
+      | 'account-picker-v2-single'
+      | 'account-picker-v2-no-match'
       | undefined
-  const isAccountPickerV2 = activeCustomer360Variant === 'account-picker-v2'
+  const isAccountPickerV2 = isAccountPickerV2Variant(activeCustomer360Variant)
+  const accountPickerV2Scenario = getAccountPickerV2Scenario(activeCustomer360Variant)
   // Account V2 starts from the Item pinned page baseline; only its picker differs.
   const productsPricingVariant: ProductsPricingVariant | undefined =
-    activeCustomer360Variant === 'account-picker-v2'
-      ? 'item-pinned'
-      : activeCustomer360Variant
+    isAccountPickerV2 ? 'item-pinned' : activeCustomer360Variant
   const isItemPinnedVariant = productsPricingVariant === 'item-pinned'
   const [isProductsLifted, setIsProductsLifted] = useState(false)
   const { addNotification } = useNotifications()
@@ -193,10 +200,42 @@ export function Customer360Page() {
     value: string
     unit: '%' | 'USD'
   } | null>(null)
+  const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>(
+    () => data.sourceDocuments
+  )
+  const sourceDocsInputRef = useRef<HTMLInputElement>(null)
+
+  const handleAddSourceDocuments = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(event.target.files ?? [])
+      if (files.length === 0) return
+      setSourceDocuments((prev) => [
+        ...prev,
+        ...files.map((file) => ({
+          id: `doc-${file.name}-${file.lastModified}-${file.size}`,
+          name: file.name,
+        })),
+      ])
+      event.target.value = ''
+    },
+    []
+  )
 
   useEffect(() => {
-    setAccountItems(data.account.map((item) => ({ ...item })))
-  }, [data.account])
+    const base = data.account.map((item) => ({ ...item }))
+    if (!accountPickerV2Scenario) {
+      setAccountItems(base)
+      setCreatedAccountCustomer(null)
+      setCustomerName(data.customerName)
+      setCustomerTitleConfirmed(false)
+      return
+    }
+    const seed = getAccountPickerV2Seed(accountPickerV2Scenario)
+    setAccountItems(applyAccountPickerV2Seed(base, seed))
+    setCreatedAccountCustomer(seed.createdCustomerName)
+    setCustomerName(seed.accountName)
+    setCustomerTitleConfirmed(seed.customerTitleConfirmed)
+  }, [accountPickerV2Scenario, data.account, data.customerName])
 
   // Drop lift when switching Edit ↔ Expanded use case.
   useEffect(() => {
@@ -547,31 +586,49 @@ export function Customer360Page() {
                     customerName={data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
-                  {data.sourceDocuments.length > 0 && (
-                    <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-                      <span className="text-brand-fog">Source Docs:</span>
-                      {data.sourceDocuments.map((doc, index) => (
-                        <span key={doc.id} className="inline-flex items-center gap-2">
-                          {index > 0 && (
-                            <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              window.open(
-                                `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
-                                `pdf-${doc.id}`,
-                                'popup,width=680,height=800'
-                              )
-                            }}
-                            className="cursor-pointer text-blue-700 hover:underline"
-                          >
-                            {doc.name}
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                    <span className="text-brand-fog">Source Docs:</span>
+                    {sourceDocuments.map((doc, index) => (
+                      <span key={doc.id} className="inline-flex items-center gap-2">
+                        {index > 0 && (
+                          <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            window.open(
+                              `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
+                              `pdf-${doc.id}`,
+                              'popup,width=680,height=800'
+                            )
+                          }}
+                          className="cursor-pointer text-blue-700 hover:underline"
+                        >
+                          {doc.name}
+                        </button>
+                      </span>
+                    ))}
+                    <span className="inline-flex items-center gap-2">
+                      {sourceDocuments.length > 0 && (
+                        <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
+                      )}
+                      <input
+                        ref={sourceDocsInputRef}
+                        type="file"
+                        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
+                        multiple
+                        className="sr-only"
+                        onChange={handleAddSourceDocuments}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => sourceDocsInputRef.current?.click()}
+                        className="cursor-pointer text-blue-700 hover:underline"
+                      >
+                        Add
+                      </button>
+                    </span>
+                  </div>
                 </section>
 
                 {/* Account */}

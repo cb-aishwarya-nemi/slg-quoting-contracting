@@ -15,6 +15,8 @@ export interface UseCaseVariant {
   id: string
   label: string
   description?: string
+  /** Section heading in the switcher; consecutive variants with the same group share one header. */
+  group?: string
 }
 
 /**
@@ -39,25 +41,41 @@ export interface UseCasePage {
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'customer360',
-    label: 'Products & Pricing',
+    label: 'Tasks',
     defaultVariant: 'item-pinned',
     variants: [
       {
         id: 'edit-state',
         label: 'Discount tag',
+        group: 'Products and pricing',
       },
       {
         id: 'expanded-state',
         label: 'Window table',
+        group: 'Products and pricing',
       },
       {
         id: 'item-pinned',
         label: 'Item pinned',
+        group: 'Products and pricing',
       },
       {
         id: 'account-picker-v2',
-        label: 'Account picker V2',
-        description: 'Isolated exploration of the Account customer dropdown',
+        label: 'Multiple matches',
+        group: 'Account picker',
+        description: 'Several near matches; Pioneer Systems is mapped as best match',
+      },
+      {
+        id: 'account-picker-v2-single',
+        label: 'Single match',
+        group: 'Account picker',
+        description: 'Exactly one customer maps to the extracted account',
+      },
+      {
+        id: 'account-picker-v2-no-match',
+        label: 'No match',
+        group: 'Account picker',
+        description: 'No catalog match; a new customer has already been created',
       },
     ],
   },
