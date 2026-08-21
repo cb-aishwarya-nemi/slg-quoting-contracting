@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, CirclePlus } from 'lucide-react'
+import { ChevronDown, ChevronUp, CirclePlus, UserPlus } from 'lucide-react'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from './GradientSparkle'
@@ -8,6 +8,7 @@ import {
   ACCOUNT_CUSTOMER_OPTIONS,
   ACCOUNT_STATUS_STYLES,
   DEFAULT_ACCOUNT_NAME,
+  NEW_CUSTOMER_TAG,
   isPioneerMatch,
   resolveAccountOption,
 } from './AccountCustomerPicker'
@@ -124,6 +125,11 @@ export interface AccountCustomerPickerV2Props {
    * the list tracks what's typed.
    */
   editsCreatedName?: boolean
+  /**
+   * No-match only: the created record was extracted from the contract, not
+   * authored via "Create as new customer".
+   */
+  isExtractedCustomer?: boolean
   onSelect: (name: string) => void
   onCreateAsNewCustomer?: (name?: string) => void
 }
@@ -147,6 +153,7 @@ export function AccountCustomerPickerV2({
   showBestMatch = false,
   bestMatchName,
   editsCreatedName = false,
+  isExtractedCustomer = false,
   onSelect,
   onCreateAsNewCustomer,
 }: AccountCustomerPickerV2Props) {
@@ -291,11 +298,16 @@ export function AccountCustomerPickerV2({
               className="text-brand-mist transition-colors group-hover:text-white/70"
             />
           </button>
+          {createdCustomerName === value ? (
+            <UserPlus size={14} className="shrink-0 ai-gradient-text" />
+          ) : null}
           {showBestMatch ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
               <GradientSparkle size={12} />
               Best match
             </span>
+          ) : isPioneerMatch(value) && value !== createdCustomerName ? (
+            <GradientSparkle size={12} />
           ) : null}
         </span>
       )}
@@ -313,6 +325,7 @@ export function AccountCustomerPickerV2({
           ) : (
             visibleOptions.map((option, index) => {
               const isCreatedRecord = !!createdCustomerName && option === createdCustomerName
+              const isExtractedRecord = isCreatedRecord && isExtractedCustomer
               const resolved = resolveAccountOption(option)
               const statusLabel = isCreatedRecord ? 'Draft' : resolved.status
               const statusStyle = isCreatedRecord
@@ -369,7 +382,7 @@ export function AccountCustomerPickerV2({
                       >
                         {customer.name}
                       </span>
-                        {isCreatedRecord ? (
+                        {isExtractedRecord ? (
                         <span
                           className={cn(
                             'inline-flex shrink-0 items-center gap-1 text-[11px] font-medium ai-gradient-text',
@@ -379,6 +392,8 @@ export function AccountCustomerPickerV2({
                           <GradientSparkle size={12} />
                           Extracted customer
                         </span>
+                      ) : isCreatedRecord ? (
+                        <span className={NEW_CUSTOMER_TAG}>New</span>
                       ) : option === bestMatchName ? (
                         <span
                           className={cn(

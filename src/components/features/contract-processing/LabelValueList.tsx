@@ -19,7 +19,11 @@ import {
   isPioneerMatch,
   resolveAccountOption,
 } from './AccountCustomerPicker'
-import { AccountCustomerPickerV2, isAccountPickerV2Variant } from './AccountCustomerPickerV2'
+import {
+  AccountCustomerPickerV2,
+  getAccountPickerV2Scenario,
+  isAccountPickerV2Variant,
+} from './AccountCustomerPickerV2'
 import { GradientSparkle } from './GradientSparkle'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
@@ -504,6 +508,9 @@ function LabelValueRow({
                   : null
               }
               editsCreatedName={!!createdCustomerName}
+              isExtractedCustomer={
+                getAccountPickerV2Scenario(activeVariant) === 'no-match'
+              }
               onSelect={commitValue}
               onCreateAsNewCustomer={onCreateAsNewCustomer}
             />

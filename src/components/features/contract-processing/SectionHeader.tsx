@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { MessageCircleMore, PackagePlus } from 'lucide-react'
+import { MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
@@ -49,7 +49,7 @@ export function SectionHeader({
   const hasComments = commentCount !== undefined && commentCount > 0
   const commentLabel = hasComments
     ? `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`
-    : 'No comments'
+    : 'Add a comment'
 
   return (
     <div className="relative flex items-center gap-3">
@@ -112,7 +112,13 @@ export function SectionHeader({
               className="relative inline-flex shrink-0 cursor-pointer rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:outline-none"
               aria-label={commentLabel}
               aria-pressed={commentsVisible}
-              title={commentsVisible ? 'Hide comments' : 'Show comments'}
+              title={
+                hasComments
+                  ? commentsVisible
+                    ? 'Hide comments'
+                    : 'Show comments'
+                  : 'Add a comment'
+              }
             >
               {/* On = solid bubble with knocked-out dots; off = plain outline. */}
               <MessageCircleMore
@@ -125,19 +131,17 @@ export function SectionHeader({
                     '[&>path:first-child]:fill-current [&>path:not(:first-child)]:stroke-white'
                 )}
               />
-              {hasComments && (
-                <span
-                  aria-hidden
-                  className={cn(
-                    'absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none',
-                    commentsVisible
-                      ? 'border border-blue-700 bg-white text-blue-700'
-                      : 'bg-blue-700 text-white'
-                  )}
-                >
-                  {commentCount}
-                </span>
-              )}
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute -right-1 -top-1 flex h-[15px] min-w-[15px] items-center justify-center rounded-full px-1 text-[9px] font-semibold leading-none',
+                  commentsVisible
+                    ? 'border border-blue-700 bg-white text-blue-700'
+                    : 'bg-blue-700 text-white'
+                )}
+              >
+                {hasComments ? commentCount : <Plus size={8} strokeWidth={3} />}
+              </span>
             </button>
           ) : hasComments ? (
             /* Other use cases keep the original comment-count pill. */
