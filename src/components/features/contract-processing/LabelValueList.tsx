@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
+import { ChevronDown, FileText, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
@@ -61,6 +61,8 @@ interface LabelValueRowProps {
   accountPickerVariant?: 'current' | 'v2'
   /** Contact details for a customer that only exists in this section. */
   createdCustomerContact?: { contactName: string; email: string }
+  /** Opens the section's source preview — same drawer the thumbnails open. */
+  onOpenSource?: () => void
 }
 
 function LabelValueRow({
@@ -73,6 +75,7 @@ function LabelValueRow({
   createdCustomerName,
   accountPickerVariant = 'current',
   createdCustomerContact,
+  onOpenSource,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
@@ -565,22 +568,47 @@ function LabelValueRow({
         )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-0.5">
           {!isEditing && !isOpen && !dateActive && (
-            onRemove ? (
-              <button
-                type="button"
-                onClick={(e) => { e.stopPropagation(); onRemove() }}
-                className="flex h-5 w-5 shrink-0 items-center justify-center opacity-0 transition-opacity group-hover:opacity-100"
-              >
-                <X size={14} className="text-white" />
-              </button>
-            ) : (
-              <Pencil
-                size={14}
-                className="opacity-0 text-white transition-opacity group-hover:opacity-100"
-              />
-            )
+            <>
+              {onOpenSource && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onOpenSource()
+                  }}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
+                  aria-label={`View source for ${item.label}`}
+                  title="View source document"
+                >
+                  <FileText size={14} />
+                </button>
+              )}
+              {onRemove ? (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onRemove() }}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
+                  aria-label={`Remove ${item.label}`}
+                >
+                  <X size={14} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleRowClick()
+                  }}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] group-hover:bg-white/15 group-hover:opacity-100"
+                  aria-label={`Edit ${item.label}`}
+                  title="Edit"
+                >
+                  <Pencil size={14} />
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -688,6 +716,8 @@ interface LabelValueListProps {
   createdCustomerName?: string | null
   /** Explicit Account picker implementation; current remains the default. */
   accountPickerVariant?: 'current' | 'v2'
+  /** Opens the section's source preview from a row's PDF icon. */
+  onOpenSource?: () => void
 }
 
 export function LabelValueList({
@@ -701,6 +731,7 @@ export function LabelValueList({
   onCreateAsNewCustomer,
   createdCustomerName,
   accountPickerVariant = 'current',
+  onOpenSource,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -780,6 +811,7 @@ export function LabelValueList({
             item.label === 'Account' ? createdCustomerContact : undefined
           }
           accountPickerVariant={accountPickerVariant}
+          onOpenSource={onOpenSource}
         />
       ))}
       {customFields.map((field) => (

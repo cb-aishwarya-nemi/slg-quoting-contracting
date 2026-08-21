@@ -1120,11 +1120,6 @@ function ItemNameButton({
       {isAttention && hangIcon && (
         <div className="relative -ml-6 mr-2 shrink-0">
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
-          {!isOpen && !isRowHovered && (
-            <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
-              Created this item based on your contract
-            </span>
-          )}
         </div>
       )}
       <button
@@ -1158,11 +1153,6 @@ function ItemNameButton({
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
-          {!isOpen && !isRowHovered && (
-            <span className="pointer-events-none absolute right-full mr-2 whitespace-nowrap rounded-md px-2 py-1 text-xs text-white opacity-0 transition-opacity group-hover/item:opacity-100 ai-gradient">
-              Created this item based on your contract
-            </span>
-          )}
         </div>
       )}
       <LineItemPopover

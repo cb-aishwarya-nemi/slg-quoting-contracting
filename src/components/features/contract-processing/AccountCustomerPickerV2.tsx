@@ -292,14 +292,19 @@ export function AccountCustomerPickerV2({
             aria-haspopup="listbox"
             aria-expanded={false}
           >
-            <span>{value}</span>
+            <span className={cn(createdCustomerName === value && 'ai-gradient-text')}>
+              {value}
+            </span>
             <ChevronDown
               size={14}
               className="text-brand-mist transition-colors group-hover:text-white/70"
             />
           </button>
           {createdCustomerName === value ? (
-            <UserPlus size={14} className="shrink-0 ai-gradient-text" />
+            <UserPlus
+              size={14}
+              className="shrink-0 ai-gradient-text transition-colors group-hover:text-white"
+            />
           ) : null}
           {showBestMatch ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
@@ -345,6 +350,8 @@ export function AccountCustomerPickerV2({
               const isSelected = option === value
               const isActive = index === activeIndex
               const isBlueSelected = isSelected && highlightSelected
+              /** Only the navy fill needs light text; the blue row keeps its own. */
+              const isNavyFill = isActive && !isBlueSelected
               return (
                 <button
                   key={option}
@@ -373,11 +380,13 @@ export function AccountCustomerPickerV2({
                       <span
                         className={cn(
                           'truncate text-[13px] font-semibold tracking-[-0.25px]',
-                          isBlueSelected
-                            ? 'text-blue-700'
-                            : isActive
-                              ? 'text-white'
-                              : 'text-brand-navy'
+                          isNavyFill
+                            ? 'text-white'
+                            : isCreatedRecord
+                              ? 'ai-gradient-text'
+                              : isBlueSelected
+                                ? 'text-blue-700'
+                                : 'text-brand-navy'
                         )}
                       >
                         {customer.name}

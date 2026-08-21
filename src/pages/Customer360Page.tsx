@@ -674,6 +674,11 @@ export function Customer360Page() {
                         onCreateAsNewCustomer={handleCreateAccountCustomer}
                         createdCustomerName={createdAccountCustomer}
                         accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
+                        onOpenSource={
+                          sectionSources.account?.length
+                            ? () => setPreview({ sectionId: 'account', index: 0 })
+                            : undefined
+                        }
                       />
                     </div>
                   </ContractSectionRow>
@@ -708,6 +713,11 @@ export function Customer360Page() {
                         items={data.addresses}
                         sectionId="addresses"
                         sectionLabel="Addresses"
+                        onOpenSource={
+                          sectionSources.addresses?.length
+                            ? () => setPreview({ sectionId: 'addresses', index: 0 })
+                            : undefined
+                        }
                       />
                     </div>
                   </ContractSectionRow>
@@ -742,6 +752,11 @@ export function Customer360Page() {
                         items={data.termsAndBilling}
                         sectionId="terms"
                         sectionLabel="Terms and billing"
+                        onOpenSource={
+                          sectionSources.terms?.length
+                            ? () => setPreview({ sectionId: 'terms', index: 0 })
+                            : undefined
+                        }
                       />
                     </div>
                   </ContractSectionRow>
