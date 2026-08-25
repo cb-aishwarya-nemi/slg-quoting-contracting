@@ -11,6 +11,7 @@ export interface InvoiceLevelDiscount {
 interface InvoicePreviewProps {
   isFlashing?: boolean
   invoiceLevelDiscount?: InvoiceLevelDiscount | null
+  contractVersion?: 'original' | 'amendment'
 }
 
 function parseMoney(value: string): number {
@@ -40,8 +41,35 @@ function invoiceDiscountDollars(
   return subtotal * (raw / 100)
 }
 
-export function InvoicePreview({ isFlashing, invoiceLevelDiscount }: InvoicePreviewProps) {
-  const invoice = scheduledInvoices[FIRST_INVOICE_ID]
+export function InvoicePreview({
+  isFlashing,
+  invoiceLevelDiscount,
+  contractVersion = 'amendment',
+}: InvoicePreviewProps) {
+  const originalInvoice = scheduledInvoices[FIRST_INVOICE_ID]
+  const amendmentBase = scheduledInvoices['INV-2027-0046']
+  const invoice =
+    contractVersion === 'original'
+      ? originalInvoice
+      : {
+          ...amendmentBase,
+          lineItems: amendmentBase.lineItems
+            .filter((line) => !line.name.startsWith('Implementation services'))
+            .map((line) =>
+              line.name.startsWith('Apex platform - growth services')
+                ? {
+                    ...line,
+                    qty: '75',
+                    unitPrice: '$600.00',
+                    amount: '$45,000.00',
+                  }
+                : line
+            ),
+          subtotal: '$51,500.00',
+          total: '$51,500.00',
+          notes:
+            'Upcoming quarterly invoice reflecting this amendment: 75 Growth seats, Implementation services removed, and 3 Sandbox environments.',
+        }
   const subtotal = parseMoney(invoice.subtotal)
   const tax = parseMoney(invoice.tax)
   const discount = invoiceDiscountDollars(invoiceLevelDiscount, subtotal)
@@ -58,9 +86,17 @@ export function InvoicePreview({ isFlashing, invoiceLevelDiscount }: InvoicePrev
         )}
 
         <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Upcoming invoice preview
+          {contractVersion === 'original'
+            ? 'Original invoice preview'
+            : 'Upcoming invoice preview'}
         </span>
-        <DownstreamRefreshIndicator label="Upcoming invoice preview" />
+        <DownstreamRefreshIndicator
+          label={
+            contractVersion === 'original'
+              ? 'Original invoice preview'
+              : 'Upcoming invoice preview'
+          }
+        />
       </div>
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">

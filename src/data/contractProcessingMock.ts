@@ -184,7 +184,7 @@ export const contractProcessing = {
   summary: {
     contractValue: '$32,000.00',
     termMonths: 24,
-    effectiveDate: 'Aug 1, 2026',
+    effectiveDate: 'Apr 1, 2027',
     lineItemsSummary:
       'this seat expansion adds +$32,000 ARR, bringing total ARR to $225,500 (from $193,500)',
   },
@@ -1075,7 +1075,7 @@ export const paymentSchedule: PaymentScheduleItem[] = [
     period: 'Year 1 - Q1',
     dueDate: 'May 31, 2026',
     amount: '$41,000.00',
-    status: 'pending',
+    status: 'paid',
     invoiceId: 'INV-2026-0042',
   },
   {
@@ -1083,7 +1083,7 @@ export const paymentSchedule: PaymentScheduleItem[] = [
     period: 'Year 1 - Q2',
     dueDate: 'Aug 31, 2026',
     amount: '$41,000.00',
-    status: 'upcoming',
+    status: 'paid',
     invoiceId: 'INV-2026-0043',
   },
   {
@@ -1091,7 +1091,7 @@ export const paymentSchedule: PaymentScheduleItem[] = [
     period: 'Year 1 - Q3',
     dueDate: 'Nov 30, 2026',
     amount: '$41,000.00',
-    status: 'upcoming',
+    status: 'paid',
     invoiceId: 'INV-2026-0044',
   },
   {
@@ -1099,7 +1099,7 @@ export const paymentSchedule: PaymentScheduleItem[] = [
     period: 'Year 1 - Q4',
     dueDate: 'Feb 28, 2027',
     amount: '$41,000.00',
-    status: 'upcoming',
+    status: 'pending',
     invoiceId: 'INV-2026-0045',
   },
   {
@@ -1450,12 +1450,12 @@ export const scheduledInvoices: Record<string, ScheduledInvoice> = {
 /**
  * Credit for Implementation services removed in this amendment.
  * Original term May 1, 2026 – Apr 30, 2029 ($18,000/year). Unused from
- * Aug 1, 2026 – Apr 30, 2029 = 33 months × $1,500 = $49,500.
+ * Apr 1, 2027 – Apr 30, 2029 = 25 months × $1,500 = $37,500.
  */
 export const creditNotePreview: ScheduledInvoice = {
-  number: 'CN-2026-0008',
-  issueDate: 'Aug 1, 2026',
-  dueDate: 'Aug 1, 2026',
+  number: 'CN-2027-0008',
+  issueDate: 'Apr 1, 2027',
+  dueDate: 'Apr 1, 2027',
   billTo: {
     company: 'Pioneer Systems Corp.',
     contact: 'Alex Nguyen',
@@ -1465,17 +1465,17 @@ export const creditNotePreview: ScheduledInvoice = {
   },
   lineItems: [
     {
-      name: 'Implementation services — unused term (Aug 1, 2026 – Apr 30, 2029)',
-      qty: '33',
+      name: 'Implementation services — unused term (Apr 1, 2027 – Apr 30, 2029)',
+      qty: '25',
       unitPrice: '$1,500.00',
-      amount: '$49,500.00',
+      amount: '$37,500.00',
     },
   ],
-  subtotal: '$49,500.00',
+  subtotal: '$37,500.00',
   tax: '$0.00',
-  total: '$49,500.00',
+  total: '$37,500.00',
   notes:
-    'Prorated credit for Implementation services removed in this amendment. Unused 33 of 36 months remaining on the original term, at $1,500.00 per month ($18,000.00 yearly).',
+    'Prorated credit for Implementation services removed in this amendment. Unused 25 of 36 months remaining on the original term, at $1,500.00 per month ($18,000.00 yearly).',
 }
 
 export const lineItemCatalog: CatalogLineItem[] = [

@@ -1,12 +1,21 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Maximize2, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
-import { contractProcessing, sectionSources, type Comment, type LabelValue, type SourceDocument } from '@/data/contractProcessingMock'
+import {
+  contractProcessing,
+  sectionSources,
+  type AllocationGroup,
+  type Comment,
+  type LabelValue,
+  type ProductLineItem,
+  type RampPeriod,
+  type SourceDocument,
+} from '@/data/contractProcessingMock'
 import {
   GradientSparkle,
   SectionHeader,
@@ -69,13 +78,64 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'credit-note', label: 'Credit note preview', status: 'neutral' },
 ]
 
-const CONTENT_COL_WIDTH = 680
 const WIDE_CONTENT_WIDTH = 780
 const COMMENTS_COL_WIDTH = 250
 const COMMENTS_COL_GAP = 32
 const LEFT_NAV_WIDTH = 48
 const ACTIVE_TASK_ID = 100
 const PIONEER_SALES_ORDER_ID = 'so-pioneer-0153'
+
+function originalLineItem(item: ProductLineItem): ProductLineItem | null {
+  if (item.amendmentChange === 'added') return null
+
+  const quantity =
+    item.amendmentChange === 'quantity-increased' && item.previousQuantity
+      ? item.previousQuantity
+      : item.quantity
+  const unitPrice = Number(item.unitPrice.replace(/[$,]/g, ''))
+  const numericQuantity = Number(quantity)
+  const totalPrice =
+    item.amendmentChange === 'quantity-increased' &&
+    Number.isFinite(unitPrice) &&
+    Number.isFinite(numericQuantity)
+      ? `$${(unitPrice * numericQuantity).toLocaleString('en-US', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2,
+        })}`
+      : item.totalPrice
+
+  const { amendmentChange: _change, previousQuantity: _previous, ...original } = item
+  return { ...original, quantity, totalPrice }
+}
+
+function originalLineItems(items: ProductLineItem[]): ProductLineItem[] {
+  return items
+    .map(originalLineItem)
+    .filter((item): item is ProductLineItem => item !== null)
+}
+
+function originalRampPeriods(periods: RampPeriod[]): RampPeriod[] {
+  return periods.map((period) => ({
+    ...period,
+    items: originalLineItems(period.items),
+  }))
+}
+
+function originalAllocations(allocations: AllocationGroup[]): AllocationGroup[] {
+  return allocations
+    .filter((allocation) => allocation.feature !== 'Sandbox environments')
+    .map((allocation) =>
+      allocation.id === 'alloc-1'
+        ? {
+            ...allocation,
+            units: '25,000',
+            sources: allocation.sources.filter(
+              (source) => source.name !== 'Implementation services'
+            ),
+          }
+        : allocation
+    )
+}
 
 /** Stable section layout — recreating this in render remounts children and wipes local state. */
 function ContractSectionRow({
@@ -191,6 +251,19 @@ export function Customer360Page() {
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
+  const [selectedContractVersion, setSelectedContractVersion] = useState<
+    { id: 'v1' | 'v2'; trackPercent: number } | undefined
+  >()
+  const isOriginalContract = selectedContractVersion?.id === 'v1'
+  const originalProducts = useMemo(() => originalLineItems(data.products), [data.products])
+  const originalPeriods = useMemo(
+    () => originalRampPeriods(data.rampPeriods),
+    [data.rampPeriods]
+  )
+  const originalAllocationItems = useMemo(
+    () => originalAllocations(data.allocations),
+    [data.allocations]
+  )
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   /** One panel for the whole page — any section's bubble toggles all of it. */
   const [areCommentsVisible, setAreCommentsVisible] = useState(true)
@@ -294,12 +367,14 @@ export function Customer360Page() {
 
   const navSections = useMemo<NavSection[]>(
     () =>
-      BASE_NAV_SECTIONS.map((section) =>
+      BASE_NAV_SECTIONS.filter(
+        (section) => !isOriginalContract || section.id !== 'credit-note'
+      ).map((section) =>
         section.id === 'account'
           ? { ...section, status: accountAttention.status }
           : section
       ),
-    [accountAttention.status]
+    [accountAttention.status, isOriginalContract]
   )
 
   // Comment state lifted to page so all stacks share the same source of truth
@@ -692,8 +767,68 @@ export function Customer360Page() {
                 </section>
 
                 {/* Contract lifecycle — the axis stays pinned while the sections below scroll */}
-                <SalesOrderHeaderTimeline orderId={PIONEER_SALES_ORDER_ID}>
+                <SalesOrderHeaderTimeline
+                  orderId={PIONEER_SALES_ORDER_ID}
+                  onVersionChange={setSelectedContractVersion}
+                >
                   <div className="space-y-16">
+                {selectedContractVersion && (
+                  <div className="relative -mt-6 flex">
+                    <div
+                      className={cn(
+                        'inline-flex items-center gap-2.5 rounded-lg border px-3 py-2',
+                        isOriginalContract
+                          ? 'border-blue-200 bg-blue-50'
+                          : 'border-green-200 bg-green-50'
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none text-white ring-1',
+                          isOriginalContract
+                            ? 'bg-blue-500 ring-blue-500'
+                            : 'bg-green-600 ring-green-600'
+                        )}
+                      >
+                        {selectedContractVersion.id}
+                      </span>
+                      <span className="text-[13px] font-semibold text-brand-navy">
+                        {isOriginalContract ? 'Original contract' : 'Current amendment'}
+                      </span>
+                      {!isOriginalContract && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
+                          <TrendingUp size={11} />
+                          Expansion
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          'h-3 w-px',
+                          isOriginalContract ? 'bg-blue-200' : 'bg-green-200'
+                        )}
+                        aria-hidden
+                      />
+                      <span className="text-[13px] text-brand-fog">
+                        {isOriginalContract
+                          ? 'Started May 1, 2026 · 50 Growth seats · $193,500 ARR'
+                          : `Effective ${data.summary.effectiveDate} · Growth seats 50 → 75 · +$32,000 ARR`}
+                      </span>
+                    </div>
+                    {/* Bubble stays put; only the tail slides to the marker it belongs to. */}
+                    <span
+                      aria-hidden
+                      className={cn(
+                        'absolute -top-[5px] h-[9px] w-[9px] rotate-45 rounded-[2px] border-l border-t transition-[left] duration-300',
+                        isOriginalContract
+                          ? 'border-blue-200 bg-blue-50'
+                          : 'border-green-200 bg-green-50'
+                      )}
+                      style={{
+                        left: `calc(${selectedContractVersion.trackPercent}% - 4.5px)`,
+                      }}
+                    />
+                  </div>
+                )}
                 {/* Account */}
                 <section ref={setSectionRef('account')} className="group/section">
                   <SectionSourceThumbnails
@@ -714,7 +849,7 @@ export function Customer360Page() {
                       status={accountAttention.status}
                       statusLabel={accountAttention.statusLabel}
                       extraStatus={
-                        createdAccountCustomer
+                        !isOriginalContract && createdAccountCustomer
                           ? {
                               icon: <UserPlus size={14} />,
                               label: 'Created customer',
@@ -728,14 +863,21 @@ export function Customer360Page() {
                     />
                     <div className="mt-4">
                       <LabelValueList
-                        items={accountItems}
+                        key={isOriginalContract ? 'account-v1' : 'account-v2'}
+                        items={isOriginalContract ? data.account : accountItems}
                         sectionId="account"
                         sectionLabel="Account"
-                        showAddField
-                        controlled
-                        onItemChange={handleAccountItemChange}
-                        onCreateAsNewCustomer={handleCreateAccountCustomer}
-                        createdCustomerName={createdAccountCustomer}
+                        showAddField={!isOriginalContract}
+                        controlled={!isOriginalContract}
+                        onItemChange={
+                          isOriginalContract ? undefined : handleAccountItemChange
+                        }
+                        onCreateAsNewCustomer={
+                          isOriginalContract ? undefined : handleCreateAccountCustomer
+                        }
+                        createdCustomerName={
+                          isOriginalContract ? undefined : createdAccountCustomer
+                        }
                         accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
                         onOpenSource={
                           sectionSources.account?.length
@@ -842,9 +984,9 @@ export function Customer360Page() {
                     onResolve={handleResolveComment}
                   >
                     <ProductsPricingTable
-                      key="products-pricing-discount-period-v2"
-                      items={data.products}
-                      periods={data.rampPeriods}
+                      key={`products-pricing-${isOriginalContract ? 'v1' : 'v2'}`}
+                      items={isOriginalContract ? originalProducts : data.products}
+                      periods={isOriginalContract ? originalPeriods : data.rampPeriods}
                       variant={productsPricingVariant}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}
@@ -917,7 +1059,12 @@ export function Customer360Page() {
                       onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
                     />
                     <div className="mt-6">
-                      <AllocationTable items={data.allocations} />
+                      <AllocationTable
+                        key={isOriginalContract ? 'allocations-v1' : 'allocations-v2'}
+                        items={
+                          isOriginalContract ? originalAllocationItems : data.allocations
+                        }
+                      />
                     </div>
                   </ContractSectionRow>
                 </section>
@@ -933,7 +1080,14 @@ export function Customer360Page() {
                         isFlashing={false}
                       />
                       <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                        <PaymentSchedule tcv={data.summary.contractValue} />
+                        <PaymentSchedule
+                          key={isOriginalContract ? 'schedule-v1' : 'schedule-v2'}
+                          tcv={
+                            isOriginalContract
+                              ? '$492,000.00'
+                              : data.summary.contractValue
+                          }
+                        />
                       </div>
                     </>
                   ) : (
@@ -956,7 +1110,14 @@ export function Customer360Page() {
                         commentCount={commentCountsBySection['schedule']}
                       />
                       <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                        <PaymentSchedule tcv={data.summary.contractValue} />
+                        <PaymentSchedule
+                          key={isOriginalContract ? 'schedule-v1' : 'schedule-v2'}
+                          tcv={
+                            isOriginalContract
+                              ? '$492,000.00'
+                              : data.summary.contractValue
+                          }
+                        />
                       </div>
                     </ContractSectionRow>
                   )}
@@ -968,6 +1129,9 @@ export function Customer360Page() {
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                       <InvoicePreview
                         isFlashing={false}
+                        contractVersion={
+                          isOriginalContract ? 'original' : 'amendment'
+                        }
                         invoiceLevelDiscount={invoiceLevelDiscount}
                       />
                     </div>
@@ -986,6 +1150,9 @@ export function Customer360Page() {
                       <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                         <InvoicePreview
                           isFlashing={false}
+                          contractVersion={
+                            isOriginalContract ? 'original' : 'amendment'
+                          }
                           invoiceLevelDiscount={invoiceLevelDiscount}
                         />
                       </div>
@@ -993,7 +1160,8 @@ export function Customer360Page() {
                   )}
                 </section>
 
-                {/* Credit note — unused term of the removed Implementation services line. */}
+                {/* Credit notes exist only after the amendment. */}
+                {!isOriginalContract && (
                 <section ref={setSectionRef('credit-note')} className="group/section">
                   {isItemPinnedVariant ? (
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
@@ -1017,6 +1185,7 @@ export function Customer360Page() {
                     </ContractSectionRow>
                   )}
                 </section>
+                )}
                   </div>
                 </SalesOrderHeaderTimeline>
               </div>

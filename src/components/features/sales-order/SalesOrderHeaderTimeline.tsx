@@ -9,6 +9,8 @@ import {
 interface SalesOrderHeaderTimelineProps {
   orderId: string
   variant?: string | null
+  /** Reports the picked marker plus its position on the axis, so callers can anchor to it. */
+  onVersionChange?: (version?: { id: 'v1' | 'v2'; trackPercent: number }) => void
   /** Page content below the axis — dashed columns extend behind this. */
   children?: ReactNode | ((ctx: {
     periodIndex: number
@@ -53,9 +55,9 @@ const DEFAULT_PERIOD_INDEX = 1
 /** Full Pioneer contract span (3 annual periods). */
 const FULL_TERM_START = CONTRACT_PERIODS[0].startDate
 const FULL_TERM_END = CONTRACT_PERIODS[CONTRACT_PERIODS.length - 1].endDate
-/** Prototype “today” — 3rd month of Year 1, matching the Jul 10 invoice being 4 days overdue. */
-const INVOICE_OVERDUE_TODAY_DATE = '2026-07-14'
-const INVOICE_OVERDUE_TODAY_LABEL = "Jul 14 '26"
+/** Prototype “today” — Year 1 Q4, two weeks ahead of the amendment taking effect. */
+const INVOICE_OVERDUE_TODAY_DATE = '2027-02-15'
+const INVOICE_OVERDUE_TODAY_LABEL = "Feb 15 '27"
 /** Subtle inset for full-term date scale — keeps May/Apr off the axis edges. */
 const FULL_TERM_EDGE_PAD = 1.25
 
@@ -93,8 +95,8 @@ const VERSION_MARKERS = [
     version: 'v2',
     title: 'Contract expansion',
     detail: '+25 seats · +$32,000 ARR',
-    date: '2026-08-01',
-    dateLabel: "Aug 1 '26",
+    date: '2027-04-01',
+    dateLabel: "Apr 1 '27",
     tone: 'positive',
   },
 ] as const
@@ -198,6 +200,7 @@ function buildMonthTicks(
 export function SalesOrderHeaderTimeline({
   orderId: _orderId,
   variant: _variant,
+  onVersionChange,
   children,
 }: SalesOrderHeaderTimelineProps) {
   // Single sales-order page: always Invoice overdue full-term timeline
@@ -447,8 +450,7 @@ export function SalesOrderHeaderTimeline({
                 className="absolute left-1/2 top-0 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-blue-600"
                 aria-hidden
               />
-              {/* Label sits left of the diamond — v2 lands a few px to the right on the full-term axis */}
-              <span className="absolute left-1/2 top-1.5 -translate-x-full pr-1.5 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700">
+              <span className="absolute left-1/2 top-1.5 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700">
                 Today
               </span>
             </div>
@@ -496,9 +498,15 @@ export function SalesOrderHeaderTimeline({
               <button
                 key={marker.id}
                 type="button"
-                onClick={() =>
-                  setSelectedVersion((prev) => (prev === marker.id ? undefined : marker.id))
-                }
+                onClick={() => {
+                  const nextVersion = selectedVersion === marker.id ? undefined : marker.id
+                  setSelectedVersion(nextVersion)
+                  onVersionChange?.(
+                    nextVersion
+                      ? { id: nextVersion, trackPercent: trackLeft(marker.date) }
+                      : undefined
+                  )
+                }}
                 onMouseEnter={(e) => {
                   setVersionHovered({ marker, rect: e.currentTarget.getBoundingClientRect() })
                 }}

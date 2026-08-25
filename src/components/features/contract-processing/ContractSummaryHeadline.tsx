@@ -32,7 +32,7 @@ export function ContractSummaryHeadline({
     >
       {variant === 'amendment' ? (
         <>
-          Pioneer Systems&apos; contract is expanding in 7 days— Growth seats increase from{' '}
+          Pioneer Systems&apos; contract is expanding in 2 months — Growth seats increase from{' '}
           <span className="font-bold">50 → 75</span>, adding{' '}
           <span className="font-bold">$32,000 ARR</span> (Total ARR: $193,500 → $225,500).
           Contract term is unchanged, still ending Apr 30, 2029.
