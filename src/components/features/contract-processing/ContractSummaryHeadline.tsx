@@ -6,6 +6,8 @@ interface ContractSummaryHeadlineProps {
   effectiveDate: string
   customerName: string
   lineItemsSummary?: string
+  /** Defaults to new-deal phrasing; use amendment for mid-cycle changes */
+  variant?: 'new-deal' | 'amendment'
   className?: string
 }
 
@@ -15,6 +17,7 @@ export function ContractSummaryHeadline({
   effectiveDate,
   customerName,
   lineItemsSummary,
+  variant = 'new-deal',
   className,
 }: ContractSummaryHeadlineProps) {
   const parsed = new Date(effectiveDate)
@@ -27,10 +30,21 @@ export function ContractSummaryHeadline({
         className
       )}
     >
-      A <span className="font-bold">{contractValue}</span>, {termMonths} month contract with{' '}
-      <span className="whitespace-nowrap">{customerName}</span>
-      {startingPhrase ? ` starting ${startingPhrase}` : ''}
-      {lineItemsSummary ? ` ${lineItemsSummary}` : ''}.
+      {variant === 'amendment' ? (
+        <>
+          Pioneer Systems&apos; contract is expanding in 7 days— Growth seats increase from{' '}
+          <span className="font-bold">50 → 75</span>, adding{' '}
+          <span className="font-bold">$32,000 ARR</span> (Total ARR: $193,500 → $225,500).
+          Contract term is unchanged, still ending Apr 30, 2029.
+        </>
+      ) : (
+        <>
+          A <span className="font-bold">{contractValue}</span>, {termMonths} month contract with{' '}
+          <span className="whitespace-nowrap">{customerName}</span>
+          {startingPhrase ? ` starting ${startingPhrase}` : ''}
+          {lineItemsSummary ? ` ${lineItemsSummary}` : ''}.
+        </>
+      )}
     </h2>
   )
 }

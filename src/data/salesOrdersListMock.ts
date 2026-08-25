@@ -19,6 +19,7 @@ export interface SalesOrderListItem {
 
 export const DEAL_TAG_STYLES: Record<string, string> = {
   'NEW DEAL': 'bg-blue-50 text-blue-700',
+  AMENDMENT: 'bg-amber-50 text-amber-700',
   RENEWAL: 'bg-violet-50 text-violet-700',
 }
 

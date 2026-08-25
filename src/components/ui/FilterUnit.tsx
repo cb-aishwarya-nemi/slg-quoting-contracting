@@ -67,7 +67,7 @@ const VALUE_OPTIONS: Record<string, string[]> = {
   status: ['Ready for review', 'In review', 'Pending approval', 'Blocked'],
   severity: ['Critical', 'High', 'Medium', 'Low'],
   taskType: ['Contract Ingestion'],
-  taskName: ['New deal', 'Early renewal'],
+  taskName: ['New deal', 'Early renewal', 'Amendment'],
 }
 
 type PopoverStep = 'attribute' | 'condition' | 'value'

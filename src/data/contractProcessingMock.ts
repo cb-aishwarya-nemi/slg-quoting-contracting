@@ -27,6 +27,10 @@ export interface ProductLineItem {
   name: string
   /** unresolved items are rendered as blue links with an alert icon */
   status: 'ready' | 'attention'
+  /** How this line differs from the previous signed contract. */
+  amendmentChange?: 'added' | 'removed' | 'quantity-increased' | 'unchanged'
+  /** Previous quantity, shown when this amendment increases quantity. */
+  previousQuantity?: string
   billingPeriod: string
   quantity: string
   unitPrice: string
@@ -93,6 +97,8 @@ export interface Comment {
 export interface SourceDocument {
   id: string
   name: string
+  /** Current amendment intake vs documents from the original contract */
+  origin?: 'amendment' | 'original'
 }
 
 export interface SectionSource {
@@ -165,7 +171,7 @@ export const sectionSources: Record<string, SectionSource[]> = {
 
 export const contractProcessing = {
   customerName: 'Pioneer Systems',
-  dealTag: 'NEW DEAL',
+  dealTag: 'AMENDMENT',
   environment: 'Echocorp.test.chargebee.com',
 
   processing: {
@@ -176,11 +182,11 @@ export const contractProcessing = {
   },
 
   summary: {
-    contractValue: '$492,000.00',
+    contractValue: '$32,000.00',
     termMonths: 24,
-    effectiveDate: 'Aug 27, 2026',
+    effectiveDate: 'Aug 1, 2026',
     lineItemsSummary:
-      'covering 5 line items — Growth services (50 seats), Onboarding & Training, and more',
+      'this seat expansion adds +$32,000 ARR, bringing total ARR to $225,500 (from $193,500)',
   },
 
   account: [
@@ -200,8 +206,7 @@ export const contractProcessing = {
     },
     {
       label: 'Legal entity',
-      value: '',
-      extractionFailed: true,
+      value: 'Pioneer Systems Corp.',
       options: [
         'Pioneer Systems Corp.',
         'Pioneer Systems LLC',
@@ -214,8 +219,7 @@ export const contractProcessing = {
     { label: 'Phone', value: '+1 (415) 555 0142' },
     {
       label: 'Industry',
-      value: '',
-      extractionFailed: true,
+      value: 'Industrial automation',
       options: [
         'Industrial automation',
         'Healthcare technology',
@@ -271,18 +275,21 @@ export const contractProcessing = {
       id: 'li-1',
       name: 'Apex platform - growth services',
       status: 'ready',
+      amendmentChange: 'quantity-increased',
+      previousQuantity: '50',
       billingPeriod: 'Yearly',
-      quantity: '50',
+      quantity: '75',
       unitPrice: '$2,400.00',
       discount: '10',
       discountUnit: '%',
       discountPeriod: 'Forever',
-      totalPrice: '$120,000.00',
+      totalPrice: '$180,000.00',
     },
     {
       id: 'li-2',
       name: 'Implementation services',
       status: 'ready',
+      amendmentChange: 'removed',
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$18,000.00',
@@ -291,7 +298,8 @@ export const contractProcessing = {
     {
       id: 'li-3',
       name: 'Onboarding & Training',
-      status: 'attention',
+      status: 'ready',
+      amendmentChange: 'unchanged',
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$9,500.00',
@@ -304,6 +312,7 @@ export const contractProcessing = {
       id: 'li-4',
       name: 'Premium support SLA',
       status: 'ready',
+      amendmentChange: 'unchanged',
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$12,000.00',
@@ -312,7 +321,8 @@ export const contractProcessing = {
     {
       id: 'li-5',
       name: 'Sandbox environments',
-      status: 'attention',
+      status: 'ready',
+      amendmentChange: 'added',
       billingPeriod: 'Yearly',
       quantity: '03',
       unitPrice: '$1,500.00',
@@ -413,18 +423,21 @@ export const contractProcessing = {
           id: 'rp1-li-1',
           name: 'Apex platform - growth services',
           status: 'ready',
+          amendmentChange: 'quantity-increased',
+          previousQuantity: '50',
           billingPeriod: 'Yearly',
-          quantity: '50',
+          quantity: '75',
           unitPrice: '$2,400.00',
           discount: '10',
           discountUnit: '%',
           discountPeriod: 'Forever',
-          totalPrice: '$120,000.00',
+          totalPrice: '$180,000.00',
         },
         {
           id: 'rp1-li-2',
           name: 'Implementation services',
           status: 'ready',
+          amendmentChange: 'removed',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$18,000.00',
@@ -433,7 +446,8 @@ export const contractProcessing = {
         {
           id: 'rp1-li-3',
           name: 'Onboarding & Training',
-          status: 'attention',
+          status: 'ready',
+          amendmentChange: 'unchanged',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$9,500.00',
@@ -446,6 +460,7 @@ export const contractProcessing = {
           id: 'rp1-li-4',
           name: 'Premium support SLA',
           status: 'ready',
+          amendmentChange: 'unchanged',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$12,000.00',
@@ -455,6 +470,7 @@ export const contractProcessing = {
           id: 'rp1-li-5',
           name: 'Sandbox environments',
           status: 'ready',
+          amendmentChange: 'added',
           billingPeriod: 'Yearly',
           quantity: '03',
           unitPrice: '$1,500.00',
@@ -475,19 +491,22 @@ export const contractProcessing = {
           id: 'rp2-li-1',
           name: 'Apex platform - growth services',
           status: 'ready',
+          amendmentChange: 'quantity-increased',
+          previousQuantity: '50',
           billingPeriod: 'Yearly',
-          quantity: '50',
+          quantity: '75',
           unitPrice: '$2,568.00',
           discount: '10',
           discountUnit: '%',
           discountPeriod: 'Forever',
-          totalPrice: '$128,400.00',
+          totalPrice: '$192,600.00',
           rampPriceChange: 7,
         },
         {
           id: 'rp2-li-2',
           name: 'Implementation services',
           status: 'ready',
+          amendmentChange: 'removed',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$18,000.00',
@@ -496,7 +515,8 @@ export const contractProcessing = {
         {
           id: 'rp2-li-3',
           name: 'Onboarding & Training',
-          status: 'attention',
+          status: 'ready',
+          amendmentChange: 'unchanged',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$10,165.00',
@@ -510,6 +530,7 @@ export const contractProcessing = {
           id: 'rp2-li-4',
           name: 'Premium support SLA',
           status: 'ready',
+          amendmentChange: 'unchanged',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$12,840.00',
@@ -519,6 +540,7 @@ export const contractProcessing = {
           id: 'rp2-li-5',
           name: 'Sandbox environments',
           status: 'ready',
+          amendmentChange: 'added',
           billingPeriod: 'Yearly',
           quantity: '03',
           unitPrice: '$1,605.00',
@@ -556,9 +578,13 @@ export const contractProcessing = {
   },
 
   sourceDocuments: [
-    { id: 'doc-1', name: 'MSA_2026_PS_001.pdf' },
-    { id: 'doc-2', name: 'Schedule_a_pricing.pdf' },
-    { id: 'doc-3', name: 'Addendum_Terms.pdf' },
+    { id: 'doc-amd-1', name: 'PioneerSystems_Amendment_Seats_2026.pdf', origin: 'amendment' },
+    { id: 'doc-amd-2', name: 'Amendment_Pricing_Schedule.pdf', origin: 'amendment' },
+    { id: 'doc-1', name: 'MSA_2026_PS_001.pdf', origin: 'original' },
+    { id: 'doc-2', name: 'Schedule_a_pricing.pdf', origin: 'original' },
+    { id: 'doc-3', name: 'Addendum_Terms.pdf', origin: 'original' },
+    { id: 'doc-4', name: 'SOW_Pioneer_Systems_2026.pdf', origin: 'original' },
+    { id: 'doc-5', name: 'Order_Form_PS_2026.pdf', origin: 'original' },
   ] as SourceDocument[],
 
   comments: [
@@ -1419,6 +1445,37 @@ export const scheduledInvoices: Record<string, ScheduledInvoice> = {
     total: '$41,000.00',
     notes: 'Quarterly payment 12 of 12 (36-month contract). Payment due Net 30 from invoice date.',
   },
+}
+
+/**
+ * Credit for Implementation services removed in this amendment.
+ * Original term May 1, 2026 – Apr 30, 2029 ($18,000/year). Unused from
+ * Aug 1, 2026 – Apr 30, 2029 = 33 months × $1,500 = $49,500.
+ */
+export const creditNotePreview: ScheduledInvoice = {
+  number: 'CN-2026-0008',
+  issueDate: 'Aug 1, 2026',
+  dueDate: 'Aug 1, 2026',
+  billTo: {
+    company: 'Pioneer Systems Corp.',
+    contact: 'Alex Nguyen',
+    line1: '340 Market Street, Suite 500',
+    cityLine: 'San Francisco, CA 94103',
+    country: 'United States',
+  },
+  lineItems: [
+    {
+      name: 'Implementation services — unused term (Aug 1, 2026 – Apr 30, 2029)',
+      qty: '33',
+      unitPrice: '$1,500.00',
+      amount: '$49,500.00',
+    },
+  ],
+  subtotal: '$49,500.00',
+  tax: '$0.00',
+  total: '$49,500.00',
+  notes:
+    'Prorated credit for Implementation services removed in this amendment. Unused 33 of 36 months remaining on the original term, at $1,500.00 per month ($18,000.00 yearly).',
 }
 
 export const lineItemCatalog: CatalogLineItem[] = [

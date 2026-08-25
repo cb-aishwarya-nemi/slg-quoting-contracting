@@ -54,6 +54,12 @@ const daysAgo = (days: number) => {
   return date
 }
 
+const daysFromNow = (days: number) => {
+  const date = new Date()
+  date.setDate(date.getDate() + days)
+  return date
+}
+
 // Initial workbench items (Pioneer Systems included for prototype)
 const INITIAL_TASKS: WorkbenchItem[] = [
   // Pioneer Systems - for Customer Link Modal prototype
@@ -61,16 +67,16 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     id: 100,
     taskId: "TSK-2026-0153",
     taskType: "Contract Ingestion",
-    taskName: "New deal",
+    taskName: "Amendment",
     customer: "Pioneer Systems",
-    subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
+    subject: "PioneerSystems_Amendment_Seats_2026.docx — Add 25 seats, mid-cycle upgrade",
     severity: "High",
-    detail: "New Business · Contract Upload",
+    detail: "Amendment · Contract Upload",
     createdAt: new Date(),
     isNew: false, // Set to false initially for prototype
     contractId: "CT-2026-0153",
-    startDate: new Date(),
-    tcv: "$48,000",
+    startDate: daysFromNow(7),
+    tcv: "$32,000",
     status: "Ready for review",
     owner: "You",
   },
@@ -361,16 +367,16 @@ const createPioneerSystemsItem = (): WorkbenchItem => ({
   id: 100,
   taskId: "TSK-2026-0153",
   taskType: "Contract Ingestion",
-  taskName: "New deal",
+  taskName: "Amendment",
   customer: "Pioneer Systems",
-  subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
+  subject: "PioneerSystems_Amendment_Seats_2026.docx — Add 25 seats, mid-cycle upgrade",
   severity: "High",
-  detail: "New Business · Contract Upload",
+  detail: "Amendment · Contract Upload",
   createdAt: new Date(),
   isNew: true,
   contractId: "CT-2026-0153",
-  startDate: new Date(),
-  tcv: "$48,000",
+  startDate: daysFromNow(7),
+  tcv: "$32,000",
   status: "Ready for review",
   owner: "You",
 })

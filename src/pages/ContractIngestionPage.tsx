@@ -23,7 +23,7 @@ import {
 
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
-  { id: 'account', label: 'Account', status: 'attention' },
+  { id: 'account', label: 'Account', status: 'ready' },
   { id: 'addresses', label: 'Addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },

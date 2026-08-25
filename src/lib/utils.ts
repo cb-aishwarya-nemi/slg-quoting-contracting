@@ -72,7 +72,7 @@ export function formatRelativeToNow(date: Date): string {
     return future ? `in ${value} ${label}` : `${value} ${label} ago`
   }
 
-  if (abs < 7) return unit(abs, 'day')
+  if (abs <= 7) return unit(abs, 'day')
   if (abs < 30) return unit(Math.round(abs / 7), 'week')
   if (abs < 365) return unit(Math.round(abs / 30), 'month')
   return unit(Math.round(abs / 365), 'year')

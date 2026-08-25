@@ -190,6 +190,38 @@ function MiniDropdown({
   )
 }
 
+function QtyAmendmentDisplay({
+  previousQuantity,
+  isRowHovered,
+  children,
+}: {
+  previousQuantity: string
+  isRowHovered?: boolean
+  children: ReactNode
+}) {
+  return (
+    <div className="flex min-w-0 items-center justify-end gap-1">
+      <span
+        className={cn(
+          'shrink-0 text-[14px]',
+          isRowHovered ? 'text-white/50' : 'text-neutral-400'
+        )}
+      >
+        {previousQuantity}
+      </span>
+      <span
+        className={cn(
+          'shrink-0 text-[12px]',
+          isRowHovered ? 'text-white/50' : 'text-neutral-400'
+        )}
+      >
+        →
+      </span>
+      <div className="min-w-0 shrink-0">{children}</div>
+    </div>
+  )
+}
+
 /** Expanded-state only — in-place choice menu (Edit state uses the non-interactive MiniDropdown). */
 function InteractiveMiniDropdown({
   label,
@@ -410,6 +442,24 @@ function formatLimitedPeriod(count: string, unit: string) {
  */
 function shouldRecordDiscountPeriodEdit(next: string) {
   return parseLimitedPeriod(next) == null
+}
+
+function amendmentChangeRank(item: ProductLineItem): number {
+  if (item.isOverallDiscount) return 99
+  switch (item.amendmentChange) {
+    case 'added':
+      return 0
+    case 'quantity-increased':
+      return 1
+    case 'removed':
+      return 2
+    default:
+      return 3
+  }
+}
+
+function sortAmendmentItems(items: ProductLineItem[]): ProductLineItem[] {
+  return [...items].sort((a, b) => amendmentChangeRank(a) - amendmentChangeRank(b))
 }
 
 /** Closed-cell label — bare "Limited Period" reads as the default duration. */
@@ -1069,6 +1119,7 @@ function SelectField({
 interface ItemNameButtonProps {
   name: string
   isAttention: boolean
+  amendmentChange?: ProductLineItem['amendmentChange']
   onSelect: (item: CatalogLineItem) => void
   onOpenChange?: (isOpen: boolean) => void
   isRowHovered?: boolean
@@ -1090,6 +1141,7 @@ interface ItemNameButtonProps {
 function ItemNameButton({
   name,
   isAttention,
+  amendmentChange,
   onSelect,
   onOpenChange,
   isRowHovered,
@@ -1143,12 +1195,30 @@ function ItemNameButton({
       >
         {/* On the pill the gradient has to sit on the text alone — as a button
             class its background would paint over the pill fill. */}
-        <span className={cn('truncate', asField && isAttention && 'ai-gradient-text')}>{name}</span>
+        <span
+          className={cn(
+            'truncate',
+            asField && isAttention && 'ai-gradient-text',
+            amendmentChange === 'removed' && 'text-neutral-400 line-through'
+          )}
+        >
+          {name}
+        </span>
         <ChevronDown size={14} className={cn(
           "shrink-0 transition-colors",
           hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
+      {amendmentChange === 'added' && (
+        <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+          Added
+        </span>
+      )}
+      {amendmentChange === 'removed' && (
+        <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
+          Removed
+        </span>
+      )}
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
@@ -1172,7 +1242,7 @@ function ItemNameButton({
 
 const BASE_COLUMN_WIDTHS = {
   PERIOD_W: 96,
-  QTY_W: 60,
+  QTY_W: 96,
   /** Fits `$2,568.00` beside a ramp badge (`↑ 7%`) without truncating the price. */
   UNIT_W: 152,
   /** Edit-mode-only column between unit price and total — fits the amount + unit control. */
@@ -1187,7 +1257,7 @@ const BASE_COLUMN_WIDTHS = {
 const MENU_W = 48
 const ITEM_PINNED_COLUMN_WIDTHS = {
   PERIOD_W: 108,
-  QTY_W: 68,
+  QTY_W: 108,
   UNIT_W: 170,
   DISCOUNT_W: 90,
   DISCOUNT_PERIOD_W: 132,
@@ -2761,7 +2831,7 @@ export function ProductsPricingTable({
       <div
         style={isEditMode ? undefined : { width: QTY_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pr-[22px] text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -2842,7 +2912,7 @@ export function ProductsPricingTable({
       <div
         style={isEditMode ? undefined : { width: QTY_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pr-[22px] text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isEditMode && 'shrink-0'
         )}
       >
@@ -3048,7 +3118,7 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: QTY_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pr-[22px] text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
@@ -3166,7 +3236,7 @@ export function ProductsPricingTable({
       <div
         style={isFullPageExpanded ? undefined : { width: QTY_W }}
         className={cn(
-          'text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
+          'pr-[22px] text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy',
           !isFullPageExpanded && 'shrink-0'
         )}
       >
@@ -3422,6 +3492,10 @@ export function ProductsPricingTable({
           'group row-hover-trail relative items-stretch bg-white pl-1 pr-2',
           ROW_STROKE,
           !isFullPageExpanded && 'flex',
+          item.amendmentChange === 'unchanged' && 'opacity-55',
+          // Cell values render inside buttons, so strike those rather than the row
+          // itself — that keeps the line off the "Removed" tag and the row icons.
+          item.amendmentChange === 'removed' && 'opacity-60 [&_button]:line-through',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
           activeRowId === item.id && 'z-40'
@@ -3445,6 +3519,7 @@ export function ProductsPricingTable({
             <ItemNameButton
               name={item.name}
               isAttention={isAttention}
+              amendmentChange={item.amendmentChange}
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
               openRequestId={lineItemEditRequest[item.id]}
@@ -3512,9 +3587,34 @@ export function ProductsPricingTable({
           style={isFullPageExpanded ? undefined : { width: QTY_W }}
         >
           {isQtyEdited ? <EditedCellFill /> : null}
-          <div className={cellInner(isQtyEdited, 'min-w-0 w-full')}>
+          <div className={cellInner(isQtyEdited, 'flex min-w-0 w-full justify-end')}>
+            {item.amendmentChange === 'quantity-increased' && item.previousQuantity ? (
+              <QtyAmendmentDisplay previousQuantity={item.previousQuantity}>
+                <InteractiveMiniDropdown
+                  label={item.quantity}
+                  className="w-auto"
+                  options={quantityOptions}
+                  ariaLabel={`Quantity for ${item.name}`}
+                  onSelect={(next) => {
+                    recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
+                    updateItems((prev) =>
+                      prev.map((i) =>
+                        i.id === item.id
+                          ? {
+                              ...i,
+                              quantity: next,
+                              totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
+                            }
+                          : i
+                      )
+                    )
+                  }}
+                />
+              </QtyAmendmentDisplay>
+            ) : (
             <InteractiveMiniDropdown
               label={item.quantity}
+              className="w-auto"
               options={quantityOptions}
               ariaLabel={`Quantity for ${item.name}`}
               onSelect={(next) => {
@@ -3532,6 +3632,7 @@ export function ProductsPricingTable({
                 )
               }}
             />
+            )}
           </div>
         </div>
         <Separator fillStart={isQtyEdited} fillEnd={isUnitPriceEdited} />
@@ -3829,6 +3930,11 @@ export function ProductsPricingTable({
         className={cn(
           'group row-hover-trail items-stretch border-b pl-1 pr-2 transition-colors',
           !isEditMode && 'flex',
+          item.amendmentChange === 'unchanged' && !isRowFilled && 'opacity-55',
+          // Cell values render inside buttons, so strike those rather than the row
+          // itself — that keeps the line off the "Removed" tag and the row icons.
+          item.amendmentChange === 'removed' && '[&_button]:line-through',
+          item.amendmentChange === 'removed' && !isRowFilled && 'opacity-60',
           isEditMode
             ? cn(
                 showFieldPills && 'rounded-lg',
@@ -3847,6 +3953,7 @@ export function ProductsPricingTable({
             <ItemNameButton
               name={item.name}
               isAttention={isAttention}
+              amendmentChange={item.amendmentChange}
               isRowHovered={isRowFilled && !isActive}
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
@@ -3920,10 +4027,51 @@ export function ProductsPricingTable({
           style={isEditMode ? undefined : { width: QTY_W }}
         >
           {!isRowFilled && isQtyEdited ? <EditedCellFill /> : null}
-          <div className={cellInner(!isRowFilled && isQtyEdited, 'min-w-0 w-full')}>
-            {isExpandedVariant && isEditMode ? (
+          <div className={cellInner(!isRowFilled && isQtyEdited, 'flex min-w-0 w-full justify-end')}>
+            {item.amendmentChange === 'quantity-increased' && item.previousQuantity ? (
+              <QtyAmendmentDisplay
+                previousQuantity={item.previousQuantity}
+                isRowHovered={isRowFilled}
+              >
+                {isExpandedVariant && isEditMode ? (
+                  <InteractiveMiniDropdown
+                    label={item.quantity}
+                    className="w-auto"
+                    options={
+                      QUANTITY_OPTIONS.includes(item.quantity)
+                        ? QUANTITY_OPTIONS
+                        : [item.quantity, ...QUANTITY_OPTIONS]
+                    }
+                    ariaLabel={`Quantity for ${item.name}`}
+                    onSelect={(next) => {
+                      recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
+                      updateItems((prev) =>
+                        prev.map((i) =>
+                          i.id === item.id
+                            ? {
+                                ...i,
+                                quantity: next,
+                                totalPrice: computeTotalPrice(i.unitPrice, next) ?? i.totalPrice,
+                              }
+                            : i
+                        )
+                      )
+                    }}
+                  />
+                ) : (
+                  <MiniDropdown
+                    label={item.quantity}
+                    className="w-auto"
+                    isRowHovered={isRowFilled}
+                    isRowActive={isRowFilled}
+                    asField={showFieldPills}
+                  />
+                )}
+              </QtyAmendmentDisplay>
+            ) : isExpandedVariant && isEditMode ? (
               <InteractiveMiniDropdown
                 label={item.quantity}
+                className="w-auto"
                 options={
                   QUANTITY_OPTIONS.includes(item.quantity)
                     ? QUANTITY_OPTIONS
@@ -3948,6 +4096,7 @@ export function ProductsPricingTable({
             ) : (
               <MiniDropdown
                 label={item.quantity}
+                className="w-auto"
                 isRowHovered={isRowFilled}
                 isRowActive={isRowFilled}
                 asField={showFieldPills}
@@ -4508,7 +4657,7 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item) =>
+                  {sortAmendmentItems(period.items).map((item) =>
                     renderExpandedLineItem(item, updatePeriodItems, period.items)
                   )}
                 </ExpandedScrollContainer>
@@ -4519,7 +4668,7 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item) => renderLineItem(item, updatePeriodItems))}
+                  {sortAmendmentItems(period.items).map((item) => renderLineItem(item, updatePeriodItems))}
                 </>
               )}
 
@@ -4560,12 +4709,12 @@ export function ProductsPricingTable({
           pinnedRightWidth={TOTAL_W + MENU_W}
         >
           {renderExpandedTableHeader()}
-          {items.map((item) => renderExpandedLineItem(item, setItems, items))}
+          {sortAmendmentItems(items).map((item) => renderExpandedLineItem(item, setItems, items))}
         </ExpandedScrollContainer>
       ) : (
         <>
           {renderTableHeader()}
-          {items.map((item) => renderLineItem(item, setItems))}
+          {sortAmendmentItems(items).map((item) => renderLineItem(item, setItems))}
         </>
       )}
 
