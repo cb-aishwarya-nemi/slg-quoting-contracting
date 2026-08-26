@@ -12,4 +12,5 @@ export { CommentsPanel, SectionCommentStack, type SectionCommentStackProps } fro
 export { PdfThumbnail } from './PdfThumbnail'
 export { SectionSourceThumbnails, SECTION_SOURCE_THUMBNAILS_HEIGHT } from './SectionSourceThumbnails'
 export { SourcePreviewDrawer } from './SourcePreviewDrawer'
+export { SalesOrderAmendmentComparison } from './SalesOrderAmendmentComparison'
 export { getExtractionAttentionStatus, countUnresolvedExtractionItems, applyFieldValue } from './sectionAttention'

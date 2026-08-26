@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2 } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
@@ -798,6 +799,8 @@ interface PriceFieldProps {
   className?: string
   /** Soften the resting label (e.g. row is navy-filled). */
   muted?: boolean
+  /** Marks the resting value with a dashed underline that reveals the working. */
+  proration?: ProductLineItem['proration']
 }
 
 /**
@@ -811,6 +814,7 @@ function PriceField({
   align = 'right',
   className,
   muted,
+  proration,
 }: PriceFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -884,7 +888,11 @@ function PriceField({
         className
       )}
     >
-      {value || '–'}
+      {proration ? (
+        <ProratedTotal total={value || '–'} proration={proration} isRowFilled={muted} />
+      ) : (
+        value || '–'
+      )}
     </button>
   )
 }
@@ -1219,6 +1227,11 @@ function ItemNameButton({
           Removed
         </span>
       )}
+      {amendmentChange === 'quantity-increased' && (
+        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
+          Modified
+        </span>
+      )}
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
@@ -1237,6 +1250,74 @@ function ItemNameButton({
         highlightSelected={highlightSelected}
       />
     </div>
+  )
+}
+
+/** Total for a line whose first charge is prorated — the working opens on hover. */
+function ProratedTotal({
+  total,
+  proration,
+  isRowFilled,
+}: {
+  total: string
+  proration: NonNullable<ProductLineItem['proration']>
+  isRowFilled?: boolean
+}) {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+
+  const rows = [
+    { label: 'Full period', value: proration.fullPeriod },
+    { label: 'Prorated period', value: proration.period },
+    { label: 'Portion billed', value: proration.portion },
+    { label: 'Rate', value: proration.rate },
+  ]
+
+  return (
+    <>
+      <span
+        tabIndex={0}
+        onMouseEnter={(e) => setAnchor(e.currentTarget.getBoundingClientRect())}
+        onMouseLeave={() => setAnchor(null)}
+        onFocus={(e) => setAnchor(e.currentTarget.getBoundingClientRect())}
+        onBlur={() => setAnchor(null)}
+        className={cn(
+          'cursor-help border-b border-dashed pb-px outline-none',
+          isRowFilled ? 'border-white/60' : 'border-brand-mist'
+        )}
+      >
+        {total}
+      </span>
+      {anchor &&
+        createPortal(
+          <div
+            className="pointer-events-none fixed z-[9999] -translate-x-full"
+            style={{ left: anchor.right, top: anchor.bottom + 8 }}
+          >
+            <div className="w-[300px] rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-left font-normal shadow-lg">
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[-0.2px] text-brand-fog">
+                First charge is prorated
+              </p>
+              <dl className="space-y-1">
+                {rows.map((row) => (
+                  <div key={row.label} className="flex justify-between gap-3">
+                    <dt className="shrink-0 text-[12px] text-brand-fog">{row.label}</dt>
+                    <dd className="text-right text-[12px] text-brand-navy">{row.value}</dd>
+                  </div>
+                ))}
+                <div className="flex justify-between gap-3 border-t border-neutral-200 pt-1.5">
+                  <dt className="shrink-0 text-[12px] font-medium text-brand-navy">
+                    {proration.formula}
+                  </dt>
+                  <dd className="text-right text-[12px] font-medium text-brand-navy">
+                    {proration.amount}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
   )
 }
 
@@ -3763,6 +3844,7 @@ export function ProductsPricingTable({
             <PriceField
               value={item.totalPrice}
               ariaLabel={`Total price for ${item.name}`}
+              proration={item.proration}
               onCommit={(nextTotal) => {
                 recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
                 updateItems((prev) =>
@@ -4257,12 +4339,19 @@ export function ProductsPricingTable({
               <PriceField
                 value={item.totalPrice}
                 ariaLabel={`Total price for ${item.name}`}
+                proration={item.proration}
                 onCommit={(nextTotal) => {
                   recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
                   updateItems((prev) =>
                     prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
                   )
                 }}
+              />
+            ) : item.proration ? (
+              <ProratedTotal
+                total={item.totalPrice}
+                proration={item.proration}
+                isRowFilled={isRowFilled}
               />
             ) : (
               item.totalPrice

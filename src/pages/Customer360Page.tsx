@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, Columns3, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -8,6 +8,7 @@ import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
 import {
   contractProcessing,
+  paymentSchedule,
   sectionSources,
   type AllocationGroup,
   type Comment,
@@ -31,6 +32,7 @@ import {
   SectionSourceThumbnails,
   SECTION_SOURCE_THUMBNAILS_HEIGHT,
   SourcePreviewDrawer,
+  SalesOrderAmendmentComparison,
   getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
@@ -73,7 +75,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
   { id: 'allocation', label: 'Entitlements and credits', status: 'neutral' },
-  { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
+  { id: 'schedule', label: 'Upcoming billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
   { id: 'credit-note', label: 'Credit note preview', status: 'neutral' },
 ]
@@ -136,6 +138,12 @@ function originalAllocations(allocations: AllocationGroup[]): AllocationGroup[] 
         : allocation
     )
 }
+
+function formatScheduleMoney(amount: number): string {
+  return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+const AMENDMENT_QUARTERLY_AMOUNT = 51500
 
 /** Stable section layout — recreating this in render remounts children and wipes local state. */
 function ContractSectionRow({
@@ -216,6 +224,19 @@ function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
   )
 }
 
+function CompareSalesOrderButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 font-heading text-[14px] font-semibold text-brand-navy transition-colors hover:border-brand-mist hover:bg-neutral-50"
+    >
+      <Columns3 size={16} />
+      Compare changes
+    </button>
+  )
+}
+
 function TabPlaceholder({ label }: { label: string }) {
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-1 items-center justify-center px-12">
@@ -251,6 +272,7 @@ export function Customer360Page() {
   const data = contractProcessing
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
+  const [isComparisonOpen, setIsComparisonOpen] = useState(false)
   const [selectedContractVersion, setSelectedContractVersion] = useState<
     { id: 'v1' | 'v2'; trackPercent: number } | undefined
   >()
@@ -263,6 +285,19 @@ export function Customer360Page() {
   const originalAllocationItems = useMemo(
     () => originalAllocations(data.allocations),
     [data.allocations]
+  )
+  const upcomingScheduleItems = useMemo(() => {
+    const changeDate = new Date(data.summary.effectiveDate)
+    return paymentSchedule
+      .filter((item) => new Date(item.dueDate) >= changeDate)
+      .map((item) => ({
+        ...item,
+        amount: formatScheduleMoney(AMENDMENT_QUARTERLY_AMOUNT),
+      }))
+  }, [data.summary.effectiveDate])
+  const upcomingScheduleTcv = useMemo(
+    () => formatScheduleMoney(upcomingScheduleItems.length * AMENDMENT_QUARTERLY_AMOUNT),
+    [upcomingScheduleItems.length]
   )
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   /** One panel for the whole page — any section's bubble toggles all of it. */
@@ -369,11 +404,15 @@ export function Customer360Page() {
     () =>
       BASE_NAV_SECTIONS.filter(
         (section) => !isOriginalContract || section.id !== 'credit-note'
-      ).map((section) =>
-        section.id === 'account'
-          ? { ...section, status: accountAttention.status }
-          : section
-      ),
+      ).map((section) => {
+        if (section.id === 'account') {
+          return { ...section, status: accountAttention.status }
+        }
+        if (section.id === 'schedule' && isOriginalContract) {
+          return { ...section, label: 'Billing schedule' }
+        }
+        return section
+      }),
     [accountAttention.status, isOriginalContract]
   )
 
@@ -637,7 +676,8 @@ export function Customer360Page() {
 
             <div className="flex-1" />
 
-            <div className="flex items-center gap-5">
+            <div className="flex items-center gap-3">
+              <CompareSalesOrderButton onClick={() => setIsComparisonOpen(true)} />
               <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
             </div>
           </div>
@@ -1069,12 +1109,16 @@ export function Customer360Page() {
                   </ContractSectionRow>
                 </section>
 
-                {/* Billing schedule — notes are omitted only in Item pinned. */}
+                {/* Upcoming billing schedule — from the amendment effective date onward. */}
                 <section ref={setSectionRef('schedule')} className="group/section">
                   {isItemPinnedVariant ? (
                     <>
                       <SectionHeader
-                        title="Billing schedule"
+                        title={
+                          isOriginalContract
+                            ? 'Billing schedule'
+                            : 'Upcoming billing schedule'
+                        }
                         hideLine
                         showRefreshIcon
                         isFlashing={false}
@@ -1082,10 +1126,11 @@ export function Customer360Page() {
                       <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                         <PaymentSchedule
                           key={isOriginalContract ? 'schedule-v1' : 'schedule-v2'}
+                          items={
+                            isOriginalContract ? paymentSchedule : upcomingScheduleItems
+                          }
                           tcv={
-                            isOriginalContract
-                              ? '$492,000.00'
-                              : data.summary.contractValue
+                            isOriginalContract ? '$492,000.00' : upcomingScheduleTcv
                           }
                         />
                       </div>
@@ -1093,17 +1138,32 @@ export function Customer360Page() {
                   ) : (
                     <ContractSectionRow
                       sectionId="schedule"
-                      sectionLabel="Billing schedule"
+                      sectionLabel={
+                        isOriginalContract
+                          ? 'Billing schedule'
+                          : 'Upcoming billing schedule'
+                      }
                       areCommentsVisible
                       comments={commentsBySection['schedule'] ?? []}
                       onAddNote={(text, status) =>
-                        handleAddComment('schedule', 'Billing schedule', text, status)
+                        handleAddComment(
+                          'schedule',
+                          isOriginalContract
+                            ? 'Billing schedule'
+                            : 'Upcoming billing schedule',
+                          text,
+                          status
+                        )
                       }
                       onDelete={handleDeleteComment}
                       onResolve={handleResolveComment}
                     >
                       <SectionHeader
-                        title="Billing schedule"
+                        title={
+                          isOriginalContract
+                            ? 'Billing schedule'
+                            : 'Upcoming billing schedule'
+                        }
                         hideLine
                         showRefreshIcon
                         isFlashing={false}
@@ -1112,10 +1172,11 @@ export function Customer360Page() {
                       <div className="mt-6" style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                         <PaymentSchedule
                           key={isOriginalContract ? 'schedule-v1' : 'schedule-v2'}
+                          items={
+                            isOriginalContract ? paymentSchedule : upcomingScheduleItems
+                          }
                           tcv={
-                            isOriginalContract
-                              ? '$492,000.00'
-                              : data.summary.contractValue
+                            isOriginalContract ? '$492,000.00' : upcomingScheduleTcv
                           }
                         />
                       </div>
@@ -1206,6 +1267,12 @@ export function Customer360Page() {
         activeIndex={preview?.index ?? 0}
         onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}
+      />
+      <SalesOrderAmendmentComparison
+        isOpen={isComparisonOpen}
+        onClose={() => setIsComparisonOpen(false)}
+        customerName={customerName}
+        items={data.products}
       />
     </div>
   )

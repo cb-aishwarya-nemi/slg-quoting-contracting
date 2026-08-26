@@ -55,20 +55,37 @@ export function InvoicePreview({
           ...amendmentBase,
           lineItems: amendmentBase.lineItems
             .filter((line) => !line.name.startsWith('Implementation services'))
-            .map((line) =>
-              line.name.startsWith('Apex platform - growth services')
-                ? {
-                    ...line,
-                    qty: '75',
-                    unitPrice: '$600.00',
-                    amount: '$45,000.00',
-                  }
-                : line
-            ),
-          subtotal: '$51,500.00',
-          total: '$51,500.00',
+            .map((line) => {
+              if (line.name.startsWith('Apex platform - growth services')) {
+                return {
+                  ...line,
+                  qty: '75',
+                  unitPrice: '$600.00',
+                  amount: '$45,000.00',
+                }
+              }
+              if (line.name.startsWith('Sandbox environments')) {
+                return {
+                  ...line,
+                  unitPrice: '$125.00',
+                  amount: '$375.00',
+                  prorated: true,
+                  proratedLabel: 'Apr 1 – Apr 30, 2027 · 1 of 3 months',
+                  proration: {
+                    period: 'Apr 1 – Apr 30, 2027',
+                    fullPeriod: '$1,125.00 per quarter (3 sandboxes)',
+                    portion: '1 of 3 months remaining in the current quarter',
+                    rate: '$125.00 per sandbox per month',
+                    formula: '3 × $125.00 × 1 month = $375.00',
+                  },
+                }
+              }
+              return line
+            }),
+          subtotal: '$50,750.00',
+          total: '$50,750.00',
           notes:
-            'Upcoming quarterly invoice reflecting this amendment: 75 Growth seats, Implementation services removed, and 3 Sandbox environments.',
+            'Upcoming invoice reflecting this amendment. Sandbox environments is new and billed prorated from Apr 1, 2027 through the end of the current quarter.',
         }
   const subtotal = parseMoney(invoice.subtotal)
   const tax = parseMoney(invoice.tax)
@@ -155,14 +172,26 @@ export function InvoicePreview({
         </div>
 
         {invoice.lineItems.map((line) => (
-          <div key={line.name} className="flex items-center border-b border-neutral-100 py-2.5">
-            <div className="flex-1 text-[14px] text-brand-navy">{line.name}</div>
-            <div className="w-[56px] shrink-0 text-right text-[14px] text-brand-navy">{line.qty}</div>
-            <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">{line.unitPrice}</div>
-            <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">
+          <div key={line.name} className="flex items-start border-b border-neutral-100 py-2.5">
+            <div className="min-w-0 flex-1">
+              <span className="text-[14px] text-brand-navy">{line.name}</span>
+              {(line.prorated || line.proratedLabel) && (
+                <div className="mt-0.5 flex items-center gap-1.5">
+                  {line.proratedLabel && (
+                    <p className="text-[12px] text-brand-fog">{line.proratedLabel}</p>
+                  )}
+                  {line.prorated && (
+                    <span className="shrink-0 text-[12px] text-brand-fog">Prorated</span>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="w-[56px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.qty}</div>
+            <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.unitPrice}</div>
+            <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">
               {line.discount ? `(${line.discount})` : '–'}
             </div>
-            <div className="w-[124px] shrink-0 text-right text-[14px] text-brand-navy">{line.amount}</div>
+            <div className="w-[124px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.amount}</div>
           </div>
         ))}
 
@@ -278,14 +307,26 @@ export function CreditNotePreview({ isFlashing }: { isFlashing?: boolean }) {
           </div>
 
           {creditNote.lineItems.map((line) => (
-            <div key={line.name} className="flex items-center border-b border-neutral-100 py-2.5">
-              <div className="flex-1 text-[14px] text-brand-navy">{line.name}</div>
-              <div className="w-[56px] shrink-0 text-right text-[14px] text-brand-navy">{line.qty}</div>
-              <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">{line.unitPrice}</div>
-              <div className="w-[110px] shrink-0 text-right text-[14px] text-brand-navy">
+            <div key={line.name} className="flex items-start border-b border-neutral-100 py-2.5">
+              <div className="min-w-0 flex-1">
+                <span className="text-[14px] text-brand-navy">{line.name}</span>
+                {(line.prorated || line.proratedLabel) && (
+                  <div className="mt-0.5 flex items-center gap-1.5">
+                    {line.proratedLabel && (
+                      <p className="text-[12px] text-brand-fog">{line.proratedLabel}</p>
+                    )}
+                    {line.prorated && (
+                      <span className="shrink-0 text-[12px] text-brand-fog">Prorated</span>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div className="w-[56px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.qty}</div>
+              <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.unitPrice}</div>
+              <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">
                 {line.discount ? `(${line.discount})` : '–'}
               </div>
-              <div className="w-[124px] shrink-0 text-right text-[14px] text-brand-navy">{line.amount}</div>
+              <div className="w-[124px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.amount}</div>
             </div>
           ))}
 

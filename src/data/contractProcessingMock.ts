@@ -40,6 +40,15 @@ export interface ProductLineItem {
   /** How long the discount runs for. Defaults to 'None' when unset. */
   discountPeriod?: DiscountPeriod
   totalPrice: string
+  /** Working shown on hover when the first charge for this line is prorated. */
+  proration?: {
+    period: string
+    fullPeriod: string
+    portion: string
+    rate: string
+    formula: string
+    amount: string
+  }
   /** Price change percentage from previous period (e.g., 7 for 7% increase) */
   rampPriceChange?: number
   /** Period-level row: label in Item; only Discount / Discount period are editable. */
@@ -330,6 +339,14 @@ export const contractProcessing = {
       discountUnit: '%',
       discountPeriod: '5 months',
       totalPrice: '$4,500.00',
+      proration: {
+        period: 'Apr 1 – Apr 30, 2027',
+        fullPeriod: '$4,500.00 per year (3 × $1,500.00)',
+        portion: '1 of 12 months in the current billing period',
+        rate: '$375.00 per month',
+        formula: '$4,500.00 ÷ 12 × 1 month',
+        amount: '$375.00',
+      },
     },
   ] as ProductLineItem[],
 
@@ -478,6 +495,14 @@ export const contractProcessing = {
           discountUnit: '%',
           discountPeriod: '5 months',
           totalPrice: '$4,500.00',
+          proration: {
+            period: 'Apr 1 – Apr 30, 2027',
+            fullPeriod: '$4,500.00 per year (3 × $1,500.00)',
+            portion: '1 of 12 months in the current billing period',
+            rate: '$375.00 per month',
+            formula: '$4,500.00 ÷ 12 × 1 month',
+            amount: '$375.00',
+          },
         },
       ] as ProductLineItem[],
     },
@@ -1062,6 +1087,16 @@ export interface ScheduledInvoice {
     /** Dollar discount on this line, shown as e.g. ($100.00). Omit when none. */
     discount?: string
     amount: string
+    /** Mid-cycle add or unused remainder. */
+    prorated?: boolean
+    proratedLabel?: string
+    proration?: {
+      period: string
+      fullPeriod: string
+      portion: string
+      rate: string
+      formula: string
+    }
   }[]
   subtotal: string
   tax: string
@@ -1465,10 +1500,19 @@ export const creditNotePreview: ScheduledInvoice = {
   },
   lineItems: [
     {
-      name: 'Implementation services — unused term (Apr 1, 2027 – Apr 30, 2029)',
+      name: 'Implementation services',
       qty: '25',
       unitPrice: '$1,500.00',
       amount: '$37,500.00',
+      prorated: true,
+      proratedLabel: 'Unused term · 25 of 36 months',
+      proration: {
+        period: 'Apr 1, 2027 – Apr 30, 2029',
+        fullPeriod: '$54,000.00 over 36 months ($18,000.00 / year)',
+        portion: '25 of 36 months remaining after Apr 1, 2027',
+        rate: '$1,500.00 per month',
+        formula: '$1,500.00 × 25 months = $37,500.00',
+      },
     },
   ],
   subtotal: '$37,500.00',
