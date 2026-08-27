@@ -223,16 +223,118 @@ function Highlight({
 const HoveredRowContext = createContext<{
   hoveredRowId: string | null
   setHoveredRowId: (id: string | null) => void
-}>({ hoveredRowId: null, setHoveredRowId: () => {} })
+  /** Only Milestones pairs its rows this way; Rows and Timeline stay static. */
+  isEnabled: boolean
+}>({ hoveredRowId: null, setHoveredRowId: () => {}, isEnabled: false })
 
 function useHoveredRow() {
   return useContext(HoveredRowContext)
 }
 
-function HoveredRowProvider({ children }: { children: ReactNode }) {
+function HoveredRowProvider({
+  isEnabled,
+  children,
+}: {
+  isEnabled: boolean
+  children: ReactNode
+}) {
   const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
-  const value = useMemo(() => ({ hoveredRowId, setHoveredRowId }), [hoveredRowId])
+  const value = useMemo(
+    () => ({ hoveredRowId: isEnabled ? hoveredRowId : null, setHoveredRowId, isEnabled }),
+    [hoveredRowId, isEnabled]
+  )
   return <HoveredRowContext.Provider value={value}>{children}</HoveredRowContext.Provider>
+}
+
+/** What the amendment did to this row — no fields already on the table. */
+function rowChangeSummary(row: CompareRow): { title: string; detail?: string; from?: string; to?: string } | null {
+  if (!row.after) return { title: `${row.name} removed` }
+  if (!row.before) return { title: `${row.name} added` }
+
+  const beforeQty = row.before.qty ? numericQuantity(row.before.qty) : null
+  const afterQty = row.after.qty ? numericQuantity(row.after.qty) : null
+  const qtyNoun = /apex platform|growth services|enterprise services/i.test(row.name)
+    ? 'Seats'
+    : 'Quantity'
+
+  if (beforeQty !== null && afterQty !== null && beforeQty !== afterQty) {
+    const verb = afterQty > beforeQty ? 'increased' : 'decreased'
+    return {
+      title: row.name,
+      detail: `${qtyNoun} ${verb} from`,
+      from: String(beforeQty),
+      to: String(afterQty),
+    }
+  }
+
+  if (row.before.unitPrice && row.after.unitPrice && row.before.unitPrice !== row.after.unitPrice) {
+    const verb =
+      parseMoney(row.after.unitPrice) > parseMoney(row.before.unitPrice) ? 'increased' : 'decreased'
+    return {
+      title: row.name,
+      detail: `Unit price ${verb} from`,
+      from: row.before.unitPrice,
+      to: row.after.unitPrice,
+    }
+  }
+
+  if (row.before.amount !== row.after.amount) {
+    const verb =
+      parseMoney(row.after.amount) > parseMoney(row.before.amount) ? 'increased' : 'decreased'
+    return {
+      title: row.name,
+      detail: `Amount ${verb} from`,
+      from: row.before.amount,
+      to: row.after.amount,
+    }
+  }
+
+  return null
+}
+
+/** Bubble spelling out what the amendment did to a row, anchored beside it. */
+function RowChangeTooltip({ row, anchor }: { row: CompareRow; anchor: DOMRect }) {
+  const summary = rowChangeSummary(row)
+  if (!summary) return null
+  // Flip to the left when the row sits too close to the window edge.
+  const toLeft = anchor.right + 280 > window.innerWidth
+
+  return createPortal(
+    <div
+      className={cn(
+        'pointer-events-none fixed z-[90] flex -translate-y-1/2 items-center',
+        toLeft && '-translate-x-full flex-row-reverse'
+      )}
+      style={{
+        left: toLeft ? anchor.left - 12 : anchor.right + 12,
+        top: anchor.top + anchor.height / 2,
+      }}
+    >
+      <span
+        className={cn(
+          'h-px w-3 border-t border-dashed border-neutral-300',
+          toLeft ? 'ml-1.5' : 'mr-1.5'
+        )}
+      />
+      <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
+        <p className="whitespace-nowrap text-[12px] font-medium text-brand-navy">{summary.title}</p>
+        {summary.detail && (
+          <p className="mt-0.5 whitespace-nowrap text-[12px] text-brand-navy">
+            {summary.detail}
+            {summary.from && summary.to && (
+              <>
+                {' '}
+                <span className="font-medium text-red-700">{summary.from}</span>
+                {' → '}
+                <span className="font-medium text-green-700">{summary.to}</span>
+              </>
+            )}
+          </p>
+        )}
+      </div>
+    </div>,
+    document.body
+  )
 }
 
 function SectionCardRow({
@@ -246,17 +348,32 @@ function SectionCardRow({
 }) {
   const cell = side === 'before' ? row.before : row.after
   const counterpart = side === 'before' ? row.after : row.before
-  const { hoveredRowId, setHoveredRowId } = useHoveredRow()
+  const { hoveredRowId, setHoveredRowId, isEnabled } = useHoveredRow()
   // Both sides render the same row id, so pointing at one lights up its twin.
   const isHovered = hoveredRowId === row.id
 
-  const hoverProps = {
-    onMouseEnter: () => setHoveredRowId(row.id),
-    onMouseLeave: () => setHoveredRowId(null),
-  }
+  // Only After explains the amendment; Before is the state being compared against.
+  const [anchor, setAnchor] = useState<DOMRect | null>(null)
+  const explainsChange =
+    isEnabled && side === 'after' && row.changed && Boolean(rowChangeSummary(row))
+
+  const hoverProps = isEnabled
+    ? {
+        onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => {
+          setHoveredRowId(row.id)
+          if (explainsChange) setAnchor(event.currentTarget.getBoundingClientRect())
+        },
+        onMouseLeave: () => {
+          setHoveredRowId(null)
+          setAnchor(null)
+        },
+      }
+    : {}
+  const tooltip = anchor && explainsChange ? <RowChangeTooltip row={row} anchor={anchor} /> : null
   // Matches the Tasks table: navy fill, white ink, pointer cursor.
   const rowClass = cn(
-    'flex cursor-pointer items-center gap-2 px-4 py-2 transition-colors',
+    'flex items-center gap-2 px-4 py-2 transition-colors',
+    isEnabled && 'cursor-pointer',
     isHovered && 'bg-brand-navy'
   )
 
@@ -276,6 +393,7 @@ function SectionCardRow({
         >
           {side === 'before' ? 'Not on this order' : 'Removed'}
         </span>
+        {tooltip}
       </div>
     )
   }
@@ -320,6 +438,7 @@ function SectionCardRow({
           {cell.amount}
         </Highlight>
       </span>
+      {tooltip}
     </div>
   )
 }
@@ -584,9 +703,6 @@ function PeriodCompare({
 
   return (
     <div>
-      {group.label && (
-        <p className="mb-2 text-[13px] font-medium text-brand-navy">{group.label}</p>
-      )}
       <div className="grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] items-stretch">
         {group.beforeRange === null && group.label ? (
           <AbsentPeriodCard side="before" />
@@ -598,6 +714,7 @@ function PeriodCompare({
             side="before"
             showUnchanged={showUnchanged}
             onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+            title={group.label}
             range={group.beforeRange}
             rangeChanged={group.rangeChanged}
           />
@@ -620,6 +737,7 @@ function PeriodCompare({
             side="after"
             showUnchanged={showUnchanged}
             onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+            title={group.label}
             range={group.afterRange}
             rangeChanged={group.rangeChanged}
           />
@@ -694,7 +812,13 @@ function labelValueSection(
 }
 
 /** ARR reads as a KPI on each side of the same grid the section cards use. */
-function ArrKpiCompare() {
+function ArrKpiCompare({
+  middleWidth = 148,
+  columnGap = 0,
+}: {
+  middleWidth?: number
+  columnGap?: number
+}) {
   const delta = parseMoney(AMENDED_ARR) - parseMoney(ORIGINAL_ARR)
 
   const kpi = (value: string) => (
@@ -710,7 +834,13 @@ function ArrKpiCompare() {
   )
 
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] items-center pb-10">
+    <div
+      className="grid items-center pb-10"
+      style={{
+        gridTemplateColumns: `minmax(0,1fr) ${middleWidth}px minmax(0,1fr)`,
+        columnGap,
+      }}
+    >
       {kpi(ORIGINAL_ARR)}
       <DeltaColumn label={signedMoney(delta)} />
       {kpi(AMENDED_ARR)}
@@ -798,6 +928,8 @@ const TIMELINE_MONTHS = 36
 const MONTH_HEIGHT = 34
 const AMENDMENT_DATE = '2027-04-01'
 const TODAY_DATE = '2027-02-15'
+/** Where v1 was signed — the top of the axis, phrased like the period dates. */
+const CONTRACT_START = 'May 1, 2026'
 
 /** Months elapsed since the contract start (May 1, 2026), fractional within a month. */
 function parseAxisDate(date: string): Date {
@@ -831,7 +963,7 @@ const AXIS_TERM_END = '2029-04-30'
 /** The axis is a band: a left rail for Before dates, a right rail for After. */
 const AXIS_COLUMN_WIDTH = 220
 const AXIS_GUTTER = 24
-const AXIS_BAND_HALF = 26
+const AXIS_BAND_HALF = 20
 const RAIL_LEFT = `calc(50% - ${AXIS_BAND_HALF}px)`
 const RAIL_RIGHT = `calc(50% + ${AXIS_BAND_HALF}px)`
 const AMENDMENT_MARK_GRADIENT = 'amendment-mark-gradient'
@@ -949,19 +1081,24 @@ function VerticalContractAxis({
   banded = false,
   beforeMarks = [],
   afterMarks = [],
+  trackHeight: trackHeightProp,
 }: {
   height: number
   /** Milestones widens the axis into a band with a rail per side. */
   banded?: boolean
   beforeMarks?: AxisMark[]
   afterMarks?: AxisMark[]
+  /** Cuts the axis short — Milestones ends it at the last period rather than the term. */
+  trackHeight?: number
 }) {
   const [tooltips, setTooltips] = useState<AxisTooltip[]>([])
   const [hoveredMark, setHoveredMark] = useState<string | null>(null)
   const markRefs = useRef<Map<string, HTMLElement>>(new Map())
-  const ticks = Array.from({ length: TIMELINE_MONTHS / 3 + 1 }, (_, index) => index * 3)
   const todayTop = axisOffset(TODAY_DATE)
-  const trackHeight = TIMELINE_MONTHS * MONTH_HEIGHT
+  const trackHeight = trackHeightProp ?? TIMELINE_MONTHS * MONTH_HEIGHT
+  const ticks = Array.from({ length: TIMELINE_MONTHS / 3 + 1 }, (_, index) => index * 3).filter(
+    (monthIndex) => monthIndex * MONTH_HEIGHT <= trackHeight
+  )
   const inset = banded ? AXIS_BAND_HALF : 0
 
   const show = (
@@ -1038,10 +1175,17 @@ function VerticalContractAxis({
     ]
   }
 
+  // A trimmed axis has no room for milestones past its end, such as renewal.
+  const onTrack = (marks: AxisMark[]) => marks.filter((mark) => mark.top <= trackHeight)
+
   const rails = {
-    before: mergeMarks(withRampsOnPeriodStarts(beforeMarks)),
-    after: mergeMarks(withRampsOnPeriodStarts(afterMarks)),
+    before: onTrack(mergeMarks(withRampsOnPeriodStarts(beforeMarks))),
+    after: onTrack(mergeMarks(withRampsOnPeriodStarts(afterMarks))),
   }
+
+  /** A dot's footprint on the rail, so tick stubs can keep clear of it. */
+  const railHasMarkAt = (side: 'before' | 'after', top: number) =>
+    rails[side].some((mark) => Math.abs(mark.top - top) < 10)
 
   /** Hovering either rail reveals the same boundary on both sides. */
   const showPair = (id: string) => {
@@ -1067,7 +1211,9 @@ function VerticalContractAxis({
   }
 
   const renderRail = (side: 'before' | 'after') =>
-    rails[side].map((mark) => (
+    rails[side].map((mark) => {
+      const isPast = mark.top < todayTop
+      return (
       <button
         key={`${side}-${mark.id}`}
         ref={(node) => {
@@ -1089,7 +1235,12 @@ function VerticalContractAxis({
           )}
         >
           {side === 'before' ? (
-            <span className="block h-3.5 w-3.5 rounded-full border border-dashed border-neutral-400 bg-white" />
+            <span
+              className={cn(
+                'block h-3.5 w-3.5 rounded-full border border-neutral-400 bg-white',
+                !isPast && 'border-dashed'
+              )}
+            />
           ) : (
             <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden className="block">
               {/* Opaque disc under the ring, so nothing shows through the dashes. */}
@@ -1101,13 +1252,14 @@ function VerticalContractAxis({
                 fill="none"
                 stroke={`url(#${AMENDMENT_MARK_GRADIENT})`}
                 strokeWidth="1.25"
-                strokeDasharray="3 3"
+                strokeDasharray={isPast ? undefined : '3 3'}
               />
             </svg>
           )}
         </span>
       </button>
-    ))
+      )
+    })
 
   return (
     // Raised so the scale stays legible over the period ribbons either side.
@@ -1123,32 +1275,21 @@ function VerticalContractAxis({
             </defs>
           </svg>
 
-          {/* A filled band with a rail per side, tinted over the elapsed span. */}
+          {/* One box carries the fill and both rails, capped at either end. */}
           <div
             aria-hidden
-            className="absolute left-1/2 top-0 -translate-x-1/2 bg-neutral-50"
+            className="absolute left-1/2 top-0 -translate-x-1/2 overflow-hidden rounded-lg border border-neutral-300 bg-neutral-50"
             style={{ width: AXIS_BAND_HALF * 2, height: trackHeight }}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2"
-            style={{
-              width: AXIS_BAND_HALF * 2,
-              height: todayTop,
-              background:
-                'linear-gradient(180deg, rgba(255,51,0,0.12) 0%, rgba(139,92,246,0.16) 100%)',
-            }}
-          />
-          <div
-            aria-hidden
-            className="absolute top-0 w-px -translate-x-1/2 bg-[#c4c4c4]"
-            style={{ left: RAIL_LEFT, height: trackHeight }}
-          />
-          <div
-            aria-hidden
-            className="absolute top-0 w-px -translate-x-1/2 bg-[#c4c4c4]"
-            style={{ left: RAIL_RIGHT, height: trackHeight }}
-          />
+          >
+            <div
+              className="pointer-events-none absolute inset-x-0 top-0"
+              style={{
+                height: todayTop,
+                background:
+                  'linear-gradient(180deg, rgba(255,51,0,0.12) 0%, rgba(139,92,246,0.16) 100%)',
+              }}
+            />
+          </div>
 
           {/* Period boundaries and milestones: Before on the left rail, After on the right. */}
           {renderRail('before')}
@@ -1183,17 +1324,22 @@ function VerticalContractAxis({
           <div key={`tick-${monthIndex}`}>
             {banded ? (
               // Stubs off each rail, so the month reads as marked on the band.
+              // A stub yields to a boundary dot rather than striking through it.
               <>
-                <span
-                  aria-hidden
-                  className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
-                  style={{ left: RAIL_LEFT, top }}
-                />
-                <span
-                  aria-hidden
-                  className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
-                  style={{ left: `calc(50% + ${AXIS_BAND_HALF - 6}px)`, top }}
-                />
+                {!railHasMarkAt('before', top) && (
+                  <span
+                    aria-hidden
+                    className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
+                    style={{ left: RAIL_LEFT, top }}
+                  />
+                )}
+                {!railHasMarkAt('after', top) && (
+                  <span
+                    aria-hidden
+                    className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
+                    style={{ left: `calc(50% + ${AXIS_BAND_HALF - 6}px)`, top }}
+                  />
+                )}
               </>
             ) : (
               <span
@@ -1491,18 +1637,21 @@ const CONNECTOR_OVERLAP = 16
 const CHIP_HEIGHT = 57
 
 /**
- * Tapered ribbon funnelling the period's stretch of the axis into its chip:
- * full span at the line, header height where it lands.
+ * Ribbon tying the period's stretch of the axis to its card: the period's span
+ * at the line, the card's full height where it lands.
  */
 function ChipConnector({
   side,
   span,
   landing,
+  offset,
 }: {
   side: 'before' | 'after'
   span: number
-  /** Height of the chip header the ribbon has to meet flush. */
+  /** Height of the whole card — header and table — the ribbon has to meet flush. */
   landing: number
+  /** How far the card is pushed down to sit centred on the period. */
+  offset: number
 }) {
   const isBefore = side === 'before'
   const taper = CONNECTOR_WIDTH
@@ -1513,16 +1662,19 @@ function ChipConnector({
   const tuckX = isBefore ? 0 : w
   const c1 = isBefore ? edgeX + taper * 0.55 : taper * 0.45
   const c2 = isBefore ? edgeX + taper * 0.45 : taper * 0.55
-  const height = Math.max(span, landing)
+  const cardTop = offset
+  const cardBottom = offset + landing
+  const height = Math.max(span, cardBottom)
 
-  // The card sits at the period start, so the ribbon's top edge runs flat from
-  // the axis and only the trailing edge tapers back down to the period's end.
+  // Both edges sweep from the period's stretch of the axis onto the card, so the
+  // ribbon funnels whichever way the card's height compares to its span.
   const ribbon = [
     `M ${axisX} 0`,
-    `L ${tuckX} 0`,
-    `L ${tuckX} ${landing}`,
-    `L ${edgeX} ${landing}`,
-    `C ${c2} ${landing}, ${c1} ${height}, ${axisX} ${height}`,
+    `C ${c1} 0, ${c2} ${cardTop}, ${edgeX} ${cardTop}`,
+    `L ${tuckX} ${cardTop}`,
+    `L ${tuckX} ${cardBottom}`,
+    `L ${edgeX} ${cardBottom}`,
+    `C ${c2} ${cardBottom}, ${c1} ${span}, ${axisX} ${span}`,
     'Z',
   ].join(' ')
 
@@ -1535,11 +1687,11 @@ function ChipConnector({
       preserveAspectRatio="none"
       className={cn(
         'pointer-events-none absolute top-0',
-        isBefore ? 'text-neutral-200' : 'text-violet-200'
+        isBefore ? 'text-neutral-200' : 'text-green-200'
       )}
       style={{ [isBefore ? 'right' : 'left']: -taper }}
     >
-      <path d={ribbon} fill="currentColor" fillOpacity={0.45} />
+      <path d={ribbon} fill="currentColor" fillOpacity={0.22} />
     </svg>
   )
 }
@@ -1564,13 +1716,13 @@ function TimelinePeriodSlot({
   onToggle: () => void
   onRaise: () => void
 }) {
-  // The header changes height between resting and open, and the ribbon has to
-  // land on it exactly, so measure rather than assume.
-  const headerRef = useRef<HTMLDivElement>(null)
+  // The card grows and shrinks as its table opens, and the ribbon has to meet
+  // the whole of it, so measure rather than assume.
+  const cardRef = useRef<HTMLDivElement>(null)
   const [landing, setLanding] = useState(CHIP_HEIGHT)
 
   useEffect(() => {
-    const node = headerRef.current
+    const node = cardRef.current
     if (!node) return
     const measure = () => setLanding(node.getBoundingClientRect().height)
     measure()
@@ -1579,12 +1731,17 @@ function TimelinePeriodSlot({
     return () => observer.disconnect()
   }, [])
 
+  // A card shorter than its period rides the middle of it, so the ribbon tapers
+  // evenly from both ends rather than hanging off the period's start.
+  const offset = Math.max(0, (span - landing) / 2)
+
   return (
     <div className="absolute inset-x-0" style={{ top }} onMouseDown={onRaise}>
       {/* Left unstacked so the ribbon stays beneath the axis and its markers. */}
-      <ChipConnector side={side} span={span} landing={landing} />
+      <ChipConnector side={side} span={span} landing={landing} offset={offset} />
       {/* Above the ribbon, so its tucked-in edge hides behind the card. */}
       <div
+        ref={cardRef}
         className={cn(
           'relative overflow-hidden rounded-xl border',
           side === 'before'
@@ -1594,11 +1751,9 @@ function TimelinePeriodSlot({
         )}
         // Whichever period you touch last stacks above the ones below it, so a
         // table that grows past its span stays readable.
-        style={{ zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
+        style={{ marginTop: offset, zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
       >
-        <div ref={headerRef}>
-          <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
-        </div>
+        <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
         {isOpen && (
           <div
             className={cn(
@@ -1666,7 +1821,15 @@ function TimeAxisView({
     .map((row) => row.after)
     .filter((product): product is ComparisonProduct => product !== null)
 
-  const beforePeriodCards = (periods ?? [])
+  // Milestones charts Before from the signed contract: Period 1 ran from v1,
+  // and the amendment is what moved its boundaries.
+  const chartPeriods = (periods ?? []).map((period, index) =>
+    variant === 'chips' && index === 0
+      ? { ...period, previousStartDate: period.previousStartDate ?? CONTRACT_START }
+      : period
+  )
+
+  const beforePeriodCards = chartPeriods
     .filter((period) => period.periodChange !== 'added')
     .map((period) => {
       const top = axisOffset(period.previousStartDate ?? period.startDate)
@@ -1677,7 +1840,7 @@ function TimeAxisView({
         span: axisOffset(period.previousEndDate ?? period.endDate) - top,
       }
     })
-  const afterPeriodCards = (periods ?? [])
+  const afterPeriodCards = chartPeriods
     .filter((period) => period.periodChange !== 'removed')
     .map((period) => {
       const top = axisOffset(period.startDate)
@@ -1689,7 +1852,7 @@ function TimeAxisView({
       }
     })
   const periodMarks = (side: 'before' | 'after'): AxisMark[] =>
-    (periods ?? [])
+    chartPeriods
       .filter((period) => period.periodChange !== (side === 'before' ? 'added' : 'removed'))
       .flatMap((period) => {
         const start =
@@ -1734,6 +1897,19 @@ function TimeAxisView({
     })
   }
 
+  // Milestones only charts the ramp periods, so the axis ends with the last one
+  // instead of running on to the term end.
+  const lastPeriodEnd = [...beforePeriodCards, ...afterPeriodCards].reduce(
+    (furthest, period) => Math.max(furthest, period.top + period.span),
+    0
+  )
+  const fullTrack = TIMELINE_MONTHS * MONTH_HEIGHT
+  const trackHeight =
+    variant === 'chips' && lastPeriodEnd > 0
+      ? Math.min(fullTrack, lastPeriodEnd + MONTH_HEIGHT / 2)
+      : fullTrack
+  const axisHeight = trackHeight + 80
+
   const renderPeriod = (
     side: 'before' | 'after',
     period: { id: string; group: CompareGroup; top: number; span: number }
@@ -1757,16 +1933,32 @@ function TimeAxisView({
     )
 
   return (
-    <div className="mx-auto max-w-[1240px] px-8 pb-20 pt-6">
-      <div className="grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6">
-        <p className="text-center text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+    <div className="mx-auto max-w-[1240px] px-8 pb-20">
+      <div
+        className={cn(
+          'sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pt-6',
+          // Matches the Rows header, which sits 16px above its ARR strip.
+          variant === 'chips' && 'pb-4'
+        )}
+      >
+        <div className="text-center">
+          <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+          {variant === 'chips' && <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>}
+        </div>
         <div />
-        <p className="text-center text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+        <div className="text-center">
+          <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+          {variant === 'chips' && (
+            <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
+          )}
+        </div>
       </div>
+
+      {variant === 'chips' && <ArrKpiCompare middleWidth={220} columnGap={24} />}
 
       <div
         className="relative mt-4 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6"
-        style={{ minHeight: TIMELINE_MONTHS * MONTH_HEIGHT + 80 }}
+        style={{ minHeight: axisHeight }}
       >
         <div className="relative">
           {beforePeriodCards.length > 0 ? (
@@ -1794,10 +1986,11 @@ function TimeAxisView({
         </div>
 
         <VerticalContractAxis
-          height={TIMELINE_MONTHS * MONTH_HEIGHT + 80}
+          height={axisHeight}
           banded={variant === 'chips'}
           beforeMarks={periodMarks('before')}
           afterMarks={periodMarks('after')}
+          trackHeight={trackHeight}
         />
 
         <div className="relative">
@@ -1943,7 +2136,7 @@ export function SalesOrderAmendmentComparison({
         </div>
       </header>
 
-      <HoveredRowProvider>
+      <HoveredRowProvider isEnabled={view === 'milestones'}>
         <div className="min-h-0 flex-1 overflow-y-auto bg-white">
           {view === 'timeline' || view === 'milestones' ? (
             <TimeAxisView
