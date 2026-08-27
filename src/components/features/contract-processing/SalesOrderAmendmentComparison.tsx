@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react'
 import { createPortal } from 'react-dom'
 import {
   ArrowRight,
@@ -167,6 +175,7 @@ function Highlight({
   isActive,
   strong,
   variant = 'pill',
+  onDark,
 }: {
   children: ReactNode
   side: 'before' | 'after'
@@ -174,12 +183,25 @@ function Highlight({
   strong?: boolean
   /** Inline values use plain colour; only totals carry a filled pill. */
   variant?: 'pill' | 'text'
+  /** Sitting on a hovered row, where the navy fill needs lighter ink. */
+  onDark?: boolean
 }) {
   if (!isActive) {
-    return <span className={cn('text-brand-navy', strong && 'font-semibold')}>{children}</span>
+    return (
+      <span className={cn(onDark ? 'text-white' : 'text-brand-navy', strong && 'font-semibold')}>
+        {children}
+      </span>
+    )
   }
 
-  const colour = side === 'before' ? 'text-red-700' : 'text-green-700'
+  const colour =
+    side === 'before'
+      ? onDark
+        ? 'text-red-300'
+        : 'text-red-700'
+      : onDark
+        ? 'text-green-300'
+        : 'text-green-700'
 
   if (variant === 'text') {
     return <span className={cn(strong ? 'font-semibold' : 'font-medium', colour)}>{children}</span>
@@ -197,6 +219,22 @@ function Highlight({
   )
 }
 
+/** Row under the pointer, shared so Before and After highlight in step. */
+const HoveredRowContext = createContext<{
+  hoveredRowId: string | null
+  setHoveredRowId: (id: string | null) => void
+}>({ hoveredRowId: null, setHoveredRowId: () => {} })
+
+function useHoveredRow() {
+  return useContext(HoveredRowContext)
+}
+
+function HoveredRowProvider({ children }: { children: ReactNode }) {
+  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+  const value = useMemo(() => ({ hoveredRowId, setHoveredRowId }), [hoveredRowId])
+  return <HoveredRowContext.Provider value={value}>{children}</HoveredRowContext.Provider>
+}
+
 function SectionCardRow({
   row,
   side,
@@ -208,12 +246,34 @@ function SectionCardRow({
 }) {
   const cell = side === 'before' ? row.before : row.after
   const counterpart = side === 'before' ? row.after : row.before
+  const { hoveredRowId, setHoveredRowId } = useHoveredRow()
+  // Both sides render the same row id, so pointing at one lights up its twin.
+  const isHovered = hoveredRowId === row.id
+
+  const hoverProps = {
+    onMouseEnter: () => setHoveredRowId(row.id),
+    onMouseLeave: () => setHoveredRowId(null),
+  }
+  // Matches the Tasks table: navy fill, white ink, pointer cursor.
+  const rowClass = cn(
+    'flex cursor-pointer items-center gap-2 px-4 py-2 transition-colors',
+    isHovered && 'bg-brand-navy'
+  )
 
   if (!cell) {
     return (
-      <div className="flex items-center gap-2 px-4 py-2">
-        <span className="min-w-0 flex-1 truncate text-[13px] text-brand-mist">{row.name}</span>
-        <span className="shrink-0 text-[12px] text-brand-mist">
+      <div className={rowClass} {...hoverProps}>
+        <span
+          className={cn(
+            'min-w-0 flex-1 truncate text-[13px]',
+            isHovered ? 'text-white/70' : 'text-brand-mist'
+          )}
+        >
+          {row.name}
+        </span>
+        <span
+          className={cn('shrink-0 text-[12px]', isHovered ? 'text-white/70' : 'text-brand-mist')}
+        >
           {side === 'before' ? 'Not on this order' : 'Removed'}
         </span>
       </div>
@@ -228,11 +288,23 @@ function SectionCardRow({
   )
 
   return (
-    <div className="flex items-center gap-2 px-4 py-2">
-      <span className="min-w-0 truncate text-[13px] text-brand-navy">{row.name}</span>
+    <div className={rowClass} {...hoverProps}>
+      <span
+        className={cn(
+          'min-w-0 truncate text-[13px]',
+          isHovered ? 'text-white' : 'text-brand-navy'
+        )}
+      >
+        {row.name}
+      </span>
       {cell.qty && (
-        <span className="flex shrink-0 items-center gap-1 text-[12px] text-brand-fog">
-          <Highlight side={side} isActive={qtyChanged} variant="text">
+        <span
+          className={cn(
+            'flex shrink-0 items-center gap-1 text-[12px]',
+            isHovered ? 'text-white/70' : 'text-brand-fog'
+          )}
+        >
+          <Highlight side={side} isActive={qtyChanged} variant="text" onDark={isHovered}>
             {numericQuantity(cell.qty)}
           </Highlight>
           <span>× {cell.unitPrice}</span>
@@ -244,7 +316,7 @@ function SectionCardRow({
           hasAmounts ? 'w-[104px]' : 'max-w-[52%] truncate'
         )}
       >
-        <Highlight side={side} isActive={amountChanged} variant="text">
+        <Highlight side={side} isActive={amountChanged} variant="text" onDark={isHovered}>
           {cell.amount}
         </Highlight>
       </span>
@@ -1012,20 +1084,21 @@ function VerticalContractAxis({
       >
         <span
           className={cn(
-            'block rounded-full transition-all duration-200',
+            'block h-3.5 w-3.5 rounded-full bg-white transition-all duration-200',
             hoveredMark === mark.id && 'scale-110 shadow-[0_0_0_3px_rgba(163,163,163,0.18)]'
           )}
         >
           {side === 'before' ? (
             <span className="block h-3.5 w-3.5 rounded-full border border-dashed border-neutral-400 bg-white" />
           ) : (
-            // Gradient outline marks the dates the amendment introduces.
             <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden className="block">
+              {/* Opaque disc under the ring, so nothing shows through the dashes. */}
+              <circle cx="7" cy="7" r="6.9" fill="#ffffff" />
               <circle
                 cx="7"
                 cy="7"
                 r="6.3"
-                fill="white"
+                fill="none"
                 stroke={`url(#${AMENDMENT_MARK_GRADIENT})`}
                 strokeWidth="1.25"
                 strokeDasharray="3 3"
@@ -1108,7 +1181,21 @@ function VerticalContractAxis({
 
         return (
           <div key={`tick-${monthIndex}`}>
-            {!banded && (
+            {banded ? (
+              // Stubs off each rail, so the month reads as marked on the band.
+              <>
+                <span
+                  aria-hidden
+                  className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
+                  style={{ left: RAIL_LEFT, top }}
+                />
+                <span
+                  aria-hidden
+                  className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
+                  style={{ left: `calc(50% + ${AXIS_BAND_HALF - 6}px)`, top }}
+                />
+              </>
+            ) : (
               <span
                 aria-hidden
                 className="absolute h-px w-1 -translate-y-1/2 bg-neutral-300"
@@ -1118,7 +1205,7 @@ function VerticalContractAxis({
             <span
               className={cn(
                 'absolute -translate-y-1/2 text-[10px] font-medium tracking-[0.02em]',
-                banded ? 'left-1/2 w-12 -translate-x-1/2 text-center' : 'w-11 text-right',
+                banded ? 'left-1/2 w-8 -translate-x-1/2 text-center' : 'w-11 text-right',
                 monthIndex % 12 === 0 ? 'font-semibold text-brand-navy' : 'text-brand-fog'
               )}
               style={banded ? { top } : { right: 'calc(50% + 9px)', top }}
@@ -1399,36 +1486,43 @@ function TimelinePeriodCard({
 
 /** Gutter plus half the axis column, stopping at the band's rail. */
 const CONNECTOR_WIDTH = AXIS_GUTTER + AXIS_COLUMN_WIDTH / 2 - AXIS_BAND_HALF
+/** Run the ribbon past the card edge so its rounded corner leaves no white wedge. */
+const CONNECTOR_OVERLAP = 16
 const CHIP_HEIGHT = 57
 
 /**
  * Tapered ribbon funnelling the period's stretch of the axis into its chip:
- * full span at the line, chip height where it lands.
+ * full span at the line, header height where it lands.
  */
 function ChipConnector({
   side,
   span,
-  chipOffset,
+  landing,
 }: {
   side: 'before' | 'after'
   span: number
-  chipOffset: number
+  /** Height of the chip header the ribbon has to meet flush. */
+  landing: number
 }) {
   const isBefore = side === 'before'
-  const w = CONNECTOR_WIDTH
+  const taper = CONNECTOR_WIDTH
+  const w = taper + CONNECTOR_OVERLAP
   const axisX = isBefore ? w : 0
-  const chipX = isBefore ? 0 : w
-  const near = isBefore ? w * 0.55 : w * 0.45
-  const far = isBefore ? w * 0.45 : w * 0.55
-  const height = Math.max(span, CHIP_HEIGHT)
-  const chipTop = chipOffset
-  const chipBottom = chipOffset + CHIP_HEIGHT
+  // Where the card starts, and how far past it the ribbon runs.
+  const edgeX = isBefore ? CONNECTOR_OVERLAP : taper
+  const tuckX = isBefore ? 0 : w
+  const c1 = isBefore ? edgeX + taper * 0.55 : taper * 0.45
+  const c2 = isBefore ? edgeX + taper * 0.45 : taper * 0.55
+  const height = Math.max(span, landing)
 
+  // The card sits at the period start, so the ribbon's top edge runs flat from
+  // the axis and only the trailing edge tapers back down to the period's end.
   const ribbon = [
     `M ${axisX} 0`,
-    `C ${near} 0, ${far} ${chipTop}, ${chipX} ${chipTop}`,
-    `L ${chipX} ${chipBottom}`,
-    `C ${far} ${chipBottom}, ${near} ${height}, ${axisX} ${height}`,
+    `L ${tuckX} 0`,
+    `L ${tuckX} ${landing}`,
+    `L ${edgeX} ${landing}`,
+    `C ${c2} ${landing}, ${c1} ${height}, ${axisX} ${height}`,
     'Z',
   ].join(' ')
 
@@ -1440,10 +1534,10 @@ function ChipConnector({
       viewBox={`0 0 ${w} ${height}`}
       preserveAspectRatio="none"
       className={cn(
-        'pointer-events-none absolute',
+        'pointer-events-none absolute top-0',
         isBefore ? 'text-neutral-200' : 'text-violet-200'
       )}
-      style={{ [isBefore ? 'right' : 'left']: -w, top: -chipOffset }}
+      style={{ [isBefore ? 'right' : 'left']: -taper }}
     >
       <path d={ribbon} fill="currentColor" fillOpacity={0.45} />
     </svg>
@@ -1470,30 +1564,41 @@ function TimelinePeriodSlot({
   onToggle: () => void
   onRaise: () => void
 }) {
-  const chipOffset = 0
+  // The header changes height between resting and open, and the ribbon has to
+  // land on it exactly, so measure rather than assume.
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [landing, setLanding] = useState(CHIP_HEIGHT)
+
+  useEffect(() => {
+    const node = headerRef.current
+    if (!node) return
+    const measure = () => setLanding(node.getBoundingClientRect().height)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
 
   return (
-    <div
-      className="absolute inset-x-0"
-      // Whichever period you touch last stacks above the ones below it, so a
-      // table that grows past its span stays readable.
-      style={{
-        top: top + chipOffset,
-        zIndex: isOpen ? (isTopMost ? 30 : 20) : undefined,
-      }}
-      onMouseDown={onRaise}
-    >
-      <ChipConnector side={side} span={span} chipOffset={chipOffset} />
+    <div className="absolute inset-x-0" style={{ top }} onMouseDown={onRaise}>
+      {/* Left unstacked so the ribbon stays beneath the axis and its markers. */}
+      <ChipConnector side={side} span={span} landing={landing} />
+      {/* Above the ribbon, so its tucked-in edge hides behind the card. */}
       <div
         className={cn(
-          'overflow-hidden rounded-xl border',
+          'relative overflow-hidden rounded-xl border',
           side === 'before'
             ? 'border-neutral-200 bg-neutral-50'
             : 'border-brand-navy bg-white',
           isOpen && 'shadow-xl'
         )}
+        // Whichever period you touch last stacks above the ones below it, so a
+        // table that grows past its span stays readable.
+        style={{ zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
       >
-        <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
+        <div ref={headerRef}>
+          <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
+        </div>
         {isOpen && (
           <div
             className={cn(
@@ -1838,37 +1943,39 @@ export function SalesOrderAmendmentComparison({
         </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto bg-white">
-        {view === 'timeline' || view === 'milestones' ? (
-          <TimeAxisView
-            rows={rows}
-            periods={periods}
-            variant={view === 'timeline' ? 'cards' : 'chips'}
-          />
-        ) : (
-          <div className="mx-auto max-w-[1320px] px-12 pb-20">
-            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] bg-white pb-4 pt-8">
-              <div className="text-center">
-                <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
-                <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
+      <HoveredRowProvider>
+        <div className="min-h-0 flex-1 overflow-y-auto bg-white">
+          {view === 'timeline' || view === 'milestones' ? (
+            <TimeAxisView
+              rows={rows}
+              periods={periods}
+              variant={view === 'timeline' ? 'cards' : 'chips'}
+            />
+          ) : (
+            <div className="mx-auto max-w-[1320px] px-12 pb-20">
+              <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] bg-white pb-4 pt-8">
+                <div className="text-center">
+                  <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+                  <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
+                </div>
+                <div />
+                <div className="text-center">
+                  <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+                  <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
+                </div>
               </div>
-              <div />
-              <div className="text-center">
-                <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
-                <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
+
+              <ArrKpiCompare />
+
+              <div className="space-y-10">
+                {sections.map((section) => (
+                  <SectionCompare key={section.id} section={section} />
+                ))}
               </div>
             </div>
-
-            <ArrKpiCompare />
-
-            <div className="space-y-10">
-              {sections.map((section) => (
-                <SectionCompare key={section.id} section={section} />
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </HoveredRowProvider>
     </div>,
     document.body
   )
