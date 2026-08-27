@@ -1,7 +1,15 @@
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowRight, CircleMinus, CirclePlus, Minus, TrendingUp, X } from 'lucide-react'
-import type { ProductLineItem } from '@/data/contractProcessingMock'
+import {
+  ArrowRight,
+  ChevronDown,
+  ChevronRight,
+  Columns3,
+  GitCommitVertical,
+  Milestone,
+  X,
+} from 'lucide-react'
+import type { LabelValue, ProductLineItem, RampPeriod } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 
 interface SalesOrderAmendmentComparisonProps {
@@ -9,6 +17,9 @@ interface SalesOrderAmendmentComparisonProps {
   onClose: () => void
   customerName: string
   items: ProductLineItem[]
+  periods?: RampPeriod[]
+  account: LabelValue[]
+  terms: LabelValue[]
 }
 
 interface ComparisonProduct {
@@ -26,15 +37,61 @@ interface ComparisonRow {
   item: ProductLineItem
 }
 
+/** One line of a section card — both sides are rendered from the same row so they stay aligned. */
+interface CompareCell {
+  qty?: string
+  unitPrice?: string
+  amount: string
+}
+
+interface CompareRow {
+  id: string
+  name: string
+  before: CompareCell | null
+  after: CompareCell | null
+  changed: boolean
+  change?: 'added' | 'removed' | 'quantity-increased'
+}
+
+interface CompareGroup {
+  id: string
+  label?: string
+  /** Date range on each side — null when the period only exists on the other side. */
+  beforeRange: string | null
+  afterRange: string | null
+  rangeChanged: boolean
+  periodChange?: 'added' | 'removed' | 'dates-changed'
+  rows: CompareRow[]
+}
+
+interface CompareSection {
+  id: string
+  title: string
+  groups: CompareGroup[]
+  totalLabel?: string
+  hasAmounts: boolean
+}
+
 const CREDIT_NOTE_TOTAL = '$37,500.00'
+const ORIGINAL_ARR = '$193,500.00'
+const AMENDED_ARR = '$225,500.00'
 
 function numericQuantity(quantity: string): number {
   const value = Number(quantity)
   return Number.isFinite(value) ? value : 0
 }
 
+function parseMoney(value: string): number {
+  const amount = Number(value.replace(/[^\d.-]/g, ''))
+  return Number.isFinite(amount) ? amount : 0
+}
+
 function money(amount: number): string {
   return `$${amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+function signedMoney(amount: number): string {
+  return `${amount >= 0 ? '+' : '−'}${money(Math.abs(amount))}`
 }
 
 function beforeProduct(item: ProductLineItem): ComparisonProduct | null {
@@ -44,9 +101,9 @@ function beforeProduct(item: ProductLineItem): ComparisonProduct | null {
     item.amendmentChange === 'quantity-increased' && item.previousQuantity
       ? item.previousQuantity
       : item.quantity
-  const unitPrice = Number(item.unitPrice.replace(/[$,]/g, ''))
+  const unitPrice = parseMoney(item.unitPrice)
   const totalPrice =
-    item.amendmentChange === 'quantity-increased' && Number.isFinite(unitPrice)
+    item.amendmentChange === 'quantity-increased'
       ? money(unitPrice * numericQuantity(quantity))
       : item.totalPrice
 
@@ -84,176 +141,1626 @@ function changeRank(item: ProductLineItem): number {
   }
 }
 
-function ProductCard({
-  product,
-  tone,
-  isMuted,
+function productBadge(item: ProductLineItem): 'plan' | 'charge' | 'add-on' {
+  if (/apex platform/i.test(item.name)) return 'plan'
+  if (item.billingPeriod.toLowerCase() === 'one-time' || /implementation|onboarding/i.test(item.name)) {
+    return 'charge'
+  }
+  return 'add-on'
+}
+
+/** Plans lead each card; charges and add-ons follow, so rows read in a familiar order. */
+function badgeRank(item: ProductLineItem): number {
+  switch (productBadge(item)) {
+    case 'plan':
+      return 0
+    case 'charge':
+      return 1
+    default:
+      return 2
+  }
+}
+
+function Highlight({
+  children,
+  side,
+  isActive,
+  strong,
+  variant = 'pill',
 }: {
-  product: ComparisonProduct
-  tone: 'before' | 'after'
-  isMuted: boolean
+  children: ReactNode
+  side: 'before' | 'after'
+  isActive: boolean
+  strong?: boolean
+  /** Inline values use plain colour; only totals carry a filled pill. */
+  variant?: 'pill' | 'text'
 }) {
+  if (!isActive) {
+    return <span className={cn('text-brand-navy', strong && 'font-semibold')}>{children}</span>
+  }
+
+  const colour = side === 'before' ? 'text-red-700' : 'text-green-700'
+
+  if (variant === 'text') {
+    return <span className={cn(strong ? 'font-semibold' : 'font-medium', colour)}>{children}</span>
+  }
+
+  return (
+    <span
+      className={cn(
+        'rounded-lg px-1.5 py-0.5 font-semibold',
+        side === 'before' ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
+function SectionCardRow({
+  row,
+  side,
+  hasAmounts,
+}: {
+  row: CompareRow
+  side: 'before' | 'after'
+  hasAmounts: boolean
+}) {
+  const cell = side === 'before' ? row.before : row.after
+  const counterpart = side === 'before' ? row.after : row.before
+
+  if (!cell) {
+    return (
+      <div className="flex items-center gap-2 px-4 py-2">
+        <span className="min-w-0 flex-1 truncate text-[13px] text-brand-mist">{row.name}</span>
+        <span className="shrink-0 text-[12px] text-brand-mist">
+          {side === 'before' ? 'Not on this order' : 'Removed'}
+        </span>
+      </div>
+    )
+  }
+
+  const qtyChanged = Boolean(
+    row.changed && counterpart && cell.qty && counterpart.qty && cell.qty !== counterpart.qty
+  )
+  const amountChanged = Boolean(
+    row.changed && (!counterpart || cell.amount !== counterpart.amount)
+  )
+
+  return (
+    <div className="flex items-center gap-2 px-4 py-2">
+      <span className="min-w-0 truncate text-[13px] text-brand-navy">{row.name}</span>
+      {cell.qty && (
+        <span className="flex shrink-0 items-center gap-1 text-[12px] text-brand-fog">
+          <Highlight side={side} isActive={qtyChanged} variant="text">
+            {numericQuantity(cell.qty)}
+          </Highlight>
+          <span>× {cell.unitPrice}</span>
+        </span>
+      )}
+      <span
+        className={cn(
+          'ml-auto shrink-0 text-right text-[13px]',
+          hasAmounts ? 'w-[104px]' : 'max-w-[52%] truncate'
+        )}
+      >
+        <Highlight side={side} isActive={amountChanged} variant="text">
+          {cell.amount}
+        </Highlight>
+      </span>
+    </div>
+  )
+}
+
+function splitRange(range: string): { from: string; to: string } | null {
+  const [from, to] = range.split(' – ')
+  if (!from || !to) return null
+  return { from, to }
+}
+
+function DatePills({
+  range,
+  side,
+  rangeChanged,
+}: {
+  range: string
+  side: 'before' | 'after'
+  rangeChanged?: boolean
+}) {
+  const parts = splitRange(range)
+  if (!parts) {
+    return <span className="text-[11px] text-brand-fog">{range}</span>
+  }
+
+  if (!rangeChanged) {
+    return (
+      <span className="text-[11px] text-brand-fog">
+        {parts.from} – {parts.to}
+      </span>
+    )
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <Highlight side={side} isActive variant="pill">
+        {parts.from}
+      </Highlight>
+      <span className="text-brand-mist">–</span>
+      <Highlight side={side} isActive variant="pill">
+        {parts.to}
+      </Highlight>
+    </div>
+  )
+}
+
+function SectionCard({
+  rows,
+  hasAmounts,
+  totalLabel,
+  side,
+  showUnchanged,
+  onToggleUnchanged,
+  title,
+  range,
+  rangeChanged,
+  nested,
+}: {
+  rows: CompareRow[]
+  hasAmounts: boolean
+  totalLabel?: string
+  side: 'before' | 'after'
+  showUnchanged: boolean
+  onToggleUnchanged: () => void
+  title?: string
+  range?: string | null
+  rangeChanged?: boolean
+  /** Drops the card chrome so the rows can act as the body of an outer table. */
+  nested?: boolean
+}) {
+  const changedRows = rows.filter((row) => row.changed)
+  const unchangedRows = rows.filter((row) => !row.changed)
+
+  const cellFor = (row: CompareRow) => (side === 'before' ? row.before : row.after)
+  const sumOf = (list: CompareRow[]) =>
+    list.reduce((sum, row) => {
+      const cell = cellFor(row)
+      return cell ? sum + parseMoney(cell.amount) : sum
+    }, 0)
+
+  const total = sumOf(rows)
+  const counterTotal = rows.reduce((sum, row) => {
+    const cell = side === 'before' ? row.after : row.before
+    return cell ? sum + parseMoney(cell.amount) : sum
+  }, 0)
+
   return (
     <div
       className={cn(
-        'rounded-lg border bg-white p-3.5',
-        tone === 'after' && !isMuted ? 'border-emerald-200' : 'border-neutral-200',
-        isMuted && 'opacity-60'
+        'overflow-hidden',
+        !nested &&
+          (side === 'before'
+            ? 'rounded-xl border border-neutral-200 bg-neutral-50'
+            : 'rounded-xl border border-brand-navy bg-white')
       )}
     >
-      <p className="truncate text-[13px] font-medium text-brand-navy">{product.name}</p>
-      <p className="mt-0.5 text-[11px] text-brand-fog">
-        {product.unitPrice} · {product.billingPeriod}
-      </p>
-      <div className="mt-2.5 flex items-baseline justify-between border-t border-neutral-100 pt-2.5">
-        <span className="text-[11px] text-brand-fog">
-          Qty {numericQuantity(product.quantity)}
-        </span>
-        <span className="text-[13px] font-medium text-brand-navy">{product.totalPrice}</span>
-      </div>
-    </div>
-  )
-}
-
-function EmptyCard({ label }: { label: string }) {
-  return (
-    <div className="flex h-full min-h-[92px] items-center justify-center rounded-lg border border-dashed border-neutral-200 px-3.5 py-3.5">
-      <span className="text-[11px] text-brand-mist">{label}</span>
-    </div>
-  )
-}
-
-function ChangeCard({ item }: { item: ProductLineItem }) {
-  if (item.amendmentChange === 'quantity-increased') {
-    const previous = numericQuantity(item.previousQuantity ?? '0')
-    const next = numericQuantity(item.quantity)
-    const unitPrice = Number(item.unitPrice.replace(/[$,]/g, ''))
-    const delta = Number.isFinite(unitPrice) ? money(unitPrice * (next - previous)) : ''
-
-    return (
-      <div className="rounded-lg border border-blue-200 bg-blue-50/70 p-3.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-blue-700">
-          <TrendingUp size={13} />
-          Quantity increased
+      {(title || range) && (
+        <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2">
+          {title && (
+            <span className="text-[13px] font-medium text-brand-navy">{title}</span>
+          )}
+          {range && <DatePills range={range} side={side} rangeChanged={rangeChanged} />}
         </div>
-        <div className="mt-2 flex items-center gap-2 text-[16px] font-semibold text-brand-navy">
-          <span className="text-brand-mist">{previous}</span>
-          <ArrowRight size={14} className="text-brand-fog" />
-          <span>{next}</span>
-        </div>
-        <p className="mt-1 text-[11px] text-blue-800">
-          +{next - previous} seats · +{delta} ARR
-        </p>
-      </div>
-    )
-  }
+      )}
+      <div className="divide-y divide-neutral-100">
+        {changedRows.map((row) => (
+          <SectionCardRow key={row.id} row={row} side={side} hasAmounts={hasAmounts} />
+        ))}
 
-  if (item.amendmentChange === 'added') {
-    return (
-      <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-3.5">
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-emerald-700">
-          <CirclePlus size={13} />
-          Added
-        </div>
-        <p className="mt-2 text-[13px] font-medium text-brand-navy">
-          {numericQuantity(item.quantity)} × {item.unitPrice}
-        </p>
-        <p className="mt-1 text-[11px] text-emerald-800">
-          {item.proration
-            ? `First charge prorated to ${item.proration.amount}`
-            : `${item.totalPrice} per ${item.billingPeriod.toLowerCase()}`}
-        </p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border border-red-200 bg-red-50/70 p-3.5">
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.06em] text-red-700">
-        <CircleMinus size={13} />
-        Removed
-      </div>
-      <p className="mt-2 text-[13px] font-medium text-brand-navy">{item.totalPrice} dropped</p>
-      <p className="mt-1 text-[11px] text-red-700">Credit note {CREDIT_NOTE_TOTAL}</p>
-    </div>
-  )
-}
-
-function NoChangeCell() {
-  return (
-    <div className="flex h-full items-center justify-center">
-      <Minus size={14} className="text-neutral-300" />
-    </div>
-  )
-}
-
-/** Ticked spine between columns — the time axis from the reference layout. */
-function Rail({ isFirst, isLast }: { isFirst?: boolean; isLast?: boolean }) {
-  return (
-    <div className="relative flex justify-center">
-      <div
-        className={cn(
-          'absolute w-px bg-neutral-200',
-          isFirst ? 'top-6' : 'top-0',
-          isLast ? 'bottom-6' : 'bottom-0'
+        {unchangedRows.length > 0 && (
+          <div className="flex items-center gap-2 px-4 py-2">
+            <span className="text-[12px] text-brand-fog">
+              {unchangedRows.length} unchanged {unchangedRows.length === 1 ? 'item' : 'items'}
+            </span>
+            <button
+              type="button"
+              onClick={onToggleUnchanged}
+              className="cursor-pointer text-[12px] font-medium text-blue-700 transition-colors hover:underline"
+            >
+              {showUnchanged ? 'Hide' : 'Show'}
+            </button>
+            {hasAmounts && (
+              <span className="ml-auto w-[104px] shrink-0 text-right text-[12px] text-brand-fog">
+                {money(sumOf(unchangedRows))}
+              </span>
+            )}
+          </div>
         )}
-      />
-      <div className="absolute top-1/2 h-px w-2 -translate-y-1/2 bg-neutral-300" />
+
+        {showUnchanged &&
+          unchangedRows.map((row) => (
+            <SectionCardRow key={row.id} row={row} side={side} hasAmounts={hasAmounts} />
+          ))}
+      </div>
+
+      {totalLabel && (
+        <div
+          className={cn(
+            'flex items-center gap-2 border-t px-4 py-3',
+            side === 'before' ? 'border-neutral-200' : 'border-brand-navy'
+          )}
+        >
+          <span
+            className={cn(
+              'text-[11px] font-semibold uppercase tracking-[-0.25px]',
+              side === 'before' ? 'text-brand-fog' : 'text-brand-navy'
+            )}
+          >
+            {totalLabel}
+          </span>
+          <span
+            className={cn(
+              'ml-auto w-[104px] shrink-0 text-right',
+              side === 'before' ? 'text-[14px]' : 'text-[16px] font-bold'
+            )}
+          >
+            <Highlight side={side} isActive={total !== counterTotal} strong variant="text">
+              {money(total)}
+            </Highlight>
+          </span>
+        </div>
+      )}
     </div>
   )
 }
 
-function ComparisonGridRow({
-  before,
-  change,
-  after,
-  isFirst,
-  isLast,
-}: {
-  before: ReactNode
-  change: ReactNode
-  after: ReactNode
-  isFirst?: boolean
-  isLast?: boolean
-}) {
+function DeltaColumn({ label, detail }: { label: string; detail?: string }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)] items-stretch">
-      <div className="py-2.5">{before}</div>
-      <Rail isFirst={isFirst} isLast={isLast} />
-      <div className="py-2.5">{change}</div>
-      <Rail isFirst={isFirst} isLast={isLast} />
-      <div className="py-2.5">{after}</div>
+    <div className="flex flex-col items-center justify-center gap-1.5 px-3">
+      <div className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-200 bg-white text-brand-fog">
+        <ArrowRight size={14} />
+      </div>
+      <span className="text-center text-[12px] font-medium text-brand-navy">{label}</span>
+      {detail && (
+        <span className="text-center text-[11px] leading-snug text-brand-fog">{detail}</span>
+      )}
     </div>
   )
 }
 
-function ColumnHeading({
-  eyebrow,
-  title,
-  meta,
-  tone,
+function SectionCompare({ section }: { section: CompareSection }) {
+  const allRows = section.groups.flatMap((group) => group.rows)
+  const periodChanges = section.groups.filter((group) => group.periodChange).length
+  const changedCount = allRows.filter((row) => row.changed).length + periodChanges
+  const [isOpen, setIsOpen] = useState(changedCount > 0)
+  const Chevron = isOpen ? ChevronDown : ChevronRight
+
+  return (
+    <section>
+      <button
+        type="button"
+        onClick={() => setIsOpen((open) => !open)}
+        className="flex cursor-pointer items-center gap-1.5 text-left"
+      >
+        <Chevron size={14} className="shrink-0 text-brand-mist" />
+        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          {section.title}
+        </span>
+        <span className="text-[12px] text-brand-fog">
+          {changedCount > 0
+            ? `${changedCount} ${changedCount === 1 ? 'change' : 'changes'}`
+            : `${allRows.length} ${allRows.length === 1 ? 'field' : 'fields'} · No changes`}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="mt-4 space-y-6">
+          {section.groups.map((group) => (
+            <PeriodCompare
+              key={group.id}
+              group={group}
+              hasAmounts={section.hasAmounts}
+              totalLabel={section.totalLabel}
+            />
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function AbsentPeriodCard({ side }: { side: 'before' | 'after' }) {
+  return (
+    <div
+      className={cn(
+        'flex items-center justify-center rounded-xl border border-dashed border-neutral-200 px-4 py-10',
+        side === 'before' && 'bg-neutral-50'
+      )}
+    >
+      <span className="text-[12px] text-brand-mist">
+        {side === 'before' ? 'Period did not exist' : 'Period no longer applies'}
+      </span>
+    </div>
+  )
+}
+
+function PeriodCompare({
+  group,
+  hasAmounts,
+  totalLabel,
 }: {
-  eyebrow: string
-  title: string
-  meta: string
-  tone: 'before' | 'change' | 'after'
+  group: CompareGroup
+  hasAmounts: boolean
+  totalLabel?: string
 }) {
+  const changedCount =
+    group.rows.filter((row) => row.changed).length + (group.periodChange ? 1 : 0)
+  const [showUnchanged, setShowUnchanged] = useState(changedCount === 0)
+  const beforeTotal = group.rows.reduce(
+    (sum, row) => (row.before ? sum + parseMoney(row.before.amount) : sum),
+    0
+  )
+  const afterTotal = group.rows.reduce(
+    (sum, row) => (row.after ? sum + parseMoney(row.after.amount) : sum),
+    0
+  )
+
+  const deltaLabel = (() => {
+    if (group.periodChange === 'added') return 'New period'
+    if (group.periodChange === 'removed') return 'Dropped'
+    if (hasAmounts) return signedMoney(afterTotal - beforeTotal)
+    return changedCount > 0 ? `${changedCount} changed` : 'No change'
+  })()
+
   return (
     <div>
-      <span
+      {group.label && (
+        <p className="mb-2 text-[13px] font-medium text-brand-navy">{group.label}</p>
+      )}
+      <div className="grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] items-stretch">
+        {group.beforeRange === null && group.label ? (
+          <AbsentPeriodCard side="before" />
+        ) : (
+          <SectionCard
+            rows={group.rows}
+            hasAmounts={hasAmounts}
+            totalLabel={totalLabel}
+            side="before"
+            showUnchanged={showUnchanged}
+            onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+            range={group.beforeRange}
+            rangeChanged={group.rangeChanged}
+          />
+        )}
+        <DeltaColumn
+          label={deltaLabel}
+          detail={
+            changedCount > 0
+              ? `${changedCount} ${changedCount === 1 ? 'change' : 'changes'}`
+              : undefined
+          }
+        />
+        {group.afterRange === null && group.label ? (
+          <AbsentPeriodCard side="after" />
+        ) : (
+          <SectionCard
+            rows={group.rows}
+            hasAmounts={hasAmounts}
+            totalLabel={totalLabel}
+            side="after"
+            showUnchanged={showUnchanged}
+            onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+            range={group.afterRange}
+            rangeChanged={group.rangeChanged}
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function comparisonRowsFromItems(items: ProductLineItem[]): ComparisonRow[] {
+  return [...items]
+    .sort((a, b) => changeRank(a) - changeRank(b) || badgeRank(a) - badgeRank(b))
+    .map((item) => ({
+      id: item.id,
+      before: beforeProduct(item),
+      after: afterProduct(item),
+      item,
+    }))
+}
+
+function toCompareRows(rows: ComparisonRow[]): CompareRow[] {
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.item.name,
+    changed: Boolean(row.item.amendmentChange && row.item.amendmentChange !== 'unchanged'),
+    change:
+      row.item.amendmentChange && row.item.amendmentChange !== 'unchanged'
+        ? row.item.amendmentChange
+        : undefined,
+    before: row.before
+      ? {
+          qty: row.before.quantity,
+          unitPrice: row.before.unitPrice,
+          amount: row.before.totalPrice,
+        }
+      : null,
+    after: row.after
+      ? {
+          qty: row.after.quantity,
+          unitPrice: row.after.unitPrice,
+          amount: row.after.totalPrice,
+        }
+      : null,
+  }))
+}
+
+function labelValueSection(
+  id: string,
+  title: string,
+  values: LabelValue[]
+): CompareSection {
+  return {
+    id,
+    title,
+    hasAmounts: false,
+    groups: [
+      {
+        id: `${id}-fields`,
+        beforeRange: null,
+        afterRange: null,
+        rangeChanged: false,
+        rows: values.map((value) => ({
+          id: `${id}-${value.label}`,
+          name: value.label,
+          before: { amount: value.value },
+          after: { amount: value.value },
+          changed: false,
+        })),
+      },
+    ],
+  }
+}
+
+/** ARR reads as a KPI on each side of the same grid the section cards use. */
+function ArrKpiCompare() {
+  const delta = parseMoney(AMENDED_ARR) - parseMoney(ORIGINAL_ARR)
+
+  const kpi = (value: string) => (
+    <div className="text-center">
+      <div
+        className="font-heading text-[36px] font-bold leading-tight text-brand-navy"
+        style={{ letterSpacing: '-1px' }}
+      >
+        {value}
+      </div>
+      <div className="mt-1 text-[13px] text-brand-navy">ARR</div>
+    </div>
+  )
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] items-center pb-10">
+      {kpi(ORIGINAL_ARR)}
+      <DeltaColumn label={signedMoney(delta)} />
+      {kpi(AMENDED_ARR)}
+    </div>
+  )
+}
+
+function periodRange(start: string, end: string): string {
+  return `${start} – ${end}`
+}
+
+function periodGroup(period: RampPeriod): CompareGroup {
+  const change = period.periodChange
+  const afterRange = periodRange(period.startDate, period.endDate)
+  const beforeRange = periodRange(
+    period.previousStartDate ?? period.startDate,
+    period.previousEndDate ?? period.endDate
+  )
+
+  if (change === 'added') {
+    // A period the amendment introduces has no "before" side, so every line reads as new.
+    const rows = toCompareRows(
+      comparisonRowsFromItems(period.items.filter((item) => item.amendmentChange !== 'removed'))
+    )
+    return {
+      id: period.id,
+      label: period.label,
+      beforeRange: null,
+      afterRange,
+      rangeChanged: false,
+      periodChange: change,
+      rows: rows.map((row) => ({ ...row, before: null, changed: true, change: 'added' as const })),
+    }
+  }
+
+  if (change === 'removed') {
+    const rows = toCompareRows(comparisonRowsFromItems(period.items))
+    return {
+      id: period.id,
+      label: period.label,
+      beforeRange,
+      afterRange: null,
+      rangeChanged: false,
+      periodChange: change,
+      rows: rows.map((row) => ({ ...row, after: null, changed: true, change: 'removed' as const })),
+    }
+  }
+
+  return {
+    id: period.id,
+    label: period.label,
+    beforeRange,
+    afterRange,
+    rangeChanged: beforeRange !== afterRange,
+    periodChange: change,
+    rows: toCompareRows(comparisonRowsFromItems(period.items)),
+  }
+}
+
+function productsSection(
+  items: ProductLineItem[],
+  periods: RampPeriod[] | undefined
+): CompareSection {
+  return {
+    id: 'products',
+    title: 'Products and pricing',
+    hasAmounts: true,
+    totalLabel: 'Total',
+    groups:
+      periods && periods.length > 0
+        ? periods.map(periodGroup)
+        : [
+            {
+              id: 'products-all',
+              beforeRange: null,
+              afterRange: null,
+              rangeChanged: false,
+              rows: toCompareRows(comparisonRowsFromItems(items)),
+            },
+          ],
+  }
+}
+
+const TIMELINE_MONTHS = 36
+const MONTH_HEIGHT = 34
+const AMENDMENT_DATE = '2027-04-01'
+const TODAY_DATE = '2027-02-15'
+
+/** Months elapsed since the contract start (May 1, 2026), fractional within a month. */
+function parseAxisDate(date: string): Date {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    const [year, month, day] = date.split('-').map(Number)
+    return new Date(year, month - 1, day)
+  }
+  return new Date(date)
+}
+
+function monthsFromStart(date: string): number {
+  const value = parseAxisDate(date)
+  return (value.getFullYear() - 2026) * 12 + (value.getMonth() - 4) + (value.getDate() - 1) / 30
+}
+
+function axisOffset(date: string): number {
+  return monthsFromStart(date) * MONTH_HEIGHT
+}
+
+function tickLabel(monthIndex: number, short = false): string {
+  const date = new Date(2026, 4 + monthIndex, 1)
+  const month = date.toLocaleDateString('en-US', { month: 'short' })
+  if (monthIndex % 12 === 0 && !short) {
+    return `${month} '${String(date.getFullYear()).slice(2)}`
+  }
+  return month
+}
+
+const AXIS_TERM_END = '2029-04-30'
+
+/** The axis is a band: a left rail for Before dates, a right rail for After. */
+const AXIS_COLUMN_WIDTH = 220
+const AXIS_GUTTER = 24
+const AXIS_BAND_HALF = 26
+const RAIL_LEFT = `calc(50% - ${AXIS_BAND_HALF}px)`
+const RAIL_RIGHT = `calc(50% + ${AXIS_BAND_HALF}px)`
+const AMENDMENT_MARK_GRADIENT = 'amendment-mark-gradient'
+
+interface AxisMark {
+  id: string
+  top: number
+  title: string
+  dateLabel: string
+  detail?: string
+  /** Opening boundary of a period — the dot a ramp gets folded into. */
+  isPeriodStart?: boolean
+}
+
+/** Collapses marks that land within a few pixels, keeping the opening event. */
+function mergeMarks(marks: AxisMark[]): AxisMark[] {
+  return [...marks]
+    .sort((a, b) => a.top - b.top)
+    .reduce<AxisMark[]>((kept, mark) => {
+      const previous = kept[kept.length - 1]
+      if (!previous || mark.top - previous.top > 3) {
+        kept.push(mark)
+      } else if (mark.title.includes('begins')) {
+        kept[kept.length - 1] = mark
+      }
+      return kept
+    }, [])
+}
+
+/** Year bands, ramps and versions mirrored from the Tasks-page axis. */
+const AXIS_YEARS = [
+  { index: 1, date: '2026-05-01' },
+  { index: 2, date: '2027-05-01' },
+  { index: 3, date: '2028-05-01' },
+] as const
+
+const AXIS_RAMP_MARKERS = [
+  {
+    id: 'ramp-y2',
+    date: '2027-05-01',
+    title: 'Ramp · Year 2',
+    detail: '+25 seats · +7% platform price',
+    dateLabel: "May 1 '27",
+  },
+  {
+    id: 'ramp-y3',
+    date: '2028-05-01',
+    title: 'Ramp · Year 3',
+    detail: '+1 sandbox · +7% platform price',
+    dateLabel: "May 1 '28",
+  },
+] as const
+
+const AXIS_VERSION_MARKERS = [
+  {
+    id: 'v1',
+    version: 'v1',
+    title: 'Original contract',
+    detail: 'SO-2026-0153 · 50 seats',
+    date: '2026-05-01',
+    dateLabel: "May 1 '26",
+    tone: 'default',
+  },
+  {
+    id: 'v2',
+    version: 'v2',
+    title: 'Contract expansion',
+    detail: '+25 seats · +$32,000 ARR',
+    date: AMENDMENT_DATE,
+    dateLabel: "Apr 1 '27",
+    tone: 'positive',
+  },
+] as const
+
+interface AxisTooltip {
+  key: string
+  title: string
+  detail?: string
+  dateLabel: string
+  tone?: 'default' | 'positive'
+  /** Set when a rail mark is paired with its counterpart on the other rail. */
+  sideLabel?: string
+  placement: 'left' | 'right'
+  rect: DOMRect
+}
+
+/** Lucide `flag` glyph used for the year milestones on the axis. */
+function YearFlag({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      width={12}
+      height={12}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M4 22V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"
+        fill="currentColor"
+        fillOpacity={0.35}
+      />
+    </svg>
+  )
+}
+
+/** The Tasks-page contract axis, rotated so time runs top to bottom. */
+function VerticalContractAxis({
+  height,
+  banded = false,
+  beforeMarks = [],
+  afterMarks = [],
+}: {
+  height: number
+  /** Milestones widens the axis into a band with a rail per side. */
+  banded?: boolean
+  beforeMarks?: AxisMark[]
+  afterMarks?: AxisMark[]
+}) {
+  const [tooltips, setTooltips] = useState<AxisTooltip[]>([])
+  const [hoveredMark, setHoveredMark] = useState<string | null>(null)
+  const markRefs = useRef<Map<string, HTMLElement>>(new Map())
+  const ticks = Array.from({ length: TIMELINE_MONTHS / 3 + 1 }, (_, index) => index * 3)
+  const todayTop = axisOffset(TODAY_DATE)
+  const trackHeight = TIMELINE_MONTHS * MONTH_HEIGHT
+  const inset = banded ? AXIS_BAND_HALF : 0
+
+  const show = (
+    event: React.MouseEvent<HTMLElement>,
+    data: Omit<AxisTooltip, 'rect' | 'placement' | 'key'>
+  ) => {
+    setTooltips([
+      {
+        ...data,
+        key: data.title,
+        placement: 'right',
+        rect: event.currentTarget.getBoundingClientRect(),
+      },
+    ])
+  }
+
+  const clear = () => {
+    setTooltips([])
+    setHoveredMark(null)
+  }
+
+  const centreGlyphs = [todayTop, ...AXIS_VERSION_MARKERS.map((marker) => axisOffset(marker.date))]
+
+  // Contract-wide milestones ride both rails rather than the middle of the band.
+  const rampMarks: AxisMark[] = AXIS_RAMP_MARKERS.map((ramp) => ({
+    id: ramp.id,
+    top: axisOffset(ramp.date),
+    title: ramp.title,
+    detail: ramp.detail,
+    dateLabel: `${ramp.dateLabel} · upcoming`,
+  }))
+
+  const renewalMark: AxisMark = {
+    id: 'renewal',
+    top: axisOffset(AXIS_TERM_END) + MONTH_HEIGHT * 0.6,
+    title: 'Renewal',
+    dateLabel: "May 1 '29 · upcoming",
+  }
+
+  /**
+   * A ramp is the step-up a period opens with, so it belongs on that period's
+   * dot rather than a second one a few weeks away. Each ramp claims the closest
+   * period start still unspoken for; leftovers (a rail with no periods) keep a
+   * dot of their own at their own date.
+   */
+  const withRampsOnPeriodStarts = (marks: AxisMark[]): AxisMark[] => {
+    const unclaimed = marks.filter((mark) => mark.isPeriodStart)
+    const rampByStartId = new Map<string, AxisMark>()
+    const strays: AxisMark[] = []
+
+    rampMarks.forEach((ramp) => {
+      const host = unclaimed.reduce<AxisMark | undefined>(
+        (closest, start) =>
+          !closest || Math.abs(start.top - ramp.top) < Math.abs(closest.top - ramp.top)
+            ? start
+            : closest,
+        undefined
+      )
+      if (!host) {
+        strays.push(ramp)
+        return
+      }
+      unclaimed.splice(unclaimed.indexOf(host), 1)
+      rampByStartId.set(host.id, ramp)
+    })
+
+    return [
+      ...marks.map((mark) => {
+        const ramp = rampByStartId.get(mark.id)
+        return ramp ? { ...mark, detail: ramp.detail ?? ramp.title } : mark
+      }),
+      ...strays,
+      renewalMark,
+    ]
+  }
+
+  const rails = {
+    before: mergeMarks(withRampsOnPeriodStarts(beforeMarks)),
+    after: mergeMarks(withRampsOnPeriodStarts(afterMarks)),
+  }
+
+  /** Hovering either rail reveals the same boundary on both sides. */
+  const showPair = (id: string) => {
+    setHoveredMark(id)
+    setTooltips(
+      (['before', 'after'] as const).flatMap<AxisTooltip>((side) => {
+        const mark = rails[side].find((candidate) => candidate.id === id)
+        const element = markRefs.current.get(`${side}-${id}`)
+        if (!mark || !element) return []
+        return [
+          {
+            key: `${side}-${id}`,
+            title: mark.title,
+            detail: mark.detail,
+            dateLabel: mark.dateLabel,
+            sideLabel: side === 'before' ? 'Before' : 'After',
+            placement: side === 'before' ? 'left' : 'right',
+            rect: element.getBoundingClientRect(),
+          },
+        ]
+      })
+    )
+  }
+
+  const renderRail = (side: 'before' | 'after') =>
+    rails[side].map((mark) => (
+      <button
+        key={`${side}-${mark.id}`}
+        ref={(node) => {
+          const key = `${side}-${mark.id}`
+          if (node) markRefs.current.set(key, node)
+          else markRefs.current.delete(key)
+        }}
+        type="button"
+        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-default"
+        style={{ left: side === 'before' ? RAIL_LEFT : RAIL_RIGHT, top: mark.top }}
+        onMouseEnter={() => showPair(mark.id)}
+        onMouseLeave={clear}
+        aria-label={`${mark.title}, ${mark.dateLabel}`}
+      >
+        <span
+          className={cn(
+            'block rounded-full transition-all duration-200',
+            hoveredMark === mark.id && 'scale-110 shadow-[0_0_0_3px_rgba(163,163,163,0.18)]'
+          )}
+        >
+          {side === 'before' ? (
+            <span className="block h-3.5 w-3.5 rounded-full border border-dashed border-neutral-400 bg-white" />
+          ) : (
+            // Gradient outline marks the dates the amendment introduces.
+            <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden className="block">
+              <circle
+                cx="7"
+                cy="7"
+                r="6.3"
+                fill="white"
+                stroke={`url(#${AMENDMENT_MARK_GRADIENT})`}
+                strokeWidth="1.25"
+                strokeDasharray="3 3"
+              />
+            </svg>
+          )}
+        </span>
+      </button>
+    ))
+
+  return (
+    // Raised so the scale stays legible over the period ribbons either side.
+    <div className="relative z-10" style={{ height }}>
+      {banded ? (
+        <>
+          <svg width={0} height={0} aria-hidden className="absolute">
+            <defs>
+              <linearGradient id={AMENDMENT_MARK_GRADIENT} x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0%" stopColor="#ff3300" />
+                <stop offset="100%" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* A filled band with a rail per side, tinted over the elapsed span. */}
+          <div
+            aria-hidden
+            className="absolute left-1/2 top-0 -translate-x-1/2 bg-neutral-50"
+            style={{ width: AXIS_BAND_HALF * 2, height: trackHeight }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2"
+            style={{
+              width: AXIS_BAND_HALF * 2,
+              height: todayTop,
+              background:
+                'linear-gradient(180deg, rgba(255,51,0,0.12) 0%, rgba(139,92,246,0.16) 100%)',
+            }}
+          />
+          <div
+            aria-hidden
+            className="absolute top-0 w-px -translate-x-1/2 bg-[#c4c4c4]"
+            style={{ left: RAIL_LEFT, height: trackHeight }}
+          />
+          <div
+            aria-hidden
+            className="absolute top-0 w-px -translate-x-1/2 bg-[#c4c4c4]"
+            style={{ left: RAIL_RIGHT, height: trackHeight }}
+          />
+
+          {/* Period boundaries and milestones: Before on the left rail, After on the right. */}
+          {renderRail('before')}
+          {renderRail('after')}
+        </>
+      ) : (
+        <>
+          {/* A single grey line with the elapsed span drawn over it. */}
+          <div
+            aria-hidden
+            className="absolute left-1/2 top-0 w-0.5 -translate-x-1/2 rounded-full bg-neutral-200"
+            style={{ height: trackHeight }}
+          />
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-0 w-0.5 -translate-x-1/2 rounded-full"
+            style={{
+              height: todayTop,
+              background: 'linear-gradient(180deg, #ff3300 0%, #8b5cf6 100%)',
+            }}
+          />
+        </>
+      )}
+
+      {/* Date scale — inside the band when it has width, otherwise beside the line. */}
+      {ticks.map((monthIndex) => {
+        const top = monthIndex * MONTH_HEIGHT
+        // Inside the band the glyphs share the same lane, so yield to them.
+        if (banded && centreGlyphs.some((glyph) => Math.abs(glyph - top) < 12)) return null
+
+        return (
+          <div key={`tick-${monthIndex}`}>
+            {!banded && (
+              <span
+                aria-hidden
+                className="absolute h-px w-1 -translate-y-1/2 bg-neutral-300"
+                style={{ right: 'calc(50% + 1px)', top }}
+              />
+            )}
+            <span
+              className={cn(
+                'absolute -translate-y-1/2 text-[10px] font-medium tracking-[0.02em]',
+                banded ? 'left-1/2 w-12 -translate-x-1/2 text-center' : 'w-11 text-right',
+                monthIndex % 12 === 0 ? 'font-semibold text-brand-navy' : 'text-brand-fog'
+              )}
+              style={banded ? { top } : { right: 'calc(50% + 9px)', top }}
+            >
+              {tickLabel(monthIndex, banded)}
+            </span>
+          </div>
+        )
+      })}
+
+      {/* Year flags sit off the timeline axis; Milestones omits them. */}
+      {!banded &&
+        AXIS_YEARS.map((year) => (
+          <div
+            key={`year-${year.index}`}
+            className="absolute flex -translate-y-1/2 items-center gap-1 whitespace-nowrap"
+            style={{ right: `calc(50% + ${inset + 59}px)`, top: axisOffset(year.date) }}
+          >
+            <span className="text-[11px] font-medium leading-none text-brand-navy">
+              Year {year.index}
+            </span>
+            <YearFlag className={year.index === 1 ? 'text-green-600' : 'text-neutral-400'} />
+          </div>
+        ))}
+
+      {/* Markers sit on the line, labelled to its right. */}
+      <div
+        className="absolute left-1/2 top-0"
+        style={{ height: TIMELINE_MONTHS * MONTH_HEIGHT }}
+      >
+        {/* Today */}
+        <div
+          className="absolute -translate-x-1/2 -translate-y-1/2"
+          style={{ top: todayTop }}
+          aria-label="Today"
+        >
+          <span className="block h-1.5 w-1.5 rotate-45 bg-blue-600" aria-hidden />
+          <span
+            className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700"
+            style={{ left: inset + 8 }}
+          >
+            Today
+          </span>
+        </div>
+
+        {/* Ramps and renewal sit on the line itself when there are no rails. */}
+        {!banded &&
+          [...rampMarks, renewalMark].map((mark) => (
+            <button
+              key={mark.id}
+              type="button"
+              className="absolute -translate-x-1/2 -translate-y-1/2 cursor-default"
+              style={{ top: mark.top }}
+              onMouseEnter={(event) =>
+                show(event, { title: mark.title, detail: mark.detail, dateLabel: mark.dateLabel })
+              }
+              onMouseLeave={clear}
+              aria-label={mark.title}
+            >
+              <span
+                className={cn(
+                  'block h-3 w-3 rounded-full border border-dashed border-neutral-400 bg-white transition-all duration-200',
+                  tooltips.some((entry) => entry.title === mark.title) &&
+                    'scale-110 shadow-[0_0_0_3px_rgba(163,163,163,0.2)]'
+                )}
+              />
+            </button>
+          ))}
+
+        {/* Signed versions */}
+        {AXIS_VERSION_MARKERS.map((marker) => {
+          const isPositive = marker.tone === 'positive'
+          return (
+            <div
+              key={marker.id}
+              className="absolute -translate-x-1/2 -translate-y-1/2"
+              style={{ top: axisOffset(marker.date) }}
+            >
+              <button
+                type="button"
+                className="cursor-default"
+                onMouseEnter={(event) =>
+                  show(event, {
+                    title: marker.title,
+                    detail: marker.detail,
+                    dateLabel: marker.dateLabel,
+                    tone: marker.tone,
+                  })
+                }
+                onMouseLeave={clear}
+                aria-label={`${marker.version}: ${marker.title}`}
+              >
+                <span
+                  className={cn(
+                    'flex h-3 w-3 items-center justify-center rounded-full text-[7px] font-bold leading-none ring-1',
+                    isPositive
+                      ? 'bg-green-600 text-white ring-green-600 shadow-[0_0_0_3px_rgba(22,163,74,0.14)]'
+                      : 'bg-blue-50 text-blue-700 ring-blue-200'
+                  )}
+                >
+                  {marker.version}
+                </span>
+              </button>
+            </div>
+          )
+        })}
+
+      </div>
+
+      {tooltips.length > 0 &&
+        createPortal(
+          <>
+            {tooltips.map((tooltip) => {
+              const toLeft = tooltip.placement === 'left'
+              return (
+                <div
+                  key={tooltip.key}
+                  className={cn(
+                    'pointer-events-none fixed z-[9999] flex -translate-y-1/2 items-center',
+                    toLeft && '-translate-x-full flex-row-reverse'
+                  )}
+                  style={{
+                    left: toLeft ? tooltip.rect.left - 10 : tooltip.rect.right + 10,
+                    top: tooltip.rect.top + tooltip.rect.height / 2,
+                  }}
+                >
+                  <span
+                    className={cn(
+                      'h-px w-3 border-t border-dashed border-neutral-300',
+                      toLeft ? 'ml-1.5' : 'mr-1.5'
+                    )}
+                  />
+                  <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
+                    {tooltip.sideLabel && (
+                      <p className="text-[10px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
+                        {tooltip.sideLabel}
+                      </p>
+                    )}
+                    <p
+                      className={cn(
+                        'whitespace-nowrap text-[12px]',
+                        tooltip.tone === 'positive'
+                          ? 'font-semibold text-green-700'
+                          : 'font-medium text-brand-navy'
+                      )}
+                    >
+                      {tooltip.title}
+                    </p>
+                    {tooltip.detail && (
+                      <p className="whitespace-nowrap text-[12px] text-brand-navy">
+                        {tooltip.detail}
+                      </p>
+                    )}
+                    <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
+                      {tooltip.dateLabel}
+                    </p>
+                  </div>
+                </div>
+              )
+            })}
+          </>,
+          document.body
+        )}
+    </div>
+  )
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-fog">{label}</p>
+      <p className="mt-0.5 text-[13px] font-medium text-brand-navy">{value}</p>
+    </div>
+  )
+}
+
+function sideTotal(group: CompareGroup, side: 'before' | 'after'): number {
+  return group.rows.reduce((sum, row) => {
+    const cell = side === 'before' ? row.before : row.after
+    return cell ? sum + parseMoney(cell.amount) : sum
+  }, 0)
+}
+
+/**
+ * Resting state of a period on the axis: small enough to sit at its true date
+ * without colliding with neighbouring periods.
+ */
+function TimelinePeriodChip({
+  group,
+  side,
+  isOpen,
+  onToggle,
+}: {
+  group: CompareGroup
+  side: 'before' | 'after'
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const total = sideTotal(group, side)
+  const counterTotal = sideTotal(group, side === 'before' ? 'after' : 'before')
+  const range = side === 'before' ? group.beforeRange : group.afterRange
+  const Chevron = isOpen ? ChevronDown : ChevronRight
+
+  const note = (() => {
+    if (side === 'before') return undefined
+    if (group.periodChange === 'added') return 'New period'
+    return total !== counterTotal ? signedMoney(total - counterTotal) : undefined
+  })()
+
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={isOpen}
+      className={cn(
+        'flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left transition-colors',
+        side === 'before' ? 'hover:bg-neutral-100' : 'hover:bg-neutral-50',
+        isOpen && (side === 'before' ? 'bg-neutral-100/70' : 'bg-neutral-50')
+      )}
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-[13px] font-medium text-brand-navy">{group.label}</span>
+          {note && <span className="text-[11px] font-medium text-green-700">{note}</span>}
+        </div>
+        {/* Expanded, the range moves right to sit like a table header. */}
+        {range && !isOpen && <p className="mt-0.5 text-[11px] text-brand-fog">{range}</p>}
+      </div>
+      {range && isOpen && (
+        <span className="mr-1 shrink-0">
+          <DatePills range={range} side={side} rangeChanged={group.rangeChanged} />
+        </span>
+      )}
+      {!isOpen && (
+        <span
+          className={cn(
+            'shrink-0 text-[13px] text-brand-navy',
+            side === 'after' ? 'font-bold' : 'font-medium'
+          )}
+        >
+          {money(total)}
+        </span>
+      )}
+      <Chevron size={14} className="shrink-0 text-brand-fog" />
+    </button>
+  )
+}
+
+function TimelinePeriodCard({
+  group,
+  side,
+  showHeader = true,
+  nested,
+}: {
+  group: CompareGroup
+  side: 'before' | 'after'
+  showHeader?: boolean
+  nested?: boolean
+}) {
+  const changedCount = group.rows.filter((row) => row.changed).length
+  const [showUnchanged, setShowUnchanged] = useState(changedCount === 0)
+
+  return (
+    <SectionCard
+      rows={group.rows}
+      hasAmounts
+      totalLabel="Total"
+      side={side}
+      showUnchanged={showUnchanged}
+      onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+      title={showHeader ? group.label : undefined}
+      range={showHeader ? (side === 'before' ? group.beforeRange : group.afterRange) : undefined}
+      rangeChanged={group.rangeChanged}
+      nested={nested}
+    />
+  )
+}
+
+/** Gutter plus half the axis column, stopping at the band's rail. */
+const CONNECTOR_WIDTH = AXIS_GUTTER + AXIS_COLUMN_WIDTH / 2 - AXIS_BAND_HALF
+const CHIP_HEIGHT = 57
+
+/**
+ * Tapered ribbon funnelling the period's stretch of the axis into its chip:
+ * full span at the line, chip height where it lands.
+ */
+function ChipConnector({
+  side,
+  span,
+  chipOffset,
+}: {
+  side: 'before' | 'after'
+  span: number
+  chipOffset: number
+}) {
+  const isBefore = side === 'before'
+  const w = CONNECTOR_WIDTH
+  const axisX = isBefore ? w : 0
+  const chipX = isBefore ? 0 : w
+  const near = isBefore ? w * 0.55 : w * 0.45
+  const far = isBefore ? w * 0.45 : w * 0.55
+  const height = Math.max(span, CHIP_HEIGHT)
+  const chipTop = chipOffset
+  const chipBottom = chipOffset + CHIP_HEIGHT
+
+  const ribbon = [
+    `M ${axisX} 0`,
+    `C ${near} 0, ${far} ${chipTop}, ${chipX} ${chipTop}`,
+    `L ${chipX} ${chipBottom}`,
+    `C ${far} ${chipBottom}, ${near} ${height}, ${axisX} ${height}`,
+    'Z',
+  ].join(' ')
+
+  return (
+    <svg
+      aria-hidden
+      width={w}
+      height={height}
+      viewBox={`0 0 ${w} ${height}`}
+      preserveAspectRatio="none"
+      className={cn(
+        'pointer-events-none absolute',
+        isBefore ? 'text-neutral-200' : 'text-violet-200'
+      )}
+      style={{ [isBefore ? 'right' : 'left']: -w, top: -chipOffset }}
+    >
+      <path d={ribbon} fill="currentColor" fillOpacity={0.45} />
+    </svg>
+  )
+}
+
+/** Chip pinned to the period start, with the full table revealed on demand. */
+function TimelinePeriodSlot({
+  group,
+  side,
+  top,
+  span,
+  isOpen,
+  isTopMost,
+  onToggle,
+  onRaise,
+}: {
+  group: CompareGroup
+  side: 'before' | 'after'
+  top: number
+  span: number
+  isOpen: boolean
+  isTopMost: boolean
+  onToggle: () => void
+  onRaise: () => void
+}) {
+  const chipOffset = 0
+
+  return (
+    <div
+      className="absolute inset-x-0"
+      // Whichever period you touch last stacks above the ones below it, so a
+      // table that grows past its span stays readable.
+      style={{
+        top: top + chipOffset,
+        zIndex: isOpen ? (isTopMost ? 30 : 20) : undefined,
+      }}
+      onMouseDown={onRaise}
+    >
+      <ChipConnector side={side} span={span} chipOffset={chipOffset} />
+      <div
         className={cn(
-          'inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.06em]',
-          tone === 'before' && 'bg-neutral-100 text-brand-fog',
-          tone === 'change' && 'bg-orange-50 text-orange-700',
-          tone === 'after' && 'bg-emerald-50 text-emerald-700'
+          'overflow-hidden rounded-xl border',
+          side === 'before'
+            ? 'border-neutral-200 bg-neutral-50'
+            : 'border-brand-navy bg-white',
+          isOpen && 'shadow-xl'
         )}
       >
-        {eyebrow}
-      </span>
-      <h2 className="mt-1.5 font-heading text-[15px] font-semibold tracking-[-0.3px] text-brand-navy">
-        {title}
-      </h2>
-      <p className="mt-0.5 text-[11px] text-brand-fog">{meta}</p>
+        <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
+        {isOpen && (
+          <div
+            className={cn(
+              'border-t',
+              side === 'before' ? 'border-neutral-200' : 'border-brand-navy'
+            )}
+          >
+            <TimelinePeriodCard group={group} side={side} showHeader={false} nested />
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function TimelineProductList({
+  products,
+  tone,
+}: {
+  products: ComparisonProduct[]
+  tone: 'before' | 'after'
+}) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-neutral-200">
+      {products.map((product) => (
+        <div
+          key={product.name}
+          className="flex items-center gap-3 border-b border-neutral-100 px-3 py-2 last:border-b-0"
+        >
+          <span className="min-w-0 flex-1 truncate text-[12px] text-brand-navy">
+            {product.name}
+          </span>
+          <span className="shrink-0 text-[11px] text-brand-fog">
+            ×{numericQuantity(product.quantity)}
+          </span>
+          <span
+            className={cn(
+              'w-[84px] shrink-0 text-right text-[12px] font-medium',
+              tone === 'after' ? 'text-green-700' : 'text-brand-navy'
+            )}
+          >
+            {product.totalPrice}
+          </span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+/** Before and After columns flanking a shared vertical time axis. */
+function TimeAxisView({
+  rows,
+  periods,
+  variant,
+}: {
+  rows: ComparisonRow[]
+  periods?: RampPeriod[]
+  /** `cards` drops the full table on the axis, `chips` reveals it on demand. */
+  variant: 'cards' | 'chips'
+}) {
+  const beforeProducts = rows
+    .map((row) => row.before)
+    .filter((product): product is ComparisonProduct => product !== null)
+  const afterProducts = rows
+    .map((row) => row.after)
+    .filter((product): product is ComparisonProduct => product !== null)
+
+  const beforePeriodCards = (periods ?? [])
+    .filter((period) => period.periodChange !== 'added')
+    .map((period) => {
+      const top = axisOffset(period.previousStartDate ?? period.startDate)
+      return {
+        id: period.id,
+        group: periodGroup(period),
+        top,
+        span: axisOffset(period.previousEndDate ?? period.endDate) - top,
+      }
+    })
+  const afterPeriodCards = (periods ?? [])
+    .filter((period) => period.periodChange !== 'removed')
+    .map((period) => {
+      const top = axisOffset(period.startDate)
+      return {
+        id: period.id,
+        group: periodGroup(period),
+        top,
+        span: axisOffset(period.endDate) - top,
+      }
+    })
+  const periodMarks = (side: 'before' | 'after'): AxisMark[] =>
+    (periods ?? [])
+      .filter((period) => period.periodChange !== (side === 'before' ? 'added' : 'removed'))
+      .flatMap((period) => {
+        const start =
+          side === 'before' ? period.previousStartDate ?? period.startDate : period.startDate
+        const end = side === 'before' ? period.previousEndDate ?? period.endDate : period.endDate
+        return [
+          {
+            id: `${period.id}-start`,
+            top: axisOffset(start),
+            title: `${period.label} begins`,
+            dateLabel: start,
+            isPeriodStart: true,
+          },
+          {
+            id: `${period.id}-end`,
+            top: axisOffset(end),
+            title: `${period.label} ends`,
+            dateLabel: end,
+          },
+        ]
+      })
+
+  const periodKey = (side: 'before' | 'after', id: string) => `${side}:${id}`
+  const [openPeriods, setOpenPeriods] = useState<Set<string>>(() => {
+    const keys = new Set<string>()
+    beforePeriodCards.forEach((period) => keys.add(periodKey('before', period.id)))
+    afterPeriodCards.forEach((period) => keys.add(periodKey('after', period.id)))
+    return keys
+  })
+  const isOpen = (side: 'before' | 'after', id: string) => openPeriods.has(periodKey(side, id))
+  const [topMostPeriod, setTopMostPeriod] = useState<string | null>(null)
+  const raisePeriod = (side: 'before' | 'after', id: string) =>
+    setTopMostPeriod(periodKey(side, id))
+  const togglePeriod = (side: 'before' | 'after', id: string) => {
+    const key = periodKey(side, id)
+    setTopMostPeriod(key)
+    setOpenPeriods((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const renderPeriod = (
+    side: 'before' | 'after',
+    period: { id: string; group: CompareGroup; top: number; span: number }
+  ) =>
+    variant === 'chips' ? (
+      <TimelinePeriodSlot
+        key={period.id}
+        group={period.group}
+        side={side}
+        top={period.top}
+        span={period.span}
+        isOpen={isOpen(side, period.id)}
+        isTopMost={topMostPeriod === periodKey(side, period.id)}
+        onToggle={() => togglePeriod(side, period.id)}
+        onRaise={() => raisePeriod(side, period.id)}
+      />
+    ) : (
+      <div key={period.id} className="absolute inset-x-0" style={{ top: period.top }}>
+        <TimelinePeriodCard group={period.group} side={side} />
+      </div>
+    )
+
+  return (
+    <div className="mx-auto max-w-[1240px] px-8 pb-20 pt-6">
+      <div className="grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6">
+        <p className="text-center text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+        <div />
+        <p className="text-center text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+      </div>
+
+      <div
+        className="relative mt-4 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6"
+        style={{ minHeight: TIMELINE_MONTHS * MONTH_HEIGHT + 80 }}
+      >
+        <div className="relative">
+          {beforePeriodCards.length > 0 ? (
+            beforePeriodCards.map((period) => renderPeriod('before', period))
+          ) : (
+            <div className="absolute inset-x-0 top-0">
+              <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[-0.5px] text-brand-fog">
+                    v1 · Active
+                  </span>
+                  <span className="text-[12px] text-brand-fog">SO-2026-0153</span>
+                </div>
+                <h3 className="mt-2 font-heading text-[15px] font-semibold tracking-[-0.5px] text-brand-navy">
+                  Existing sales order
+                </h3>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Metric label="Total ARR" value="$193,500.00" />
+                  <Metric label="Term" value="May 2026 – Apr 2029" />
+                </div>
+                <TimelineProductList products={beforeProducts} tone="before" />
+              </div>
+            </div>
+          )}
+        </div>
+
+        <VerticalContractAxis
+          height={TIMELINE_MONTHS * MONTH_HEIGHT + 80}
+          banded={variant === 'chips'}
+          beforeMarks={periodMarks('before')}
+          afterMarks={periodMarks('after')}
+        />
+
+        <div className="relative">
+          {afterPeriodCards.length > 0 ? (
+            afterPeriodCards.map((period) => renderPeriod('after', period))
+          ) : (
+            <div className="absolute inset-x-0" style={{ top: axisOffset(AMENDMENT_DATE) }}>
+              <div className="rounded-xl border border-brand-navy bg-white p-4">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[-0.5px] text-green-700">
+                    v2 · Draft
+                  </span>
+                  <span className="text-[12px] text-brand-fog">Effective Apr 1, 2027</span>
+                </div>
+                <h3 className="mt-2 font-heading text-[15px] font-semibold tracking-[-0.5px] text-brand-navy">
+                  Resulting sales order
+                </h3>
+                <div className="mt-3 grid grid-cols-2 gap-3">
+                  <Metric label="Total ARR" value={AMENDED_ARR} />
+                  <Metric label="Credit note" value={CREDIT_NOTE_TOTAL} />
+                </div>
+                <TimelineProductList products={afterProducts} tone="after" />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+type ComparisonView = 'rows' | 'timeline' | 'milestones'
+
+function ViewToggle({
+  view,
+  onChange,
+}: {
+  view: ComparisonView
+  onChange: (next: ComparisonView) => void
+}) {
+  const options = [
+    { id: 'rows' as const, label: 'Rows', icon: Columns3 },
+    { id: 'timeline' as const, label: 'Timeline', icon: GitCommitVertical },
+    { id: 'milestones' as const, label: 'Milestones', icon: Milestone },
+  ]
+
+  return (
+    <div className="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-0.5">
+      {options.map((option) => {
+        const Icon = option.icon
+        const isActive = view === option.id
+        return (
+          <button
+            key={option.id}
+            type="button"
+            onClick={() => onChange(option.id)}
+            className={cn(
+              'flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors',
+              isActive
+                ? 'bg-white text-brand-navy shadow-sm'
+                : 'text-brand-fog hover:text-brand-navy'
+            )}
+          >
+            <Icon size={14} />
+            {option.label}
+          </button>
+        )
+      })}
     </div>
   )
 }
@@ -263,19 +1770,26 @@ export function SalesOrderAmendmentComparison({
   onClose,
   customerName,
   items,
+  periods,
+  account,
+  terms,
 }: SalesOrderAmendmentComparisonProps) {
   const rows = useMemo<ComparisonRow[]>(
     () =>
-      [...items]
-        .sort((a, b) => changeRank(a) - changeRank(b))
-        .map((item) => ({
-          id: item.id,
-          before: beforeProduct(item),
-          after: afterProduct(item),
-          item,
-        })),
-    [items]
+      periods && periods.length > 0
+        ? comparisonRowsFromItems(periods[0].items)
+        : comparisonRowsFromItems(items),
+    [items, periods]
   )
+  const sections = useMemo<CompareSection[]>(
+    () => [
+      labelValueSection('customer', 'Customer info', account),
+      labelValueSection('terms', 'Terms and billing', terms),
+      productsSection(items, periods),
+    ],
+    [account, terms, items, periods]
+  )
+  const [view, setView] = useState<ComparisonView>('rows')
 
   useEffect(() => {
     if (!isOpen) return
@@ -293,110 +1807,67 @@ export function SalesOrderAmendmentComparison({
 
   if (!isOpen) return null
 
-  const beforeCount = rows.filter((row) => row.before).length
-  const afterCount = rows.filter((row) => row.after).length
-
   return createPortal(
     <div className="fixed inset-0 z-[80] flex flex-col bg-white">
-      <header className="flex h-16 shrink-0 items-center border-b border-neutral-200 px-8">
+      <header className="flex h-[60px] shrink-0 items-center border-b border-neutral-200 px-12">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-heading text-[18px] font-semibold tracking-[-0.4px] text-brand-navy">
+            <h1
+              className="font-heading text-[16px] font-semibold text-brand-navy"
+              style={{ letterSpacing: '-0.5px' }}
+            >
               Sales order amendment comparison
             </h1>
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-              AMENDMENT
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[-0.5px] text-amber-700">
+              Amendment
             </span>
           </div>
           <p className="mt-0.5 text-[12px] text-brand-fog">{customerName} · SO-2026-0153</p>
         </div>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Close comparison"
-          className="ml-auto flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-        >
-          <X size={19} />
-        </button>
+        <div className="ml-auto flex items-center gap-4">
+          <ViewToggle view={view} onChange={setView} />
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close comparison"
+            title="Close"
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+          >
+            <X size={18} strokeWidth={2} />
+          </button>
+        </div>
       </header>
 
-      <div className="min-h-0 flex-1 overflow-y-auto bg-neutral-50">
-        <div className="mx-auto max-w-[1320px] px-8 pb-16">
-          <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_32px_minmax(0,1fr)_32px_minmax(0,1fr)] bg-neutral-50 pb-3 pt-6">
-            <ColumnHeading
-              eyebrow="Before"
-              title="Existing sales order"
-              meta={`v1 · live today · ${beforeCount} items`}
-              tone="before"
-            />
-            <div />
-            <ColumnHeading
-              eyebrow="What's changing"
-              title="This amendment"
-              meta="Effective Apr 1, 2027"
-              tone="change"
-            />
-            <div />
-            <ColumnHeading
-              eyebrow="After"
-              title="Resulting sales order"
-              meta={`v2 · draft · ${afterCount} items`}
-              tone="after"
-            />
-          </div>
-
-          <ComparisonGridRow
-            isFirst
-            before={
-              <div className="rounded-lg border border-neutral-200 bg-white p-3.5">
-                <p className="text-[11px] uppercase tracking-[-0.2px] text-brand-fog">Total ARR</p>
-                <p className="mt-1 text-[18px] font-semibold text-brand-navy">$193,500.00</p>
-                <p className="mt-1 text-[11px] text-brand-fog">May 1, 2026 – Apr 30, 2029</p>
-              </div>
-            }
-            change={
-              <div className="rounded-lg border border-orange-200 bg-orange-50/70 p-3.5">
-                <p className="text-[11px] uppercase tracking-[-0.2px] text-orange-700">ARR impact</p>
-                <p className="mt-1 text-[18px] font-semibold text-brand-navy">+$32,000.00</p>
-                <p className="mt-1 text-[11px] text-orange-800">Term unchanged</p>
-              </div>
-            }
-            after={
-              <div className="rounded-lg border border-emerald-200 bg-white p-3.5">
-                <p className="text-[11px] uppercase tracking-[-0.2px] text-brand-fog">Total ARR</p>
-                <p className="mt-1 text-[18px] font-semibold text-brand-navy">$225,500.00</p>
-                <p className="mt-1 text-[11px] text-brand-fog">Apr 1, 2027 – Apr 30, 2029</p>
-              </div>
-            }
+      <div className="min-h-0 flex-1 overflow-y-auto bg-white">
+        {view === 'timeline' || view === 'milestones' ? (
+          <TimeAxisView
+            rows={rows}
+            periods={periods}
+            variant={view === 'timeline' ? 'cards' : 'chips'}
           />
+        ) : (
+          <div className="mx-auto max-w-[1320px] px-12 pb-20">
+            <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] bg-white pb-4 pt-8">
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+                <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
+              </div>
+              <div />
+              <div className="text-center">
+                <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+                <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
+              </div>
+            </div>
 
-          {rows.map((row, index) => {
-            const isUnchanged =
-              !row.item.amendmentChange || row.item.amendmentChange === 'unchanged'
+            <ArrKpiCompare />
 
-            return (
-              <ComparisonGridRow
-                key={row.id}
-                isLast={index === rows.length - 1}
-                before={
-                  row.before ? (
-                    <ProductCard product={row.before} tone="before" isMuted={isUnchanged} />
-                  ) : (
-                    <EmptyCard label="Not on this order" />
-                  )
-                }
-                change={isUnchanged ? <NoChangeCell /> : <ChangeCard item={row.item} />}
-                after={
-                  row.after ? (
-                    <ProductCard product={row.after} tone="after" isMuted={isUnchanged} />
-                  ) : (
-                    <EmptyCard label="Removed" />
-                  )
-                }
-              />
-            )
-          })}
-        </div>
+            <div className="space-y-10">
+              {sections.map((section) => (
+                <SectionCompare key={section.id} section={section} />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body

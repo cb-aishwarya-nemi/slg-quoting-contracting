@@ -80,6 +80,11 @@ export interface RampPeriod {
   label: string
   startDate: string
   endDate: string
+  /** How this period differs from the previous signed contract. */
+  periodChange?: 'added' | 'removed' | 'dates-changed'
+  /** Dates before this amendment, shown when the period boundaries move. */
+  previousStartDate?: string
+  previousEndDate?: string
   items: ProductLineItem[]
 }
 
@@ -434,7 +439,9 @@ export const contractProcessing = {
       id: 'period-1',
       label: 'Period 1',
       startDate: 'Jul 17, 2026',
-      endDate: 'Jun 17, 2028',
+      endDate: 'Mar 31, 2027',
+      periodChange: 'dates-changed',
+      previousEndDate: 'Jul 16, 2027',
       items: [
         {
           id: 'rp1-li-1',
@@ -509,8 +516,11 @@ export const contractProcessing = {
     {
       id: 'period-2',
       label: 'Period 2',
-      startDate: 'Jul 17, 2027',
-      endDate: 'Jul 17, 2028',
+      startDate: 'Apr 1, 2027',
+      endDate: 'Nov 30, 2027',
+      periodChange: 'dates-changed',
+      previousStartDate: 'Jul 17, 2027',
+      previousEndDate: 'Jul 17, 2028',
       items: [
         {
           id: 'rp2-li-1',
@@ -573,6 +583,66 @@ export const contractProcessing = {
           discountUnit: '%',
           discountPeriod: '5 months',
           totalPrice: '$4,815.00',
+        },
+      ] as ProductLineItem[],
+    },
+    {
+      id: 'period-3',
+      label: 'Period 3',
+      startDate: 'Dec 1, 2027',
+      endDate: 'Jul 31, 2028',
+      periodChange: 'added',
+      items: [
+        {
+          id: 'rp3-li-1',
+          name: 'Apex platform - growth services',
+          status: 'ready',
+          amendmentChange: 'added',
+          billingPeriod: 'Yearly',
+          quantity: '75',
+          unitPrice: '$2,748.00',
+          discount: '10',
+          discountUnit: '%',
+          discountPeriod: 'Forever',
+          totalPrice: '$206,100.00',
+          rampPriceChange: 7,
+        },
+        {
+          id: 'rp3-li-2',
+          name: 'Onboarding & Training',
+          status: 'ready',
+          amendmentChange: 'added',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$10,876.00',
+          discount: '5',
+          discountUnit: '%',
+          discountPeriod: 'One Time',
+          totalPrice: '$10,876.00',
+          rampPriceChange: 7,
+        },
+        {
+          id: 'rp3-li-3',
+          name: 'Premium support SLA',
+          status: 'ready',
+          amendmentChange: 'added',
+          billingPeriod: 'Yearly',
+          quantity: '01',
+          unitPrice: '$13,739.00',
+          totalPrice: '$13,739.00',
+        },
+        {
+          id: 'rp3-li-4',
+          name: 'Sandbox environments',
+          status: 'ready',
+          amendmentChange: 'added',
+          billingPeriod: 'Yearly',
+          quantity: '03',
+          unitPrice: '$1,717.00',
+          discount: '15',
+          discountUnit: '%',
+          discountPeriod: '5 months',
+          totalPrice: '$5,151.00',
         },
       ] as ProductLineItem[],
     },

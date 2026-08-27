@@ -117,10 +117,22 @@ function originalLineItems(items: ProductLineItem[]): ProductLineItem[] {
 }
 
 function originalRampPeriods(periods: RampPeriod[]): RampPeriod[] {
-  return periods.map((period) => ({
-    ...period,
-    items: originalLineItems(period.items),
-  }))
+  return periods
+    .filter((period) => period.periodChange !== 'added')
+    .map((period) => {
+      const {
+        periodChange: _change,
+        previousStartDate,
+        previousEndDate,
+        ...original
+      } = period
+      return {
+        ...original,
+        startDate: previousStartDate ?? period.startDate,
+        endDate: previousEndDate ?? period.endDate,
+        items: originalLineItems(period.items),
+      }
+    })
 }
 
 function originalAllocations(allocations: AllocationGroup[]): AllocationGroup[] {
@@ -1273,6 +1285,9 @@ export function Customer360Page() {
         onClose={() => setIsComparisonOpen(false)}
         customerName={customerName}
         items={data.products}
+        periods={data.rampPeriods}
+        account={accountItems}
+        terms={data.termsAndBilling}
       />
     </div>
   )
