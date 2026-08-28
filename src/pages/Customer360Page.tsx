@@ -26,6 +26,7 @@ import {
   AllocationTable,
   InvoicePreview,
   CreditNotePreview,
+  BillingBreakdownView,
   PaymentSchedule,
   InPageNav,
   SectionCommentStack,
@@ -36,6 +37,7 @@ import {
   getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
+  type BreakdownView,
   type ProductsPricingVariant,
 } from '@/components/features/contract-processing'
 import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
@@ -285,6 +287,7 @@ export function Customer360Page() {
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
   const [isComparisonOpen, setIsComparisonOpen] = useState(false)
+  const [breakdownView, setBreakdownView] = useState<BreakdownView | null>(null)
   const [selectedContractVersion, setSelectedContractVersion] = useState<
     { id: 'v1' | 'v2'; trackPercent: number } | undefined
   >()
@@ -1206,6 +1209,7 @@ export function Customer360Page() {
                           isOriginalContract ? 'original' : 'amendment'
                         }
                         invoiceLevelDiscount={invoiceLevelDiscount}
+                        onViewBreakdown={() => setBreakdownView('invoice')}
                       />
                     </div>
                   ) : (
@@ -1227,6 +1231,7 @@ export function Customer360Page() {
                             isOriginalContract ? 'original' : 'amendment'
                           }
                           invoiceLevelDiscount={invoiceLevelDiscount}
+                          onViewBreakdown={() => setBreakdownView('invoice')}
                         />
                       </div>
                     </ContractSectionRow>
@@ -1238,7 +1243,10 @@ export function Customer360Page() {
                 <section ref={setSectionRef('credit-note')} className="group/section">
                   {isItemPinnedVariant ? (
                     <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                      <CreditNotePreview isFlashing={false} />
+                      <CreditNotePreview
+                        isFlashing={false}
+                        onViewBreakdown={() => setBreakdownView('credit-note')}
+                      />
                     </div>
                   ) : (
                     <ContractSectionRow
@@ -1253,7 +1261,10 @@ export function Customer360Page() {
                       onResolve={handleResolveComment}
                     >
                       <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
-                        <CreditNotePreview isFlashing={false} />
+                        <CreditNotePreview
+                          isFlashing={false}
+                          onViewBreakdown={() => setBreakdownView('credit-note')}
+                        />
                       </div>
                     </ContractSectionRow>
                   )}
@@ -1279,6 +1290,11 @@ export function Customer360Page() {
         activeIndex={preview?.index ?? 0}
         onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}
+      />
+      <BillingBreakdownView
+        view={breakdownView}
+        customerName={customerName}
+        onClose={() => setBreakdownView(null)}
       />
       <SalesOrderAmendmentComparison
         isOpen={isComparisonOpen}

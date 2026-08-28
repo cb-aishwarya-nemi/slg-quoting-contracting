@@ -889,7 +889,7 @@ function PriceField({
       )}
     >
       {proration ? (
-        <ProratedTotal total={value || '–'} proration={proration} isRowFilled={muted} />
+        <ProratedTotal proration={proration} isRowFilled={muted} />
       ) : (
         value || '–'
       )}
@@ -1255,25 +1255,17 @@ function ItemNameButton({
 
 /** Total for a line whose first charge is prorated — the working opens on hover. */
 function ProratedTotal({
-  total,
   proration,
   isRowFilled,
 }: {
-  total: string
   proration: NonNullable<ProductLineItem['proration']>
   isRowFilled?: boolean
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
 
-  const rows = [
-    { label: 'Full period', value: proration.fullPeriod },
-    { label: 'Prorated period', value: proration.period },
-    { label: 'Portion billed', value: proration.portion },
-    { label: 'Rate', value: proration.rate },
-  ]
-
   return (
     <>
+      {/* The first invoice is what gets billed, so the column carries that amount. */}
       <span
         tabIndex={0}
         onMouseEnter={(e) => setAnchor(e.currentTarget.getBoundingClientRect())}
@@ -1285,7 +1277,7 @@ function ProratedTotal({
           isRowFilled ? 'border-white/60' : 'border-brand-mist'
         )}
       >
-        {total}
+        {proration.proratedAmount}
       </span>
       {anchor &&
         createPortal(
@@ -1293,26 +1285,26 @@ function ProratedTotal({
             className="pointer-events-none fixed z-[9999] -translate-x-full"
             style={{ left: anchor.right, top: anchor.bottom + 8 }}
           >
-            <div className="w-[300px] rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-left font-normal shadow-lg">
-              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[-0.2px] text-brand-fog">
-                First charge is prorated
+            <div className="w-[340px] rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-left font-normal shadow-lg">
+              <p className="text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+                First invoice is prorated
               </p>
-              <dl className="space-y-1">
-                {rows.map((row) => (
-                  <div key={row.label} className="flex justify-between gap-3">
-                    <dt className="shrink-0 text-[12px] text-brand-fog">{row.label}</dt>
-                    <dd className="text-right text-[12px] text-brand-navy">{row.value}</dd>
-                  </div>
-                ))}
-                <div className="flex justify-between gap-3 border-t border-neutral-200 pt-1.5">
-                  <dt className="shrink-0 text-[12px] font-medium text-brand-navy">
-                    {proration.formula}
-                  </dt>
-                  <dd className="text-right text-[12px] font-medium text-brand-navy">
-                    {proration.amount}
-                  </dd>
-                </div>
-              </dl>
+              <div className="mt-2 flex items-baseline justify-between gap-4 text-[12px] text-brand-navy">
+                <span>Price for {proration.fullMonths} months</span>
+                <span className="shrink-0 tabular-nums">{proration.fullPrice}</span>
+              </div>
+              <div className="mt-1.5 flex items-baseline justify-between gap-4 text-[12px] text-brand-navy">
+                <span>
+                  Price for {proration.proratedMonths}{' '}
+                  {proration.proratedMonths === 1 ? 'month' : 'months'} ({proration.proratedRange})
+                </span>
+                <span className="shrink-0 tabular-nums">{proration.proratedAmount}</span>
+              </div>
+              <p className="mt-0.5 text-right text-[11px] text-brand-fog">{proration.formula}</p>
+              <p className="mt-2 border-t border-neutral-200 pt-2 text-[12px] text-brand-navy">
+                From next billing cycle ({proration.nextCycleRange}), the price will be{' '}
+                {proration.nextCyclePrice}.
+              </p>
             </div>
           </div>,
           document.body
@@ -4348,11 +4340,7 @@ export function ProductsPricingTable({
                 }}
               />
             ) : item.proration ? (
-              <ProratedTotal
-                total={item.totalPrice}
-                proration={item.proration}
-                isRowFilled={isRowFilled}
-              />
+              <ProratedTotal proration={item.proration} isRowFilled={isRowFilled} />
             ) : (
               item.totalPrice
             )}

@@ -42,12 +42,14 @@ export interface ProductLineItem {
   totalPrice: string
   /** Working shown on hover when the first charge for this line is prorated. */
   proration?: {
-    period: string
-    fullPeriod: string
-    portion: string
-    rate: string
+    fullMonths: number
+    fullPrice: string
+    proratedMonths: number
+    proratedRange: string
+    proratedAmount: string
     formula: string
-    amount: string
+    nextCycleRange: string
+    nextCyclePrice: string
   }
   /** Price change percentage from previous period (e.g., 7 for 7% increase) */
   rampPriceChange?: number
@@ -343,14 +345,16 @@ export const contractProcessing = {
       discount: '15',
       discountUnit: '%',
       discountPeriod: '5 months',
-      totalPrice: '$4,500.00',
+      totalPrice: '$375.00',
       proration: {
-        period: 'Apr 1 – Apr 30, 2027',
-        fullPeriod: '$4,500.00 per year (3 × $1,500.00)',
-        portion: '1 of 12 months in the current billing period',
-        rate: '$375.00 per month',
-        formula: '$4,500.00 ÷ 12 × 1 month',
-        amount: '$375.00',
+        fullMonths: 12,
+        fullPrice: '$4,500.00',
+        proratedMonths: 1,
+        proratedRange: 'Apr 2027',
+        proratedAmount: '$375.00',
+        formula: '$4,500.00 × 1/12',
+        nextCycleRange: 'May 1, 2027 – Apr 30, 2028',
+        nextCyclePrice: '$4,500.00 per year',
       },
     },
   ] as ProductLineItem[],
@@ -501,14 +505,16 @@ export const contractProcessing = {
           discount: '15',
           discountUnit: '%',
           discountPeriod: '5 months',
-          totalPrice: '$4,500.00',
+          totalPrice: '$375.00',
           proration: {
-            period: 'Apr 1 – Apr 30, 2027',
-            fullPeriod: '$4,500.00 per year (3 × $1,500.00)',
-            portion: '1 of 12 months in the current billing period',
-            rate: '$375.00 per month',
-            formula: '$4,500.00 ÷ 12 × 1 month',
-            amount: '$375.00',
+            fullMonths: 12,
+            fullPrice: '$4,500.00',
+            proratedMonths: 1,
+            proratedRange: 'Apr 2027',
+            proratedAmount: '$375.00',
+            formula: '$4,500.00 × 1/12',
+            nextCycleRange: 'May 1, 2027 – Apr 30, 2028',
+            nextCyclePrice: '$4,500.00 per year',
           },
         },
       ] as ProductLineItem[],

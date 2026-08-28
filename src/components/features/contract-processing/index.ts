@@ -5,7 +5,12 @@ export { ContractSummaryHeadline } from './ContractSummaryHeadline'
 export { LabelValueList } from './LabelValueList'
 export { ProductsPricingTable, type ProductsPricingVariant } from './ProductsPricingTable'
 export { AllocationTable } from './AllocationTable'
-export { InvoicePreview, CreditNotePreview } from './InvoicePreview'
+export {
+  InvoicePreview,
+  CreditNotePreview,
+  BillingBreakdownView,
+  type BreakdownView,
+} from './InvoicePreview'
 export { PaymentSchedule } from './PaymentSchedule'
 export { InPageNav, type NavSection } from './InPageNav'
 export { CommentsPanel, SectionCommentStack, type SectionCommentStackProps } from './CommentsPanel'

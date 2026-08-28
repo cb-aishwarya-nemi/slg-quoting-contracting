@@ -1,5 +1,10 @@
+import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
+import { Calendar, Flag, X } from 'lucide-react'
 import { scheduledInvoices, creditNotePreview } from '@/data/contractProcessingMock'
+import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
+import { GradientSparkle } from './GradientSparkle'
 
 const FIRST_INVOICE_ID = 'INV-2026-0042'
 
@@ -12,6 +17,8 @@ interface InvoicePreviewProps {
   isFlashing?: boolean
   invoiceLevelDiscount?: InvoiceLevelDiscount | null
   contractVersion?: 'original' | 'amendment'
+  onViewBreakdown?: () => void
+  hideSectionHeader?: boolean
 }
 
 function parseMoney(value: string): number {
@@ -45,6 +52,8 @@ export function InvoicePreview({
   isFlashing,
   invoiceLevelDiscount,
   contractVersion = 'amendment',
+  onViewBreakdown,
+  hideSectionHeader = false,
 }: InvoicePreviewProps) {
   const originalInvoice = scheduledInvoices[FIRST_INVOICE_ID]
   const amendmentBase = scheduledInvoices['INV-2027-0046']
@@ -70,13 +79,13 @@ export function InvoicePreview({
                   unitPrice: '$125.00',
                   amount: '$375.00',
                   prorated: true,
-                  proratedLabel: 'Apr 1 – Apr 30, 2027 · 1 of 3 months',
+                  proratedLabel: 'Apr 1 – Apr 30, 2027 · 1 of 12 months',
                   proration: {
                     period: 'Apr 1 – Apr 30, 2027',
-                    fullPeriod: '$1,125.00 per quarter (3 sandboxes)',
-                    portion: '1 of 3 months remaining in the current quarter',
+                    fullPeriod: '$4,500.00 per year (3 sandboxes)',
+                    portion: '1 of 12 months',
                     rate: '$125.00 per sandbox per month',
-                    formula: '3 × $125.00 × 1 month = $375.00',
+                    formula: '$4,500.00 × 1/12 = $375.00',
                   },
                 }
               }
@@ -85,7 +94,7 @@ export function InvoicePreview({
           subtotal: '$50,750.00',
           total: '$50,750.00',
           notes:
-            'Upcoming invoice reflecting this amendment. Sandbox environments is new and billed prorated from Apr 1, 2027 through the end of the current quarter.',
+            'Upcoming invoice reflecting this amendment. Sandbox environments is new and billed prorated for Apr 2027; from May 1, 2027 it bills $1,125.00 per quarter.',
         }
   const subtotal = parseMoney(invoice.subtotal)
   const tax = parseMoney(invoice.tax)
@@ -94,27 +103,37 @@ export function InvoicePreview({
 
   return (
     <div className="group/section">
-      {/* Header: Label */}
-      <div className="relative mb-4 flex items-center gap-3">
-        {isFlashing && (
-          <span className="title-sweep-overlay" aria-hidden="true">
-            <span className="title-sweep-band" />
-          </span>
-        )}
+      {!hideSectionHeader && (
+        <div className="relative mb-4 flex items-center gap-3">
+          {isFlashing && (
+            <span className="title-sweep-overlay" aria-hidden="true">
+              <span className="title-sweep-band" />
+            </span>
+          )}
 
-        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          {contractVersion === 'original'
-            ? 'Original invoice preview'
-            : 'Upcoming invoice preview'}
-        </span>
-        <DownstreamRefreshIndicator
-          label={
-            contractVersion === 'original'
+          <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            {contractVersion === 'original'
               ? 'Original invoice preview'
-              : 'Upcoming invoice preview'
-          }
-        />
-      </div>
+              : 'Upcoming invoice preview'}
+          </span>
+          <DownstreamRefreshIndicator
+            label={
+              contractVersion === 'original'
+                ? 'Original invoice preview'
+                : 'Upcoming invoice preview'
+            }
+          />
+          {contractVersion !== 'original' && onViewBreakdown && (
+            <button
+              type="button"
+              onClick={onViewBreakdown}
+              className="ml-auto shrink-0 cursor-pointer text-[12px] font-medium text-blue-700 hover:underline"
+            >
+              View breakdown
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">
         {/* Invoice header */}
@@ -233,7 +252,15 @@ export function InvoicePreview({
   )
 }
 
-export function CreditNotePreview({ isFlashing }: { isFlashing?: boolean }) {
+export function CreditNotePreview({
+  isFlashing,
+  onViewBreakdown,
+  hideSectionHeader = false,
+}: {
+  isFlashing?: boolean
+  onViewBreakdown?: () => void
+  hideSectionHeader?: boolean
+}) {
   const creditNote = creditNotePreview
   const subtotal = parseMoney(creditNote.subtotal)
   const tax = parseMoney(creditNote.tax)
@@ -241,18 +268,29 @@ export function CreditNotePreview({ isFlashing }: { isFlashing?: boolean }) {
 
   return (
     <div className="group/section">
-      <div className="relative mb-4 flex items-center gap-3">
-        {isFlashing && (
-          <span className="title-sweep-overlay" aria-hidden="true">
-            <span className="title-sweep-band" />
-          </span>
-        )}
+      {!hideSectionHeader && (
+        <div className="relative mb-4 flex items-center gap-3">
+          {isFlashing && (
+            <span className="title-sweep-overlay" aria-hidden="true">
+              <span className="title-sweep-band" />
+            </span>
+          )}
 
-        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          Credit note preview
-        </span>
-        <DownstreamRefreshIndicator label="Credit note preview" />
-      </div>
+          <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Credit note preview
+          </span>
+          <DownstreamRefreshIndicator label="Credit note preview" />
+          {onViewBreakdown && (
+            <button
+              type="button"
+              onClick={onViewBreakdown}
+              className="ml-auto shrink-0 cursor-pointer text-[12px] font-medium text-blue-700 hover:underline"
+            >
+              View breakdown
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-xl border border-brand-navy bg-white">
         <div className="flex items-start justify-between px-7 pb-5 pt-6">
@@ -353,6 +391,395 @@ export function CreditNotePreview({ isFlashing }: { isFlashing?: boolean }) {
         </div>
       </div>
     </div>
+  )
+}
+
+export type BreakdownView = 'invoice' | 'credit-note'
+
+/** Apr 1 sits 59 days into the 89-day Feb 1 – Apr 30 cycle. */
+const CHANGE_PERCENT = 66.3
+
+/** Interior dates only — the anchors carry the cycle's own start and end. */
+const CYCLE_TICKS = [
+  { label: 'Feb 15', percent: 15.7 },
+  { label: 'Mar 1', percent: 31.5 },
+  { label: 'Mar 15', percent: 47.2 },
+  { label: 'Apr 15', percent: 82.0 },
+]
+
+const REMAINING_FILL =
+  'linear-gradient(90deg, rgba(255,51,0,0.06) 0%, rgba(139,92,246,0.14) 100%)'
+
+function BillingCycleTimeline() {
+  return (
+    <section className="px-2">
+      <div className="relative">
+        {/* Anchors: cycle start, the change, and the next bill. */}
+        <div className="relative h-[52px]">
+          <div className="absolute left-0 top-0">
+            <Flag size={12} className="text-brand-mist" />
+            <p className="mt-1.5 text-[12px] font-medium text-brand-navy">Cycle Start</p>
+            <p className="mt-0.5 text-[11px] text-brand-fog">Feb 1</p>
+          </div>
+
+          <div
+            className="absolute top-0 -translate-x-1/2 text-center"
+            style={{ left: `${CHANGE_PERCENT}%` }}
+          >
+            <span className="flex justify-center">
+              <GradientSparkle size={12} strokeWidth={2.5} />
+            </span>
+            <p className="mt-1.5 whitespace-nowrap text-[12px] font-semibold text-violet-700">
+              Change Date
+            </p>
+            <p className="mt-0.5 whitespace-nowrap text-[11px] text-violet-600">Apr 1, 2027</p>
+          </div>
+
+          <div className="absolute right-0 top-0 text-right">
+            <Calendar size={12} className="ml-auto text-brand-mist" />
+            <p className="mt-1.5 whitespace-nowrap text-[12px] font-medium text-brand-navy">
+              Next Billing
+            </p>
+            <p className="mt-0.5 text-[11px] text-brand-fog">May 1</p>
+          </div>
+        </div>
+
+        {/* Interior date scale, each label stubbed down onto the bar. */}
+        <div className="relative h-[18px]">
+          {CYCLE_TICKS.map((tick) => (
+            <div
+              key={tick.label}
+              className="absolute top-0 flex -translate-x-1/2 flex-col items-center"
+              style={{ left: `${tick.percent}%` }}
+            >
+              <span className="text-[11px] text-brand-fog">{tick.label}</span>
+              <span className="mt-0.5 h-1.5 w-px bg-neutral-300" aria-hidden />
+            </div>
+          ))}
+          {/* The change date drops its own line onto the split. */}
+          <span
+            aria-hidden
+            className="absolute bottom-0 top-0 w-px -translate-x-1/2 bg-violet-300"
+            style={{ left: `${CHANGE_PERCENT}%` }}
+          />
+        </div>
+
+        {/* Elapsed vs remaining, split at the change date. */}
+        <div className="relative flex h-[26px] overflow-hidden rounded border border-neutral-200">
+          <div
+            className="flex items-center justify-center border-r border-violet-300 bg-neutral-100"
+            style={{ width: `${CHANGE_PERCENT}%` }}
+          >
+            <span className="text-[11px] text-brand-fog">Used · 59d (66%)</span>
+          </div>
+          <div
+            className="flex flex-1 items-center justify-center"
+            style={{ background: REMAINING_FILL }}
+          >
+            <span className="text-[11px] font-medium text-violet-700">
+              Remaining · 30d (34%)
+            </span>
+          </div>
+        </div>
+
+        {/* Ribbon carrying the remaining span down into the prorated cards. */}
+        <div className="relative h-16">
+          <span
+            aria-hidden
+            className="absolute -top-1 z-10 h-2 w-2 -translate-x-1/2 rounded-full border border-violet-500 bg-white"
+            style={{ left: `${CHANGE_PERCENT}%` }}
+          />
+          <svg
+            className="h-16 w-full"
+            viewBox="0 0 1000 64"
+            preserveAspectRatio="none"
+            aria-hidden
+          >
+            <defs>
+              <linearGradient id="breakdown-ribbon" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#ff3300" stopOpacity={0.05} />
+                <stop offset="100%" stopColor="#8b5cf6" stopOpacity={0.13} />
+              </linearGradient>
+            </defs>
+            <path
+              d={`M ${CHANGE_PERCENT * 10} 0 C ${CHANGE_PERCENT * 10} 40, 70 20, 40 64 L 960 64 C 962 26, 1000 30, 1000 0 Z`}
+              fill="url(#breakdown-ribbon)"
+            />
+          </svg>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+interface BreakdownRow {
+  item: string
+  qty: string
+  unitPrice: string
+  period: string
+  periodNote?: string
+  amount: string
+  formula: string
+}
+
+/**
+ * Amount table shared by the invoice and credit note cards, styled like the
+ * comparison section cards: full-bleed rules, snug rows, heavy total rule.
+ */
+function BreakdownTable({
+  tone,
+  periodHeading,
+  rows,
+  netTotal,
+  dateLabel,
+  dateValue,
+}: {
+  tone: 'invoice' | 'credit'
+  periodHeading: string
+  rows: BreakdownRow[]
+  netTotal: string
+  dateLabel: string
+  dateValue: string
+}) {
+  const isInvoice = tone === 'invoice'
+  const amountTone = isInvoice ? 'text-green-700' : 'text-brand-navy'
+  const totalRule = isInvoice ? 'border-brand-navy' : 'border-neutral-300'
+
+  return (
+    <table className="w-full border-collapse text-[13px]">
+      <thead>
+        <tr className="border-b border-neutral-200 text-[10px] uppercase tracking-[-0.25px] text-brand-fog">
+          <th className="py-2 pl-4 pr-3 text-left font-normal">Item</th>
+          <th className="w-px whitespace-nowrap px-3 py-2 text-right font-normal">Qty</th>
+          <th className="w-px whitespace-nowrap px-3 py-2 text-right font-normal">Unit price</th>
+          <th className="w-px whitespace-nowrap px-3 py-2 text-left font-normal">
+            {periodHeading}
+          </th>
+          <th className="w-px whitespace-nowrap py-2 pl-3 pr-4 text-right font-normal">
+            Net amount
+          </th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-neutral-100">
+        {rows.map((row) => (
+          <tr key={row.item}>
+            <td className="py-2.5 pl-4 pr-3 align-top text-brand-navy">{row.item}</td>
+            <td className="whitespace-nowrap px-3 py-2.5 text-right align-top tabular-nums text-brand-fog">
+              {row.qty}
+            </td>
+            <td className="whitespace-nowrap px-3 py-2.5 text-right align-top text-brand-fog">
+              {row.unitPrice}
+              <span>/mo</span>
+            </td>
+            <td className="whitespace-nowrap px-3 py-2.5 align-top text-brand-navy">
+              <span className="block">{row.period}</span>
+              {row.periodNote && (
+                <span className="mt-0.5 block text-[11px] text-brand-fog">{row.periodNote}</span>
+              )}
+            </td>
+            <td
+              className={cn(
+                'whitespace-nowrap py-2.5 pl-3 pr-4 text-right align-top tabular-nums',
+                amountTone
+              )}
+            >
+              <span className="block font-medium">{row.amount}</span>
+              <span className="mt-0.5 block text-[11px] font-normal text-brand-fog">
+                {row.formula}
+              </span>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+      <tfoot>
+        <tr className={cn('border-t', totalRule)}>
+          <td
+            colSpan={4}
+            className="py-3 pl-4 pr-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-navy"
+          >
+            Net total
+          </td>
+          <td
+            className={cn(
+              'whitespace-nowrap py-3 pl-3 pr-4 text-right align-top font-heading text-[16px] font-bold tabular-nums',
+              amountTone
+            )}
+          >
+            <span className="block">{netTotal}</span>
+            <span className="mt-1 block text-[11px] font-normal text-brand-fog">
+              {dateLabel} · {dateValue}
+            </span>
+          </td>
+        </tr>
+      </tfoot>
+    </table>
+  )
+}
+
+function InvoiceAmountBreakdown() {
+  const rows: BreakdownRow[] = [
+    {
+      item: 'Sandbox environments',
+      qty: '3',
+      unitPrice: '$125.00',
+      period: 'Apr 1 – Apr 30, 2027',
+      periodNote: 'months',
+      amount: '$375.00',
+      formula: '3 × $125.00 × 1 month',
+    },
+  ]
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-green-200 bg-green-50/40">
+      <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2">
+        <span className="text-[13px] font-medium text-brand-navy">Invoice amount breakdown</span>
+        <span className="rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-medium text-green-700">
+          INV-2027-0046
+        </span>
+      </div>
+      <BreakdownTable
+        tone="invoice"
+        periodHeading="Active period"
+        rows={rows}
+        netTotal="$375.00"
+        dateLabel="Invoice date"
+        dateValue="May 1, 2027"
+      />
+    </section>
+  )
+}
+
+function CreditNoteAmountBreakdown() {
+  const removedItem = creditNotePreview.lineItems[0]
+  const rows: BreakdownRow[] = [
+    {
+      item: removedItem.name,
+      qty: '1',
+      unitPrice: removedItem.unitPrice,
+      period: 'Apr 1, 2027 – Apr 30, 2029',
+      periodNote: '25 of 36 months',
+      amount: `−${removedItem.amount}`,
+      formula: '$1,500.00 × 25 months',
+    },
+  ]
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-neutral-300 bg-neutral-50/70">
+      <div className="flex items-center justify-between gap-2 border-b border-neutral-200 px-4 py-2">
+        <span className="text-[13px] font-medium text-brand-navy">
+          Credit note amount breakdown
+        </span>
+        <span className="rounded-full bg-neutral-200 px-2 py-0.5 text-[11px] font-medium text-brand-navy">
+          {creditNotePreview.number}
+        </span>
+      </div>
+      <BreakdownTable
+        tone="credit"
+        periodHeading="Unused period"
+        rows={rows}
+        netTotal={`−${creditNotePreview.total}`}
+        dateLabel="Credit note date"
+        dateValue={creditNotePreview.issueDate}
+      />
+    </section>
+  )
+}
+
+export function BillingBreakdownView({
+  view,
+  customerName,
+  onClose,
+}: {
+  view: BreakdownView | null
+  customerName: string
+  onClose: () => void
+}) {
+  useEffect(() => {
+    if (!view) return
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [view, onClose])
+
+  if (!view) return null
+
+  const title = 'Billing change breakdown'
+
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex flex-col bg-white">
+      <header className="flex h-[60px] shrink-0 items-center border-b border-neutral-200 px-12">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1
+              className="font-heading text-[16px] font-semibold text-brand-navy"
+              style={{ letterSpacing: '-0.5px' }}
+            >
+              {title}
+            </h1>
+            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[-0.5px] text-amber-700">
+              Amendment
+            </span>
+          </div>
+          <p className="mt-0.5 text-[12px] text-brand-fog">
+            {customerName} · SO-2026-0153
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={`Close ${title.toLowerCase()}`}
+          title="Close"
+          className="ml-auto flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+      </header>
+
+      <main className="min-h-0 flex-1 overflow-y-auto bg-neutral-50/60">
+        <div className="mx-auto max-w-[1040px] px-12 pb-20 pt-8">
+          <div className="mb-5 flex items-center gap-3">
+            <span className="rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+              What&apos;s changing
+            </span>
+            <p className="text-[13px] text-brand-navy">
+              Amendment effective Apr 1, 2027 — charges and credits are prorated within the
+              current billing cycle.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-neutral-200 bg-white px-8 pb-8 pt-7">
+            <BillingCycleTimeline />
+
+            <div className="mx-[4%] space-y-4">
+              <InvoiceAmountBreakdown />
+              <CreditNoteAmountBreakdown />
+
+              <div className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50/60 px-5 py-3.5">
+                <div>
+                  <p className="text-[11px] uppercase tracking-[-0.25px] text-brand-fog">
+                    Net billing adjustment
+                  </p>
+                  <p className="mt-0.5 text-[12px] text-brand-fog">
+                    $375.00 invoiced less $37,500.00 credited
+                  </p>
+                </div>
+                <p className="font-heading text-[18px] font-semibold text-violet-700">
+                  −$37,125.00
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </main>
+    </div>,
+    document.body
   )
 }
 

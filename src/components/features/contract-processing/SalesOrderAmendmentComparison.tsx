@@ -604,13 +604,28 @@ function SectionCard({
   )
 }
 
-function DeltaColumn({ label, detail }: { label: string; detail?: string }) {
+function DeltaColumn({
+  label,
+  detail,
+  tone,
+}: {
+  label: string
+  detail?: string
+  tone?: 'positive'
+}) {
   return (
     <div className="flex flex-col items-center justify-center gap-1.5 px-3">
       <div className="flex h-7 w-7 items-center justify-center rounded-full border border-neutral-200 bg-white text-brand-fog">
         <ArrowRight size={14} />
       </div>
-      <span className="text-center text-[12px] font-medium text-brand-navy">{label}</span>
+      <span
+        className={cn(
+          'text-center text-[12px] font-medium',
+          tone === 'positive' ? 'text-green-700' : 'text-brand-navy'
+        )}
+      >
+        {label}
+      </span>
       {detail && (
         <span className="text-center text-[11px] leading-snug text-brand-fog">{detail}</span>
       )}
@@ -842,7 +857,7 @@ function ArrKpiCompare({
       }}
     >
       {kpi(ORIGINAL_ARR)}
-      <DeltaColumn label={signedMoney(delta)} />
+      <DeltaColumn label={signedMoney(delta)} tone={delta > 0 ? 'positive' : undefined} />
       {kpi(AMENDED_ARR)}
     </div>
   )
