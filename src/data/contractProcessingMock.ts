@@ -1587,7 +1587,7 @@ export const creditNotePreview: ScheduledInvoice = {
         fullPeriod: '$54,000.00 over 36 months ($18,000.00 / year)',
         portion: '25 of 36 months remaining after Apr 1, 2027',
         rate: '$1,500.00 per month',
-        formula: '$1,500.00 × 25 months = $37,500.00',
+        formula: '$1,500.00 × 25 months',
       },
     },
   ],

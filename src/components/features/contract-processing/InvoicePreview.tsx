@@ -30,6 +30,10 @@ function formatMoney(amount: number): string {
   return amount.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 }
 
+function displayLineName(name: string): string {
+  return name.replace(/\s*\(Year \d+, Q\d+\)\s*$/, '')
+}
+
 function invoiceDiscountLabel(discount: InvoiceLevelDiscount): string {
   const raw = parseFloat(discount.value)
   if (!Number.isFinite(raw) || raw <= 0) return ''
@@ -63,20 +67,33 @@ export function InvoicePreview({
       : {
           ...amendmentBase,
           lineItems: amendmentBase.lineItems
-            .filter((line) => !line.name.startsWith('Implementation services'))
+            .filter(
+              (line) =>
+                line.name.startsWith('Apex platform - growth services') ||
+                line.name.startsWith('Sandbox environments')
+            )
             .map((line) => {
               if (line.name.startsWith('Apex platform - growth services')) {
                 return {
                   ...line,
-                  qty: '75',
+                  qty: '25',
                   unitPrice: '$600.00',
-                  amount: '$45,000.00',
+                  amount: '$15,000.00',
+                  prorated: true,
+                  proratedLabel: 'Apr 1 – Apr 30, 2027 · 25 seats added',
+                  proration: {
+                    period: 'Apr 1 – Apr 30, 2027',
+                    fullPeriod: '',
+                    portion: '',
+                    rate: '',
+                    formula: '25 × $600.00',
+                  },
                 }
               }
               if (line.name.startsWith('Sandbox environments')) {
                 return {
                   ...line,
-                  unitPrice: '$125.00',
+                  unitPrice: '$1,500.00',
                   amount: '$375.00',
                   prorated: true,
                   proratedLabel: 'Apr 1 – Apr 30, 2027 · 1 of 12 months',
@@ -84,17 +101,17 @@ export function InvoicePreview({
                     period: 'Apr 1 – Apr 30, 2027',
                     fullPeriod: '$4,500.00 per year (3 sandboxes)',
                     portion: '1 of 12 months',
-                    rate: '$125.00 per sandbox per month',
-                    formula: '$4,500.00 × 1/12 = $375.00',
+                    rate: '$1,500.00 per sandbox per year',
+                    formula: '$4,500.00 × 1/12',
                   },
                 }
               }
               return line
             }),
-          subtotal: '$50,750.00',
-          total: '$50,750.00',
+          subtotal: '$15,375.00',
+          total: '$15,375.00',
           notes:
-            'Upcoming invoice reflecting this amendment. Sandbox environments is new and billed prorated for Apr 2027; from May 1, 2027 it bills $1,125.00 per quarter.',
+            'First invoice after this amendment. Sandbox environments and Apex platform are billed prorated for the remaining period in the billing cycle.',
         }
   const subtotal = parseMoney(invoice.subtotal)
   const tax = parseMoney(invoice.tax)
@@ -114,13 +131,13 @@ export function InvoicePreview({
           <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
             {contractVersion === 'original'
               ? 'Original invoice preview'
-              : 'Upcoming invoice preview'}
+              : 'First invoice preview'}
           </span>
           <DownstreamRefreshIndicator
             label={
               contractVersion === 'original'
                 ? 'Original invoice preview'
-                : 'Upcoming invoice preview'
+                : 'First invoice preview'
             }
           />
           {contractVersion !== 'original' && onViewBreakdown && (
@@ -193,16 +210,13 @@ export function InvoicePreview({
         {invoice.lineItems.map((line) => (
           <div key={line.name} className="flex items-start border-b border-neutral-100 py-2.5">
             <div className="min-w-0 flex-1">
-              <span className="text-[14px] text-brand-navy">{line.name}</span>
+              <span className="text-[14px] text-brand-navy">{displayLineName(line.name)}</span>
               {(line.prorated || line.proratedLabel) && (
-                <div className="mt-0.5 flex items-center gap-1.5">
-                  {line.proratedLabel && (
-                    <p className="text-[12px] text-brand-fog">{line.proratedLabel}</p>
-                  )}
-                  {line.prorated && (
-                    <span className="shrink-0 text-[12px] text-brand-fog">Prorated</span>
-                  )}
-                </div>
+                <p className="mt-0.5 text-[12px] text-brand-fog">
+                  {line.proratedLabel}
+                  {line.proratedLabel && line.prorated ? ' · ' : ''}
+                  {line.prorated ? 'Prorated' : ''}
+                </p>
               )}
             </div>
             <div className="w-[56px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.qty}</div>
@@ -210,7 +224,14 @@ export function InvoicePreview({
             <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">
               {line.discount ? `(${line.discount})` : '–'}
             </div>
-            <div className="w-[124px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.amount}</div>
+            <div className="w-[124px] shrink-0 pt-0.5 text-right">
+              <span className="block text-[14px] text-brand-navy">{line.amount}</span>
+              {line.proration?.formula && (
+                <span className="mt-0.5 block text-[11px] leading-tight text-brand-fog">
+                  {line.proration.formula}
+                </span>
+              )}
+            </div>
           </div>
         ))}
 
@@ -349,14 +370,11 @@ export function CreditNotePreview({
               <div className="min-w-0 flex-1">
                 <span className="text-[14px] text-brand-navy">{line.name}</span>
                 {(line.prorated || line.proratedLabel) && (
-                  <div className="mt-0.5 flex items-center gap-1.5">
-                    {line.proratedLabel && (
-                      <p className="text-[12px] text-brand-fog">{line.proratedLabel}</p>
-                    )}
-                    {line.prorated && (
-                      <span className="shrink-0 text-[12px] text-brand-fog">Prorated</span>
-                    )}
-                  </div>
+                  <p className="mt-0.5 text-[12px] text-brand-fog">
+                    {line.proratedLabel}
+                    {line.proratedLabel && line.prorated ? ' · ' : ''}
+                    {line.prorated ? 'Prorated' : ''}
+                  </p>
                 )}
               </div>
               <div className="w-[56px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.qty}</div>
@@ -364,7 +382,14 @@ export function CreditNotePreview({
               <div className="w-[110px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">
                 {line.discount ? `(${line.discount})` : '–'}
               </div>
-              <div className="w-[124px] shrink-0 pt-0.5 text-right text-[14px] text-brand-navy">{line.amount}</div>
+              <div className="w-[124px] shrink-0 pt-0.5 text-right">
+                <span className="block text-[14px] text-brand-navy">{line.amount}</span>
+                {line.proration?.formula && (
+                  <span className="mt-0.5 block text-[11px] leading-tight text-brand-fog">
+                    {line.proration.formula}
+                  </span>
+                )}
+              </div>
             </div>
           ))}
 
@@ -516,6 +541,8 @@ interface BreakdownRow {
   item: string
   qty: string
   unitPrice: string
+  /** Cadence the unit price is quoted at, e.g. /yr for a yearly list price. */
+  unitSuffix: string
   period: string
   periodNote?: string
   amount: string
@@ -569,7 +596,7 @@ function BreakdownTable({
             </td>
             <td className="whitespace-nowrap px-3 py-2.5 text-right align-top text-brand-fog">
               {row.unitPrice}
-              <span>/mo</span>
+              <span>{row.unitSuffix}</span>
             </td>
             <td className="whitespace-nowrap px-3 py-2.5 align-top text-brand-navy">
               <span className="block">{row.period}</span>
@@ -621,11 +648,12 @@ function InvoiceAmountBreakdown() {
     {
       item: 'Sandbox environments',
       qty: '3',
-      unitPrice: '$125.00',
+      unitPrice: '$1,500.00',
+      unitSuffix: '/yr',
       period: 'Apr 1 – Apr 30, 2027',
       periodNote: 'months',
       amount: '$375.00',
-      formula: '3 × $125.00 × 1 month',
+      formula: '$4,500.00 × 1/12',
     },
   ]
 
@@ -656,6 +684,7 @@ function CreditNoteAmountBreakdown() {
       item: removedItem.name,
       qty: '1',
       unitPrice: removedItem.unitPrice,
+      unitSuffix: '/mo',
       period: 'Apr 1, 2027 – Apr 30, 2029',
       periodNote: '25 of 36 months',
       amount: `−${removedItem.amount}`,
