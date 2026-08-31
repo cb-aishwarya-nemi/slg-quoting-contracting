@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useMemo,
@@ -12,11 +13,9 @@ import {
   ArrowRight,
   ChevronDown,
   ChevronRight,
-  Columns3,
-  GitCommitVertical,
-  Milestone,
   X,
 } from 'lucide-react'
+import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import type {
   AllocationGroup,
   LabelValue,
@@ -57,6 +56,8 @@ interface CompareCell {
   qty?: string
   unitPrice?: string
   amount: string
+  /** Unit and cadence trailing the amount, kept quiet beside the figure. */
+  amountNote?: string
 }
 
 interface CompareRow {
@@ -77,14 +78,6 @@ interface CompareGroup {
   rangeChanged: boolean
   periodChange?: 'added' | 'removed' | 'dates-changed'
   rows: CompareRow[]
-}
-
-interface CompareSection {
-  id: string
-  title: string
-  groups: CompareGroup[]
-  totalLabel?: string
-  hasAmounts: boolean
 }
 
 const CREDIT_NOTE_TOTAL = '$37,500.00'
@@ -294,8 +287,8 @@ function rowChangeSummary(row: CompareRow): { title: string; detail?: string; fr
     return {
       title: row.name,
       detail: `${qtyNoun} ${verb} from`,
-      from: String(beforeQty),
-      to: String(afterQty),
+      from: row.before.qty,
+      to: row.after.qty,
     }
   }
 
@@ -313,9 +306,11 @@ function rowChangeSummary(row: CompareRow): { title: string; detail?: string; fr
   if (row.before.amount !== row.after.amount) {
     const verb =
       parseMoney(row.after.amount) > parseMoney(row.before.amount) ? 'increased' : 'decreased'
+    // Entitlement rows carry unit counts here rather than money.
+    const noun = row.before.amount.startsWith('$') ? 'Amount' : 'Units'
     return {
       title: row.name,
-      detail: `Amount ${verb} from`,
+      detail: `${noun} ${verb} from`,
       from: row.before.amount,
       to: row.after.amount,
     }
@@ -485,6 +480,11 @@ function SectionCardRow({
         <Highlight side={side} isActive={amountChanged} variant="text" onDark={isHovered}>
           {cell.amount}
         </Highlight>
+        {cell.amountNote && (
+          <span className={cn('ml-1', isHovered ? 'text-white/70' : 'text-brand-fog')}>
+            {cell.amountNote}
+          </span>
+        )}
       </span>
       {tooltip}
     </div>
@@ -700,135 +700,6 @@ function DeltaColumn({
   )
 }
 
-function SectionCompare({ section }: { section: CompareSection }) {
-  const allRows = section.groups.flatMap((group) => group.rows)
-  const periodChanges = section.groups.filter((group) => group.periodChange).length
-  const changedCount = allRows.filter((row) => row.changed).length + periodChanges
-  const [isOpen, setIsOpen] = useState(changedCount > 0)
-  const Chevron = isOpen ? ChevronDown : ChevronRight
-
-  return (
-    <section>
-      <button
-        type="button"
-        onClick={() => setIsOpen((open) => !open)}
-        className="flex cursor-pointer items-center gap-1.5 text-left"
-      >
-        <Chevron size={14} className="shrink-0 text-brand-mist" />
-        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          {section.title}
-        </span>
-        <span className="text-[12px] text-brand-fog">
-          {changedCount > 0
-            ? `${changedCount} ${changedCount === 1 ? 'change' : 'changes'}`
-            : `${allRows.length} ${allRows.length === 1 ? 'field' : 'fields'} · No changes`}
-        </span>
-      </button>
-      {isOpen && (
-        <div className="mt-4 space-y-6">
-          {section.groups.map((group) => (
-            <PeriodCompare
-              key={group.id}
-              group={group}
-              hasAmounts={section.hasAmounts}
-              totalLabel={section.totalLabel}
-            />
-          ))}
-        </div>
-      )}
-    </section>
-  )
-}
-
-function AbsentPeriodCard({ side }: { side: 'before' | 'after' }) {
-  return (
-    <div
-      className={cn(
-        'flex items-center justify-center rounded-xl border border-dashed border-neutral-200 px-4 py-10',
-        side === 'before' && 'bg-neutral-50'
-      )}
-    >
-      <span className="text-[12px] text-brand-mist">
-        {side === 'before' ? 'Period did not exist' : 'Period no longer applies'}
-      </span>
-    </div>
-  )
-}
-
-function PeriodCompare({
-  group,
-  hasAmounts,
-  totalLabel,
-}: {
-  group: CompareGroup
-  hasAmounts: boolean
-  totalLabel?: string
-}) {
-  const changedCount =
-    group.rows.filter((row) => row.changed).length + (group.periodChange ? 1 : 0)
-  const [showUnchanged, setShowUnchanged] = useState(changedCount === 0)
-  const beforeTotal = group.rows.reduce(
-    (sum, row) => (row.before ? sum + parseMoney(row.before.amount) : sum),
-    0
-  )
-  const afterTotal = group.rows.reduce(
-    (sum, row) => (row.after ? sum + parseMoney(row.after.amount) : sum),
-    0
-  )
-
-  const deltaLabel = (() => {
-    if (group.periodChange === 'added') return 'New period'
-    if (group.periodChange === 'removed') return 'Dropped'
-    if (hasAmounts) return signedMoney(afterTotal - beforeTotal)
-    return changedCount > 0 ? `${changedCount} changed` : 'No change'
-  })()
-
-  return (
-    <div>
-      <div className="grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] items-stretch">
-        {group.beforeRange === null && group.label ? (
-          <AbsentPeriodCard side="before" />
-        ) : (
-          <SectionCard
-            rows={group.rows}
-            hasAmounts={hasAmounts}
-            totalLabel={totalLabel}
-            side="before"
-            showUnchanged={showUnchanged}
-            onToggleUnchanged={() => setShowUnchanged((open) => !open)}
-            title={group.label}
-            range={group.beforeRange}
-            rangeChanged={group.rangeChanged}
-          />
-        )}
-        <DeltaColumn
-          label={deltaLabel}
-          detail={
-            changedCount > 0
-              ? `${changedCount} ${changedCount === 1 ? 'change' : 'changes'}`
-              : undefined
-          }
-        />
-        {group.afterRange === null && group.label ? (
-          <AbsentPeriodCard side="after" />
-        ) : (
-          <SectionCard
-            rows={group.rows}
-            hasAmounts={hasAmounts}
-            totalLabel={totalLabel}
-            side="after"
-            showUnchanged={showUnchanged}
-            onToggleUnchanged={() => setShowUnchanged((open) => !open)}
-            title={group.label}
-            range={group.afterRange}
-            rangeChanged={group.rangeChanged}
-          />
-        )}
-      </div>
-    </div>
-  )
-}
-
 function comparisonRowsFromItems(items: ProductLineItem[]): ComparisonRow[] {
   return [...items]
     .sort((a, b) => changeRank(a) - changeRank(b) || badgeRank(a) - badgeRank(b))
@@ -866,34 +737,6 @@ function toCompareRows(rows: ComparisonRow[]): CompareRow[] {
   }))
 }
 
-function labelValueSection(
-  id: string,
-  title: string,
-  values: LabelValue[]
-): CompareSection {
-  return {
-    id,
-    title,
-    hasAmounts: false,
-    groups: [
-      {
-        id: `${id}-fields`,
-        beforeRange: null,
-        afterRange: null,
-        rangeChanged: false,
-        rows: values.map((value) => ({
-          id: `${id}-${value.label}`,
-          name: value.label,
-          before: { amount: value.value },
-          after: { amount: value.value },
-          changed: false,
-        })),
-      },
-    ],
-  }
-}
-
-/** ARR reads as a KPI on each side of the same grid the section cards use. */
 function ArrKpiCompare({
   middleWidth = 148,
   columnGap = 0,
@@ -903,10 +746,13 @@ function ArrKpiCompare({
 }) {
   const delta = parseMoney(AMENDED_ARR) - parseMoney(ORIGINAL_ARR)
 
-  const kpi = (value: string) => (
+  const kpi = (value: string, side: 'before' | 'after') => (
     <div className="text-center">
       <div
-        className="font-heading text-[36px] font-bold leading-tight text-brand-navy"
+        className={cn(
+          'font-heading text-[36px] font-bold leading-tight',
+          side === 'before' ? 'text-red-700' : 'text-green-700'
+        )}
         style={{ letterSpacing: '-1px' }}
       >
         {value}
@@ -923,9 +769,9 @@ function ArrKpiCompare({
         columnGap,
       }}
     >
-      {kpi(ORIGINAL_ARR)}
+      {kpi(ORIGINAL_ARR, 'before')}
       <DeltaColumn label={signedMoney(delta)} tone={delta > 0 ? 'positive' : undefined} />
-      {kpi(AMENDED_ARR)}
+      {kpi(AMENDED_ARR, 'after')}
     </div>
   )
 }
@@ -982,68 +828,84 @@ function periodGroup(period: RampPeriod): CompareGroup {
   }
 }
 
-function productsSection(
-  items: ProductLineItem[],
-  periods: RampPeriod[] | undefined
-): CompareSection {
-  return {
-    id: 'products',
-    title: 'Products and pricing',
-    hasAmounts: true,
-    totalLabel: 'Total',
-    groups:
-      periods && periods.length > 0
-        ? periods.map(periodGroup)
-        : [
-            {
-              id: 'products-all',
-              beforeRange: null,
-              afterRange: null,
-              rangeChanged: false,
-              rows: toCompareRows(comparisonRowsFromItems(items)),
-            },
-          ],
-  }
+/**
+ * Unit wording per feature, and the volumes each ramp period grants. Period 1
+ * matches the entitlements table; later periods step up on both orders.
+ */
+const ENTITLEMENT_STEPS: Record<
+  string,
+  { unit: string; before: string[]; after: string[] }
+> = {
+  'API calls': {
+    unit: 'API calls',
+    before: ['25,000', '30,000'],
+    after: ['30,000', '45,000', '60,000'],
+  },
+  Tokens: {
+    unit: 'credits',
+    before: ['20,000', '24,000'],
+    after: ['20,000', '30,000', '36,000'],
+  },
+  'Sandbox environments': {
+    unit: 'env',
+    before: [],
+    after: ['03', '05', '06'],
+  },
+  'Premium support seats': {
+    unit: 'seats',
+    before: ['10', '12'],
+    after: ['10', '15', '20'],
+  },
 }
 
-function allocationRows(
+/** Units read as the entitlements table writes them: the count, then its cadence. */
+function entitlementCell(
+  allocation: AllocationGroup,
+  side: 'before' | 'after',
+  periodIndex: number
+): CompareCell {
+  const steps = ENTITLEMENT_STEPS[allocation.feature]
+  const noun = steps?.unit ?? (allocation.kind === 'usage' ? 'credits' : 'units')
+  const volumes = steps?.[side] ?? []
+  const units = volumes[periodIndex] ?? volumes[volumes.length - 1] ?? allocation.units
+  const frequencies = new Set(allocation.sources.map((source) => source.frequency))
+  const cadence = frequencies.size === 1 && frequencies.has('Monthly') ? 'month' : 'year'
+  return { amount: units, amountNote: `${noun} / ${cadence}` }
+}
+
+/** Products chrome for the period, filled with the entitlements it grants. */
+function entitlementGroup(
+  period: RampPeriod,
+  periodIndex: number,
   beforeAllocations: AllocationGroup[],
   afterAllocations: AllocationGroup[]
-): CompareRow[] {
-  const beforeById = new Map(beforeAllocations.map((allocation) => [allocation.id, allocation]))
-  const afterById = new Map(afterAllocations.map((allocation) => [allocation.id, allocation]))
-  const orderedIds = [
-    ...afterAllocations.map((allocation) => allocation.id),
-    ...beforeAllocations
-      .filter((allocation) => !afterById.has(allocation.id))
-      .map((allocation) => allocation.id),
+): CompareGroup {
+  const change = period.periodChange
+  const beforeById = new Map(beforeAllocations.map((entry) => [entry.id, entry]))
+  const afterById = new Map(afterAllocations.map((entry) => [entry.id, entry]))
+  const ids = [
+    ...afterAllocations.map((entry) => entry.id),
+    ...beforeAllocations.filter((entry) => !afterById.has(entry.id)).map((entry) => entry.id),
   ]
 
-  const toCell = (allocation: AllocationGroup): CompareCell => ({
-    qty: allocation.units,
-    unitPrice: allocation.kind === 'usage' ? 'credit' : 'entitlement',
-    amount: `${allocation.sources.length} ${allocation.sources.length === 1 ? 'item' : 'items'}`,
-  })
+  const rows: CompareRow[] = ids.map((id) => {
+    const before = change === 'added' ? undefined : beforeById.get(id)
+    const after = change === 'removed' ? undefined : afterById.get(id)
 
-  return orderedIds.map((id) => {
-    const before = beforeById.get(id)
-    const after = afterById.get(id)
-    const changed =
-      !before ||
-      !after ||
-      before.units !== after.units ||
-      before.kind !== after.kind ||
-      JSON.stringify(before.sources) !== JSON.stringify(after.sources)
+    const beforeCell = before ? entitlementCell(before, 'before', periodIndex) : null
+    const afterCell = after ? entitlementCell(after, 'after', periodIndex) : null
 
     return {
-      id: `allocation-${id}`,
+      id: `${period.id}-${id}`,
       name: after?.feature ?? before?.feature ?? id,
-      before: before ? toCell(before) : null,
-      after: after ? toCell(after) : null,
-      changed,
-      change: !before ? 'added' : !after ? 'removed' : undefined,
+      before: beforeCell,
+      after: afterCell,
+      changed: !beforeCell || !afterCell || beforeCell.amount !== afterCell.amount,
+      change: !beforeCell ? 'added' : !afterCell ? 'removed' : undefined,
     }
   })
+
+  return { ...periodGroup(period), rows }
 }
 
 const TIMELINE_MONTHS = 36
@@ -1666,22 +1528,18 @@ function TimelinePeriodChip({
   side,
   isOpen,
   onToggle,
+  showTotal = true,
 }: {
   group: CompareGroup
   side: 'before' | 'after'
   isOpen: boolean
   onToggle: () => void
+  showTotal?: boolean
 }) {
   const total = sideTotal(group, side)
-  const counterTotal = sideTotal(group, side === 'before' ? 'after' : 'before')
   const range = side === 'before' ? group.beforeRange : group.afterRange
   const Chevron = isOpen ? ChevronDown : ChevronRight
-
-  const note = (() => {
-    if (side === 'before') return undefined
-    if (group.periodChange === 'added') return 'New period'
-    return total !== counterTotal ? signedMoney(total - counterTotal) : undefined
-  })()
+  const note = side === 'after' && group.periodChange === 'added' ? 'New period' : undefined
 
   return (
     <button
@@ -1707,7 +1565,7 @@ function TimelinePeriodChip({
           <DatePills range={range} side={side} rangeChanged={group.rangeChanged} />
         </span>
       )}
-      {!isOpen && (
+      {!isOpen && showTotal && (
         <span
           className={cn(
             'shrink-0 text-[13px] text-brand-navy',
@@ -1727,11 +1585,13 @@ function TimelinePeriodCard({
   side,
   showHeader = true,
   nested,
+  showTotal = true,
 }: {
   group: CompareGroup
   side: 'before' | 'after'
   showHeader?: boolean
   nested?: boolean
+  showTotal?: boolean
 }) {
   const changedCount = group.rows.filter((row) => row.changed).length
   const [showUnchanged, setShowUnchanged] = useState(changedCount === 0)
@@ -1739,8 +1599,8 @@ function TimelinePeriodCard({
   return (
     <SectionCard
       rows={group.rows}
-      hasAmounts
-      totalLabel="Total"
+      hasAmounts={showTotal}
+      totalLabel={showTotal ? 'Total' : undefined}
       side={side}
       showUnchanged={showUnchanged}
       onToggleUnchanged={() => setShowUnchanged((open) => !open)}
@@ -1764,19 +1624,12 @@ const CHIP_HEIGHT = 57
  * Ribbon tying the period's stretch of the axis to its card: the period's span
  * at the line, the card's full height where it lands.
  */
-function ChipConnector({
-  side,
-  span,
-  landing,
-  offset,
-}: {
-  side: 'before' | 'after'
-  span: number
-  /** Height of the whole card — header and table — the ribbon has to meet flush. */
-  landing: number
-  /** How far the card is pushed down to sit centred on the period. */
+function ribbonGeometry(
+  side: 'before' | 'after',
+  span: number,
+  landing: number,
   offset: number
-}) {
+): { width: number; height: number; path: string } {
   const isBefore = side === 'before'
   const taper = CONNECTOR_WIDTH
   const w = taper + CONNECTOR_OVERLAP
@@ -1788,41 +1641,128 @@ function ChipConnector({
   const c2 = isBefore ? edgeX + taper * 0.45 : taper * 0.55
   const cardTop = offset
   const cardBottom = offset + landing
-  const height = Math.max(span, cardBottom)
 
   // Both edges sweep from the period's stretch of the axis onto the card, so the
   // ribbon funnels whichever way the card's height compares to its span.
-  const ribbon = [
-    `M ${axisX} 0`,
-    `C ${c1} 0, ${c2} ${cardTop}, ${edgeX} ${cardTop}`,
-    `L ${tuckX} ${cardTop}`,
-    `L ${tuckX} ${cardBottom}`,
-    `L ${edgeX} ${cardBottom}`,
-    `C ${c2} ${cardBottom}, ${c1} ${span}, ${axisX} ${span}`,
-    'Z',
-  ].join(' ')
+  return {
+    width: w,
+    height: Math.max(span, cardBottom),
+    path: [
+      `M ${axisX} 0`,
+      `C ${c1} 0, ${c2} ${cardTop}, ${edgeX} ${cardTop}`,
+      `L ${tuckX} ${cardTop}`,
+      `L ${tuckX} ${cardBottom}`,
+      `L ${edgeX} ${cardBottom}`,
+      `C ${c2} ${cardBottom}, ${c1} ${span}, ${axisX} ${span}`,
+      'Z',
+    ].join(' '),
+  }
+}
+
+function ChipConnector({
+  side,
+  span,
+  landing,
+  offset,
+  svgRef,
+  pathRef,
+}: {
+  side: 'before' | 'after'
+  span: number
+  /** Height of the whole card — header and table — the ribbon has to meet flush. */
+  landing: number
+  /** How far the card is pushed down to sit centred on the period. */
+  offset: number
+  /** Held so the card can redraw the ribbon frame by frame as it turns. */
+  svgRef: React.RefObject<SVGSVGElement | null>
+  pathRef: React.RefObject<SVGPathElement | null>
+}) {
+  const isBefore = side === 'before'
+  const { width, height, path } = ribbonGeometry(side, span, landing, offset)
 
   return (
     <svg
+      ref={svgRef}
       aria-hidden
-      width={w}
+      width={width}
       height={height}
-      viewBox={`0 0 ${w} ${height}`}
+      viewBox={`0 0 ${width} ${height}`}
       preserveAspectRatio="none"
       className={cn(
         'pointer-events-none absolute top-0',
         isBefore ? 'text-neutral-200' : 'text-green-200'
       )}
-      style={{ [isBefore ? 'right' : 'left']: -taper }}
+      style={{ [isBefore ? 'right' : 'left']: -CONNECTOR_WIDTH }}
     >
-      <path d={ribbon} fill="currentColor" fillOpacity={0.22} />
+      <path ref={pathRef} d={path} fill="currentColor" fillOpacity={0.22} />
     </svg>
+  )
+}
+
+/** How long a card takes to turn from products to entitlements and back. */
+const FLIP_MS = 620
+/** Each period starts its turn a beat after the one above it. */
+const FLIP_STAGGER_MS = 70
+/** Settling time when a card only changes height, such as opening its table. */
+const RESIZE_MS = 220
+
+/** One face of a period card: the chip, plus its table when expanded. */
+function PeriodCardFace({
+  group,
+  side,
+  isOpen,
+  onToggle,
+  showTotal,
+}: {
+  group: CompareGroup
+  side: 'before' | 'after'
+  isOpen: boolean
+  onToggle: () => void
+  showTotal: boolean
+}) {
+  return (
+    <div
+      className={cn(
+        'overflow-hidden rounded-xl border',
+        side === 'before'
+          ? 'border-neutral-200 bg-neutral-50'
+          : 'border-brand-navy bg-white',
+        isOpen && 'shadow-xl'
+      )}
+    >
+      <TimelinePeriodChip
+        group={group}
+        side={side}
+        isOpen={isOpen}
+        onToggle={onToggle}
+        showTotal={showTotal}
+      />
+      {isOpen && (
+        <div
+          className={cn(
+            'border-t',
+            side === 'before' ? 'border-neutral-200' : 'border-brand-navy'
+          )}
+        >
+          <TimelinePeriodCard
+            group={group}
+            side={side}
+            showHeader={false}
+            nested
+            showTotal={showTotal}
+          />
+        </div>
+      )}
+    </div>
   )
 }
 
 /** Chip pinned to the period start, with the full table revealed on demand. */
 function TimelinePeriodSlot({
   group,
+  backGroup,
+  flipped = false,
+  flipDelay = 0,
   side,
   top,
   span,
@@ -1832,6 +1772,10 @@ function TimelinePeriodSlot({
   onRaise,
 }: {
   group: CompareGroup
+  /** Entitlements for the same period, printed on the reverse of the card. */
+  backGroup?: CompareGroup
+  flipped?: boolean
+  flipDelay?: number
   side: 'before' | 'after'
   top: number
   span: number
@@ -1840,54 +1784,160 @@ function TimelinePeriodSlot({
   onToggle: () => void
   onRaise: () => void
 }) {
-  // The card grows and shrinks as its table opens, and the ribbon has to meet
-  // the whole of it, so measure rather than assume.
-  const cardRef = useRef<HTMLDivElement>(null)
-  const [landing, setLanding] = useState(CHIP_HEIGHT)
+  // Each face carries its own table, so the card has two heights to sit at.
+  const frontRef = useRef<HTMLDivElement>(null)
+  const backRef = useRef<HTMLDivElement>(null)
+  const stageRef = useRef<HTMLDivElement>(null)
+  const liftRef = useRef<HTMLDivElement>(null)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const pathRef = useRef<SVGPathElement>(null)
+  const [faceHeights, setFaceHeights] = useState({ front: CHIP_HEIGHT, back: CHIP_HEIGHT })
 
-  useEffect(() => {
-    const node = cardRef.current
-    if (!node) return
-    const measure = () => setLanding(node.getBoundingClientRect().height)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(node)
-    return () => observer.disconnect()
-  }, [])
-
+  const target = flipped && backGroup ? 'back' : 'front'
+  const targetAngle = target === 'back' ? 180 : 0
+  const targetLanding = target === 'back' ? faceHeights.back : faceHeights.front
   // A card shorter than its period rides the middle of it, so the ribbon tapers
   // evenly from both ends rather than hanging off the period's start.
-  const offset = Math.max(0, (span - landing) / 2)
+  const targetOffset = Math.max(0, (span - targetLanding) / 2)
+
+  const angleRef = useRef(targetAngle)
+  const landingRef = useRef(targetLanding)
+  const settledRef = useRef(false)
+
+  /**
+   * Turn, resize, recentre and redraw the ribbon together. Driving all four
+   * from one frame keeps the ribbon welded to the card edge through the turn.
+   */
+  const paint = useCallback(
+    (angle: number, landing: number) => {
+      angleRef.current = angle
+      landingRef.current = landing
+      const offset = Math.max(0, (span - landing) / 2)
+
+      if (stageRef.current) {
+        stageRef.current.style.height = `${landing}px`
+        stageRef.current.style.transform = `rotateY(${angle}deg)`
+      }
+      if (liftRef.current) liftRef.current.style.marginTop = `${offset}px`
+
+      const ribbon = ribbonGeometry(side, span, landing, offset)
+      if (svgRef.current) {
+        svgRef.current.setAttribute('height', String(ribbon.height))
+        svgRef.current.setAttribute('viewBox', `0 0 ${ribbon.width} ${ribbon.height}`)
+      }
+      pathRef.current?.setAttribute('d', ribbon.path)
+    },
+    [side, span]
+  )
+
+  useEffect(() => {
+    // Layout height, not the bounding box: mid-turn the box is foreshortened.
+    const measure = () =>
+      setFaceHeights({
+        front: frontRef.current?.offsetHeight ?? CHIP_HEIGHT,
+        back: backRef.current?.offsetHeight ?? CHIP_HEIGHT,
+      })
+    measure()
+    const observer = new ResizeObserver(measure)
+    if (frontRef.current) observer.observe(frontRef.current)
+    if (backRef.current) observer.observe(backRef.current)
+    return () => observer.disconnect()
+  }, [Boolean(backGroup)])
+
+  useEffect(() => {
+    const fromAngle = angleRef.current
+    const fromLanding = landingRef.current
+    if (fromAngle === targetAngle && fromLanding === targetLanding) return
+
+    const turning = fromAngle !== targetAngle
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // The first measured height is the card taking its shape, not a change.
+    if (!settledRef.current || reduced) {
+      settledRef.current = true
+      paint(targetAngle, targetLanding)
+      return
+    }
+
+    const duration = turning ? FLIP_MS : RESIZE_MS
+    const startAt = performance.now() + (turning ? flipDelay : 0)
+    let frame = 0
+    const step = (now: number) => {
+      const elapsed = (now - startAt) / duration
+      const progress = elapsed < 0 ? 0 : elapsed > 1 ? 1 : elapsed
+      const eased = 1 - Math.pow(1 - progress, 5)
+      paint(
+        fromAngle + (targetAngle - fromAngle) * eased,
+        fromLanding + (targetLanding - fromLanding) * eased
+      )
+      if (progress < 1) frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+  }, [targetAngle, targetLanding, flipDelay, paint])
 
   return (
-    <div className="absolute inset-x-0" style={{ top }} onMouseDown={onRaise}>
+    <div
+      className="absolute inset-x-0"
+      style={{ top, perspective: 1600 }}
+      onMouseDown={onRaise}
+    >
       {/* Left unstacked so the ribbon stays beneath the axis and its markers. */}
-      <ChipConnector side={side} span={span} landing={landing} offset={offset} />
+      <ChipConnector
+        side={side}
+        span={span}
+        landing={targetLanding}
+        offset={targetOffset}
+        svgRef={svgRef}
+        pathRef={pathRef}
+      />
       {/* Above the ribbon, so its tucked-in edge hides behind the card. */}
       <div
-        ref={cardRef}
-        className={cn(
-          'relative overflow-hidden rounded-xl border',
-          side === 'before'
-            ? 'border-neutral-200 bg-neutral-50'
-            : 'border-brand-navy bg-white',
-          isOpen && 'shadow-xl'
-        )}
+        ref={liftRef}
         // Whichever period you touch last stacks above the ones below it, so a
         // table that grows past its span stays readable.
-        style={{ marginTop: offset, zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
+        style={{ marginTop: targetOffset, zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
       >
-        <TimelinePeriodChip group={group} side={side} isOpen={isOpen} onToggle={onToggle} />
-        {isOpen && (
+        <div
+          ref={stageRef}
+          className="relative"
+          style={{
+            height: targetLanding,
+            transformStyle: 'preserve-3d',
+            transform: `rotateY(${targetAngle}deg)`,
+          }}
+        >
           <div
-            className={cn(
-              'border-t',
-              side === 'before' ? 'border-neutral-200' : 'border-brand-navy'
-            )}
+            ref={frontRef}
+            className="absolute inset-x-0 top-0"
+            style={{ backfaceVisibility: 'hidden' }}
+            aria-hidden={target === 'back'}
           >
-            <TimelinePeriodCard group={group} side={side} showHeader={false} nested />
+            <PeriodCardFace
+              group={group}
+              side={side}
+              isOpen={isOpen}
+              onToggle={onToggle}
+              showTotal
+            />
           </div>
-        )}
+
+          {backGroup && (
+            <div
+              ref={backRef}
+              className="absolute inset-x-0 top-0"
+              style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+              aria-hidden={target === 'front'}
+            >
+              <PeriodCardFace
+                group={backGroup}
+                side={side}
+                isOpen={isOpen}
+                onToggle={onToggle}
+                showTotal={false}
+              />
+            </div>
+          )}
+        </div>
       </div>
     </div>
   )
@@ -1945,12 +1995,16 @@ function CompareSidePill({ side }: { side: 'before' | 'after' }) {
 function TimeAxisView({
   rows,
   periods,
-  variant,
+  groupForPeriod = periodGroup,
+  backGroupForPeriod,
+  flipped = false,
 }: {
   rows: ComparisonRow[]
   periods?: RampPeriod[]
-  /** `cards` drops the full table on the axis, `chips` reveals it on demand. */
-  variant: 'cards' | 'chips'
+  groupForPeriod?: (period: RampPeriod, index: number) => CompareGroup
+  /** Reverse of each card, turned face up when the Entitlements tab is active. */
+  backGroupForPeriod?: (period: RampPeriod, index: number) => CompareGroup
+  flipped?: boolean
 }) {
   const beforeProducts = rows
     .map((row) => row.before)
@@ -1962,29 +2016,35 @@ function TimeAxisView({
   // Milestones charts Before from the signed contract: Period 1 ran from v1,
   // and the amendment is what moved its boundaries.
   const chartPeriods = (periods ?? []).map((period, index) =>
-    variant === 'chips' && index === 0
+    index === 0
       ? { ...period, previousStartDate: period.previousStartDate ?? CONTRACT_START }
       : period
   )
 
   const beforePeriodCards = chartPeriods
-    .filter((period) => period.periodChange !== 'added')
-    .map((period) => {
+    .map((period, index) => ({ period, index }))
+    .filter(({ period }) => period.periodChange !== 'added')
+    .map(({ period, index }) => {
       const top = axisOffset(period.previousStartDate ?? period.startDate)
       return {
         id: period.id,
-        group: periodGroup(period),
+        group: groupForPeriod(period, index),
+        backGroup: backGroupForPeriod?.(period, index),
+        order: index,
         top,
         span: axisOffset(period.previousEndDate ?? period.endDate) - top,
       }
     })
   const afterPeriodCards = chartPeriods
-    .filter((period) => period.periodChange !== 'removed')
-    .map((period) => {
+    .map((period, index) => ({ period, index }))
+    .filter(({ period }) => period.periodChange !== 'removed')
+    .map(({ period, index }) => {
       const top = axisOffset(period.startDate)
       return {
         id: period.id,
-        group: periodGroup(period),
+        group: groupForPeriod(period, index),
+        backGroup: backGroupForPeriod?.(period, index),
+        order: index,
         top,
         span: axisOffset(period.endDate) - top,
       }
@@ -2043,19 +2103,28 @@ function TimeAxisView({
   )
   const fullTrack = TIMELINE_MONTHS * MONTH_HEIGHT
   const trackHeight =
-    variant === 'chips' && lastPeriodEnd > 0
+    lastPeriodEnd > 0
       ? Math.min(fullTrack, lastPeriodEnd + MONTH_HEIGHT / 2)
       : fullTrack
   const axisHeight = trackHeight + 80
 
   const renderPeriod = (
     side: 'before' | 'after',
-    period: { id: string; group: CompareGroup; top: number; span: number }
-  ) =>
-    variant === 'chips' ? (
+    period: {
+      id: string
+      group: CompareGroup
+      backGroup?: CompareGroup
+      order: number
+      top: number
+      span: number
+    }
+  ) => (
       <TimelinePeriodSlot
         key={period.id}
         group={period.group}
+        backGroup={period.backGroup}
+        flipped={flipped}
+        flipDelay={period.order * FLIP_STAGGER_MS}
         side={side}
         top={period.top}
         span={period.span}
@@ -2064,35 +2133,25 @@ function TimeAxisView({
         onToggle={() => togglePeriod(side, period.id)}
         onRaise={() => raisePeriod(side, period.id)}
       />
-    ) : (
-      <div key={period.id} className="absolute inset-x-0" style={{ top: period.top }}>
-        <TimelinePeriodCard group={period.group} side={side} />
-      </div>
     )
 
   return (
     <div className="mx-auto max-w-[1240px] px-8 pb-20">
       <div
-        className={cn(
-          'z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pt-6',
-          // Milestones scrolls the header away; Timeline keeps it in view.
-          variant === 'chips' ? 'pb-4' : 'sticky top-0'
-        )}
+        className="grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pt-6 pb-4"
       >
         <div className="text-center">
           <CompareSidePill side="before" />
-          {variant === 'chips' && <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>}
+          <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
         </div>
         <div />
         <div className="text-center">
           <CompareSidePill side="after" />
-          {variant === 'chips' && (
-            <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
-          )}
+          <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
         </div>
       </div>
 
-      {variant === 'chips' && <ArrKpiCompare middleWidth={220} columnGap={24} />}
+      <ArrKpiCompare middleWidth={220} columnGap={24} />
 
       <div
         className="relative mt-4 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6"
@@ -2125,7 +2184,7 @@ function TimeAxisView({
 
         <VerticalContractAxis
           height={axisHeight}
-          banded={variant === 'chips'}
+          banded
           beforeMarks={periodMarks('before')}
           afterMarks={periodMarks('after')}
           trackHeight={trackHeight}
@@ -2160,186 +2219,12 @@ function TimeAxisView({
   )
 }
 
-function EntitlementsMilestoneView({
-  beforeAllocations,
-  afterAllocations,
-}: {
-  beforeAllocations: AllocationGroup[]
-  afterAllocations: AllocationGroup[]
-}) {
-  const rows = useMemo(
-    () => allocationRows(beforeAllocations, afterAllocations),
-    [beforeAllocations, afterAllocations]
-  )
-  const [showUnchanged, setShowUnchanged] = useState(false)
-  const amendmentTop = axisOffset(AMENDMENT_DATE)
-  const trackHeight = amendmentTop + MONTH_HEIGHT * 2
-  const axisHeight = trackHeight + 80
-  const amendmentMark: AxisMark = {
-    id: 'entitlements-amendment',
-    top: amendmentTop,
-    title: 'Entitlements updated',
-    detail: 'Changes become active',
-    dateLabel: 'Apr 1, 2027',
-  }
-  const countKpi = (count: number) => (
-    <div className="text-center">
-      <div
-        className="font-heading text-[36px] font-bold leading-tight text-brand-navy"
-        style={{ letterSpacing: '-1px' }}
-      >
-        {count}
-      </div>
-      <div className="mt-1 text-[13px] text-brand-navy">Entitlements</div>
-    </div>
-  )
-
-  return (
-    <div className="mx-auto max-w-[1240px] px-8 pb-20">
-      <div className="sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pb-4 pt-6">
-        <div className="text-center">
-          <CompareSidePill side="before" />
-          <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
-        </div>
-        <div />
-        <div className="text-center">
-          <CompareSidePill side="after" />
-          <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] items-center gap-6 pb-10">
-        {countKpi(beforeAllocations.length)}
-        <DeltaColumn
-          label={`${afterAllocations.length - beforeAllocations.length >= 0 ? '+' : ''}${afterAllocations.length - beforeAllocations.length}`}
-          tone={afterAllocations.length > beforeAllocations.length ? 'positive' : undefined}
-        />
-        {countKpi(afterAllocations.length)}
-      </div>
-
-      <div
-        className="relative mt-4 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6"
-        style={{ minHeight: axisHeight }}
-      >
-        <div className="relative">
-          <div className="absolute inset-x-0" style={{ top: amendmentTop }}>
-            <SectionCard
-              rows={rows}
-              hasAmounts={false}
-              side="before"
-              showUnchanged={showUnchanged}
-              onToggleUnchanged={() => setShowUnchanged((open) => !open)}
-              title="Entitlements and credits"
-            />
-          </div>
-        </div>
-
-        <VerticalContractAxis
-          height={axisHeight}
-          banded
-          beforeMarks={[amendmentMark]}
-          afterMarks={[amendmentMark]}
-          trackHeight={trackHeight}
-        />
-
-        <div className="relative">
-          <div className="absolute inset-x-0" style={{ top: amendmentTop }}>
-            <SectionCard
-              rows={rows}
-              hasAmounts={false}
-              side="after"
-              showUnchanged={showUnchanged}
-              onToggleUnchanged={() => setShowUnchanged((open) => !open)}
-              title="Entitlements and credits"
-            />
-          </div>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-type ComparisonView = 'rows' | 'timeline' | 'milestones'
 type MilestoneContent = 'products' | 'entitlements'
 
-function MilestoneContentToggle({
-  value,
-  onChange,
-}: {
-  value: MilestoneContent
-  onChange: (next: MilestoneContent) => void
-}) {
-  const options = [
-    { id: 'products' as const, label: 'Products and pricing' },
-    { id: 'entitlements' as const, label: 'Entitlements' },
-  ]
-
-  return (
-    <div
-      className="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-0.5"
-      aria-label="Milestone comparison content"
-    >
-      {options.map((option) => {
-        const isActive = value === option.id
-        return (
-          <button
-            key={option.id}
-            type="button"
-            aria-pressed={isActive}
-            onClick={() => onChange(option.id)}
-            className={cn(
-              'cursor-pointer rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors',
-              isActive
-                ? 'bg-white text-brand-navy shadow-sm'
-                : 'text-brand-fog hover:text-brand-navy'
-            )}
-          >
-            {option.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
-
-function ViewToggle({
-  view,
-  onChange,
-}: {
-  view: ComparisonView
-  onChange: (next: ComparisonView) => void
-}) {
-  const options = [
-    { id: 'rows' as const, label: 'Rows', icon: Columns3 },
-    { id: 'timeline' as const, label: 'Timeline', icon: GitCommitVertical },
-    { id: 'milestones' as const, label: 'Milestones', icon: Milestone },
-  ]
-
-  return (
-    <div className="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-0.5">
-      {options.map((option) => {
-        const Icon = option.icon
-        const isActive = view === option.id
-        return (
-          <button
-            key={option.id}
-            type="button"
-            onClick={() => onChange(option.id)}
-            className={cn(
-              'flex cursor-pointer items-center gap-1.5 rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors',
-              isActive
-                ? 'bg-white text-brand-navy shadow-sm'
-                : 'text-brand-fog hover:text-brand-navy'
-            )}
-          >
-            <Icon size={14} />
-            {option.label}
-          </button>
-        )
-      })}
-    </div>
-  )
-}
+const MILESTONE_TABS: TabItem[] = [
+  { id: 'products', label: 'Products and pricing' },
+  { id: 'entitlements', label: 'Entitlements' },
+]
 
 export function SalesOrderAmendmentComparison({
   isOpen,
@@ -2349,8 +2234,6 @@ export function SalesOrderAmendmentComparison({
   periods,
   allocations,
   beforeAllocations,
-  account,
-  terms,
 }: SalesOrderAmendmentComparisonProps) {
   const rows = useMemo<ComparisonRow[]>(
     () =>
@@ -2359,15 +2242,6 @@ export function SalesOrderAmendmentComparison({
         : comparisonRowsFromItems(items),
     [items, periods]
   )
-  const sections = useMemo<CompareSection[]>(
-    () => [
-      labelValueSection('customer', 'Customer info', account),
-      labelValueSection('terms', 'Terms and billing', terms),
-      productsSection(items, periods),
-    ],
-    [account, terms, items, periods]
-  )
-  const [view, setView] = useState<ComparisonView>('rows')
   const [milestoneContent, setMilestoneContent] = useState<MilestoneContent>('products')
 
   useEffect(() => {
@@ -2388,8 +2262,8 @@ export function SalesOrderAmendmentComparison({
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex flex-col bg-white">
-      <header className="flex h-[60px] shrink-0 items-center border-b border-neutral-200 px-12">
-        <div>
+      <header className="relative h-[60px] shrink-0">
+        <div className="absolute bottom-1 left-12 flex flex-col justify-end">
           <div className="flex items-center gap-2">
             <h1
               className="font-heading text-[16px] font-semibold text-brand-navy"
@@ -2403,59 +2277,39 @@ export function SalesOrderAmendmentComparison({
           </div>
           <p className="mt-0.5 text-[12px] text-brand-fog">{customerName} · SO-2026-0153</p>
         </div>
-        <div className="ml-auto flex items-center gap-4">
-          {view === 'milestones' && (
-            <MilestoneContentToggle value={milestoneContent} onChange={setMilestoneContent} />
-          )}
-          <ViewToggle view={view} onChange={setView} />
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close comparison"
-            title="Close"
-            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
-          >
-            <X size={18} strokeWidth={2} />
-          </button>
+
+        <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
+          <TrapezoidalTabs
+            tabs={MILESTONE_TABS}
+            activeTab={milestoneContent}
+            onTabChange={(tabId) => setMilestoneContent(tabId as MilestoneContent)}
+            compact
+          />
         </div>
+
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close comparison"
+          title="Close"
+          className="absolute bottom-1.5 right-12 flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg text-brand-navy transition-colors hover:bg-neutral-100"
+        >
+          <X size={18} strokeWidth={2} />
+        </button>
+
+        <div className="absolute bottom-0 left-12 right-12 h-px bg-brand-navy" />
       </header>
 
-      <HoveredRowProvider isEnabled={view === 'milestones'}>
+      <HoveredRowProvider isEnabled>
         <div className="min-h-0 flex-1 overflow-y-auto bg-white">
-          {view === 'milestones' && milestoneContent === 'entitlements' ? (
-            <EntitlementsMilestoneView
-              beforeAllocations={beforeAllocations}
-              afterAllocations={allocations}
-            />
-          ) : view === 'timeline' || view === 'milestones' ? (
-            <TimeAxisView
-              rows={rows}
-              periods={periods}
-              variant={view === 'timeline' ? 'cards' : 'chips'}
-            />
-          ) : (
-            <div className="mx-auto max-w-[1320px] px-12 pb-20">
-              <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] bg-white pb-4 pt-8">
-                <div className="text-center">
-                  <CompareSidePill side="before" />
-                  <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
-                </div>
-                <div />
-                <div className="text-center">
-                  <CompareSidePill side="after" />
-                  <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
-                </div>
-              </div>
-
-              <ArrKpiCompare />
-
-              <div className="space-y-10">
-                {sections.map((section) => (
-                  <SectionCompare key={section.id} section={section} />
-                ))}
-              </div>
-            </div>
-          )}
+          <TimeAxisView
+            rows={rows}
+            periods={periods}
+            backGroupForPeriod={(period, index) =>
+              entitlementGroup(period, index, beforeAllocations, allocations)
+            }
+            flipped={milestoneContent === 'entitlements'}
+          />
         </div>
       </HoveredRowProvider>
     </div>,
