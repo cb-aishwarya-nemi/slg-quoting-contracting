@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Columns3, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, GitCompareArrows, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -245,7 +245,7 @@ function CompareSalesOrderButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 font-heading text-[14px] font-semibold text-brand-navy transition-colors hover:border-brand-mist hover:bg-neutral-50"
     >
-      <Columns3 size={16} />
+      <GitCompareArrows size={16} />
       Compare changes
     </button>
   )

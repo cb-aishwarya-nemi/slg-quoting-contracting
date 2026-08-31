@@ -349,7 +349,7 @@ export const contractProcessing = {
       discount: '15',
       discountUnit: '%',
       discountPeriod: '5 months',
-      totalPrice: '$375.00',
+      totalPrice: '$4,500.00',
       proration: {
         fullMonths: 12,
         fullPrice: '$4,500.00',
@@ -513,7 +513,7 @@ export const contractProcessing = {
           discount: '15',
           discountUnit: '%',
           discountPeriod: '5 months',
-          totalPrice: '$375.00',
+          totalPrice: '$4,500.00',
           proration: {
             fullMonths: 12,
             fullPrice: '$4,500.00',

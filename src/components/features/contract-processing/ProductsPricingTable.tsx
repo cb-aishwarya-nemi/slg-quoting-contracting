@@ -889,7 +889,7 @@ function PriceField({
       )}
     >
       {proration ? (
-        <ProratedTotal proration={proration} isRowFilled={muted} />
+        <ProratedTotal proration={proration} amount={value} isRowFilled={muted} />
       ) : (
         value || '–'
       )}
@@ -1144,6 +1144,8 @@ interface ItemNameButtonProps {
   className?: string
   /** Item pinned — selected catalog row uses a blue fill instead of grey. */
   highlightSelected?: boolean
+  /** Hide the New tag — used when the whole period already carries it. */
+  hideAddedTag?: boolean
 }
 
 function ItemNameButton({
@@ -1158,6 +1160,7 @@ function ItemNameButton({
   hangIcon = true,
   className,
   highlightSelected,
+  hideAddedTag = false,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1217,14 +1220,9 @@ function ItemNameButton({
           hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
-      {amendmentChange === 'added' && (
+      {amendmentChange === 'added' && !hideAddedTag && (
         <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-          Added
-        </span>
-      )}
-      {amendmentChange === 'removed' && (
-        <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-semibold text-red-700">
-          Removed
+          New
         </span>
       )}
       {amendmentChange === 'quantity-increased' && (
@@ -1256,16 +1254,18 @@ function ItemNameButton({
 /** Total for a line whose first charge is prorated — the working opens on hover. */
 function ProratedTotal({
   proration,
+  amount,
   isRowFilled,
 }: {
   proration: NonNullable<ProductLineItem['proration']>
+  /** Recurring line total. The first invoice is prorated; that lives in the tooltip. */
+  amount: string
   isRowFilled?: boolean
 }) {
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
 
   return (
     <>
-      {/* The first invoice is what gets billed, so the column carries that amount. */}
       <span
         tabIndex={0}
         onMouseEnter={(e) => setAnchor(e.currentTarget.getBoundingClientRect())}
@@ -1277,7 +1277,7 @@ function ProratedTotal({
           isRowFilled ? 'border-white/60' : 'border-brand-mist'
         )}
       >
-        {proration.proratedAmount}
+        {amount}
       </span>
       {anchor &&
         createPortal(
@@ -2080,6 +2080,11 @@ function PeriodIdentity({
           }
         />
       </div>
+      {period.periodChange === 'added' && (
+        <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+          New
+        </span>
+      )}
     </div>
   )
 }
@@ -3539,7 +3544,8 @@ export function ProductsPricingTable({
   const renderExpandedLineItem = (
     item: ProductLineItem,
     updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
-    periodItems: ProductLineItem[]
+    periodItems: ProductLineItem[],
+    hideAddedTag = false
   ) => {
     if (item.isOverallDiscount) {
       return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
@@ -3567,7 +3573,7 @@ export function ProductsPricingTable({
           !isFullPageExpanded && 'flex',
           item.amendmentChange === 'unchanged' && 'opacity-55',
           // Cell values render inside buttons, so strike those rather than the row
-          // itself — that keeps the line off the "Removed" tag and the row icons.
+          // itself — that keeps the line off the row icons.
           item.amendmentChange === 'removed' && 'opacity-60 [&_button]:line-through',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
@@ -3593,6 +3599,7 @@ export function ProductsPricingTable({
               name={item.name}
               isAttention={isAttention}
               amendmentChange={item.amendmentChange}
+              hideAddedTag={hideAddedTag}
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
               openRequestId={lineItemEditRequest[item.id]}
@@ -3876,7 +3883,11 @@ export function ProductsPricingTable({
     )
   }
 
-  const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
+  const renderLineItem = (
+    item: ProductLineItem,
+    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
+    hideAddedTag = false
+  ) => {
     if (item.isOverallDiscount) {
       const hasDiscountValue = parseFloat(item.discount ?? '') > 0
 
@@ -4006,7 +4017,7 @@ export function ProductsPricingTable({
           !isEditMode && 'flex',
           item.amendmentChange === 'unchanged' && !isRowFilled && 'opacity-55',
           // Cell values render inside buttons, so strike those rather than the row
-          // itself — that keeps the line off the "Removed" tag and the row icons.
+          // itself — that keeps the line off the row icons.
           item.amendmentChange === 'removed' && '[&_button]:line-through',
           item.amendmentChange === 'removed' && !isRowFilled && 'opacity-60',
           isEditMode
@@ -4028,6 +4039,7 @@ export function ProductsPricingTable({
               name={item.name}
               isAttention={isAttention}
               amendmentChange={item.amendmentChange}
+              hideAddedTag={hideAddedTag}
               isRowHovered={isRowFilled && !isActive}
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
@@ -4340,7 +4352,11 @@ export function ProductsPricingTable({
                 }}
               />
             ) : item.proration ? (
-              <ProratedTotal proration={item.proration} isRowFilled={isRowFilled} />
+              <ProratedTotal
+                proration={item.proration}
+                amount={item.totalPrice}
+                isRowFilled={isRowFilled}
+              />
             ) : (
               item.totalPrice
             )}
@@ -4735,7 +4751,12 @@ export function ProductsPricingTable({
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
                   {sortAmendmentItems(period.items).map((item) =>
-                    renderExpandedLineItem(item, updatePeriodItems, period.items)
+                    renderExpandedLineItem(
+                      item,
+                      updatePeriodItems,
+                      period.items,
+                      period.periodChange === 'added'
+                    )
                   )}
                 </ExpandedScrollContainer>
               ) : (
@@ -4745,7 +4766,9 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {sortAmendmentItems(period.items).map((item) => renderLineItem(item, updatePeriodItems))}
+                  {sortAmendmentItems(period.items).map((item) =>
+                    renderLineItem(item, updatePeriodItems, period.periodChange === 'added')
+                  )}
                 </>
               )}
 

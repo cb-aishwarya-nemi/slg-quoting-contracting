@@ -165,7 +165,7 @@ function UnitsField({
 interface AllocationTableProps {
   items: AllocationGroup[]
   /** When present, entitlements render inside the same period accordions as Products. */
-  periods?: Pick<RampPeriod, 'id' | 'label' | 'startDate' | 'endDate'>[]
+  periods?: Pick<RampPeriod, 'id' | 'label' | 'startDate' | 'endDate' | 'periodChange'>[]
 }
 
 const GROWTH_SERVICES_ITEM = 'Apex platform - growth services'
@@ -217,7 +217,7 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
 function PeriodIdentity({
   period,
 }: {
-  period: Pick<RampPeriod, 'label' | 'startDate' | 'endDate'>
+  period: Pick<RampPeriod, 'label' | 'startDate' | 'endDate' | 'periodChange'>
 }) {
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
@@ -228,6 +228,11 @@ function PeriodIdentity({
         <span>to</span>
         <span className="whitespace-nowrap">{period.endDate}</span>
       </div>
+      {period.periodChange === 'added' && (
+        <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+          New
+        </span>
+      )}
     </div>
   )
 }
@@ -522,7 +527,7 @@ function AllocationColumnHeaders({
   onToggle,
 }: {
   columns?: string
-  period?: Pick<RampPeriod, 'label' | 'startDate' | 'endDate'>
+  period?: Pick<RampPeriod, 'label' | 'startDate' | 'endDate' | 'periodChange'>
   onToggle?: () => void
 }) {
   return (
