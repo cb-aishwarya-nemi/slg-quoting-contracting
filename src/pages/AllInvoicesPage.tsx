@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils'
 
 const INVOICE_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'tasks', label: 'Tasks' },
+  { id: 'tasks', label: 'Amendment: Ingestion' },
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
   { id: 'contracts', label: 'Contracts' },

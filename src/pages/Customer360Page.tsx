@@ -61,7 +61,7 @@ type ContractStatus = 'Blocked' | 'In progress'
 
 const C360_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'tasks', label: 'Tasks' },
+  { id: 'tasks', label: 'Amendment: Ingestion' },
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
   { id: 'sales-order', label: 'Sales Order' },

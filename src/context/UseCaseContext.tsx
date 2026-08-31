@@ -42,7 +42,7 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'customer360',
     label: 'Tasks',
-    defaultVariant: 'item-pinned',
+    defaultVariant: 'account-picker-v2',
     variants: [
       {
         id: 'edit-state',

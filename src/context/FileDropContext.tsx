@@ -5,7 +5,7 @@ export interface ProcessingFile {
   name: string
   progress: number
   status: 'uploading' | 'uploaded' | 'processing' | 'complete' | 'error'
-  /** Temporary rows in My tasks only for multi-file uploads */
+  /** Temporary rows in Contract queue only for multi-file uploads */
   showInTaskTable: boolean
 }
 

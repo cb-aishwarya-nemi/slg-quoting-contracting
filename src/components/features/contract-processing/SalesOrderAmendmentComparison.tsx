@@ -1344,15 +1344,15 @@ function VerticalContractAxis({
                 {!railHasMarkAt('before', top) && (
                   <span
                     aria-hidden
-                    className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
+                    className="absolute h-px w-[5px] -translate-y-1/2 bg-neutral-300"
                     style={{ left: RAIL_LEFT, top }}
                   />
                 )}
                 {!railHasMarkAt('after', top) && (
                   <span
                     aria-hidden
-                    className="absolute h-px w-1.5 -translate-y-1/2 bg-neutral-400"
-                    style={{ left: `calc(50% + ${AXIS_BAND_HALF - 6}px)`, top }}
+                    className="absolute h-px w-[5px] -translate-y-1/2 bg-neutral-300"
+                    style={{ left: `calc(50% + ${AXIS_BAND_HALF - 5}px)`, top }}
                   />
                 )}
               </>
@@ -1818,6 +1818,20 @@ function TimelineProductList({
   )
 }
 
+function CompareSidePill({ side }: { side: 'before' | 'after' }) {
+  const isBefore = side === 'before'
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-[-0.5px]',
+        isBefore ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'
+      )}
+    >
+      {isBefore ? 'Before' : 'After'}
+    </span>
+  )
+}
+
 /** Before and After columns flanking a shared vertical time axis. */
 function TimeAxisView({
   rows,
@@ -1957,12 +1971,12 @@ function TimeAxisView({
         )}
       >
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+          <CompareSidePill side="before" />
           {variant === 'chips' && <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>}
         </div>
         <div />
         <div className="text-center">
-          <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+          <CompareSidePill side="after" />
           {variant === 'chips' && (
             <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
           )}
@@ -2163,12 +2177,12 @@ export function SalesOrderAmendmentComparison({
             <div className="mx-auto max-w-[1320px] px-12 pb-20">
               <div className="sticky top-0 z-10 grid grid-cols-[minmax(0,1fr)_148px_minmax(0,1fr)] bg-white pb-4 pt-8">
                 <div className="text-center">
-                  <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">Before</p>
+                  <CompareSidePill side="before" />
                   <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
                 </div>
                 <div />
                 <div className="text-center">
-                  <p className="text-[11px] uppercase tracking-[-0.5px] text-brand-navy">After</p>
+                  <CompareSidePill side="after" />
                   <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
                 </div>
               </div>

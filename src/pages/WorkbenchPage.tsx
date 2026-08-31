@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
+import { Search, Sparkles, ArrowRight, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
@@ -9,13 +9,11 @@ import { useNavigation } from "@/context/NavigationContext";
 
 const PIONEER_CUSTOMER_ID = "pioneer-systems";
 const WORKBENCH_TABS: TabItem[] = [
-  { id: "your-tasks", label: "My tasks" },
-  { id: "approvals", label: "Approvals" },
+  { id: "your-tasks", label: "Contract queue" },
 ];
 
 const TAB_TITLES: Record<string, string> = {
-  "your-tasks": "My tasks",
-  approvals: "Approvals",
+  "your-tasks": "Contract queue",
 };
 
 // Status styles for contract ingestion
@@ -300,7 +298,7 @@ export function WorkbenchPage() {
               className="font-heading text-[24px] font-semibold text-brand-navy"
               style={{ letterSpacing: "-0.5px" }}
             >
-              {TAB_TITLES[activeTab] ?? "My tasks"}
+              {TAB_TITLES[activeTab] ?? "Contract queue"}
             </h1>
             {activeTab === "your-tasks" && (
               <div className="flex items-center gap-2">
@@ -598,20 +596,6 @@ export function WorkbenchPage() {
                     )}
                   </tbody>
               </table>
-            </div>
-          )}
-
-          {activeTab === "approvals" && (
-            <div className="flex flex-col items-center justify-center gap-2 py-24">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
-                <Check size={22} className="text-brand-fog" />
-              </div>
-              <p className="mt-2 text-[15px] font-semibold text-brand-navy">
-                No pending approvals
-              </p>
-              <p className="max-w-sm text-center text-[13px] text-brand-fog">
-                Contracts sent for approval and items awaiting your sign-off will appear here.
-              </p>
             </div>
           )}
         </div>
