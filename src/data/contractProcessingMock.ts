@@ -51,6 +51,8 @@ export interface AllocationSourceItem {
   rollover?: string
   /** Usage-based only */
   expiry?: string
+  /** Units rose vs the previous period — show a green ramp arrow. */
+  rampUnitsChange?: boolean
 }
 
 /** A metered credit or non-usage entitlement and the items that grant it. */
@@ -59,6 +61,8 @@ export interface AllocationGroup {
   feature: string
   units: string
   kind: 'usage' | 'entitlement'
+  /** Noun that trails the unit count, e.g. "seats" in "10 seats". */
+  unitLabel?: string
   sources: AllocationSourceItem[]
 }
 
@@ -329,6 +333,7 @@ export const contractProcessing = {
       feature: 'API calls',
       units: '30,000',
       kind: 'usage',
+      unitLabel: 'API calls',
       sources: [
         {
           id: 'alloc-1-s1',
@@ -349,34 +354,11 @@ export const contractProcessing = {
       ],
     },
     {
-      id: 'alloc-2',
-      feature: 'Tokens',
-      units: '20,000',
-      kind: 'usage',
-      sources: [
-        {
-          id: 'alloc-2-s1',
-          name: 'Apex platform - growth services',
-          units: '12,000',
-          frequency: 'Yearly',
-          rollover: 'No Rollover',
-          expiry: 'Every year',
-        },
-        {
-          id: 'alloc-2-s2',
-          name: 'Onboarding & Training',
-          units: '8,000',
-          frequency: 'Monthly',
-          rollover: 'Unlimited Rollover',
-          expiry: 'Never',
-        },
-      ],
-    },
-    {
       id: 'alloc-3',
       feature: 'Sandbox environments',
       units: '03',
       kind: 'entitlement',
+      unitLabel: 'environments',
       sources: [
         {
           id: 'alloc-3-s1',
@@ -391,6 +373,7 @@ export const contractProcessing = {
       feature: 'Premium support seats',
       units: '10',
       kind: 'entitlement',
+      unitLabel: 'seats',
       sources: [
         {
           id: 'alloc-4-s1',
@@ -1436,4 +1419,23 @@ export const lineItemCatalog: CatalogLineItem[] = [
   { id: 'cat-12', name: 'Custom integrations', family: 'Add-ons', unitPrice: '$5,000.00', billingPeriod: 'One-time' },
   { id: 'cat-13', name: 'Data migration services', family: 'Professional Services', unitPrice: '$15,000.00', billingPeriod: 'One-time' },
   { id: 'cat-14', name: 'Consulting hours', family: 'Professional Services', unitPrice: '$250.00', billingPeriod: 'Monthly' },
+]
+
+export interface CatalogEntitlement {
+  id: string
+  feature: string
+  kind: 'usage' | 'entitlement'
+  defaultUnits: string
+  frequency: string
+}
+
+export const entitlementCatalog: CatalogEntitlement[] = [
+  { id: 'ent-cat-1', feature: 'API credits', kind: 'usage', defaultUnits: '10,000', frequency: 'Yearly' },
+  { id: 'ent-cat-2', feature: 'Sandbox environments', kind: 'entitlement', defaultUnits: '03', frequency: 'Yearly' },
+  { id: 'ent-cat-3', feature: 'Premium support seats', kind: 'entitlement', defaultUnits: '10', frequency: 'Yearly' },
+  { id: 'ent-cat-4', feature: 'SSO seats', kind: 'entitlement', defaultUnits: '50', frequency: 'Yearly' },
+  { id: 'ent-cat-5', feature: 'Dedicated environments', kind: 'entitlement', defaultUnits: '01', frequency: 'Yearly' },
+  { id: 'ent-cat-6', feature: 'Audit log retention', kind: 'entitlement', defaultUnits: '12', frequency: 'Yearly' },
+  { id: 'ent-cat-7', feature: 'Data export credits', kind: 'usage', defaultUnits: '5,000', frequency: 'Monthly' },
+  { id: 'ent-cat-8', feature: 'Custom roles', kind: 'entitlement', defaultUnits: '05', frequency: 'Yearly' },
 ]

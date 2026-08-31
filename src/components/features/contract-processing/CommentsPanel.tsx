@@ -517,6 +517,9 @@ function CommentCard({
   )
 }
 
+/** Marks the section-header bubble that toggles a stack. See SectionHeader. */
+const SECTION_COMMENT_TOGGLE_SELECTOR = '[data-section-comment-toggle="true"]'
+
 // ─── SectionCommentStack ──────────────────────────────────────────────────────
 // Inline (relative-positioned) comment stack rendered next to each section.
 // No pixel math – it scrolls naturally with the content column.
@@ -529,6 +532,9 @@ export interface SectionCommentStackProps {
   onAddNote: (text: string, status: ContractStatus) => void
   onDelete: (id: string) => void
   onResolve: (id: string) => void
+  /** Opens the composer when true. Uncontrolled if omitted. */
+  showAddNote?: boolean
+  onShowAddNoteChange?: (show: boolean) => void
 }
 
 export function SectionCommentStack({
@@ -538,6 +544,8 @@ export function SectionCommentStack({
   onAddNote,
   onDelete,
   onResolve,
+  showAddNote: showAddNoteProp,
+  onShowAddNoteChange,
 }: SectionCommentStackProps) {
   const editHistory = useOptionalFieldEditHistory()
   const viewEditsFocus = editHistory?.viewEditsFocus ?? null
@@ -545,7 +553,13 @@ export function SectionCommentStack({
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [isStackHovered, setIsStackHovered] = useState(false)
-  const [showAddNote, setShowAddNote] = useState(false)
+  const [internalShowAddNote, setInternalShowAddNote] = useState(!!showAddNoteProp)
+  const isAddNoteControlled = onShowAddNoteChange != null
+  const showAddNote = isAddNoteControlled ? !!showAddNoteProp : internalShowAddNote
+  const setShowAddNote = (show: boolean) => {
+    if (isAddNoteControlled) onShowAddNoteChange(show)
+    else setInternalShowAddNote(show)
+  }
   const [enteringIds, setEnteringIds] = useState<Set<string>>(() => new Set())
   const stackRef = useRef<HTMLDivElement>(null)
   const knownIdsRef = useRef<Set<string> | null>(null)
@@ -578,12 +592,16 @@ export function SectionCommentStack({
   useEffect(() => {
     if (!isExpanded && !showAddNote && !isViewingEdits) return
     const handleClickOutside = (e: MouseEvent) => {
-      if (stackRef.current && !stackRef.current.contains(e.target as Node)) {
-        setIsExpanded(false)
-        setShowAddNote(false)
-        setIsStackHovered(false)
-        if (isViewingEdits) editHistory?.clearViewEditsFocus()
-      }
+      const target = e.target
+      if (!(target instanceof Node)) return
+      if (stackRef.current?.contains(target)) return
+      // The section header's bubble owns this stack — let its click decide, or
+      // closing here first would make that click read as a fresh open.
+      if (target instanceof Element && target.closest(SECTION_COMMENT_TOGGLE_SELECTOR)) return
+      setIsExpanded(false)
+      setShowAddNote(false)
+      setIsStackHovered(false)
+      if (isViewingEdits) editHistory?.clearViewEditsFocus()
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)

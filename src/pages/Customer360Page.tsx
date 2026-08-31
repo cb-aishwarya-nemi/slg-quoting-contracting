@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, Maximize2, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -45,7 +45,7 @@ type ContractStatus = 'Blocked' | 'In progress'
 
 const C360_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'tasks', label: 'Tasks' },
+  { id: 'tasks', label: 'New deal: Ingestion' },
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
   { id: 'sales-order', label: 'Sales Order' },
@@ -60,7 +60,7 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'addresses', label: 'Billing and Shipping addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
-  { id: 'allocation', label: 'Entitlements and credits', status: 'neutral' },
+  { id: 'allocation', label: 'Entitlements', status: 'neutral' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
 ]
@@ -85,6 +85,8 @@ function ContractSectionRow({
   onAddNote,
   onDelete,
   onResolve,
+  showAddNote,
+  onShowAddNoteChange,
 }: {
   sectionId: string
   sectionLabel: string
@@ -98,6 +100,8 @@ function ContractSectionRow({
   onAddNote: (text: string, status: ContractStatus) => void
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
+  showAddNote?: boolean
+  onShowAddNoteChange?: (show: boolean) => void
 }) {
   const expansionWidth = COMMENTS_COL_WIDTH + COMMENTS_COL_GAP
 
@@ -132,6 +136,8 @@ function ContractSectionRow({
             onAddNote={onAddNote}
             onDelete={onDelete}
             onResolve={onResolve}
+            showAddNote={showAddNote}
+            onShowAddNoteChange={onShowAddNoteChange}
           />
         ) : null}
       </div>
@@ -161,7 +167,7 @@ function TabPlaceholder({ label }: { label: string }) {
 
 export function Customer360Page() {
   const { view, goToCustomers, goToSalesOrders } = useNavigation()
-  const { activePage, activeVariant, setActivePage, getPage } = useUseCase()
+  const { activePage, activeVariant, setActivePage, setVariant, getPage } = useUseCase()
   const productsPricingPage = getPage('customer360')
   const activeCustomer360Variant =
     (activePage === 'customer360' &&
@@ -318,14 +324,42 @@ export function Customer360Page() {
     return counts
   }, [commentsBySection])
 
-  const toggleComments = useCallback(() => {
-    setAreCommentsVisible((prev) => !prev)
-  }, [])
+  const [addNoteSectionId, setAddNoteSectionId] = useState<string | null>(null)
+  const handleSectionCommentIcon = useCallback(
+    (sectionId: string) => {
+      // Composer already up for this section — collapse the notes column, same
+      // as sections that only toggle.
+      if (areCommentsVisible && addNoteSectionId === sectionId) {
+        setAddNoteSectionId(null)
+        setAreCommentsVisible(false)
+        return
+      }
+      const hasNotes = (commentsBySection[sectionId] ?? []).length > 0
+      if (!hasNotes) {
+        setAddNoteSectionId(sectionId)
+        setAreCommentsVisible(true)
+        return
+      }
+      setAddNoteSectionId(null)
+      setAreCommentsVisible((visible) => !visible)
+    },
+    [addNoteSectionId, areCommentsVisible, commentsBySection]
+  )
+  const setSectionAddNote = (sectionId: string) => (show: boolean) => {
+    setAddNoteSectionId((prev) => (show ? sectionId : prev === sectionId ? null : prev))
+  }
   const arePageCommentsVisible = isItemPinnedVariant ? areCommentsVisible : true
 
   useEffect(() => {
     setActivePage('customer360')
   }, [setActivePage])
+
+  // Entering the ingestion tab always starts from Multiple matches, whatever
+  // use case was last left in the URL.
+  useEffect(() => {
+    if (activeTab !== 'tasks') return
+    setVariant('account-picker-v2')
+  }, [activeTab, setVariant])
 
   useEffect(() => {
     if (view.name !== 'customer360') return
@@ -623,8 +657,9 @@ export function Customer360Page() {
                       <button
                         type="button"
                         onClick={() => sourceDocsInputRef.current?.click()}
-                        className="cursor-pointer text-blue-700 hover:underline"
+                        className="inline-flex cursor-pointer items-center gap-1.5 text-blue-700 hover:underline"
                       >
+                        <CirclePlus size={16} className="text-blue-700" />
                         Add
                       </button>
                     </span>
@@ -645,6 +680,8 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    showAddNote={addNoteSectionId === 'account'}
+                    onShowAddNoteChange={setSectionAddNote('account')}
                   >
                     <SectionHeader
                       title="Account"
@@ -661,7 +698,9 @@ export function Customer360Page() {
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                       commentsVisible={arePageCommentsVisible}
-                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                      onToggleComments={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('account') : undefined
+                      }
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -698,6 +737,8 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('addresses', 'Addresses', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    showAddNote={addNoteSectionId === 'addresses'}
+                    onShowAddNoteChange={setSectionAddNote('addresses')}
                   >
                     <SectionHeader
                       title="Billing and Shipping addresses"
@@ -706,7 +747,9 @@ export function Customer360Page() {
                       isFlashing={false}
                       commentCount={commentCountsBySection['addresses']}
                       commentsVisible={arePageCommentsVisible}
-                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                      onToggleComments={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('addresses') : undefined
+                      }
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -737,6 +780,8 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('terms', 'Terms and billing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    showAddNote={addNoteSectionId === 'terms'}
+                    onShowAddNoteChange={setSectionAddNote('terms')}
                   >
                     <SectionHeader
                       title="Terms and billing"
@@ -745,7 +790,9 @@ export function Customer360Page() {
                       isFlashing={false}
                       commentCount={commentCountsBySection['terms']}
                       commentsVisible={arePageCommentsVisible}
-                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                      onToggleComments={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('terms') : undefined
+                      }
                     />
                     <div className="mt-4">
                       <LabelValueList
@@ -777,6 +824,8 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('products', 'Products and pricing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    showAddNote={addNoteSectionId === 'products'}
+                    onShowAddNoteChange={setSectionAddNote('products')}
                   >
                     <ProductsPricingTable
                       key="products-pricing-discount-period-v2"
@@ -811,7 +860,11 @@ export function Customer360Page() {
                                 : commentCountsBySection['products']
                             }
                             commentsVisible={arePageCommentsVisible}
-                            onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                            onToggleComments={
+                              isItemPinnedVariant
+                                ? () => handleSectionCommentIcon('products')
+                                : undefined
+                            }
                             trailing={
                               !isItemPinnedVariant && !isProductsLifted ? (
                                 <button
@@ -833,30 +886,34 @@ export function Customer360Page() {
                   </ContractSectionRow>
                 </section>
 
-                {/* Entitlements and credits */}
+                {/* Entitlements */}
                 <section ref={setSectionRef('allocation')} className="group/section">
                   <ContractSectionRow
                     sectionId="allocation"
-                    sectionLabel="Entitlements and credits"
+                    sectionLabel="Entitlements"
                     areCommentsVisible={arePageCommentsVisible}
-                    expandIntoCommentsWhenHidden={isItemPinnedVariant}
-                    expandedPaddingRight={24}
                     comments={commentsBySection['allocation'] ?? []}
                     onAddNote={(text, status) =>
-                      handleAddComment('allocation', 'Entitlements and credits', text, status)
+                      handleAddComment('allocation', 'Entitlements', text, status)
                     }
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    showAddNote={addNoteSectionId === 'allocation'}
+                    onShowAddNoteChange={setSectionAddNote('allocation')}
                   >
                     <SectionHeader
-                      title="Entitlements and credits"
+                      title="Entitlements"
                       isFlashing={false}
                       commentCount={commentCountsBySection['allocation']}
                       commentsVisible={arePageCommentsVisible}
-                      onToggleComments={isItemPinnedVariant ? toggleComments : undefined}
+                      onToggleComments={
+                        isItemPinnedVariant
+                          ? () => handleSectionCommentIcon('allocation')
+                          : undefined
+                      }
                     />
                     <div className="mt-6">
-                      <AllocationTable items={data.allocations} />
+                      <AllocationTable items={data.allocations} periods={data.rampPeriods} />
                     </div>
                   </ContractSectionRow>
                 </section>

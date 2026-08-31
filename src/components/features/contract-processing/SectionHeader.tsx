@@ -109,6 +109,7 @@ export function SectionHeader({
             <button
               type="button"
               onClick={onToggleComments}
+              data-section-comment-toggle="true"
               className="relative inline-flex shrink-0 cursor-pointer rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:outline-none"
               aria-label={commentLabel}
               aria-pressed={commentsVisible}

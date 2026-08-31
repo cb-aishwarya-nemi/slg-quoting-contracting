@@ -8,7 +8,6 @@ import {
   ACCOUNT_CUSTOMER_OPTIONS,
   ACCOUNT_STATUS_STYLES,
   DEFAULT_ACCOUNT_NAME,
-  NEW_CUSTOMER_TAG,
   isPioneerMatch,
   resolveAccountOption,
 } from './AccountCustomerPicker'
@@ -401,8 +400,6 @@ export function AccountCustomerPickerV2({
                           <GradientSparkle size={12} />
                           Extracted customer
                         </span>
-                      ) : isCreatedRecord ? (
-                        <span className={NEW_CUSTOMER_TAG}>New</span>
                       ) : option === bestMatchName ? (
                         <span
                           className={cn(

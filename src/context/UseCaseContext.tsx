@@ -42,7 +42,8 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'customer360',
     label: 'Tasks',
-    defaultVariant: 'item-pinned',
+    // Account picker V2 is the baseline; it renders on the Item pinned page.
+    defaultVariant: 'account-picker-v2',
     variants: [
       {
         id: 'edit-state',

@@ -27,9 +27,6 @@ export const ACCOUNT_STATUS_STYLES: Record<AccountCustomerOption['status'], stri
   Inactive: 'bg-neutral-100 text-brand-navy',
 }
 
-export const NEW_CUSTOMER_TAG =
-  'shrink-0 rounded-full bg-blue-700 px-2 py-0.5 text-[11px] font-medium text-white'
-
 export function isPioneerMatch(name: string): boolean {
   return /pione+r/i.test(name) || /pinoeer/i.test(name)
 }
@@ -186,11 +183,10 @@ export function AccountCustomerPicker({
                     >
                       {customer.name}
                     </span>
-                    {createdCustomerName === customer.name ? (
-                      <span className={NEW_CUSTOMER_TAG}>New</span>
-                    ) : (
-                      isPioneerMatch(customer.name) &&
-                      (customer.name === DEFAULT_ACCOUNT_NAME ? (
+                    {createdCustomerName === customer.name
+                      ? null
+                      : isPioneerMatch(customer.name) &&
+                        (customer.name === DEFAULT_ACCOUNT_NAME ? (
                         <span
                           className={cn(
                             'inline-flex shrink-0 items-center gap-1 text-[11px] font-medium ai-gradient-text',
@@ -203,8 +199,7 @@ export function AccountCustomerPicker({
                         </span>
                       ) : (
                         <GradientSparkle size={12} />
-                      ))
-                    )}
+                      ))}
                   </span>
                   <span
                     className={cn(

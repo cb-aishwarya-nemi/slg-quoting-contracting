@@ -14,7 +14,6 @@ import {
   ACCOUNT_NAME_OPTIONS,
   ACCOUNT_STATUS_STYLES,
   DEFAULT_ACCOUNT_NAME,
-  NEW_CUSTOMER_TAG,
   AccountCustomerPicker,
   isPioneerMatch,
   resolveAccountOption,
@@ -290,11 +289,10 @@ function LabelValueRow({
                       >
                         {customer.name}
                       </span>
-                      {createdCustomerName === customer.name ? (
-                        <span className={NEW_CUSTOMER_TAG}>New</span>
-                      ) : (
-                        isPioneerMatch(customer.name) &&
-                        (customer.name === ACCOUNT_CUSTOMER_OPTIONS[0].name ? (
+                      {createdCustomerName === customer.name
+                        ? null
+                        : isPioneerMatch(customer.name) &&
+                          (customer.name === ACCOUNT_CUSTOMER_OPTIONS[0].name ? (
                           <span
                             className={cn(
                               'inline-flex shrink-0 items-center gap-1 text-[11px] font-medium ai-gradient-text',
@@ -307,8 +305,7 @@ function LabelValueRow({
                           </span>
                         ) : (
                           <GradientSparkle size={12} />
-                        ))
-                      )}
+                        ))}
                     </span>
                     <span
                       className={cn(

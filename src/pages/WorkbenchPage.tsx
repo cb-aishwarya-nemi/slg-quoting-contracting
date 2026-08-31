@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, Check, ChevronRight } from "lucide-react";
+import { Search, Sparkles, ArrowRight, ChevronRight } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
@@ -9,13 +9,11 @@ import { useNavigation } from "@/context/NavigationContext";
 
 const PIONEER_CUSTOMER_ID = "pioneer-systems";
 const WORKBENCH_TABS: TabItem[] = [
-  { id: "your-tasks", label: "My tasks" },
-  { id: "approvals", label: "Approvals" },
+  { id: "your-tasks", label: "Contract queue" },
 ];
 
 const TAB_TITLES: Record<string, string> = {
-  "your-tasks": "My tasks",
-  approvals: "Approvals",
+  "your-tasks": "Contract queue",
 };
 
 // Status styles for contract ingestion
@@ -257,7 +255,6 @@ export function WorkbenchPage() {
   }, 0);
   const formattedTCV = `$${(totalTCV / 1000).toFixed(1)}K`;
   
-  const criticalCount = ingestionTasks.filter(t => t.severity === "Critical").length;
   const STATS = [
     { value: formattedTCV, label: "TCV pending action" },
     { value: String(ingestionTasks.length), label: "In contract queue" },
@@ -295,29 +292,12 @@ export function WorkbenchPage() {
             <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">Workbench</span>
             <ChevronRight size={10} className="text-brand-fog" />
           </div>
-          <div className="flex items-center gap-3">
-            <h1
-              className="font-heading text-[24px] font-semibold text-brand-navy"
-              style={{ letterSpacing: "-0.5px" }}
-            >
-              {TAB_TITLES[activeTab] ?? "My tasks"}
-            </h1>
-            {activeTab === "your-tasks" && (
-              <div className="flex items-center gap-2">
-                <span className="text-[12px] font-medium text-brand-fog">
-                  {filteredTasks.length} tasks
-                </span>
-                {criticalCount > 0 && (
-                  <>
-                    <div className="h-3 w-px bg-neutral-300" />
-                    <span className="text-[12px] font-medium text-red-500">
-                      {criticalCount} critical
-                    </span>
-                  </>
-                )}
-              </div>
-            )}
-          </div>
+          <h1
+            className="font-heading text-[24px] font-semibold text-brand-navy"
+            style={{ letterSpacing: "-0.5px" }}
+          >
+            {TAB_TITLES[activeTab] ?? "Contract queue"}
+          </h1>
         </div>
 
         {/* Tabs absolutely centered on screen */}
@@ -598,20 +578,6 @@ export function WorkbenchPage() {
                     )}
                   </tbody>
               </table>
-            </div>
-          )}
-
-          {activeTab === "approvals" && (
-            <div className="flex flex-col items-center justify-center gap-2 py-24">
-              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
-                <Check size={22} className="text-brand-fog" />
-              </div>
-              <p className="mt-2 text-[15px] font-semibold text-brand-navy">
-                No pending approvals
-              </p>
-              <p className="max-w-sm text-center text-[13px] text-brand-fog">
-                Contracts sent for approval and items awaiting your sign-off will appear here.
-              </p>
             </div>
           )}
         </div>
