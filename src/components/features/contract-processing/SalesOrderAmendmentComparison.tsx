@@ -17,7 +17,12 @@ import {
   Milestone,
   X,
 } from 'lucide-react'
-import type { LabelValue, ProductLineItem, RampPeriod } from '@/data/contractProcessingMock'
+import type {
+  AllocationGroup,
+  LabelValue,
+  ProductLineItem,
+  RampPeriod,
+} from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 
 interface SalesOrderAmendmentComparisonProps {
@@ -26,6 +31,8 @@ interface SalesOrderAmendmentComparisonProps {
   customerName: string
   items: ProductLineItem[]
   periods?: RampPeriod[]
+  allocations: AllocationGroup[]
+  beforeAllocations: AllocationGroup[]
   account: LabelValue[]
   terms: LabelValue[]
 }
@@ -85,7 +92,7 @@ const ORIGINAL_ARR = '$193,500.00'
 const AMENDED_ARR = '$225,500.00'
 
 function numericQuantity(quantity: string): number {
-  const value = Number(quantity)
+  const value = Number(quantity.replace(/,/g, ''))
   return Number.isFinite(value) ? value : 0
 }
 
@@ -219,13 +226,38 @@ function Highlight({
   )
 }
 
+interface AxisSpan {
+  start: number
+  end: number
+}
+
+interface HoveredRow {
+  id: string
+  name: string
+  side: 'before' | 'after'
+  /** Where the row's period sits on the axis, so pairing can follow the dates. */
+  span: AxisSpan | null
+}
+
+function rangeSpan(range: string | null | undefined): AxisSpan | null {
+  if (!range) return null
+  const parts = splitRange(range)
+  if (!parts) return null
+  return { start: axisOffset(parts.from), end: axisOffset(parts.to) }
+}
+
+function spansOverlap(a: AxisSpan | null, b: AxisSpan | null): boolean {
+  if (!a || !b) return false
+  return a.start < b.end && b.start < a.end
+}
+
 /** Row under the pointer, shared so Before and After highlight in step. */
 const HoveredRowContext = createContext<{
-  hoveredRowId: string | null
-  setHoveredRowId: (id: string | null) => void
+  hoveredRow: HoveredRow | null
+  setHoveredRow: (row: HoveredRow | null) => void
   /** Only Milestones pairs its rows this way; Rows and Timeline stay static. */
   isEnabled: boolean
-}>({ hoveredRowId: null, setHoveredRowId: () => {}, isEnabled: false })
+}>({ hoveredRow: null, setHoveredRow: () => {}, isEnabled: false })
 
 function useHoveredRow() {
   return useContext(HoveredRowContext)
@@ -238,10 +270,10 @@ function HoveredRowProvider({
   isEnabled: boolean
   children: ReactNode
 }) {
-  const [hoveredRowId, setHoveredRowId] = useState<string | null>(null)
+  const [hoveredRow, setHoveredRow] = useState<HoveredRow | null>(null)
   const value = useMemo(
-    () => ({ hoveredRowId: isEnabled ? hoveredRowId : null, setHoveredRowId, isEnabled }),
-    [hoveredRowId, isEnabled]
+    () => ({ hoveredRow: isEnabled ? hoveredRow : null, setHoveredRow, isEnabled }),
+    [hoveredRow, isEnabled]
   )
   return <HoveredRowContext.Provider value={value}>{children}</HoveredRowContext.Provider>
 }
@@ -341,16 +373,32 @@ function SectionCardRow({
   row,
   side,
   hasAmounts,
+  periodRange,
+  pairAcrossPeriods,
 }: {
   row: CompareRow
   side: 'before' | 'after'
   hasAmounts: boolean
+  /** This side's dates for the period the row sits in. */
+  periodRange?: string | null
+  /** A period on one side can span several on the other, so pair by product too. */
+  pairAcrossPeriods?: boolean
 }) {
   const cell = side === 'before' ? row.before : row.after
   const counterpart = side === 'before' ? row.after : row.before
-  const { hoveredRowId, setHoveredRowId, isEnabled } = useHoveredRow()
+  const { hoveredRow, setHoveredRow, isEnabled } = useHoveredRow()
+  const span = useMemo(() => rangeSpan(periodRange), [periodRange])
   // Both sides render the same row id, so pointing at one lights up its twin.
-  const isHovered = hoveredRowId === row.id
+  // Across periods the same line can appear several times, so it only pairs
+  // where the two periods share time on the axis.
+  const isHovered = Boolean(
+    hoveredRow &&
+      (hoveredRow.id === row.id ||
+        (pairAcrossPeriods &&
+          hoveredRow.side !== side &&
+          hoveredRow.name === row.name &&
+          spansOverlap(hoveredRow.span, span)))
+  )
 
   // Only After explains the amendment; Before is the state being compared against.
   const [anchor, setAnchor] = useState<DOMRect | null>(null)
@@ -360,11 +408,11 @@ function SectionCardRow({
   const hoverProps = isEnabled
     ? {
         onMouseEnter: (event: React.MouseEvent<HTMLDivElement>) => {
-          setHoveredRowId(row.id)
+          setHoveredRow({ id: row.id, name: row.name, side, span })
           if (explainsChange) setAnchor(event.currentTarget.getBoundingClientRect())
         },
         onMouseLeave: () => {
-          setHoveredRowId(null)
+          setHoveredRow(null)
           setAnchor(null)
         },
       }
@@ -423,7 +471,7 @@ function SectionCardRow({
           )}
         >
           <Highlight side={side} isActive={qtyChanged} variant="text" onDark={isHovered}>
-            {numericQuantity(cell.qty)}
+            {cell.qty}
           </Highlight>
           <span>× {cell.unitPrice}</span>
         </span>
@@ -495,6 +543,8 @@ function SectionCard({
   range,
   rangeChanged,
   nested,
+  periodRange,
+  pairAcrossPeriods,
 }: {
   rows: CompareRow[]
   hasAmounts: boolean
@@ -507,6 +557,9 @@ function SectionCard({
   rangeChanged?: boolean
   /** Drops the card chrome so the rows can act as the body of an outer table. */
   nested?: boolean
+  /** Kept apart from `range`, which only shows when the card has a header. */
+  periodRange?: string | null
+  pairAcrossPeriods?: boolean
 }) {
   const changedRows = rows.filter((row) => row.changed)
   const unchangedRows = rows.filter((row) => !row.changed)
@@ -544,7 +597,14 @@ function SectionCard({
       )}
       <div className="divide-y divide-neutral-100">
         {changedRows.map((row) => (
-          <SectionCardRow key={row.id} row={row} side={side} hasAmounts={hasAmounts} />
+          <SectionCardRow
+            key={row.id}
+            row={row}
+            side={side}
+            hasAmounts={hasAmounts}
+            periodRange={periodRange}
+            pairAcrossPeriods={pairAcrossPeriods}
+          />
         ))}
 
         {unchangedRows.length > 0 && (
@@ -569,7 +629,14 @@ function SectionCard({
 
         {showUnchanged &&
           unchangedRows.map((row) => (
-            <SectionCardRow key={row.id} row={row} side={side} hasAmounts={hasAmounts} />
+            <SectionCardRow
+              key={row.id}
+              row={row}
+              side={side}
+              hasAmounts={hasAmounts}
+              periodRange={periodRange}
+              pairAcrossPeriods={pairAcrossPeriods}
+            />
           ))}
       </div>
 
@@ -937,6 +1004,46 @@ function productsSection(
             },
           ],
   }
+}
+
+function allocationRows(
+  beforeAllocations: AllocationGroup[],
+  afterAllocations: AllocationGroup[]
+): CompareRow[] {
+  const beforeById = new Map(beforeAllocations.map((allocation) => [allocation.id, allocation]))
+  const afterById = new Map(afterAllocations.map((allocation) => [allocation.id, allocation]))
+  const orderedIds = [
+    ...afterAllocations.map((allocation) => allocation.id),
+    ...beforeAllocations
+      .filter((allocation) => !afterById.has(allocation.id))
+      .map((allocation) => allocation.id),
+  ]
+
+  const toCell = (allocation: AllocationGroup): CompareCell => ({
+    qty: allocation.units,
+    unitPrice: allocation.kind === 'usage' ? 'credit' : 'entitlement',
+    amount: `${allocation.sources.length} ${allocation.sources.length === 1 ? 'item' : 'items'}`,
+  })
+
+  return orderedIds.map((id) => {
+    const before = beforeById.get(id)
+    const after = afterById.get(id)
+    const changed =
+      !before ||
+      !after ||
+      before.units !== after.units ||
+      before.kind !== after.kind ||
+      JSON.stringify(before.sources) !== JSON.stringify(after.sources)
+
+    return {
+      id: `allocation-${id}`,
+      name: after?.feature ?? before?.feature ?? id,
+      before: before ? toCell(before) : null,
+      after: after ? toCell(after) : null,
+      changed,
+      change: !before ? 'added' : !after ? 'removed' : undefined,
+    }
+  })
 }
 
 const TIMELINE_MONTHS = 36
@@ -1641,6 +1748,8 @@ function TimelinePeriodCard({
       range={showHeader ? (side === 'before' ? group.beforeRange : group.afterRange) : undefined}
       rangeChanged={group.rangeChanged}
       nested={nested}
+      periodRange={side === 'before' ? group.beforeRange : group.afterRange}
+      pairAcrossPeriods
     />
   )
 }
@@ -1965,9 +2074,9 @@ function TimeAxisView({
     <div className="mx-auto max-w-[1240px] px-8 pb-20">
       <div
         className={cn(
-          'sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pt-6',
-          // Matches the Rows header, which sits 16px above its ARR strip.
-          variant === 'chips' && 'pb-4'
+          'z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pt-6',
+          // Milestones scrolls the header away; Timeline keeps it in view.
+          variant === 'chips' ? 'pb-4' : 'sticky top-0'
         )}
       >
         <div className="text-center">
@@ -2051,7 +2160,147 @@ function TimeAxisView({
   )
 }
 
+function EntitlementsMilestoneView({
+  beforeAllocations,
+  afterAllocations,
+}: {
+  beforeAllocations: AllocationGroup[]
+  afterAllocations: AllocationGroup[]
+}) {
+  const rows = useMemo(
+    () => allocationRows(beforeAllocations, afterAllocations),
+    [beforeAllocations, afterAllocations]
+  )
+  const [showUnchanged, setShowUnchanged] = useState(false)
+  const amendmentTop = axisOffset(AMENDMENT_DATE)
+  const trackHeight = amendmentTop + MONTH_HEIGHT * 2
+  const axisHeight = trackHeight + 80
+  const amendmentMark: AxisMark = {
+    id: 'entitlements-amendment',
+    top: amendmentTop,
+    title: 'Entitlements updated',
+    detail: 'Changes become active',
+    dateLabel: 'Apr 1, 2027',
+  }
+  const countKpi = (count: number) => (
+    <div className="text-center">
+      <div
+        className="font-heading text-[36px] font-bold leading-tight text-brand-navy"
+        style={{ letterSpacing: '-1px' }}
+      >
+        {count}
+      </div>
+      <div className="mt-1 text-[13px] text-brand-navy">Entitlements</div>
+    </div>
+  )
+
+  return (
+    <div className="mx-auto max-w-[1240px] px-8 pb-20">
+      <div className="sticky top-0 z-40 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6 bg-white pb-4 pt-6">
+        <div className="text-center">
+          <CompareSidePill side="before" />
+          <p className="mt-0.5 text-[12px] text-brand-fog">v1 · live today</p>
+        </div>
+        <div />
+        <div className="text-center">
+          <CompareSidePill side="after" />
+          <p className="mt-0.5 text-[12px] text-brand-fog">v2 · effective Apr 1, 2027</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] items-center gap-6 pb-10">
+        {countKpi(beforeAllocations.length)}
+        <DeltaColumn
+          label={`${afterAllocations.length - beforeAllocations.length >= 0 ? '+' : ''}${afterAllocations.length - beforeAllocations.length}`}
+          tone={afterAllocations.length > beforeAllocations.length ? 'positive' : undefined}
+        />
+        {countKpi(afterAllocations.length)}
+      </div>
+
+      <div
+        className="relative mt-4 grid grid-cols-[minmax(0,1fr)_220px_minmax(0,1fr)] gap-6"
+        style={{ minHeight: axisHeight }}
+      >
+        <div className="relative">
+          <div className="absolute inset-x-0" style={{ top: amendmentTop }}>
+            <SectionCard
+              rows={rows}
+              hasAmounts={false}
+              side="before"
+              showUnchanged={showUnchanged}
+              onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+              title="Entitlements and credits"
+            />
+          </div>
+        </div>
+
+        <VerticalContractAxis
+          height={axisHeight}
+          banded
+          beforeMarks={[amendmentMark]}
+          afterMarks={[amendmentMark]}
+          trackHeight={trackHeight}
+        />
+
+        <div className="relative">
+          <div className="absolute inset-x-0" style={{ top: amendmentTop }}>
+            <SectionCard
+              rows={rows}
+              hasAmounts={false}
+              side="after"
+              showUnchanged={showUnchanged}
+              onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+              title="Entitlements and credits"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type ComparisonView = 'rows' | 'timeline' | 'milestones'
+type MilestoneContent = 'products' | 'entitlements'
+
+function MilestoneContentToggle({
+  value,
+  onChange,
+}: {
+  value: MilestoneContent
+  onChange: (next: MilestoneContent) => void
+}) {
+  const options = [
+    { id: 'products' as const, label: 'Products and pricing' },
+    { id: 'entitlements' as const, label: 'Entitlements' },
+  ]
+
+  return (
+    <div
+      className="flex items-center gap-0.5 rounded-lg bg-neutral-100 p-0.5"
+      aria-label="Milestone comparison content"
+    >
+      {options.map((option) => {
+        const isActive = value === option.id
+        return (
+          <button
+            key={option.id}
+            type="button"
+            aria-pressed={isActive}
+            onClick={() => onChange(option.id)}
+            className={cn(
+              'cursor-pointer rounded-[6px] px-3 py-1.5 text-[12px] font-medium transition-colors',
+              isActive
+                ? 'bg-white text-brand-navy shadow-sm'
+                : 'text-brand-fog hover:text-brand-navy'
+            )}
+          >
+            {option.label}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
 
 function ViewToggle({
   view,
@@ -2098,6 +2347,8 @@ export function SalesOrderAmendmentComparison({
   customerName,
   items,
   periods,
+  allocations,
+  beforeAllocations,
   account,
   terms,
 }: SalesOrderAmendmentComparisonProps) {
@@ -2117,6 +2368,7 @@ export function SalesOrderAmendmentComparison({
     [account, terms, items, periods]
   )
   const [view, setView] = useState<ComparisonView>('rows')
+  const [milestoneContent, setMilestoneContent] = useState<MilestoneContent>('products')
 
   useEffect(() => {
     if (!isOpen) return
@@ -2152,6 +2404,9 @@ export function SalesOrderAmendmentComparison({
           <p className="mt-0.5 text-[12px] text-brand-fog">{customerName} · SO-2026-0153</p>
         </div>
         <div className="ml-auto flex items-center gap-4">
+          {view === 'milestones' && (
+            <MilestoneContentToggle value={milestoneContent} onChange={setMilestoneContent} />
+          )}
           <ViewToggle view={view} onChange={setView} />
           <button
             type="button"
@@ -2167,7 +2422,12 @@ export function SalesOrderAmendmentComparison({
 
       <HoveredRowProvider isEnabled={view === 'milestones'}>
         <div className="min-h-0 flex-1 overflow-y-auto bg-white">
-          {view === 'timeline' || view === 'milestones' ? (
+          {view === 'milestones' && milestoneContent === 'entitlements' ? (
+            <EntitlementsMilestoneView
+              beforeAllocations={beforeAllocations}
+              afterAllocations={allocations}
+            />
+          ) : view === 'timeline' || view === 'milestones' ? (
             <TimeAxisView
               rows={rows}
               periods={periods}

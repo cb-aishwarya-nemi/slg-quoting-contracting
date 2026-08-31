@@ -1302,6 +1302,8 @@ export function Customer360Page() {
         customerName={customerName}
         items={data.products}
         periods={data.rampPeriods}
+        allocations={data.allocations}
+        beforeAllocations={originalAllocationItems}
         account={accountItems}
         terms={data.termsAndBilling}
       />
