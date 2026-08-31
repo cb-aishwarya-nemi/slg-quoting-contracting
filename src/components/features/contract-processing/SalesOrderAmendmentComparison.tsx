@@ -2264,17 +2264,12 @@ export function SalesOrderAmendmentComparison({
     <div className="fixed inset-0 z-[80] flex flex-col bg-white">
       <header className="relative h-[60px] shrink-0">
         <div className="absolute bottom-1 left-12 flex flex-col justify-end">
-          <div className="flex items-center gap-2">
-            <h1
-              className="font-heading text-[16px] font-semibold text-brand-navy"
-              style={{ letterSpacing: '-0.5px' }}
-            >
-              Sales order amendment comparison
-            </h1>
-            <span className="rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-medium uppercase tracking-[-0.5px] text-amber-700">
-              Amendment
-            </span>
-          </div>
+          <h1
+            className="font-heading text-[16px] font-semibold text-brand-navy"
+            style={{ letterSpacing: '-0.5px' }}
+          >
+            Sales order amendment comparison
+          </h1>
           <p className="mt-0.5 text-[12px] text-brand-fog">{customerName} · SO-2026-0153</p>
         </div>
 

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
+import { GitCompareArrows, MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
@@ -26,6 +26,8 @@ interface SectionHeaderProps {
   commentsVisible?: boolean
   /** makes the bubble a toggle for this section's comment stack */
   onToggleComments?: () => void
+  /** opens the sales-order comparison, rendered left of the comment icon */
+  onCompare?: () => void
 }
 
 /**
@@ -45,6 +47,7 @@ export function SectionHeader({
   extraStatus,
   commentsVisible = true,
   onToggleComments,
+  onCompare,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
   const commentLabel = hasComments
@@ -104,6 +107,19 @@ export function SectionHeader({
           {/* Optional trailing action */}
           {trailing && <div className="shrink-0">{trailing}</div>}
 
+          <div className="flex shrink-0 items-center gap-1">
+          {onCompare && (
+            <button
+              type="button"
+              onClick={onCompare}
+              className="inline-flex shrink-0 cursor-pointer rounded-lg p-1 text-blue-700 outline-none ring-0 transition-colors hover:bg-blue-50 focus:outline-none focus-visible:outline-none"
+              aria-label="Compare changes"
+              title="Compare changes"
+            >
+              <GitCompareArrows size={18} strokeWidth={2} aria-hidden />
+            </button>
+          )}
+
           {/* Item-pinned mode wires a toggle and gets the interactive bubble. */}
           {onToggleComments ? (
             <button
@@ -149,6 +165,7 @@ export function SectionHeader({
               {commentLabel}
             </span>
           ) : null}
+          </div>
         </>
       )}
     </div>
