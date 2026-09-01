@@ -608,23 +608,26 @@ function SectionCard({
         ))}
 
         {unchangedRows.length > 0 && (
-          <div className="flex items-center gap-2 px-4 py-2">
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onToggleUnchanged()
+            }}
+            className="flex w-full cursor-pointer items-center gap-2 px-4 py-2 text-left"
+          >
             <span className="text-[12px] text-brand-fog">
               {unchangedRows.length} unchanged {unchangedRows.length === 1 ? 'item' : 'items'}
             </span>
-            <button
-              type="button"
-              onClick={onToggleUnchanged}
-              className="cursor-pointer text-[12px] font-medium text-blue-700 transition-colors hover:underline"
-            >
+            <span className="text-[12px] font-medium text-blue-700 transition-colors hover:underline">
               {showUnchanged ? 'Hide' : 'Show'}
-            </button>
+            </span>
             {hasAmounts && (
               <span className="ml-auto w-[104px] shrink-0 text-right text-[12px] text-brand-fog">
                 {money(sumOf(unchangedRows))}
               </span>
             )}
-          </div>
+          </button>
         )}
 
         {showUnchanged &&
@@ -1548,6 +1551,7 @@ function TimelinePeriodChip({
       aria-expanded={isOpen}
       className={cn(
         'flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left transition-colors',
+        isOpen ? 'rounded-t-[11px]' : 'rounded-[11px]',
         side === 'before' ? 'hover:bg-neutral-100' : 'hover:bg-neutral-50',
         isOpen && (side === 'before' ? 'bg-neutral-100/70' : 'bg-neutral-50')
       )}
@@ -1586,12 +1590,17 @@ function TimelinePeriodCard({
   showHeader = true,
   nested,
   showTotal = true,
+  onRaise,
+  onUnchangedReveal,
 }: {
   group: CompareGroup
   side: 'before' | 'after'
   showHeader?: boolean
   nested?: boolean
   showTotal?: boolean
+  onRaise?: () => void
+  /** True while extra unchanged rows are overlaid on top of the settled card. */
+  onUnchangedReveal?: (open: boolean) => void
 }) {
   const changedCount = group.rows.filter((row) => row.changed).length
   const [showUnchanged, setShowUnchanged] = useState(changedCount === 0)
@@ -1603,7 +1612,13 @@ function TimelinePeriodCard({
       totalLabel={showTotal ? 'Total' : undefined}
       side={side}
       showUnchanged={showUnchanged}
-      onToggleUnchanged={() => setShowUnchanged((open) => !open)}
+      onToggleUnchanged={() => {
+        const next = !showUnchanged
+        setShowUnchanged(next)
+        // Extra rows only overlay when some items were already visible as changes.
+        if (changedCount > 0) onUnchangedReveal?.(next)
+        if (next) onRaise?.()
+      }}
       title={showHeader ? group.label : undefined}
       range={showHeader ? (side === 'before' ? group.beforeRange : group.afterRange) : undefined}
       rangeChanged={group.rangeChanged}
@@ -1713,17 +1728,21 @@ function PeriodCardFace({
   isOpen,
   onToggle,
   showTotal,
+  onRaise,
+  onUnchangedReveal,
 }: {
   group: CompareGroup
   side: 'before' | 'after'
   isOpen: boolean
   onToggle: () => void
   showTotal: boolean
+  onRaise?: () => void
+  onUnchangedReveal?: (open: boolean) => void
 }) {
   return (
     <div
       className={cn(
-        'overflow-hidden rounded-xl border',
+        'rounded-xl border',
         side === 'before'
           ? 'border-neutral-200 bg-neutral-50'
           : 'border-brand-navy bg-white',
@@ -1750,6 +1769,8 @@ function PeriodCardFace({
             showHeader={false}
             nested
             showTotal={showTotal}
+            onRaise={onRaise}
+            onUnchangedReveal={onUnchangedReveal}
           />
         </div>
       )}
@@ -1792,10 +1813,15 @@ function TimelinePeriodSlot({
   const svgRef = useRef<SVGSVGElement>(null)
   const pathRef = useRef<SVGPathElement>(null)
   const [faceHeights, setFaceHeights] = useState({ front: CHIP_HEIGHT, back: CHIP_HEIGHT })
+  const freezeFrontRef = useRef(false)
+  const freezeBackRef = useRef(false)
+  const [freezeFront, setFreezeFront] = useState(false)
+  const [freezeBack, setFreezeBack] = useState(false)
 
   const target = flipped && backGroup ? 'back' : 'front'
   const targetAngle = target === 'back' ? 180 : 0
   const targetLanding = target === 'back' ? faceHeights.back : faceHeights.front
+  const ribbonLocked = target === 'back' ? freezeBack : freezeFront
   // A card shorter than its period rides the middle of it, so the ribbon tapers
   // evenly from both ends rather than hanging off the period's start.
   const targetOffset = Math.max(0, (span - targetLanding) / 2)
@@ -1832,17 +1858,32 @@ function TimelinePeriodSlot({
 
   useEffect(() => {
     // Layout height, not the bounding box: mid-turn the box is foreshortened.
+    // Showing unchanged items grows the face; keep the last settled height so
+    // the ribbon does not stretch with those extra rows.
     const measure = () =>
-      setFaceHeights({
-        front: frontRef.current?.offsetHeight ?? CHIP_HEIGHT,
-        back: backRef.current?.offsetHeight ?? CHIP_HEIGHT,
-      })
+      setFaceHeights((prev) => ({
+        front: freezeFrontRef.current
+          ? prev.front
+          : (frontRef.current?.offsetHeight ?? CHIP_HEIGHT),
+        back: freezeBackRef.current
+          ? prev.back
+          : (backRef.current?.offsetHeight ?? CHIP_HEIGHT),
+      }))
     measure()
     const observer = new ResizeObserver(measure)
     if (frontRef.current) observer.observe(frontRef.current)
     if (backRef.current) observer.observe(backRef.current)
     return () => observer.disconnect()
   }, [Boolean(backGroup)])
+
+  useEffect(() => {
+    if (!isOpen) {
+      freezeFrontRef.current = false
+      freezeBackRef.current = false
+      setFreezeFront(false)
+      setFreezeBack(false)
+    }
+  }, [isOpen])
 
   useEffect(() => {
     const fromAngle = angleRef.current
@@ -1877,8 +1918,14 @@ function TimelinePeriodSlot({
 
   return (
     <div
-      className="absolute inset-x-0"
-      style={{ top, perspective: 1600 }}
+      className="absolute inset-x-0 isolate"
+      style={{
+        top,
+        perspective: 1600,
+        // z-index has to live on this wrapper: `perspective` already made it a
+        // stacking context, so a raise on the inner lift never beat the next period.
+        zIndex: isTopMost || ribbonLocked ? 40 : isOpen ? 20 : 1,
+      }}
       onMouseDown={onRaise}
     >
       {/* Left unstacked so the ribbon stays beneath the axis and its markers. */}
@@ -1891,17 +1938,13 @@ function TimelinePeriodSlot({
         pathRef={pathRef}
       />
       {/* Above the ribbon, so its tucked-in edge hides behind the card. */}
-      <div
-        ref={liftRef}
-        // Whichever period you touch last stacks above the ones below it, so a
-        // table that grows past its span stays readable.
-        style={{ marginTop: targetOffset, zIndex: isOpen ? (isTopMost ? 30 : 20) : 1 }}
-      >
+      <div ref={liftRef} className="relative" style={{ marginTop: targetOffset }}>
         <div
           ref={stageRef}
           className="relative"
           style={{
             height: targetLanding,
+            overflow: ribbonLocked ? 'visible' : undefined,
             transformStyle: 'preserve-3d',
             transform: `rotateY(${targetAngle}deg)`,
           }}
@@ -1909,7 +1952,7 @@ function TimelinePeriodSlot({
           <div
             ref={frontRef}
             className="absolute inset-x-0 top-0"
-            style={{ backfaceVisibility: 'hidden' }}
+            style={{ backfaceVisibility: 'hidden', overflow: 'visible' }}
             aria-hidden={target === 'back'}
           >
             <PeriodCardFace
@@ -1918,6 +1961,11 @@ function TimelinePeriodSlot({
               isOpen={isOpen}
               onToggle={onToggle}
               showTotal
+              onRaise={onRaise}
+              onUnchangedReveal={(open) => {
+                freezeFrontRef.current = open
+                setFreezeFront(open)
+              }}
             />
           </div>
 
@@ -1925,7 +1973,7 @@ function TimelinePeriodSlot({
             <div
               ref={backRef}
               className="absolute inset-x-0 top-0"
-              style={{ backfaceVisibility: 'hidden', transform: 'rotateY(180deg)' }}
+              style={{ backfaceVisibility: 'hidden', overflow: 'visible', transform: 'rotateY(180deg)' }}
               aria-hidden={target === 'front'}
             >
               <PeriodCardFace
@@ -1934,6 +1982,11 @@ function TimelinePeriodSlot({
                 isOpen={isOpen}
                 onToggle={onToggle}
                 showTotal={false}
+                onRaise={onRaise}
+                onUnchangedReveal={(open) => {
+                  freezeBackRef.current = open
+                  setFreezeBack(open)
+                }}
               />
             </div>
           )}

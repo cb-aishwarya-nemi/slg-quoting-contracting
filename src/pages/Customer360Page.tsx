@@ -231,7 +231,7 @@ function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
+      className="flex cursor-pointer items-center gap-2 rounded-[100px] bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
     >
       Update Sales Order
     </button>
@@ -243,7 +243,7 @@ function CompareSalesOrderButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-2 rounded-lg border border-neutral-300 bg-white px-3.5 py-2 font-heading text-[14px] font-semibold text-brand-navy transition-colors hover:border-brand-mist hover:bg-neutral-50"
+      className="flex cursor-pointer items-center gap-2 rounded-[100px] bg-blue-50 px-4 py-2 font-heading text-[14px] font-semibold text-blue-700 transition-colors hover:bg-blue-100"
     >
       <GitCompareArrows size={16} />
       Compare changes

@@ -304,6 +304,16 @@ export const contractProcessing = {
       discountUnit: '%',
       discountPeriod: 'Forever',
       totalPrice: '$180,000.00',
+      proration: {
+        fullMonths: 12,
+        fullPrice: '$180,000.00',
+        proratedMonths: 1,
+        proratedRange: 'Apr 2027',
+        proratedAmount: '$15,000.00',
+        formula: '$180,000.00 × 1/12',
+        nextCycleRange: 'May 1, 2027 – Apr 30, 2028',
+        nextCyclePrice: '$180,000.00 per year',
+      },
     },
     {
       id: 'li-2',
@@ -468,6 +478,16 @@ export const contractProcessing = {
           discountUnit: '%',
           discountPeriod: 'Forever',
           totalPrice: '$180,000.00',
+          proration: {
+            fullMonths: 12,
+            fullPrice: '$180,000.00',
+            proratedMonths: 1,
+            proratedRange: 'Apr 2027',
+            proratedAmount: '$15,000.00',
+            formula: '$180,000.00 × 1/12',
+            nextCycleRange: 'May 1, 2027 – Apr 30, 2028',
+            nextCyclePrice: '$180,000.00 per year',
+          },
         },
         {
           id: 'rp1-li-2',

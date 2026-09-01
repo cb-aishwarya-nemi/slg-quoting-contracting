@@ -223,6 +223,38 @@ function QtyAmendmentDisplay({
   )
 }
 
+function previousTotalForQtyIncrease(item: ProductLineItem): string | null {
+  if (item.amendmentChange !== 'quantity-increased' || !item.previousQuantity) return null
+  return computeTotalPrice(item.unitPrice, item.previousQuantity)
+}
+
+/** Struck prior total beside the new amount after a quantity increase. */
+function QtyIncreasedTotal({
+  previousAmount,
+  isRowHovered,
+  children,
+}: {
+  previousAmount?: string | null
+  isRowHovered?: boolean
+  children: ReactNode
+}) {
+  if (!previousAmount) return children
+
+  return (
+    <div className="flex min-w-0 items-center justify-end gap-1.5">
+      <span
+        className={cn(
+          'shrink-0 text-[12px] tabular-nums line-through',
+          isRowHovered ? 'text-white/50' : 'text-neutral-400'
+        )}
+      >
+        {previousAmount}
+      </span>
+      <div className="min-w-0 shrink-0">{children}</div>
+    </div>
+  )
+}
+
 /** Expanded-state only — in-place choice menu (Edit state uses the non-interactive MiniDropdown). */
 function InteractiveMiniDropdown({
   label,
@@ -1322,9 +1354,9 @@ const BASE_COLUMN_WIDTHS = {
   DISCOUNT_W: 78,
   /** Edit-mode-only column for how long the discount runs. */
   DISCOUNT_PERIOD_W: 116,
-  TOTAL_W: 124,
+  TOTAL_W: 220,
   /** Inline layout only — leaves room for the discount tag beside the amount. */
-  TOTAL_INLINE_W: 172,
+  TOTAL_INLINE_W: 268,
   EXPANDED_ITEM_W: 340,
 } as const
 const MENU_W = 48
@@ -1334,8 +1366,8 @@ const ITEM_PINNED_COLUMN_WIDTHS = {
   UNIT_W: 170,
   DISCOUNT_W: 90,
   DISCOUNT_PERIOD_W: 132,
-  TOTAL_W: 136,
-  TOTAL_INLINE_W: 184,
+  TOTAL_W: 232,
+  TOTAL_INLINE_W: 280,
   EXPANDED_ITEM_W: 360,
 } as const
 /** Expanded sticky Total + ellipsis group pinned to the right. */
@@ -3556,6 +3588,10 @@ export function ProductsPricingTable({
     const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
     const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
     const isQtyEdited = isProductFieldEdited(editHistory, item.id, 'Qty')
+    const isQtyAmended =
+      item.amendmentChange === 'quantity-increased' && Boolean(item.previousQuantity)
+    const showQtyFill = isQtyEdited || isQtyAmended
+    const previousTotal = previousTotalForQtyIncrease(item)
     const isUnitPriceEdited = isProductFieldEdited(editHistory, item.id, 'Unit price')
     const isDiscountEdited = isProductFieldEdited(editHistory, item.id, 'Discount')
     const isDiscountPeriodEdited = isProductFieldEdited(editHistory, item.id, 'Discount period')
@@ -3661,13 +3697,13 @@ export function ProductsPricingTable({
             />
           </div>
         </div>
-        <Separator fillStart={isFrequencyEdited} fillEnd={isQtyEdited} />
+        <Separator fillStart={isFrequencyEdited} fillEnd={showQtyFill} />
         <div
-          className={cellChrome(isQtyEdited, !isFullPageExpanded && 'shrink-0')}
+          className={cellChrome(showQtyFill, !isFullPageExpanded && 'shrink-0')}
           style={isFullPageExpanded ? undefined : { width: QTY_W }}
         >
-          {isQtyEdited ? <EditedCellFill /> : null}
-          <div className={cellInner(isQtyEdited, 'flex min-w-0 w-full justify-end')}>
+          {showQtyFill ? <EditedCellFill /> : null}
+          <div className={cellInner(showQtyFill, 'flex min-w-0 w-full justify-end')}>
             {item.amendmentChange === 'quantity-increased' && item.previousQuantity ? (
               <QtyAmendmentDisplay previousQuantity={item.previousQuantity}>
                 <InteractiveMiniDropdown
@@ -3715,7 +3751,7 @@ export function ProductsPricingTable({
             )}
           </div>
         </div>
-        <Separator fillStart={isQtyEdited} fillEnd={isUnitPriceEdited} />
+        <Separator fillStart={showQtyFill} fillEnd={isUnitPriceEdited} />
 
         <div
           style={isFullPageExpanded ? undefined : { width: UNIT_W }}
@@ -3840,17 +3876,20 @@ export function ProductsPricingTable({
         >
           {isTotalEdited ? <EditedCellFill /> : null}
           <div className={cellInner(isTotalEdited, 'min-w-0 w-full')}>
-            <PriceField
-              value={item.totalPrice}
-              ariaLabel={`Total price for ${item.name}`}
-              proration={item.proration}
-              onCommit={(nextTotal) => {
-                recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
-                updateItems((prev) =>
-                  prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
-                )
-              }}
-            />
+            <QtyIncreasedTotal previousAmount={previousTotal}>
+              <PriceField
+                value={item.totalPrice}
+                ariaLabel={`Total price for ${item.name}`}
+                proration={item.proration}
+                className={previousTotal ? 'w-auto' : undefined}
+                onCommit={(nextTotal) => {
+                  recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
+                  updateItems((prev) =>
+                    prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
+                  )
+                }}
+              />
+            </QtyIncreasedTotal>
           </div>
         </div>
 
@@ -4001,6 +4040,10 @@ export function ProductsPricingTable({
     const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
     const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
     const isQtyEdited = isProductFieldEdited(editHistory, item.id, 'Qty')
+    const isQtyAmended =
+      item.amendmentChange === 'quantity-increased' && Boolean(item.previousQuantity)
+    const showQtyFill = isQtyEdited || isQtyAmended
+    const previousTotal = previousTotalForQtyIncrease(item)
     const isUnitPriceEdited = isProductFieldEdited(editHistory, item.id, 'Unit price')
     const isDiscountEdited = isProductFieldEdited(editHistory, item.id, 'Discount')
     const isDiscountPeriodEdited = isProductFieldEdited(editHistory, item.id, 'Discount period')
@@ -4106,14 +4149,14 @@ export function ProductsPricingTable({
           isRowActive={isRowFilled}
           hideLine={showFieldPills}
           fillStart={!isRowFilled && isFrequencyEdited}
-          fillEnd={!isRowFilled && isQtyEdited}
+          fillEnd={!isRowFilled && showQtyFill}
         />
         <div
-          className={cellBoxPad(!isRowFilled && isQtyEdited, !isEditMode && 'shrink-0')}
+          className={cellBoxPad(!isRowFilled && showQtyFill, !isEditMode && 'shrink-0')}
           style={isEditMode ? undefined : { width: QTY_W }}
         >
-          {!isRowFilled && isQtyEdited ? <EditedCellFill /> : null}
-          <div className={cellInner(!isRowFilled && isQtyEdited, 'flex min-w-0 w-full justify-end')}>
+          {!isRowFilled && showQtyFill ? <EditedCellFill /> : null}
+          <div className={cellInner(!isRowFilled && showQtyFill, 'flex min-w-0 w-full justify-end')}>
             {item.amendmentChange === 'quantity-increased' && item.previousQuantity ? (
               <QtyAmendmentDisplay
                 previousQuantity={item.previousQuantity}
@@ -4194,7 +4237,7 @@ export function ProductsPricingTable({
           isRowHovered={isRowFilled}
           isRowActive={isRowFilled}
           hideLine={showFieldPills}
-          fillStart={!isRowFilled && isQtyEdited}
+          fillStart={!isRowFilled && showQtyFill}
           fillEnd={!isRowFilled && isUnitPriceEdited}
         />
 
@@ -4340,25 +4383,33 @@ export function ProductsPricingTable({
               />
             )}
             {isEditMode ? (
-              <PriceField
-                value={item.totalPrice}
-                ariaLabel={`Total price for ${item.name}`}
-                proration={item.proration}
-                onCommit={(nextTotal) => {
-                  recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
-                  updateItems((prev) =>
-                    prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
-                  )
-                }}
-              />
-            ) : item.proration ? (
-              <ProratedTotal
-                proration={item.proration}
-                amount={item.totalPrice}
-                isRowFilled={isRowFilled}
-              />
+              <QtyIncreasedTotal previousAmount={previousTotal} isRowHovered={isRowFilled}>
+                <PriceField
+                  value={item.totalPrice}
+                  ariaLabel={`Total price for ${item.name}`}
+                  proration={item.proration}
+                  muted={isRowFilled}
+                  className={previousTotal ? 'w-auto' : undefined}
+                  onCommit={(nextTotal) => {
+                    recordProductEdit(editHistory, item.id, 'Total price', item.totalPrice, nextTotal)
+                    updateItems((prev) =>
+                      prev.map((i) => (i.id === item.id ? { ...i, totalPrice: nextTotal } : i))
+                    )
+                  }}
+                />
+              </QtyIncreasedTotal>
             ) : (
-              item.totalPrice
+              <QtyIncreasedTotal previousAmount={previousTotal} isRowHovered={isRowFilled}>
+                {item.proration ? (
+                  <ProratedTotal
+                    proration={item.proration}
+                    amount={item.totalPrice}
+                    isRowFilled={isRowFilled}
+                  />
+                ) : (
+                  item.totalPrice
+                )}
+              </QtyIncreasedTotal>
             )}
           </div>
         </div>
