@@ -1257,11 +1257,6 @@ function ItemNameButton({
           New
         </span>
       )}
-      {amendmentChange === 'quantity-increased' && (
-        <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-semibold text-amber-700">
-          Modified
-        </span>
-      )}
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
