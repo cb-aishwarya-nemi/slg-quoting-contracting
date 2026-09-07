@@ -44,7 +44,7 @@ function TabPlaceholder({ label }: { label: string }) {
 }
 
 export function Customer360Page() {
-  const { view, goToCustomers, goToSalesOrders } = useNavigation()
+  const { view, goToCustomers, goToSalesOrders, goToAllInvoices } = useNavigation()
   const { setActivePage } = useUseCase()
   usePageUseCase('sales-order-details')
   const [activeTab, setActiveTab] = useState('sales-order')
@@ -175,14 +175,11 @@ export function Customer360Page() {
             onOpenChat={openAskChat}
             onAppendChat={appendAskTurn}
             onCloseChat={closeAskChat}
-            onViewEntitlements={() => {
-              setUsageFocusFeatureId(null)
-              setActiveTab('usage')
-            }}
             onViewUsageDetails={(featureId) => {
               setUsageFocusFeatureId(featureId ?? null)
               setActiveTab('usage')
             }}
+            onViewAllInvoices={() => goToAllInvoices('pioneer-systems')}
           />
         )}
 

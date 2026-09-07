@@ -77,6 +77,18 @@ const RAMP_MARKERS = [
   },
 ] as const
 
+/** Signed amendments on the term (green dotted circles). */
+const AMENDMENT_MARKERS = [
+  {
+    id: 'amendment-aug-27',
+    date: '2027-08-01',
+    title: 'Amendment · Contract expansion',
+    detail: '+15 seats · Premium support upgrade',
+    dateLabel: "Aug 1 '27",
+    status: 'scheduled',
+  },
+] as const
+
 /** Lucide `flag` path with optional longer pole (sticky timeline). */
 function YearFlag({
   longPole = false,
@@ -191,6 +203,7 @@ export function SalesOrderHeaderTimeline({
     title: string
     detail: string
     dateLabel: string
+    status?: string
     rect: DOMRect
   } | null>(null)
   const [isTimelineStuck, setIsTimelineStuck] = useState(false)
@@ -448,6 +461,39 @@ export function SalesOrderHeaderTimeline({
               )
             })}
 
+          {/* Amendment markers — signed changes on the term (green dotted) */}
+          {showFullTerm &&
+            AMENDMENT_MARKERS.map((amendment) => {
+              const isHovered = rampHovered?.id === amendment.id
+              return (
+                <button
+                  key={amendment.id}
+                  type="button"
+                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2 cursor-default"
+                  style={{ left: `${trackLeft(amendment.date)}%`, top: 0 }}
+                  onMouseEnter={(e) => {
+                    setRampHovered({
+                      id: amendment.id,
+                      title: amendment.title,
+                      detail: amendment.detail,
+                      dateLabel: amendment.dateLabel,
+                      status: amendment.status,
+                      rect: e.currentTarget.getBoundingClientRect(),
+                    })
+                  }}
+                  onMouseLeave={() => setRampHovered(null)}
+                  aria-label={amendment.title}
+                >
+                  <span
+                    className={cn(
+                      'block h-4 w-4 rounded-full border-[1.5px] border-dashed border-green-600 bg-white transition-all duration-200',
+                      isHovered && 'scale-110 shadow-[0_0_0_4px_rgba(22,163,74,0.2)]',
+                    )}
+                  />
+                </button>
+              )
+            })}
+
           {/* Renewal marker — after term end */}
           {showFullTerm && (
             <button
@@ -495,7 +541,7 @@ export function SalesOrderHeaderTimeline({
                   {rampHovered.detail}
                 </p>
                 <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
-                  {rampHovered.dateLabel} · upcoming
+                  {rampHovered.dateLabel} · {rampHovered.status ?? 'upcoming'}
                 </p>
               </div>
             </div>,

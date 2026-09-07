@@ -8,6 +8,7 @@ import {
   type SalesOrder,
   type SalesOrderRampPeriod,
   pioneerOverdueBillingSchedule,
+  pioneerSalesOrderPastInvoices,
 } from '@/data/salesOrderMock'
 import {
   AMENDMENT_HISTORY_VERSIONS,
@@ -15,7 +16,10 @@ import {
 } from '@/data/salesOrderAmendmentHistoryMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
+import { SectionRuleTitle } from './SectionRuleTitle'
 import { UsageSummaryTable } from './UsageSummaryTable'
+import { EntitlementsAllocationTable } from './EntitlementsAllocationTable'
+import { PastInvoicesTable } from './PastInvoicesTable'
 import { featureIdFromLabel } from './UsageDetails'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
@@ -149,7 +153,7 @@ function BillingQuarterRow({
             <span className="text-[14px] font-medium text-brand-navy">{quarter}</span>
             {invoiceId && (
               <span className="flex items-center gap-1 text-[12px] font-medium text-blue-600 opacity-0 transition-opacity group-hover:opacity-100">
-                Preview invoice
+                {item.status === 'Paid' ? 'View invoice' : 'Preview invoice'}
                 <ExternalLink size={12} />
               </span>
             )}
@@ -278,7 +282,7 @@ function ConnectedBillingScheduleTimeline({
   tcv?: string
 }) {
   const yearGroups = groupBillingByYear(items)
-  const [expandedYears, setExpandedYears] = useState<Set<string>>(() => new Set())
+  const [expandedYears, setExpandedYears] = useState<Set<string>>(() => new Set(['Year 1']))
 
   const toggleYear = (year: string) => {
     setExpandedYears((prev) => {
@@ -555,18 +559,19 @@ export function SalesOrderCollapsedSections({
   order,
   variant: _variant,
   setSectionRef,
-  onViewEntitlements,
   onViewUsageDetails,
+  onViewAllInvoices,
 }: {
   order: SalesOrder
   variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
-  onViewEntitlements?: () => void
   onViewUsageDetails?: (featureId?: string) => void
+  onViewAllInvoices?: () => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   // Single sales-order page: always Invoice overdue schedule + timeline
   const billingSchedule = pioneerOverdueBillingSchedule
+  const pastInvoices = pioneerSalesOrderPastInvoices
 
   const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
     const selectedVersion = selectedVersionId
@@ -588,9 +593,7 @@ export function SalesOrderCollapsedSections({
         ) : null}
 
         <section ref={setSectionRef?.('usage')} className="group/section">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Usage summary
-          </h2>
+          <SectionRuleTitle>Usage summary</SectionRuleTitle>
           <div className="mt-4">
             <UsageSummaryTable
               onSelectFeature={(label) => onViewUsageDetails?.(featureIdFromLabel(label))}
@@ -599,9 +602,7 @@ export function SalesOrderCollapsedSections({
         </section>
 
         <section ref={setSectionRef?.('products')} className="group/section">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Products and pricing
-          </h2>
+          <SectionRuleTitle>Products and pricing</SectionRuleTitle>
           <div className="mt-4">
             <ReadOnlyProductsList
               key={
@@ -611,8 +612,24 @@ export function SalesOrderCollapsedSections({
               }
               items={order.products}
               periods={productsPeriods}
-              onViewEntitlements={onViewEntitlements}
               showUpcomingRamps={false}
+            />
+          </div>
+        </section>
+
+        <section ref={setSectionRef?.('entitlements')} className="group/section">
+          <SectionRuleTitle>Entitlements</SectionRuleTitle>
+          <div className="mt-4">
+            <EntitlementsAllocationTable
+              onSelectFeature={(label) => {
+                const mapped =
+                  label === 'Sandbox environments'
+                    ? 'Environments'
+                    : label === 'Premium support seats'
+                      ? 'Seats'
+                      : label
+                onViewUsageDetails?.(featureIdFromLabel(mapped))
+              }}
             />
           </div>
         </section>
@@ -622,7 +639,6 @@ export function SalesOrderCollapsedSections({
             <ReadOnlyProductsList
               items={order.products}
               periods={productsPeriods}
-              onViewEntitlements={onViewEntitlements}
               upcomingOnly
             />
           </section>
@@ -639,6 +655,10 @@ export function SalesOrderCollapsedSections({
               connected
             />
           </div>
+        </section>
+
+        <section ref={setSectionRef?.('invoices')} className="group/section">
+          <PastInvoicesTable invoices={pastInvoices} onViewAll={onViewAllInvoices} />
         </section>
 
         <section ref={setSectionRef?.('linked')} className="group/section">

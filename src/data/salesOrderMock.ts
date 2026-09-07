@@ -362,6 +362,8 @@ export const pioneerSalesOrder: SalesOrder = {
 
   pastInvoices: [
     { id: 'so-pi-1', invoiceId: 'INV-2026-0042', date: 'May 1, 2026', status: 'Pending', amount: '$41,000.00' },
+    { id: 'so-pi-2', invoiceId: 'INV-2026-0043', date: 'Aug 1, 2026', status: 'Paid', paidDate: 'Aug 4, 2026', amount: '$41,000.00' },
+    { id: 'so-pi-3', invoiceId: 'INV-2026-0044', date: 'Nov 1, 2026', status: 'Paid', paidDate: 'Nov 3, 2026', amount: '$41,000.00' },
   ],
 
   linkedRecords: [
@@ -383,6 +385,33 @@ export const pioneerSalesOrder: SalesOrder = {
     { id: 'so-a-1', label: 'Quote created', date: 'Apr 18, 2026', refId: 'Q-2026-1847' },
   ],
 }
+
+/** Past invoices shown on the Sales Order tab */
+export const pioneerSalesOrderPastInvoices: PastInvoiceLine[] = [
+  {
+    id: 'so-pi-1',
+    invoiceId: 'INV-2026-0042',
+    date: 'May 1, 2026',
+    status: 'Pending',
+    amount: '$41,000.00',
+  },
+  {
+    id: 'so-pi-2',
+    invoiceId: 'INV-2026-0043',
+    date: 'Aug 1, 2026',
+    status: 'Paid',
+    paidDate: 'Aug 4, 2026',
+    amount: '$41,000.00',
+  },
+  {
+    id: 'so-pi-3',
+    invoiceId: 'INV-2026-0044',
+    date: 'Nov 1, 2026',
+    status: 'Paid',
+    paidDate: 'Nov 3, 2026',
+    amount: '$41,000.00',
+  },
+]
 
 /** Past invoices for the Invoice overdue sales-order stage */
 export const pioneerOverduePastInvoices: PastInvoiceLine[] = [

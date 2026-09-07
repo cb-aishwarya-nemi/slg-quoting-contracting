@@ -2,96 +2,21 @@ import { useState } from 'react'
 import { ChevronDown, ChevronUp, Calendar, TrendingUp, TrendingDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type SalesOrderProduct, type SalesOrderRampPeriod } from '@/data/salesOrderMock'
+import { SectionRuleTitle } from './SectionRuleTitle'
 
 interface ReadOnlyProductsListProps {
   items: SalesOrderProduct[]
   /** optional ramp breakdown — renders collapsible period tables */
   periods?: SalesOrderRampPeriod[]
-  /** Navigate to Entitlements/Usage when a multi-entitlement link is clicked */
-  onViewEntitlements?: () => void
   /** When false, hide later ramp periods so they can sit below another section. */
   showUpcomingRamps?: boolean
   /** Render only later ramps, with the Upcoming ramps title. */
   upcomingOnly?: boolean
 }
 
-const ENTITLEMENTS_W = 200
 const QTY_W = 104
 const UNIT_W = 140
 const TOTAL_W = 116
-
-type EntitlementSummary = {
-  count: number
-  /** Shown alone when count is 1, or as the lead when count > 1 */
-  primary: string
-}
-
-/** Prototype entitlement summaries by product line. */
-const ENTITLEMENT_SUMMARY_BY_NAME: Record<string, EntitlementSummary> = {
-  'Apex platform - growth services': { count: 5, primary: '10k API calls' },
-  'Apex platform - starter services': { count: 3, primary: '5k API calls' },
-  'Implementation services': { count: 2, primary: '40 hrs' },
-  'Onboarding & Training': { count: 1, primary: '1 cohort' },
-  'Premium support SLA': { count: 3, primary: '24/7 support' },
-  'Sandbox environments': { count: 1, primary: 'sandboxes' },
-}
-
-function entitlementSummaryFor(item: SalesOrderProduct): EntitlementSummary {
-  if (item.entitlementCount === 1 && item.entitlementValue) {
-    return { count: 1, primary: item.entitlementValue }
-  }
-  if (item.name === 'Sandbox environments') {
-    const qty = Number.parseInt(item.quantity, 10)
-    const n = Number.isFinite(qty) ? qty : 1
-    return {
-      count: 1,
-      primary: `${n} ${n === 1 ? 'sandbox' : 'sandboxes'}`,
-    }
-  }
-  const mapped = ENTITLEMENT_SUMMARY_BY_NAME[item.name]
-  if (mapped) {
-    return {
-      count: item.entitlementCount ?? mapped.count,
-      primary: item.entitlementValue ?? mapped.primary,
-    }
-  }
-  return {
-    count: item.entitlementCount ?? 2,
-    primary: item.entitlementValue ?? '10k API calls',
-  }
-}
-
-function EntitlementsCell({
-  item,
-  onViewEntitlements,
-}: {
-  item: SalesOrderProduct
-  onViewEntitlements?: () => void
-}) {
-  const { count, primary } = entitlementSummaryFor(item)
-  if (count === 1) {
-    return (
-      <span className="whitespace-nowrap text-[14px] text-brand-navy">{primary}</span>
-    )
-  }
-  const more = count - 1
-  return (
-    <button
-      type="button"
-      onClick={(e) => {
-        e.stopPropagation()
-        onViewEntitlements?.()
-      }}
-      className="group cursor-pointer whitespace-nowrap text-left text-[13px]"
-    >
-      <span className="font-normal text-brand-navy">{primary}</span>
-      <span className="font-medium text-blue-700 transition-colors group-hover:text-blue-800">
-        {' '}
-        + {more} more
-      </span>
-    </button>
-  )
-}
 
 function QuantityChangeBadge({ change }: { change: number }) {
   const isIncrease = change >= 0
@@ -156,12 +81,6 @@ function ColumnLabels() {
       <div style={{ width: QTY_W }} className="shrink-0 pr-6 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Qty
       </div>
-      <div
-        style={{ width: ENTITLEMENTS_W }}
-        className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy"
-      >
-        Entitlements
-      </div>
       <div style={{ width: UNIT_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Unit price
       </div>
@@ -175,11 +94,9 @@ function ColumnLabels() {
 function LineRow({
   item,
   isLast = false,
-  onViewEntitlements,
 }: {
   item: SalesOrderProduct
   isLast?: boolean
-  onViewEntitlements?: () => void
 }) {
   return (
     <div
@@ -203,9 +120,6 @@ function LineRow({
       >
         {item.quantityChange != null && <QuantityChangeBadge change={item.quantityChange} />}
         <span>{item.quantity}</span>
-      </div>
-      <div style={{ width: ENTITLEMENTS_W }} className="shrink-0 whitespace-nowrap">
-        <EntitlementsCell item={item} onViewEntitlements={onViewEntitlements} />
       </div>
       <div
         style={{ width: UNIT_W }}
@@ -289,10 +203,8 @@ function rampChangeSummary(
 
 function CurrentPeriodTable({
   period,
-  onViewEntitlements,
 }: {
   period: SalesOrderRampPeriod
-  onViewEntitlements?: () => void
 }) {
   return (
     <div>
@@ -301,7 +213,6 @@ function CurrentPeriodTable({
         <LineRow
           key={item.id}
           item={item}
-          onViewEntitlements={onViewEntitlements}
         />
       ))}
     </div>
@@ -313,13 +224,11 @@ function PeriodContainer({
   previousPeriod,
   isExpanded,
   onToggle,
-  onViewEntitlements,
 }: {
   period: SalesOrderRampPeriod
   previousPeriod?: SalesOrderRampPeriod
   isExpanded: boolean
   onToggle: () => void
-  onViewEntitlements?: () => void
 }) {
   const summary = rampChangeSummary(previousPeriod, period)
   const summaryLabel = summary
@@ -349,7 +258,6 @@ function PeriodContainer({
             key={item.id}
             item={item}
             isLast={idx === period.items.length - 1}
-            onViewEntitlements={onViewEntitlements}
           />
         ))}
     </div>
@@ -363,7 +271,6 @@ function PeriodContainer({
 export function ReadOnlyProductsList({
   items,
   periods,
-  onViewEntitlements,
   showUpcomingRamps = true,
   upcomingOnly = false,
 }: ReadOnlyProductsListProps) {
@@ -395,7 +302,6 @@ export function ReadOnlyProductsList({
         previousPeriod={index === 0 ? currentPeriod : upcomingPeriods[index - 1]}
         isExpanded={expandedPeriods.has(period.id)}
         onToggle={() => togglePeriod(period.id)}
-        onViewEntitlements={onViewEntitlements}
       />
     )
 
@@ -403,9 +309,7 @@ export function ReadOnlyProductsList({
       if (upcomingPeriods.length === 0) return null
       return (
         <div className="space-y-4">
-          <h3 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Upcoming ramps
-          </h3>
+          <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
           {upcomingPeriods.map(renderUpcoming)}
         </div>
       )
@@ -415,13 +319,10 @@ export function ReadOnlyProductsList({
       <div className="space-y-10">
         <CurrentPeriodTable
           period={currentPeriod}
-          onViewEntitlements={onViewEntitlements}
         />
         {showUpcomingRamps && upcomingPeriods.length > 0 && (
           <div className="space-y-4">
-            <h3 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-              Upcoming ramps
-            </h3>
+            <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
             {upcomingPeriods.map(renderUpcoming)}
           </div>
         )}
@@ -443,7 +344,6 @@ export function ReadOnlyProductsList({
           key={item.id}
           item={item}
           isLast={idx === items.length - 1}
-          onViewEntitlements={onViewEntitlements}
         />
       ))}
     </div>

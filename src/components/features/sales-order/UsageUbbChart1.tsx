@@ -19,7 +19,7 @@ const FEATURE_USAGE_SHELL_MONTHS = [
   'Dec',
 ] as const
 /** July is current; Aug–Dec are projected. */
-const FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX = 6
+export const FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX = 6
 const FEATURE_USAGE_SHELL_COLORS = {
   ideal: '#94a3b8',
   actual: '#22863a',
@@ -44,6 +44,15 @@ function shellPolyline(points: ShellPoint[]): string {
   return points
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
     .join(' ')
+}
+
+/** Close a line path down to a baseline so the area under the curve can be filled. */
+function areaUnder(points: ShellPoint[], baselineY: number): string {
+  if (points.length === 0) return ''
+  const line = shellPolyline(points)
+  const last = points[points.length - 1]
+  const first = points[0]
+  return `${line} L ${last.x} ${baselineY} L ${first.x} ${baselineY} Z`
 }
 
 /** Split a path at the Jul→Aug boundary so post-July segments can be dashed. */
@@ -174,6 +183,46 @@ const FEATURE_CHART_SERIES: Record<string, FeatureChartSeries> = {
     yAxisStep: 1_000,
     actual: [400, 800, 1_200, 1_800, 2_400, 3_000, 3_250, 3_550, 3_850, 4_150, 4_450, 4_750],
   },
+}
+
+const FEATURE_USAGE_UNITS: Record<string, string> = {
+  'API calls': 'API calls',
+  'Image processing': 'images',
+  Storage: 'GB',
+}
+
+/** On-demand unit price used for KPI dollar amounts. */
+const FEATURE_ON_DEMAND_UNIT_PRICE: Record<string, number> = {
+  'API calls': 0.0001,
+  'Image processing': 0.1,
+  Storage: 2,
+}
+
+export type FeatureUsageKpis = {
+  commitRemaining: number
+  commitTotal: number
+  onDemandUsage: number
+  onDemandAmount: number
+  unit: string
+}
+
+/** Current-month KPIs derived from the usage chart series. */
+export function getFeatureUsageKpis(featureLabel: string): FeatureUsageKpis {
+  const chart =
+    FEATURE_CHART_SERIES[featureLabel] ?? FEATURE_CHART_SERIES['Image processing']
+  const current =
+    chart.actual[FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX] ?? chart.actual[0] ?? 0
+  const onDemandUsage = Math.max(0, current - chart.commit)
+  const unitPrice =
+    FEATURE_ON_DEMAND_UNIT_PRICE[featureLabel] ??
+    FEATURE_ON_DEMAND_UNIT_PRICE['Image processing']
+  return {
+    commitRemaining: Math.max(0, chart.commit - current),
+    commitTotal: chart.commit,
+    onDemandUsage,
+    onDemandAmount: onDemandUsage * unitPrice,
+    unit: FEATURE_USAGE_UNITS[featureLabel] ?? 'units',
+  }
 }
 
 const CHART_GRANULARITIES = ['Monthly', 'Quarterly', 'Yearly'] as const
@@ -390,6 +439,7 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
 
     const underSplit = splitAtProjection(underCommit, FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX)
     const overSplit = splitAtProjection(overCommit, FEATURE_USAGE_SHELL_CURRENT_MONTH_INDEX)
+    const baselineY = valueToY(0)
 
     return {
       points,
@@ -399,6 +449,10 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
       underProjected: shellPolyline(underSplit.projected),
       overSolid: shellPolyline(overSplit.solid),
       overProjected: shellPolyline(overSplit.projected),
+      underSolidArea: areaUnder(underSplit.solid, baselineY),
+      underProjectedArea: areaUnder(underSplit.projected, baselineY),
+      overSolidArea: areaUnder(overSplit.solid, baselineY),
+      overProjectedArea: areaUnder(overSplit.projected, baselineY),
     }
     // indexToX / valueToY are stable for fixed layout constants
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -427,6 +481,57 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
           role="img"
           aria-label={`${featureLabel} usage ideal vs actual line chart`}
         >
+          <defs>
+            <linearGradient id="usage-ubb-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.actual}
+                stopOpacity="0.14"
+              />
+              <stop
+                offset="100%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.actual}
+                stopOpacity="0.01"
+              />
+            </linearGradient>
+            <linearGradient id="usage-ubb-projected-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.actual}
+                stopOpacity="0.1"
+              />
+              <stop
+                offset="100%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.actual}
+                stopOpacity="0.01"
+              />
+            </linearGradient>
+            <linearGradient id="usage-ubb-over-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.overCommit}
+                stopOpacity="0.16"
+              />
+              <stop
+                offset="100%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.overCommit}
+                stopOpacity="0.02"
+              />
+            </linearGradient>
+            <linearGradient id="usage-ubb-over-projected-fill" x1="0" y1="0" x2="0" y2="1">
+              <stop
+                offset="0%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.overCommit}
+                stopOpacity="0.12"
+              />
+              <stop
+                offset="100%"
+                stopColor={FEATURE_USAGE_SHELL_COLORS.overCommit}
+                stopOpacity="0.02"
+              />
+            </linearGradient>
+          </defs>
+
           {yTicks.map((tick) => (
             <line
               key={tick}
@@ -448,6 +553,27 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
             strokeWidth="1.25"
             vectorEffect="non-scaling-stroke"
           />
+
+          {series.underSolidArea && (
+            <path d={series.underSolidArea} fill="url(#usage-ubb-fill)" stroke="none" />
+          )}
+          {series.underProjectedArea && (
+            <path
+              d={series.underProjectedArea}
+              fill="url(#usage-ubb-projected-fill)"
+              stroke="none"
+            />
+          )}
+          {series.overSolidArea && (
+            <path d={series.overSolidArea} fill="url(#usage-ubb-over-fill)" stroke="none" />
+          )}
+          {series.overProjectedArea && (
+            <path
+              d={series.overProjectedArea}
+              fill="url(#usage-ubb-over-projected-fill)"
+              stroke="none"
+            />
+          )}
 
           {/* Ideal usage — solid diagonal from 0 (never dashed) */}
           {series.idealPath && (
@@ -555,14 +681,14 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
               transform: 'translateX(-50%)',
             }}
           >
-            <span className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700">
+            <span className="absolute left-1/2 bottom-full mb-1 -translate-x-1/2 rounded-full bg-teal-50 px-2 py-0.5 text-[10px] font-semibold tracking-[-0.01em] text-teal-700">
               Today
             </span>
             <div
-              className="h-full w-px bg-blue-600"
+              className="h-full w-px"
               style={{
                 backgroundImage:
-                  'repeating-linear-gradient(to bottom, #2563eb 0 3px, transparent 3px 6px)',
+                  'repeating-linear-gradient(to bottom, #0d9488 0 3px, transparent 3px 6px)',
                 backgroundColor: 'transparent',
               }}
             />
@@ -600,7 +726,7 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
             return (
               <span
                 key={`actual-value-${FEATURE_USAGE_SHELL_MONTHS[point.index]}`}
-                className="absolute whitespace-nowrap text-center text-[10px] font-semibold"
+                className="absolute whitespace-nowrap text-center text-[10px] font-medium"
                 style={{
                   left: `${(point.x / 1000) * 100}%`,
                   top: `${(point.yActual / FEATURE_USAGE_SHELL_HEIGHT) * 100}%`,
@@ -627,7 +753,7 @@ export function UsageUbbChart1({ featureLabel = 'Feature' }: { featureLabel?: st
                 className={cn(
                   'absolute -translate-x-1/2 text-[10px]',
                   isCurrent
-                    ? 'font-semibold text-blue-700'
+                    ? 'font-semibold text-teal-700'
                     : projected
                       ? 'text-brand-mist'
                       : 'text-brand-fog'

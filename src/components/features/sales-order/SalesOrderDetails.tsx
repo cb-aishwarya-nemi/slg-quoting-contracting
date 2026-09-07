@@ -32,8 +32,8 @@ export interface SalesOrderDetailsProps {
   onOpenChat?: (prompt: string) => void
   onAppendChat?: (prompt: string) => void
   onCloseChat?: () => void
-  onViewEntitlements?: () => void
   onViewUsageDetails?: (featureId?: string) => void
+  onViewAllInvoices?: () => void
 }
 
 const CONTENT_MAX_WIDTH = 1040
@@ -135,7 +135,7 @@ function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
       value: order.sourceContract,
       href: `/pdf-viewer.html?doc=${encodeURIComponent(order.sourceContract)}`,
     },
-    { label: 'Amendments', value: 'None' },
+    { label: 'Amendments', value: 'Aug 1, 2027', sub: formatMonthsUntil(new Date('2027-08-01')) },
   ]
 }
 
@@ -221,8 +221,8 @@ export function SalesOrderDetails({
   onOpenChat,
   onAppendChat,
   onCloseChat,
-  onViewEntitlements,
   onViewUsageDetails,
+  onViewAllInvoices,
 }: SalesOrderDetailsProps) {
   usePageUseCase('sales-order-details')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -364,18 +364,20 @@ export function SalesOrderDetails({
               More
             </button>
             {showMoreMenu && (
-              <div className="absolute right-0 top-full z-20 mt-1 min-w-[180px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 top-full z-20 mt-1 min-w-[220px] rounded-lg border border-neutral-200 bg-white py-1 shadow-lg">
                 <button
                   type="button"
+                  onClick={() => setShowMoreMenu(false)}
                   className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
                 >
-                  Download order form
+                  Create ramps
                 </button>
                 <button
                   type="button"
+                  onClick={() => setShowMoreMenu(false)}
                   className="flex w-full cursor-pointer items-center px-4 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
                 >
-                  Cancel order
+                  Bill for future renewals
                 </button>
               </div>
             )}
@@ -394,8 +396,8 @@ export function SalesOrderDetails({
 
           <SalesOrderCollapsedSections
             order={order}
-            onViewEntitlements={onViewEntitlements}
             onViewUsageDetails={onViewUsageDetails}
+            onViewAllInvoices={onViewAllInvoices}
           />
 
           <div aria-hidden="true" style={{ height: 120 }} />

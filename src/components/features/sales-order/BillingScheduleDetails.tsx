@@ -234,12 +234,10 @@ export function BillingScheduleDetails({
                 <ReadOnlyProductsList
                   items={year1Period.items}
                   periods={[year1Period]}
-                  onViewEntitlements={() => onViewUsageDetails?.()}
                 />
               ) : (
                 <ReadOnlyProductsList
                   items={order.products}
-                  onViewEntitlements={() => onViewUsageDetails?.()}
                 />
               )}
             </div>

@@ -39,8 +39,8 @@ function usageRingColor(ratio: number) {
 }
 
 function UsageDonut({ ratio }: { ratio: number }) {
-  const size = 18
-  const stroke = 2.5
+  const size = 13
+  const stroke = 2
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
   const clamped = Math.min(1, Math.max(0, ratio))
@@ -121,7 +121,7 @@ export function UsageSummaryTable({
                 {row.feature}
               </span>
             </div>
-            <div className="flex items-center gap-2 pr-4 text-[14px]">
+            <div className="flex items-center gap-1.5 pr-4 text-[14px]">
               <UsageDonut ratio={row.usedRatio} />
               <span>
                 <span className="font-medium text-brand-navy transition-colors group-hover:text-white">
@@ -153,7 +153,7 @@ export function UsageSummaryTable({
                   ) : null}
                 </>
               ) : (
-                <span className="text-[12px] text-brand-mist transition-colors group-hover:text-white/50">
+                <span className="text-[10px] text-brand-mist transition-colors group-hover:text-white/50">
                   —
                 </span>
               )}
