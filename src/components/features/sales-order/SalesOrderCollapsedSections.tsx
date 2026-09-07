@@ -15,6 +15,8 @@ import {
 } from '@/data/salesOrderAmendmentHistoryMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
+import { UsageSummaryTable } from './UsageSummaryTable'
+import { featureIdFromLabel } from './UsageDetails'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
 const SCHEDULE_TODAY = new Date('2026-06-22')
@@ -411,10 +413,12 @@ function VersionChangeSummary({ version }: { version: AmendmentVersionSnapshot }
 function LinkedRecordRow({
   label,
   value,
+  moreCount,
   isLast = false,
 }: {
   label: string
   value: string
+  moreCount?: number
   isLast?: boolean
 }) {
   const isEmpty = value === '—' || value === ''
@@ -431,9 +435,17 @@ function LinkedRecordRow({
       {isEmpty ? (
         <span className="text-[14px] text-brand-fog">—</span>
       ) : (
-        <a className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
-          {value}
-        </a>
+        <span className="min-w-0">
+          <a className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
+            {value}
+          </a>
+          {moreCount != null && moreCount > 0 && (
+            <span className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
+              {' '}
+              +{moreCount} more
+            </span>
+          )}
+        </span>
       )}
     </div>
   )
@@ -544,11 +556,13 @@ export function SalesOrderCollapsedSections({
   variant: _variant,
   setSectionRef,
   onViewEntitlements,
+  onViewUsageDetails,
 }: {
   order: SalesOrder
   variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
   onViewEntitlements?: () => void
+  onViewUsageDetails?: (featureId?: string) => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   // Single sales-order page: always Invoice overdue schedule + timeline
@@ -573,6 +587,17 @@ export function SalesOrderCollapsedSections({
           <VersionChangeSummary version={selectedVersion} />
         ) : null}
 
+        <section ref={setSectionRef?.('usage')} className="group/section">
+          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Usage summary
+          </h2>
+          <div className="mt-4">
+            <UsageSummaryTable
+              onSelectFeature={(label) => onViewUsageDetails?.(featureIdFromLabel(label))}
+            />
+          </div>
+        </section>
+
         <section ref={setSectionRef?.('products')} className="group/section">
           <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
             Products and pricing
@@ -587,9 +612,21 @@ export function SalesOrderCollapsedSections({
               items={order.products}
               periods={productsPeriods}
               onViewEntitlements={onViewEntitlements}
+              showUpcomingRamps={false}
             />
           </div>
         </section>
+
+        {productsPeriods && productsPeriods.length > 1 ? (
+          <section ref={setSectionRef?.('ramps')} className="group/section">
+            <ReadOnlyProductsList
+              items={order.products}
+              periods={productsPeriods}
+              onViewEntitlements={onViewEntitlements}
+              upcomingOnly
+            />
+          </section>
+        ) : null}
 
         <section ref={setSectionRef?.('schedule')} className="group/section">
           <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
@@ -616,6 +653,7 @@ export function SalesOrderCollapsedSections({
                     key={row.label}
                     label={row.label}
                     value={row.value}
+                    moreCount={row.moreCount}
                     isLast={idx === order.linkedRecords.length - 1}
                   />
                 ))}

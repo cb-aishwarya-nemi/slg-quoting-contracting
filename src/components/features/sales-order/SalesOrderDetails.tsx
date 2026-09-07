@@ -33,6 +33,7 @@ export interface SalesOrderDetailsProps {
   onAppendChat?: (prompt: string) => void
   onCloseChat?: () => void
   onViewEntitlements?: () => void
+  onViewUsageDetails?: (featureId?: string) => void
 }
 
 const CONTENT_MAX_WIDTH = 1040
@@ -221,6 +222,7 @@ export function SalesOrderDetails({
   onAppendChat,
   onCloseChat,
   onViewEntitlements,
+  onViewUsageDetails,
 }: SalesOrderDetailsProps) {
   usePageUseCase('sales-order-details')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -393,6 +395,7 @@ export function SalesOrderDetails({
           <SalesOrderCollapsedSections
             order={order}
             onViewEntitlements={onViewEntitlements}
+            onViewUsageDetails={onViewUsageDetails}
           />
 
           <div aria-hidden="true" style={{ height: 120 }} />

@@ -5,6 +5,7 @@ import { cn } from '@/lib/utils'
 import { type BillingScheduleLine, type SalesOrder } from '@/data/salesOrderMock'
 import { ReadOnlyProductsList } from './ReadOnlyProductsList'
 import { featureIdFromLabel } from './UsageDetails'
+import { UsageSummaryTable } from './UsageSummaryTable'
 import {
   ActivityTimeline,
   BillingScheduleTimeline,
@@ -23,36 +24,6 @@ const YEAR_1_PERIOD = {
   installments: 4,
   monthsRemaining: 1,
 }
-
-const YEAR_1_USAGE_ROWS = [
-  {
-    feature: 'API calls',
-    commitBalance: '3.8M',
-    commitUnit: 'API calls',
-    onDemandUsage: null,
-    onDemandUnit: null,
-    onDemandAmount: null,
-    commitExceeded: false,
-  },
-  {
-    feature: 'Image processing',
-    commitBalance: '510',
-    commitUnit: 'images',
-    onDemandUsage: null,
-    onDemandUnit: null,
-    onDemandAmount: null,
-    commitExceeded: false,
-  },
-  {
-    feature: 'Storage',
-    commitBalance: '0',
-    commitUnit: 'GB',
-    onDemandUsage: '24',
-    onDemandUnit: 'GB',
-    onDemandAmount: '$48.00',
-    commitExceeded: true,
-  },
-] as const
 
 const YEAR_1_ENTITLEMENTS = [
   { label: 'Seats', value: '50 seats', usageBased: false },
@@ -174,102 +145,6 @@ function Year1Summary() {
         <SummaryMetricsRow metrics={metrics} />
       </div>
     </section>
-  )
-}
-
-function UsageSummaryTable({
-  onSelectFeature,
-}: {
-  onSelectFeature?: (featureLabel: string) => void
-}) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white">
-      <div className="grid grid-cols-[1fr_1fr_1fr_auto] items-center border-b border-neutral-200 px-3 pb-2 pt-3">
-        <div className="text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Feature
-        </div>
-        <div className="text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Commit balance
-        </div>
-        <div className="text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          On-demand usage
-        </div>
-        <div className="w-5" aria-hidden />
-      </div>
-      <div>
-        {YEAR_1_USAGE_ROWS.map((row, idx) => (
-          <div
-            key={row.feature}
-            role={onSelectFeature ? 'button' : undefined}
-            tabIndex={onSelectFeature ? 0 : undefined}
-            onClick={() => onSelectFeature?.(row.feature)}
-            onKeyDown={
-              onSelectFeature
-                ? (e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onSelectFeature(row.feature)
-                    }
-                  }
-                : undefined
-            }
-            className={cn(
-              'group row-hover-trail grid cursor-pointer grid-cols-[1fr_1fr_1fr_auto] items-center px-3 py-2.5 transition-colors hover:bg-brand-navy',
-              idx < YEAR_1_USAGE_ROWS.length - 1 && 'border-b border-neutral-100 hover:border-brand-navy'
-            )}
-          >
-            <div className="flex min-w-0 items-center gap-2 pr-4">
-              <span className="truncate text-[14px] font-medium text-brand-navy transition-colors group-hover:text-white">
-                {row.feature}
-              </span>
-              {row.commitExceeded ? (
-                <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-medium text-red-700 transition-colors group-hover:bg-white/15 group-hover:text-white">
-                  Commit exceeded
-                </span>
-              ) : null}
-            </div>
-            <div className="pr-4 text-[14px]">
-              <span className="font-medium text-brand-navy transition-colors group-hover:text-white">
-                {row.commitBalance}
-              </span>
-              <span className="text-[12px] text-brand-fog transition-colors group-hover:text-white/70">
-                {' '}
-                {row.commitUnit} available
-              </span>
-            </div>
-            <div className="pr-4 text-[14px]">
-              {row.onDemandUsage ? (
-                <>
-                  <span className="font-medium text-brand-navy transition-colors group-hover:text-white">
-                    {row.onDemandUsage}
-                  </span>
-                  {row.onDemandUnit ? (
-                    <span className="text-[12px] text-brand-fog transition-colors group-hover:text-white/70">
-                      {' '}
-                      {row.onDemandUnit}
-                    </span>
-                  ) : null}
-                  {row.onDemandAmount ? (
-                    <span className="text-[12px] text-brand-fog transition-colors group-hover:text-white/70">
-                      {' '}
-                      ({row.onDemandAmount})
-                    </span>
-                  ) : null}
-                </>
-              ) : (
-                <span className="text-[12px] text-brand-mist transition-colors group-hover:text-white/50">
-                  —
-                </span>
-              )}
-            </div>
-            <ArrowRight
-              size={14}
-              className="shrink-0 text-white opacity-0 transition-opacity group-hover:opacity-100"
-            />
-          </div>
-        ))}
-      </div>
-    </div>
   )
 }
 

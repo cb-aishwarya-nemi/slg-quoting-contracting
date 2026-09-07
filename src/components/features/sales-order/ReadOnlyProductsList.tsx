@@ -9,11 +9,14 @@ interface ReadOnlyProductsListProps {
   periods?: SalesOrderRampPeriod[]
   /** Navigate to Entitlements/Usage when a multi-entitlement link is clicked */
   onViewEntitlements?: () => void
+  /** When false, hide later ramp periods so they can sit below another section. */
+  showUpcomingRamps?: boolean
+  /** Render only later ramps, with the Upcoming ramps title. */
+  upcomingOnly?: boolean
 }
 
 const ENTITLEMENTS_W = 200
-const PERIOD_W = 88
-const QTY_W = 80
+const QTY_W = 104
 const UNIT_W = 140
 const TOTAL_W = 116
 
@@ -111,7 +114,7 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
         e.stopPropagation()
         onToggle()
       }}
-      className="mr-2 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
+      className="-ml-6 mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
       title={isExpanded ? 'Collapse period' : 'Expand period'}
     >
       {isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
@@ -119,8 +122,14 @@ function PeriodChevron({ isExpanded, onToggle }: { isExpanded: boolean; onToggle
   )
 }
 
-/** Period identity: label + date range. */
-function PeriodIdentity({ period }: { period: SalesOrderRampPeriod }) {
+/** Period identity: label + date range, then optional change summary. */
+function PeriodIdentity({
+  period,
+  summary,
+}: {
+  period: SalesOrderRampPeriod
+  summary?: string | null
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
@@ -131,6 +140,12 @@ function PeriodIdentity({ period }: { period: SalesOrderRampPeriod }) {
         <span>to</span>
         <span className="whitespace-nowrap">{period.endDate}</span>
       </div>
+      {summary ? (
+        <>
+          <span className="text-[13px] text-brand-fog">·</span>
+          <span className="truncate text-[12px] text-brand-fog">{summary}</span>
+        </>
+      ) : null}
     </div>
   )
 }
@@ -138,10 +153,7 @@ function PeriodIdentity({ period }: { period: SalesOrderRampPeriod }) {
 function ColumnLabels() {
   return (
     <>
-      <div style={{ width: PERIOD_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-        Frequency
-      </div>
-      <div style={{ width: QTY_W }} className="shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+      <div style={{ width: QTY_W }} className="shrink-0 pr-6 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Qty
       </div>
       <div
@@ -154,7 +166,7 @@ function ColumnLabels() {
         Unit price
       </div>
       <div style={{ width: TOTAL_W }} className="shrink-0 text-right text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-        Total price
+        Amount
       </div>
     </>
   )
@@ -176,21 +188,21 @@ function LineRow({
         !isLast && 'border-b border-neutral-100'
       )}
     >
-      <div className="flex flex-1 items-center gap-2 truncate pr-4">
+      <div className="flex min-w-0 flex-1 items-center truncate pr-4">
         <span className="truncate text-[14px] font-medium text-brand-navy">{item.name}</span>
-      </div>
-      <div
-        style={{ width: PERIOD_W }}
-        className="shrink-0 whitespace-nowrap text-[14px] text-brand-navy"
-      >
-        {item.frequency}
+        {item.frequency ? (
+          <>
+            <span className="mx-1.5 shrink-0 text-[13px] text-brand-fog">·</span>
+            <span className="shrink-0 text-[13px] text-brand-fog">{item.frequency}</span>
+          </>
+        ) : null}
       </div>
       <div
         style={{ width: QTY_W }}
-        className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[14px] text-brand-navy"
+        className="flex shrink-0 items-center justify-end gap-1.5 whitespace-nowrap pr-6 text-[14px] text-brand-navy"
       >
-        <span>{item.quantity}</span>
         {item.quantityChange != null && <QuantityChangeBadge change={item.quantityChange} />}
+        <span>{item.quantity}</span>
       </div>
       <div style={{ width: ENTITLEMENTS_W }} className="shrink-0 whitespace-nowrap">
         <EntitlementsCell item={item} onViewEntitlements={onViewEntitlements} />
@@ -221,47 +233,118 @@ function LineRow({
   )
 }
 
+function ProductTableHeader() {
+  return (
+    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
+      <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
+        Item
+      </div>
+      <ColumnLabels />
+    </div>
+  )
+}
+
+function numericQuantity(value: string): number {
+  const qty = Number.parseInt(value, 10)
+  return Number.isFinite(qty) ? qty : 0
+}
+
+function rampChangeSummary(
+  previous: SalesOrderRampPeriod | undefined,
+  next: SalesOrderRampPeriod
+): { detail: string; count: number } | null {
+  if (!previous) return null
+
+  const prevByName = new Map(previous.items.map((item) => [item.name, item]))
+
+  let added = 0
+  let pricesIncreased = 0
+  let qtyIncreased = 0
+
+  for (const item of next.items) {
+    const prior = prevByName.get(item.name)
+    if (!prior) {
+      added += 1
+      continue
+    }
+    const delta =
+      item.quantityChange ?? numericQuantity(item.quantity) - numericQuantity(prior.quantity)
+    if (delta > 0) qtyIncreased += 1
+    if (item.rampPriceChange != null || item.unitPriceDiff) pricesIncreased += 1
+  }
+
+  const count = added + pricesIncreased + qtyIncreased
+  if (count === 0) return null
+
+  const parts: string[] = []
+  if (added === 1) parts.push('1 add-on added')
+  else if (added > 1) parts.push(`${added} add-ons added`)
+  if (pricesIncreased === 1) parts.push('1 price increased')
+  else if (pricesIncreased > 1) parts.push(`${pricesIncreased} prices increased`)
+  if (qtyIncreased === 1) parts.push('1 quantity increase')
+  else if (qtyIncreased > 1) parts.push(`${qtyIncreased} quantity increases`)
+
+  return { detail: parts.join(' · '), count }
+}
+
+function CurrentPeriodTable({
+  period,
+  onViewEntitlements,
+}: {
+  period: SalesOrderRampPeriod
+  onViewEntitlements?: () => void
+}) {
+  return (
+    <div>
+      <ProductTableHeader />
+      {period.items.map((item) => (
+        <LineRow
+          key={item.id}
+          item={item}
+          onViewEntitlements={onViewEntitlements}
+        />
+      ))}
+    </div>
+  )
+}
+
 function PeriodContainer({
   period,
+  previousPeriod,
   isExpanded,
   onToggle,
   onViewEntitlements,
 }: {
   period: SalesOrderRampPeriod
+  previousPeriod?: SalesOrderRampPeriod
   isExpanded: boolean
   onToggle: () => void
   onViewEntitlements?: () => void
 }) {
-  const containerClass = 'overflow-hidden rounded-lg border border-neutral-200 bg-white'
-
-  if (!isExpanded) {
-    return (
-      <div className={containerClass}>
-        <div
-          onClick={onToggle}
-          className="flex w-full cursor-pointer items-center px-3 py-3 transition-colors hover:bg-neutral-50"
-        >
-          <PeriodChevron isExpanded={false} onToggle={onToggle} />
-          <PeriodIdentity period={period} />
-        </div>
-      </div>
-    )
-  }
+  const summary = rampChangeSummary(previousPeriod, period)
+  const summaryLabel = summary
+    ? isExpanded
+      ? `${summary.count} ${summary.count === 1 ? 'change' : 'changes'}`
+      : summary.detail
+    : null
 
   return (
-    <div className={containerClass}>
+    <div>
       <div
         onClick={onToggle}
-        className="flex cursor-pointer items-center border-b border-neutral-200 px-3 pb-2 pt-3 transition-colors hover:bg-neutral-50"
+        className={cn(
+          'flex w-full cursor-pointer items-center border-b border-neutral-200 pl-1 pr-2 transition-colors hover:bg-neutral-50',
+          isExpanded ? 'pb-2 pt-3' : 'py-3'
+        )}
       >
         <div className="flex min-w-0 flex-1 items-center">
-          <PeriodChevron isExpanded onToggle={onToggle} />
-          <PeriodIdentity period={period} />
+          <PeriodChevron isExpanded={isExpanded} onToggle={onToggle} />
+          <PeriodIdentity period={period} summary={summaryLabel} />
         </div>
-        <ColumnLabels />
+        {isExpanded ? <ColumnLabels /> : null}
       </div>
-      <div className="px-2 pb-1">
-        {period.items.map((item, idx) => (
+      {isExpanded &&
+        period.items.map((item, idx) => (
           <LineRow
             key={item.id}
             item={item}
@@ -269,7 +352,6 @@ function PeriodContainer({
             onViewEntitlements={onViewEntitlements}
           />
         ))}
-      </div>
     </div>
   )
 }
@@ -282,6 +364,8 @@ export function ReadOnlyProductsList({
   items,
   periods,
   onViewEntitlements,
+  showUpcomingRamps = true,
+  upcomingOnly = false,
 }: ReadOnlyProductsListProps) {
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     const firstPeriodId = periods?.[0]?.id
@@ -297,19 +381,50 @@ export function ReadOnlyProductsList({
     })
   }
 
-  // Ramp view — all periods as accordions
+  // Ramp view — current period, then later ramps under a shared title
   if (periods && periods.length > 0) {
+    const [currentPeriod, ...upcomingPeriods] = periods
+
+    const renderUpcoming = (period: SalesOrderRampPeriod, index: number) => (
+      <PeriodContainer
+        key={period.id}
+        period={{
+          ...period,
+          label: period.label.replace(/^Period\s+/i, 'Year '),
+        }}
+        previousPeriod={index === 0 ? currentPeriod : upcomingPeriods[index - 1]}
+        isExpanded={expandedPeriods.has(period.id)}
+        onToggle={() => togglePeriod(period.id)}
+        onViewEntitlements={onViewEntitlements}
+      />
+    )
+
+    if (upcomingOnly) {
+      if (upcomingPeriods.length === 0) return null
+      return (
+        <div className="space-y-4">
+          <h3 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+            Upcoming ramps
+          </h3>
+          {upcomingPeriods.map(renderUpcoming)}
+        </div>
+      )
+    }
+
     return (
-      <div className="space-y-4">
-        {periods.map((period) => (
-          <PeriodContainer
-            key={period.id}
-            period={period}
-            isExpanded={expandedPeriods.has(period.id)}
-            onToggle={() => togglePeriod(period.id)}
-            onViewEntitlements={onViewEntitlements}
-          />
-        ))}
+      <div className="space-y-10">
+        <CurrentPeriodTable
+          period={currentPeriod}
+          onViewEntitlements={onViewEntitlements}
+        />
+        {showUpcomingRamps && upcomingPeriods.length > 0 && (
+          <div className="space-y-4">
+            <h3 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+              Upcoming ramps
+            </h3>
+            {upcomingPeriods.map(renderUpcoming)}
+          </div>
+        )}
       </div>
     )
   }

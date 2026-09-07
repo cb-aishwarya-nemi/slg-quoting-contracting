@@ -179,6 +179,10 @@ export function Customer360Page() {
               setUsageFocusFeatureId(null)
               setActiveTab('usage')
             }}
+            onViewUsageDetails={(featureId) => {
+              setUsageFocusFeatureId(featureId ?? null)
+              setActiveTab('usage')
+            }}
           />
         )}
 

@@ -85,6 +85,8 @@ export interface LinkedRecord {
   value: string
   /** When false, value renders as plain text (e.g. empty renewal). Defaults to true. */
   href?: boolean
+  /** Extra documents beyond the primary value, shown as “+ N more”. */
+  moreCount?: number
 }
 
 export interface ActivityItem {
@@ -280,14 +282,6 @@ export const pioneerSalesOrder: SalesOrder = {
       totalPrice: '$18,000.00',
     },
     {
-      id: 'so-li-3',
-      name: 'Onboarding & Training',
-      frequency: 'One-time',
-      quantity: '01',
-      unitPrice: '$9,500.00',
-      totalPrice: '$9,500.00',
-    },
-    {
       id: 'so-li-4',
       name: 'Premium support SLA',
       frequency: 'Yearly',
@@ -303,6 +297,14 @@ export const pioneerSalesOrder: SalesOrder = {
       unitPrice: '$1,500.00',
       totalPrice: '$4,500.00',
     },
+    {
+      id: 'so-li-3',
+      name: 'Onboarding & Training',
+      frequency: 'One-time',
+      quantity: '01',
+      unitPrice: '$9,500.00',
+      totalPrice: '$9,500.00',
+    },
   ],
 
   productPeriods: [
@@ -314,9 +316,9 @@ export const pioneerSalesOrder: SalesOrder = {
       items: [
         { id: 'so-p1-1', name: 'Apex platform - growth services', frequency: 'Yearly', quantity: '50', unitPrice: '$2,400.00', totalPrice: '$120,000.00' },
         { id: 'so-p1-2', name: 'Implementation services', frequency: 'Yearly', quantity: '01', unitPrice: '$18,000.00', totalPrice: '$18,000.00' },
-        { id: 'so-p1-3', name: 'Onboarding & Training', frequency: 'One-time', quantity: '01', unitPrice: '$9,500.00', totalPrice: '$9,500.00' },
         { id: 'so-p1-4', name: 'Premium support SLA', frequency: 'Yearly', quantity: '01', unitPrice: '$12,000.00', totalPrice: '$12,000.00' },
         { id: 'so-p1-5', name: 'Sandbox environments', frequency: 'Yearly', quantity: '03', unitPrice: '$1,500.00', totalPrice: '$4,500.00' },
+        { id: 'so-p1-3', name: 'Onboarding & Training', frequency: 'One-time', quantity: '01', unitPrice: '$9,500.00', totalPrice: '$9,500.00' },
       ],
     },
     {
@@ -365,7 +367,7 @@ export const pioneerSalesOrder: SalesOrder = {
   linkedRecords: [
     { label: 'CRM Account', value: 'Pioneer Systems' },
     { label: 'CRM Opportunity', value: 'OPP-2026-1847' },
-    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2026.pdf' },
+    { label: 'Contracts', value: 'Pioneer_Systems_MSA_2026.pdf', moreCount: 2 },
   ],
 
   comments: pioneerComments,
