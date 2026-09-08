@@ -12,11 +12,13 @@ interface ReadOnlyProductsListProps {
   showUpcomingRamps?: boolean
   /** Render only later ramps, with the Upcoming ramps title. */
   upcomingOnly?: boolean
+  /** Parent supplies the Upcoming ramps heading (for example, with a view switcher). */
+  hideUpcomingTitle?: boolean
 }
 
-const QTY_W = 104
-const UNIT_W = 140
-const TOTAL_W = 116
+const QTY_W = 150
+const UNIT_W = 190
+const TOTAL_W = 170
 
 function QuantityChangeBadge({ change }: { change: number }) {
   const isIncrease = change >= 0
@@ -273,6 +275,7 @@ export function ReadOnlyProductsList({
   periods,
   showUpcomingRamps = true,
   upcomingOnly = false,
+  hideUpcomingTitle = false,
 }: ReadOnlyProductsListProps) {
   const [expandedPeriods, setExpandedPeriods] = useState<Set<string>>(() => {
     const firstPeriodId = periods?.[0]?.id
@@ -309,7 +312,9 @@ export function ReadOnlyProductsList({
       if (upcomingPeriods.length === 0) return null
       return (
         <div className="space-y-4">
-          <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
+          {!hideUpcomingTitle ? (
+            <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
+          ) : null}
           {upcomingPeriods.map(renderUpcoming)}
         </div>
       )

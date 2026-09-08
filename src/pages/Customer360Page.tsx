@@ -6,8 +6,8 @@ import { useUseCase, usePageUseCase } from '@/context/UseCaseContext'
 import { salesOrders, getSalesOrderById } from '@/data/salesOrderMock'
 import {
   SalesOrderDetails,
-  BillingScheduleDetails,
   UsageDetails,
+  LinkedRecordsSection,
 } from '@/components/features/sales-order'
 import {
   ASK_CHAT_RAIL_WIDTH,
@@ -28,8 +28,7 @@ const C360_TABS: TabItem[] = [
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
   { id: 'sales-order', label: 'Sales Order' },
-  { id: 'schedule', label: 'Schedule' },
-  { id: 'usage', label: 'Entitlements/Usage' },
+  { id: 'usage', label: 'Usage' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'collections', label: 'Collections' },
   { id: 'revrec', label: 'Revrec' },
@@ -44,7 +43,7 @@ function TabPlaceholder({ label }: { label: string }) {
 }
 
 export function Customer360Page() {
-  const { view, goToCustomers, goToSalesOrders, goToAllInvoices } = useNavigation()
+  const { view, goToCustomers, goToSalesOrders } = useNavigation()
   const { setActivePage } = useUseCase()
   usePageUseCase('sales-order-details')
   const [activeTab, setActiveTab] = useState('sales-order')
@@ -162,6 +161,17 @@ export function Customer360Page() {
           <div className="absolute bottom-0 left-6 right-4 h-px bg-brand-navy" />
         </div>
 
+        {/* Overview — linked CRM / contract records */}
+        {activeTab === 'overview' && (
+          <div className="relative mx-auto flex min-h-0 min-w-0 flex-1 flex-col max-w-[1560px] px-12">
+            <div className="min-h-0 flex-1 overflow-y-auto pb-24">
+              <div className="mx-auto pt-12" style={{ maxWidth: 1040 }}>
+                <LinkedRecordsSection records={activeSalesOrder.linkedRecords} />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Sales Order tab — in-frame read-only details */}
         {activeTab === 'sales-order' && (
           <SalesOrderDetails
@@ -179,18 +189,6 @@ export function Customer360Page() {
               setUsageFocusFeatureId(featureId ?? null)
               setActiveTab('usage')
             }}
-            onViewAllInvoices={() => goToAllInvoices('pioneer-systems')}
-          />
-        )}
-
-        {/* Billing schedule tab — Year 1 summary */}
-        {activeTab === 'schedule' && (
-          <BillingScheduleDetails
-            order={activeSalesOrder}
-            onViewUsageDetails={(featureId) => {
-              setUsageFocusFeatureId(featureId ?? null)
-              setActiveTab('usage')
-            }}
           />
         )}
 
@@ -204,8 +202,8 @@ export function Customer360Page() {
 
         {/* Other tabs (including Tasks) — simple placeholders */}
         {activeTab !== 'sales-order' &&
-          activeTab !== 'schedule' &&
-          activeTab !== 'usage' && (
+          activeTab !== 'usage' &&
+          activeTab !== 'overview' && (
             <TabPlaceholder
               label={C360_TABS.find((t) => t.id === activeTab)?.label ?? 'Content'}
             />

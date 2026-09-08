@@ -6,6 +6,7 @@ const YEAR_1_USAGE_ROWS = [
     feature: 'API calls',
     committedUsage: '1.2M/5M',
     commitUnit: 'API calls',
+    cadence: 'Yearly',
     usedRatio: 1.2 / 5,
     onDemandUsage: null,
     onDemandUnit: null,
@@ -15,6 +16,7 @@ const YEAR_1_USAGE_ROWS = [
     feature: 'Image processing',
     committedUsage: '1,980/2,400',
     commitUnit: 'images',
+    cadence: 'Yearly',
     usedRatio: 1980 / 2400,
     onDemandUsage: null,
     onDemandUnit: null,
@@ -24,6 +26,7 @@ const YEAR_1_USAGE_ROWS = [
     feature: 'Storage',
     committedUsage: '500/500',
     commitUnit: 'GB',
+    cadence: 'Monthly',
     usedRatio: 1,
     onDemandUsage: '24',
     onDemandUnit: 'GB',
@@ -130,6 +133,8 @@ export function UsageSummaryTable({
                 <span className="text-[12px] text-brand-fog transition-colors group-hover:text-white/70">
                   {' '}
                   {row.commitUnit}
+                  {' · '}
+                  {row.cadence}
                 </span>
               </span>
             </div>

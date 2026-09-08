@@ -33,7 +33,6 @@ export interface SalesOrderDetailsProps {
   onAppendChat?: (prompt: string) => void
   onCloseChat?: () => void
   onViewUsageDetails?: (featureId?: string) => void
-  onViewAllInvoices?: () => void
 }
 
 const CONTENT_MAX_WIDTH = 1040
@@ -105,6 +104,8 @@ type SummaryMetric = {
   value: string
   sub?: string
   href?: string
+  moreCount?: number
+  moreDocs?: string[]
 }
 
 function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
@@ -117,7 +118,7 @@ function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
 
   return [
     { label: 'TCV', value: order.totalContractValue },
-    { label: 'Avg. annual value', value: order.avgAnnualValue },
+    { label: 'ARR', value: order.avgAnnualValue },
     { label: 'Accrued', value: order.accruedValue },
     { label: 'Next billing', value: 'Aug 31, 2026', sub: 'in 38 days' },
     {
@@ -134,9 +135,79 @@ function getAttentionSummaryMetrics(order: SalesOrder): SummaryMetric[] {
       label: 'Source contract',
       value: order.sourceContract,
       href: `/pdf-viewer.html?doc=${encodeURIComponent(order.sourceContract)}`,
+      moreCount: 2,
+      moreDocs: ['Schedule_a_pricing.pdf', 'Addendum_Terms.pdf'],
     },
     { label: 'Amendments', value: 'Aug 1, 2027', sub: formatMonthsUntil(new Date('2027-08-01')) },
   ]
+}
+
+function openPdf(name: string) {
+  window.open(
+    `/pdf-viewer.html?doc=${encodeURIComponent(name)}`,
+    `pdf-${name}`,
+    'popup,width=680,height=800'
+  )
+}
+
+function SourceContractValue({ metric }: { metric: SummaryMetric }) {
+  const [open, setOpen] = useState(false)
+  const extraDocs = metric.moreDocs ?? []
+
+  useEffect(() => {
+    if (!open) return
+    const close = () => setOpen(false)
+    document.addEventListener('click', close)
+    return () => document.removeEventListener('click', close)
+  }, [open])
+
+  return (
+    <div className="flex flex-col items-start">
+      <button
+        type="button"
+        onClick={() => metric.value && openPdf(metric.value)}
+        className="mt-1 max-w-full cursor-pointer truncate text-left text-[15px] font-semibold text-blue-700 hover:underline"
+      >
+        {metric.value}
+      </button>
+      {extraDocs.length > 0 ? (
+        <div className="relative">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpen((prev) => !prev)
+            }}
+            className="mt-0.5 cursor-pointer text-left text-[12px] font-medium text-blue-700 hover:underline"
+          >
+            + {extraDocs.length} more
+          </button>
+          {open ? (
+            <div
+              role="menu"
+              onClick={(e) => e.stopPropagation()}
+              className="absolute left-0 top-full z-30 mt-1 min-w-[220px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+            >
+              {extraDocs.map((doc) => (
+                <button
+                  key={doc}
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    openPdf(doc)
+                    setOpen(false)
+                  }}
+                  className="flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] text-brand-navy transition-colors hover:bg-neutral-50"
+                >
+                  {doc}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 function SummaryMetricsRow({ metrics }: { metrics: SummaryMetric[] }) {
@@ -149,15 +220,7 @@ function SummaryMetricsRow({ metrics }: { metrics: SummaryMetric[] }) {
               {metric.label}
             </p>
             {metric.href ? (
-              <button
-                type="button"
-                onClick={() => {
-                  window.open(metric.href, `pdf-${metric.value}`, 'popup,width=680,height=800')
-                }}
-                className="mt-1 cursor-pointer truncate text-left text-[15px] font-semibold text-blue-700 hover:underline"
-              >
-                {metric.value}
-              </button>
+              <SourceContractValue metric={metric} />
             ) : (
               <p className="mt-1 truncate text-[15px] font-semibold text-brand-navy">{metric.value}</p>
             )}
@@ -222,7 +285,6 @@ export function SalesOrderDetails({
   onAppendChat,
   onCloseChat,
   onViewUsageDetails,
-  onViewAllInvoices,
 }: SalesOrderDetailsProps) {
   usePageUseCase('sales-order-details')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
@@ -397,7 +459,6 @@ export function SalesOrderDetails({
           <SalesOrderCollapsedSections
             order={order}
             onViewUsageDetails={onViewUsageDetails}
-            onViewAllInvoices={onViewAllInvoices}
           />
 
           <div aria-hidden="true" style={{ height: 120 }} />

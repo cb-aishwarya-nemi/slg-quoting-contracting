@@ -277,7 +277,7 @@ export function SalesOrderHeaderTimeline({
   return (
     <div className="w-full">
       <h2 className="mb-4 mt-6 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-        Contract lifecycle
+        Contract timeline
       </h2>
 
       {/* Sticky timeline chrome only — title scrolls away */}
@@ -571,7 +571,7 @@ export function SalesOrderHeaderTimeline({
           )}
 
         {children ? (
-          <div className="relative z-10 space-y-10 pt-10">
+          <div className="relative z-10 space-y-16 pt-14">
             {typeof children === 'function'
               ? children({ periodIndex, selectedVersionId })
               : children}

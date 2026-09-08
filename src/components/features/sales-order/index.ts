@@ -1,6 +1,7 @@
 export { SalesOrderDetails } from './SalesOrderDetails'
 export { BillingScheduleDetails } from './BillingScheduleDetails'
 export { UsageDetails } from './UsageDetails'
+export { LinkedRecordsSection } from './LinkedRecordsSection'
 export { UsageUbbChart1 } from './UsageUbbChart1'
 export { SalesOrderPreview } from './SalesOrderPreview'
 export { ReadOnlyProductsList } from './ReadOnlyProductsList'

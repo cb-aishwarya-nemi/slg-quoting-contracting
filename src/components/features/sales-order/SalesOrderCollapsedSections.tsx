@@ -8,7 +8,6 @@ import {
   type SalesOrder,
   type SalesOrderRampPeriod,
   pioneerOverdueBillingSchedule,
-  pioneerSalesOrderPastInvoices,
 } from '@/data/salesOrderMock'
 import {
   AMENDMENT_HISTORY_VERSIONS,
@@ -19,7 +18,7 @@ import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
 import { SectionRuleTitle } from './SectionRuleTitle'
 import { UsageSummaryTable } from './UsageSummaryTable'
 import { EntitlementsAllocationTable } from './EntitlementsAllocationTable'
-import { PastInvoicesTable } from './PastInvoicesTable'
+import { UpcomingRampsSection } from './UpcomingRampsSection'
 import { featureIdFromLabel } from './UsageDetails'
 
 /** Prototype “today” — keeps overdue copy stable (matches contract billing schedule). */
@@ -414,47 +413,6 @@ function VersionChangeSummary({ version }: { version: AmendmentVersionSnapshot }
   )
 }
 
-function LinkedRecordRow({
-  label,
-  value,
-  moreCount,
-  isLast = false,
-}: {
-  label: string
-  value: string
-  moreCount?: number
-  isLast?: boolean
-}) {
-  const isEmpty = value === '—' || value === ''
-  return (
-    <div
-      className={cn(
-        'flex items-center py-2.5 pl-1 pr-2',
-        !isLast && 'border-b border-neutral-100'
-      )}
-    >
-      <span className="w-[148px] shrink-0 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-        {label}
-      </span>
-      {isEmpty ? (
-        <span className="text-[14px] text-brand-fog">—</span>
-      ) : (
-        <span className="min-w-0">
-          <a className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
-            {value}
-          </a>
-          {moreCount != null && moreCount > 0 && (
-            <span className="cursor-pointer text-[14px] font-medium text-blue-700 hover:underline">
-              {' '}
-              +{moreCount} more
-            </span>
-          )}
-        </span>
-      )}
-    </div>
-  )
-}
-
 export function ActivityTimeline({ items }: { items: ActivityItem[] }) {
   return (
     <div>
@@ -560,18 +518,15 @@ export function SalesOrderCollapsedSections({
   variant: _variant,
   setSectionRef,
   onViewUsageDetails,
-  onViewAllInvoices,
 }: {
   order: SalesOrder
   variant?: string | null
   setSectionRef?: (id: string) => (el: HTMLElement | null) => void
   onViewUsageDetails?: (featureId?: string) => void
-  onViewAllInvoices?: () => void
 }) {
   const [showCommentAddNote, setShowCommentAddNote] = useState(false)
   // Single sales-order page: always Invoice overdue schedule + timeline
   const billingSchedule = pioneerOverdueBillingSchedule
-  const pastInvoices = pioneerSalesOrderPastInvoices
 
   const renderSections = (periodIndex = 1, selectedVersionId?: string) => {
     const selectedVersion = selectedVersionId
@@ -636,10 +591,18 @@ export function SalesOrderCollapsedSections({
 
         {productsPeriods && productsPeriods.length > 1 ? (
           <section ref={setSectionRef?.('ramps')} className="group/section">
-            <ReadOnlyProductsList
+            <UpcomingRampsSection
               items={order.products}
               periods={productsPeriods}
-              upcomingOnly
+              onSelectEntitlement={(label) => {
+                const mapped =
+                  label === 'Sandbox environments'
+                    ? 'Environments'
+                    : label === 'Premium support seats'
+                      ? 'Seats'
+                      : label
+                onViewUsageDetails?.(featureIdFromLabel(mapped))
+              }}
             />
           </section>
         ) : null}
@@ -654,31 +617,6 @@ export function SalesOrderCollapsedSections({
               tcv={order.totalContractValue}
               connected
             />
-          </div>
-        </section>
-
-        <section ref={setSectionRef?.('invoices')} className="group/section">
-          <PastInvoicesTable invoices={pastInvoices} onViewAll={onViewAllInvoices} />
-        </section>
-
-        <section ref={setSectionRef?.('linked')} className="group/section">
-          <h2 className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-            Linked records
-          </h2>
-          <div className="mt-4 grid grid-cols-2 gap-20">
-            <div className="min-w-0 overflow-hidden rounded-lg border border-neutral-200 bg-white">
-              <div className="px-3 py-1">
-                {order.linkedRecords.map((row, idx) => (
-                  <LinkedRecordRow
-                    key={row.label}
-                    label={row.label}
-                    value={row.value}
-                    moreCount={row.moreCount}
-                    isLast={idx === order.linkedRecords.length - 1}
-                  />
-                ))}
-              </div>
-            </div>
           </div>
         </section>
 
