@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, GitCompareArrows, Maximize2, TrendingUp, UserPlus } from 'lucide-react'
+import { ChevronLeft, GitCompareArrows, Maximize2, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -47,7 +47,6 @@ import {
   getAccountPickerV2Seed,
   isAccountPickerV2Variant,
 } from '@/components/features/contract-processing/AccountCustomerPickerV2'
-import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { SalesOrderHeaderTimeline } from '@/components/features/sales-order'
 import { cn } from '@/lib/utils'
 
@@ -116,6 +115,28 @@ function originalLineItems(items: ProductLineItem[]): ProductLineItem[] {
   return items
     .map(originalLineItem)
     .filter((item): item is ProductLineItem => item !== null)
+}
+
+/** Products and pricing reads as the contract stands today — no before/after framing. */
+function currentLineItems(items: ProductLineItem[]): ProductLineItem[] {
+  return items
+    .filter((item) => item.amendmentChange !== 'removed')
+    .map((item) => {
+      const { amendmentChange: _change, previousQuantity: _previous, ...current } = item
+      return current
+    })
+}
+
+function currentRampPeriods(periods: RampPeriod[]): RampPeriod[] {
+  return periods.map((period) => {
+    const {
+      periodChange: _change,
+      previousStartDate: _previousStart,
+      previousEndDate: _previousEnd,
+      ...current
+    } = period
+    return { ...current, items: currentLineItems(period.items) }
+  })
 }
 
 function originalRampPeriods(periods: RampPeriod[]): RampPeriod[] {
@@ -288,11 +309,13 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [isComparisonOpen, setIsComparisonOpen] = useState(false)
   const [breakdownView, setBreakdownView] = useState<BreakdownView | null>(null)
-  const [selectedContractVersion, setSelectedContractVersion] = useState<
-    { id: 'v1' | 'v2'; trackPercent: number } | undefined
-  >()
-  const isOriginalContract = selectedContractVersion?.id === 'v1'
+  const isOriginalContract = false
   const originalProducts = useMemo(() => originalLineItems(data.products), [data.products])
+  const currentProducts = useMemo(() => currentLineItems(data.products), [data.products])
+  const currentPeriods = useMemo(
+    () => currentRampPeriods(data.rampPeriods),
+    [data.rampPeriods]
+  )
   const originalPeriods = useMemo(
     () => originalRampPeriods(data.rampPeriods),
     [data.rampPeriods]
@@ -323,7 +346,6 @@ export function Customer360Page() {
   const [customerName, setCustomerName] = useState(data.customerName)
 
   const [createdAccountCustomer, setCreatedAccountCustomer] = useState<string | null>(null)
-  const [customerTitleConfirmed, setCustomerTitleConfirmed] = useState(true)
   const [invoiceLevelDiscount, setInvoiceLevelDiscount] = useState<{
     value: string
     unit: '%' | 'USD'
@@ -331,20 +353,6 @@ export function Customer360Page() {
   const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>(
     () => data.sourceDocuments
   )
-  const sourceDocsInputRef = useRef<HTMLInputElement>(null)
-  const olderDocsTriggerRef = useRef<HTMLButtonElement>(null)
-  const [areOlderDocsOpen, setAreOlderDocsOpen] = useState(false)
-  const amendmentSourceDocs = sourceDocuments.filter((doc) => doc.origin !== 'original')
-  const originalSourceDocs = sourceDocuments.filter((doc) => doc.origin === 'original')
-
-  const openSourceDocument = useCallback((doc: SourceDocument) => {
-    window.open(
-      `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
-      `pdf-${doc.id}`,
-      'popup,width=680,height=800'
-    )
-  }, [])
-
   const handleAddSourceDocuments = useCallback(
     (event: React.ChangeEvent<HTMLInputElement>) => {
       const files = Array.from(event.target.files ?? [])
@@ -373,14 +381,12 @@ export function Customer360Page() {
       setAccountItems(base)
       setCreatedAccountCustomer(null)
       setCustomerName(data.customerName)
-      setCustomerTitleConfirmed(true)
       return
     }
     const seed = getAccountPickerV2Seed(accountPickerV2Scenario)
     setAccountItems(applyAccountPickerV2Seed(base, seed))
     setCreatedAccountCustomer(seed.createdCustomerName)
     setCustomerName(seed.accountName)
-    setCustomerTitleConfirmed(seed.customerTitleConfirmed)
   }, [accountPickerV2Scenario, data.account, data.customerName])
 
   // Drop lift when switching Edit ↔ Expanded use case.
@@ -398,7 +404,6 @@ export function Customer360Page() {
     if (label === 'Account') {
       setCustomerName(newValue)
       setCreatedAccountCustomer(null)
-      setCustomerTitleConfirmed(true)
     }
   }, [])
 
@@ -407,7 +412,6 @@ export function Customer360Page() {
     if (!createdName) return
     setCreatedAccountCustomer(createdName)
     setCustomerName(createdName)
-    setCustomerTitleConfirmed(true)
     setAccountItems((prev) => applyFieldValue(prev, 'Account', createdName))
   }, [])
   const cameFromSalesOrders =
@@ -626,8 +630,6 @@ export function Customer360Page() {
       ? `${activeTask.taskName}: ${activeTask.taskType}`
       : 'Amendment: Contract Ingestion'
 
-  const taskId = activeTask?.taskId ?? 'TSK-2026-0153'
-
   return (
     <div className="flex h-full flex-col">
       {/* Primary nav */}
@@ -645,10 +647,7 @@ export function Customer360Page() {
           </button>
           <div className="flex items-center gap-3">
             <h1
-              className={cn(
-                'font-heading text-[16px] font-semibold',
-                customerTitleConfirmed ? 'text-brand-navy' : 'ai-gradient-text'
-              )}
+              className="font-heading text-[16px] font-semibold text-brand-navy"
               style={{ letterSpacing: '-0.5px' }}
             >
               {customerName}
@@ -681,12 +680,9 @@ export function Customer360Page() {
                 activeId="100"
                 onSelect={() => {}}
               />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-bold tracking-[-0.25px] text-brand-navy">
-                  {taskTitle}
-                </span>
-                <span className="text-[11px] text-brand-fog">{taskId}</span>
-              </div>
+              <span className="text-[13px] font-bold tracking-[-0.25px] text-brand-navy">
+                {taskTitle}
+              </span>
             </div>
 
             <div className="flex-1" />
@@ -719,7 +715,8 @@ export function Customer360Page() {
                 isItemPinnedVariant ? 'pl-6' : 'pl-16'
               )}
             >
-              <div className="space-y-16">
+              {/* Summary and the version timeline read as one block */}
+              <div className="space-y-8">
                 {/* Summary — AI header + headline, no comments column */}
                 <section
                   ref={setSectionRef('summary')}
@@ -740,150 +737,15 @@ export function Customer360Page() {
                     customerName={data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
-                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-                    <span className="text-brand-fog">Source Docs:</span>
-                    {amendmentSourceDocs.map((doc, index) => (
-                      <span key={doc.id} className="inline-flex items-center gap-2">
-                        {index > 0 && (
-                          <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => openSourceDocument(doc)}
-                          title={doc.name}
-                          className="max-w-[200px] cursor-pointer truncate text-left text-blue-700 hover:underline"
-                        >
-                          {doc.name}
-                        </button>
-                      </span>
-                    ))}
-                    {originalSourceDocs.length > 0 && (
-                      <span className="inline-flex items-center gap-2">
-                        {amendmentSourceDocs.length > 0 && (
-                          <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                        )}
-                        <button
-                          ref={olderDocsTriggerRef}
-                          type="button"
-                          onClick={() => setAreOlderDocsOpen((prev) => !prev)}
-                          className="cursor-pointer text-blue-700 hover:underline"
-                        >
-                          +{originalSourceDocs.length} docs
-                        </button>
-                        <AnchoredMenu
-                          isOpen={areOlderDocsOpen}
-                          onClose={() => setAreOlderDocsOpen(false)}
-                          anchorRef={olderDocsTriggerRef}
-                          offset={6}
-                          className="w-[280px] overflow-hidden rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
-                        >
-                          <div className="px-3 py-1.5 text-[11px] font-medium uppercase tracking-wider text-brand-fog">
-                            Original contract
-                          </div>
-                          {originalSourceDocs.map((doc) => (
-                            <button
-                              key={doc.id}
-                              type="button"
-                              onClick={() => {
-                                openSourceDocument(doc)
-                                setAreOlderDocsOpen(false)
-                              }}
-                              title={doc.name}
-                              className="block w-full cursor-pointer truncate px-3 py-1.5 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
-                            >
-                              {doc.name}
-                            </button>
-                          ))}
-                        </AnchoredMenu>
-                      </span>
-                    )}
-                    <span className="inline-flex items-center gap-2">
-                      {(amendmentSourceDocs.length > 0 || originalSourceDocs.length > 0) && (
-                        <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                      )}
-                      <input
-                        ref={sourceDocsInputRef}
-                        type="file"
-                        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                        multiple
-                        className="sr-only"
-                        onChange={handleAddSourceDocuments}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => sourceDocsInputRef.current?.click()}
-                        className="inline-flex cursor-pointer items-center gap-1 text-blue-700 hover:underline"
-                      >
-                        <CirclePlus size={14} className="text-blue-700" />
-                        Add
-                      </button>
-                    </span>
-                  </div>
                 </section>
 
-                {/* Contract lifecycle — the axis stays pinned while the sections below scroll */}
+                {/* Contract timeline — owns the document trail for each version */}
                 <SalesOrderHeaderTimeline
                   orderId={PIONEER_SALES_ORDER_ID}
-                  onVersionChange={setSelectedContractVersion}
+                  documents={sourceDocuments}
+                  onAddDocuments={handleAddSourceDocuments}
                 >
                   <div className="space-y-16">
-                {selectedContractVersion && (
-                  <div className="relative -mt-6 flex">
-                    <div
-                      className={cn(
-                        'inline-flex items-center gap-2.5 rounded-lg border px-3 py-2',
-                        isOriginalContract
-                          ? 'border-blue-200 bg-blue-50'
-                          : 'border-green-200 bg-green-50'
-                      )}
-                    >
-                      <span
-                        className={cn(
-                          'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-full text-[9px] font-bold leading-none text-white ring-1',
-                          isOriginalContract
-                            ? 'bg-blue-500 ring-blue-500'
-                            : 'bg-green-600 ring-green-600'
-                        )}
-                      >
-                        {selectedContractVersion.id}
-                      </span>
-                      <span className="text-[13px] font-semibold text-brand-navy">
-                        {isOriginalContract ? 'Original contract' : 'Current amendment'}
-                      </span>
-                      {!isOriginalContract && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-green-100 px-2 py-0.5 text-[11px] font-semibold text-green-700">
-                          <TrendingUp size={11} />
-                          Expansion
-                        </span>
-                      )}
-                      <span
-                        className={cn(
-                          'h-3 w-px',
-                          isOriginalContract ? 'bg-blue-200' : 'bg-green-200'
-                        )}
-                        aria-hidden
-                      />
-                      <span className="text-[13px] text-brand-fog">
-                        {isOriginalContract
-                          ? 'Started May 1, 2026 · 50 Growth seats · $193,500 ARR'
-                          : `Effective ${data.summary.effectiveDate} · Growth seats 50 → 75 · +$32,000 ARR`}
-                      </span>
-                    </div>
-                    {/* Bubble stays put; only the tail slides to the marker it belongs to. */}
-                    <span
-                      aria-hidden
-                      className={cn(
-                        'absolute -top-[5px] h-[9px] w-[9px] rotate-45 rounded-[2px] border-l border-t transition-[left] duration-300',
-                        isOriginalContract
-                          ? 'border-blue-200 bg-blue-50'
-                          : 'border-green-200 bg-green-50'
-                      )}
-                      style={{
-                        left: `calc(${selectedContractVersion.trackPercent}% - 4.5px)`,
-                      }}
-                    />
-                  </div>
-                )}
                 {/* Account */}
                 <section ref={setSectionRef('account')} className="group/section">
                   <SectionSourceThumbnails
@@ -1040,8 +902,8 @@ export function Customer360Page() {
                   >
                     <ProductsPricingTable
                       key={`products-pricing-${isOriginalContract ? 'v1' : 'v2'}`}
-                      items={isOriginalContract ? originalProducts : data.products}
-                      periods={isOriginalContract ? originalPeriods : data.rampPeriods}
+                      items={isOriginalContract ? originalProducts : currentProducts}
+                      periods={isOriginalContract ? originalPeriods : currentPeriods}
                       variant={productsPricingVariant}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}

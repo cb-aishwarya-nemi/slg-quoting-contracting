@@ -561,8 +561,9 @@ function SectionCard({
   periodRange?: string | null
   pairAcrossPeriods?: boolean
 }) {
-  const changedRows = rows.filter((row) => row.changed)
-  const unchangedRows = rows.filter((row) => !row.changed)
+  const visibleRows = side === 'before' ? rows.filter((row) => row.before) : rows
+  const changedRows = visibleRows.filter((row) => row.changed)
+  const unchangedRows = visibleRows.filter((row) => !row.changed)
 
   const cellFor = (row: CompareRow) => (side === 'before' ? row.before : row.after)
   const sumOf = (list: CompareRow[]) =>
@@ -760,7 +761,7 @@ function ArrKpiCompare({
       >
         {value}
       </div>
-      <div className="mt-1 text-[13px] text-brand-navy">ARR</div>
+      <div className="mt-1 text-[13px] text-brand-navy">TCV</div>
     </div>
   )
 
@@ -947,13 +948,11 @@ function tickLabel(monthIndex: number, short = false): string {
 
 const AXIS_TERM_END = '2029-04-30'
 
-/** The axis is a band: a left rail for Before dates, a right rail for After. */
+/** The axis is a single hairline down the middle of its column. */
 const AXIS_COLUMN_WIDTH = 220
 const AXIS_GUTTER = 24
-const AXIS_BAND_HALF = 20
-const RAIL_LEFT = `calc(50% - ${AXIS_BAND_HALF}px)`
-const RAIL_RIGHT = `calc(50% + ${AXIS_BAND_HALF}px)`
-const AMENDMENT_MARK_GRADIENT = 'amendment-mark-gradient'
+/** Stub of line fading in above the first version mark. */
+const AXIS_LEAD_IN = 28
 
 interface AxisMark {
   id: string
@@ -963,21 +962,6 @@ interface AxisMark {
   detail?: string
   /** Opening boundary of a period — the dot a ramp gets folded into. */
   isPeriodStart?: boolean
-}
-
-/** Collapses marks that land within a few pixels, keeping the opening event. */
-function mergeMarks(marks: AxisMark[]): AxisMark[] {
-  return [...marks]
-    .sort((a, b) => a.top - b.top)
-    .reduce<AxisMark[]>((kept, mark) => {
-      const previous = kept[kept.length - 1]
-      if (!previous || mark.top - previous.top > 3) {
-        kept.push(mark)
-      } else if (mark.title.includes('begins')) {
-        kept[kept.length - 1] = mark
-      }
-      return kept
-    }, [])
 }
 
 /** Year bands, ramps and versions mirrored from the Tasks-page axis. */
@@ -1031,8 +1015,6 @@ interface AxisTooltip {
   detail?: string
   dateLabel: string
   tone?: 'default' | 'positive'
-  /** Set when a rail mark is paired with its counterpart on the other rail. */
-  sideLabel?: string
   placement: 'left' | 'right'
   rect: DOMRect
 }
@@ -1066,27 +1048,20 @@ function YearFlag({ className }: { className?: string }) {
 function VerticalContractAxis({
   height,
   banded = false,
-  beforeMarks = [],
-  afterMarks = [],
   trackHeight: trackHeightProp,
 }: {
   height: number
-  /** Milestones widens the axis into a band with a rail per side. */
+  /** Milestones keeps the axis to versions and today, without years or ramps. */
   banded?: boolean
-  beforeMarks?: AxisMark[]
-  afterMarks?: AxisMark[]
   /** Cuts the axis short — Milestones ends it at the last period rather than the term. */
   trackHeight?: number
 }) {
   const [tooltips, setTooltips] = useState<AxisTooltip[]>([])
-  const [hoveredMark, setHoveredMark] = useState<string | null>(null)
-  const markRefs = useRef<Map<string, HTMLElement>>(new Map())
   const todayTop = axisOffset(TODAY_DATE)
   const trackHeight = trackHeightProp ?? TIMELINE_MONTHS * MONTH_HEIGHT
   const ticks = Array.from({ length: TIMELINE_MONTHS / 3 + 1 }, (_, index) => index * 3).filter(
     (monthIndex) => monthIndex * MONTH_HEIGHT <= trackHeight
   )
-  const inset = banded ? AXIS_BAND_HALF : 0
 
   const show = (
     event: React.MouseEvent<HTMLElement>,
@@ -1104,12 +1079,8 @@ function VerticalContractAxis({
 
   const clear = () => {
     setTooltips([])
-    setHoveredMark(null)
   }
 
-  const centreGlyphs = [todayTop, ...AXIS_VERSION_MARKERS.map((marker) => axisOffset(marker.date))]
-
-  // Contract-wide milestones ride both rails rather than the middle of the band.
   const rampMarks: AxisMark[] = AXIS_RAMP_MARKERS.map((ramp) => ({
     id: ramp.id,
     top: axisOffset(ramp.date),
@@ -1125,229 +1096,59 @@ function VerticalContractAxis({
     dateLabel: "May 1 '29 · upcoming",
   }
 
-  /**
-   * A ramp is the step-up a period opens with, so it belongs on that period's
-   * dot rather than a second one a few weeks away. Each ramp claims the closest
-   * period start still unspoken for; leftovers (a rail with no periods) keep a
-   * dot of their own at their own date.
-   */
-  const withRampsOnPeriodStarts = (marks: AxisMark[]): AxisMark[] => {
-    const unclaimed = marks.filter((mark) => mark.isPeriodStart)
-    const rampByStartId = new Map<string, AxisMark>()
-    const strays: AxisMark[] = []
-
-    rampMarks.forEach((ramp) => {
-      const host = unclaimed.reduce<AxisMark | undefined>(
-        (closest, start) =>
-          !closest || Math.abs(start.top - ramp.top) < Math.abs(closest.top - ramp.top)
-            ? start
-            : closest,
-        undefined
-      )
-      if (!host) {
-        strays.push(ramp)
-        return
-      }
-      unclaimed.splice(unclaimed.indexOf(host), 1)
-      rampByStartId.set(host.id, ramp)
-    })
-
-    return [
-      ...marks.map((mark) => {
-        const ramp = rampByStartId.get(mark.id)
-        return ramp ? { ...mark, detail: ramp.detail ?? ramp.title } : mark
-      }),
-      ...strays,
-      renewalMark,
-    ]
-  }
-
-  // A trimmed axis has no room for milestones past its end, such as renewal.
-  const onTrack = (marks: AxisMark[]) => marks.filter((mark) => mark.top <= trackHeight)
-
-  const rails = {
-    before: onTrack(mergeMarks(withRampsOnPeriodStarts(beforeMarks))),
-    after: onTrack(mergeMarks(withRampsOnPeriodStarts(afterMarks))),
-  }
-
-  /** A dot's footprint on the rail, so tick stubs can keep clear of it. */
-  const railHasMarkAt = (side: 'before' | 'after', top: number) =>
-    rails[side].some((mark) => Math.abs(mark.top - top) < 10)
-
-  /** Hovering either rail reveals the same boundary on both sides. */
-  const showPair = (id: string) => {
-    setHoveredMark(id)
-    setTooltips(
-      (['before', 'after'] as const).flatMap<AxisTooltip>((side) => {
-        const mark = rails[side].find((candidate) => candidate.id === id)
-        const element = markRefs.current.get(`${side}-${id}`)
-        if (!mark || !element) return []
-        return [
-          {
-            key: `${side}-${id}`,
-            title: mark.title,
-            detail: mark.detail,
-            dateLabel: mark.dateLabel,
-            sideLabel: side === 'before' ? 'Before' : 'After',
-            placement: side === 'before' ? 'left' : 'right',
-            rect: element.getBoundingClientRect(),
-          },
-        ]
-      })
-    )
-  }
-
-  const renderRail = (side: 'before' | 'after') =>
-    rails[side].map((mark) => {
-      const isPast = mark.top < todayTop
-      return (
-      <button
-        key={`${side}-${mark.id}`}
-        ref={(node) => {
-          const key = `${side}-${mark.id}`
-          if (node) markRefs.current.set(key, node)
-          else markRefs.current.delete(key)
-        }}
-        type="button"
-        className="absolute -translate-x-1/2 -translate-y-1/2 cursor-default"
-        style={{ left: side === 'before' ? RAIL_LEFT : RAIL_RIGHT, top: mark.top }}
-        onMouseEnter={() => showPair(mark.id)}
-        onMouseLeave={clear}
-        aria-label={`${mark.title}, ${mark.dateLabel}`}
-      >
-        <span
-          className={cn(
-            'block h-3.5 w-3.5 rounded-full bg-white transition-all duration-200',
-            hoveredMark === mark.id && 'scale-110 shadow-[0_0_0_3px_rgba(163,163,163,0.18)]'
-          )}
-        >
-          {side === 'before' ? (
-            <span
-              className={cn(
-                'block h-3.5 w-3.5 rounded-full border border-neutral-400 bg-white',
-                !isPast && 'border-dashed'
-              )}
-            />
-          ) : (
-            <svg width={14} height={14} viewBox="0 0 14 14" aria-hidden className="block">
-              {/* Opaque disc under the ring, so nothing shows through the dashes. */}
-              <circle cx="7" cy="7" r="6.9" fill="#ffffff" />
-              <circle
-                cx="7"
-                cy="7"
-                r="6.3"
-                fill="none"
-                stroke={`url(#${AMENDMENT_MARK_GRADIENT})`}
-                strokeWidth="1.25"
-                strokeDasharray={isPast ? undefined : '3 3'}
-              />
-            </svg>
-          )}
-        </span>
-      </button>
-      )
-    })
-
   return (
-    // Raised so the scale stays legible over the period ribbons either side.
-    <div className="relative z-10" style={{ height }}>
-      {banded ? (
-        <>
-          <svg width={0} height={0} aria-hidden className="absolute">
-            <defs>
-              <linearGradient id={AMENDMENT_MARK_GRADIENT} x1="0" y1="0" x2="1" y2="1">
-                <stop offset="0%" stopColor="#ff3300" />
-                <stop offset="100%" stopColor="#8b5cf6" />
-              </linearGradient>
-            </defs>
-          </svg>
-
-          {/* One box carries the fill and both rails, capped at either end. */}
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-0 -translate-x-1/2 overflow-hidden rounded-lg border border-neutral-300 bg-neutral-50"
-            style={{ width: AXIS_BAND_HALF * 2, height: trackHeight }}
-          >
-            <div
-              className="pointer-events-none absolute inset-x-0 top-0"
-              style={{
-                height: todayTop,
-                background:
-                  'linear-gradient(180deg, rgba(255,51,0,0.12) 0%, rgba(139,92,246,0.16) 100%)',
-              }}
-            />
-          </div>
-
-          {/* Period boundaries and milestones: Before on the left rail, After on the right. */}
-          {renderRail('before')}
-          {renderRail('after')}
-        </>
-      ) : (
-        <>
-          {/* A single grey line with the elapsed span drawn over it. */}
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-0 w-0.5 -translate-x-1/2 rounded-full bg-neutral-200"
-            style={{ height: trackHeight }}
-          />
-          <div
-            aria-hidden
-            className="pointer-events-none absolute left-1/2 top-0 w-0.5 -translate-x-1/2 rounded-full"
-            style={{
-              height: todayTop,
-              background: 'linear-gradient(180deg, #ff3300 0%, #8b5cf6 100%)',
-            }}
-          />
-        </>
-      )}
-
-      {/* Date scale — inside the band when it has width, otherwise beside the line. */}
+    // Above the period cards (z-40 at most), so the scale and the version marks
+    // stay legible over the ribbons that now run all the way to the line.
+    <div className="relative z-50" style={{ height }}>
+      {/* Date scale, behind the elapsed stroke so stubs don't sit on top of it. */}
       {ticks.map((monthIndex) => {
         const top = monthIndex * MONTH_HEIGHT
-        // Inside the band the glyphs share the same lane, so yield to them.
-        if (banded && centreGlyphs.some((glyph) => Math.abs(glyph - top) < 12)) return null
 
         return (
           <div key={`tick-${monthIndex}`}>
-            {banded ? (
-              // Stubs off each rail, so the month reads as marked on the band.
-              // A stub yields to a boundary dot rather than striking through it.
-              <>
-                {!railHasMarkAt('before', top) && (
-                  <span
-                    aria-hidden
-                    className="absolute h-px w-[5px] -translate-y-1/2 bg-neutral-300"
-                    style={{ left: RAIL_LEFT, top }}
-                  />
-                )}
-                {!railHasMarkAt('after', top) && (
-                  <span
-                    aria-hidden
-                    className="absolute h-px w-[5px] -translate-y-1/2 bg-neutral-300"
-                    style={{ left: `calc(50% + ${AXIS_BAND_HALF - 5}px)`, top }}
-                  />
-                )}
-              </>
-            ) : (
-              <span
-                aria-hidden
-                className="absolute h-px w-1 -translate-y-1/2 bg-neutral-300"
-                style={{ right: 'calc(50% + 1px)', top }}
-              />
-            )}
+            <span
+              aria-hidden
+              className="absolute z-0 h-px w-1 -translate-y-1/2 bg-neutral-300"
+              style={{ right: 'calc(50% + 0.5px)', top }}
+            />
             <span
               className={cn(
-                'absolute -translate-y-1/2 text-[10px] font-medium tracking-[0.02em]',
-                banded ? 'left-1/2 w-8 -translate-x-1/2 text-center' : 'w-11 text-right',
+                'absolute z-0 w-11 -translate-y-1/2 text-right text-[10px] font-medium tracking-[0.02em]',
                 monthIndex % 12 === 0 ? 'font-semibold text-brand-navy' : 'text-brand-fog'
               )}
-              style={banded ? { top } : { right: 'calc(50% + 9px)', top }}
+              style={{ right: 'calc(50% + 15px)', top }}
             >
-              {tickLabel(monthIndex, banded)}
+              {tickLabel(monthIndex, false)}
             </span>
           </div>
         )
       })}
+
+      {/* A lead-in above v1, so the line eases in rather than starting on the mark. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 w-px -translate-x-1/2"
+        style={{
+          top: -AXIS_LEAD_IN,
+          height: AXIS_LEAD_IN,
+          background: 'linear-gradient(180deg, rgba(212,212,212,0) 0%, #d4d4d4 100%)',
+        }}
+      />
+
+      {/* A single grey line with the elapsed span drawn over it. */}
+      <div
+        aria-hidden
+        className="absolute left-1/2 top-0 z-[1] w-px -translate-x-1/2 rounded-full bg-neutral-300"
+        style={{ height: trackHeight }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-0 z-[2] w-[2.5px] -translate-x-1/2 rounded-full"
+        style={{
+          height: todayTop,
+          background: 'linear-gradient(180deg, #ff3300 0%, #8b5cf6 100%)',
+        }}
+      />
 
       {/* Year flags sit off the timeline axis; Milestones omits them. */}
       {!banded &&
@@ -1355,7 +1156,7 @@ function VerticalContractAxis({
           <div
             key={`year-${year.index}`}
             className="absolute flex -translate-y-1/2 items-center gap-1 whitespace-nowrap"
-            style={{ right: `calc(50% + ${inset + 59}px)`, top: axisOffset(year.date) }}
+            style={{ right: 'calc(50% + 65px)', top: axisOffset(year.date) }}
           >
             <span className="text-[11px] font-medium leading-none text-brand-navy">
               Year {year.index}
@@ -1366,7 +1167,7 @@ function VerticalContractAxis({
 
       {/* Markers sit on the line, labelled to its right. */}
       <div
-        className="absolute left-1/2 top-0"
+        className="absolute left-1/2 top-0 z-[3]"
         style={{ height: TIMELINE_MONTHS * MONTH_HEIGHT }}
       >
         {/* Today */}
@@ -1378,13 +1179,13 @@ function VerticalContractAxis({
           <span className="block h-1.5 w-1.5 rotate-45 bg-blue-600" aria-hidden />
           <span
             className="absolute top-1/2 -translate-y-1/2 whitespace-nowrap text-[10px] font-semibold tracking-[-0.01em] text-blue-700"
-            style={{ left: inset + 8 }}
+            style={{ left: 8 }}
           >
             Today
           </span>
         </div>
 
-        {/* Ramps and renewal sit on the line itself when there are no rails. */}
+        {/* Ramps and renewal; Milestones leaves them to its period cards. */}
         {!banded &&
           [...rampMarks, renewalMark].map((mark) => (
             <button
@@ -1433,10 +1234,11 @@ function VerticalContractAxis({
               >
                 <span
                   className={cn(
-                    'flex h-3 w-3 items-center justify-center rounded-full text-[7px] font-bold leading-none ring-1',
+                    // Matches the version marks on the Sales Order page timeline.
+                    'flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-semibold leading-none tracking-[-0.2px] ring-1',
                     isPositive
-                      ? 'bg-green-600 text-white ring-green-600 shadow-[0_0_0_3px_rgba(22,163,74,0.14)]'
-                      : 'bg-blue-50 text-blue-700 ring-blue-200'
+                      ? 'bg-green-600 text-white ring-green-600 shadow-[0_0_0_2px_rgba(22,163,74,0.14)]'
+                      : 'bg-blue-500 text-white ring-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.16)]'
                   )}
                 >
                   {marker.version}
@@ -1472,11 +1274,6 @@ function VerticalContractAxis({
                     )}
                   />
                   <div className="rounded-lg border border-neutral-200 bg-white px-3 py-2 shadow-lg">
-                    {tooltip.sideLabel && (
-                      <p className="text-[10px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-                        {tooltip.sideLabel}
-                      </p>
-                    )}
                     <p
                       className={cn(
                         'whitespace-nowrap text-[12px]',
@@ -1629,8 +1426,8 @@ function TimelinePeriodCard({
   )
 }
 
-/** Gutter plus half the axis column, stopping at the band's rail. */
-const CONNECTOR_WIDTH = AXIS_GUTTER + AXIS_COLUMN_WIDTH / 2 - AXIS_BAND_HALF
+/** Gutter plus half the axis column, so a ribbon lands on the line's edge. */
+const CONNECTOR_WIDTH = AXIS_GUTTER + AXIS_COLUMN_WIDTH / 2 - 0.5
 /** Run the ribbon past the card edge so its rounded corner leaves no white wedge. */
 const CONNECTOR_OVERLAP = 16
 const CHIP_HEIGHT = 57
@@ -1709,7 +1506,7 @@ function ChipConnector({
       )}
       style={{ [isBefore ? 'right' : 'left']: -CONNECTOR_WIDTH }}
     >
-      <path ref={pathRef} d={path} fill="currentColor" fillOpacity={0.22} />
+      <path ref={pathRef} d={path} fill="currentColor" fillOpacity={0.35} />
     </svg>
   )
 }
@@ -2102,30 +1899,6 @@ function TimeAxisView({
         span: axisOffset(period.endDate) - top,
       }
     })
-  const periodMarks = (side: 'before' | 'after'): AxisMark[] =>
-    chartPeriods
-      .filter((period) => period.periodChange !== (side === 'before' ? 'added' : 'removed'))
-      .flatMap((period) => {
-        const start =
-          side === 'before' ? period.previousStartDate ?? period.startDate : period.startDate
-        const end = side === 'before' ? period.previousEndDate ?? period.endDate : period.endDate
-        return [
-          {
-            id: `${period.id}-start`,
-            top: axisOffset(start),
-            title: `${period.label} begins`,
-            dateLabel: start,
-            isPeriodStart: true,
-          },
-          {
-            id: `${period.id}-end`,
-            top: axisOffset(end),
-            title: `${period.label} ends`,
-            dateLabel: end,
-          },
-        ]
-      })
-
   const periodKey = (side: 'before' | 'after', id: string) => `${side}:${id}`
   const [openPeriods, setOpenPeriods] = useState<Set<string>>(() => {
     const keys = new Set<string>()
@@ -2235,13 +2008,7 @@ function TimeAxisView({
           )}
         </div>
 
-        <VerticalContractAxis
-          height={axisHeight}
-          banded
-          beforeMarks={periodMarks('before')}
-          afterMarks={periodMarks('after')}
-          trackHeight={trackHeight}
-        />
+        <VerticalContractAxis height={axisHeight} banded trackHeight={trackHeight} />
 
         <div className="relative">
           {afterPeriodCards.length > 0 ? (

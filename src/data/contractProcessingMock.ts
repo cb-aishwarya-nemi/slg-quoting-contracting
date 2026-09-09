@@ -554,7 +554,7 @@ export const contractProcessing = {
       endDate: 'Nov 30, 2027',
       periodChange: 'dates-changed',
       previousStartDate: 'Jul 17, 2027',
-      previousEndDate: 'Jul 17, 2028',
+      previousEndDate: 'Jul 31, 2028',
       items: [
         {
           id: 'rp2-li-1',

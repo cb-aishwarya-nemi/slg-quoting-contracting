@@ -1176,8 +1176,6 @@ interface ItemNameButtonProps {
   className?: string
   /** Item pinned — selected catalog row uses a blue fill instead of grey. */
   highlightSelected?: boolean
-  /** Hide the New tag — used when the whole period already carries it. */
-  hideAddedTag?: boolean
 }
 
 function ItemNameButton({
@@ -1192,7 +1190,6 @@ function ItemNameButton({
   hangIcon = true,
   className,
   highlightSelected,
-  hideAddedTag = false,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1252,11 +1249,6 @@ function ItemNameButton({
           hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
-      {amendmentChange === 'added' && !hideAddedTag && (
-        <span className="shrink-0 rounded-full bg-green-50 px-2 py-0.5 text-[10px] font-semibold text-green-700">
-          New
-        </span>
-      )}
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
       {isAttention && !hangIcon && (
         <div className="relative ml-auto shrink-0 pr-2">
@@ -1349,9 +1341,9 @@ const BASE_COLUMN_WIDTHS = {
   DISCOUNT_W: 78,
   /** Edit-mode-only column for how long the discount runs. */
   DISCOUNT_PERIOD_W: 116,
-  TOTAL_W: 220,
+  TOTAL_W: 168,
   /** Inline layout only — leaves room for the discount tag beside the amount. */
-  TOTAL_INLINE_W: 268,
+  TOTAL_INLINE_W: 180,
   EXPANDED_ITEM_W: 340,
 } as const
 const MENU_W = 48
@@ -1361,8 +1353,8 @@ const ITEM_PINNED_COLUMN_WIDTHS = {
   UNIT_W: 170,
   DISCOUNT_W: 90,
   DISCOUNT_PERIOD_W: 132,
-  TOTAL_W: 232,
-  TOTAL_INLINE_W: 280,
+  TOTAL_W: 180,
+  TOTAL_INLINE_W: 192,
   EXPANDED_ITEM_W: 360,
 } as const
 /** Expanded sticky Total + ellipsis group pinned to the right. */
@@ -3571,8 +3563,7 @@ export function ProductsPricingTable({
   const renderExpandedLineItem = (
     item: ProductLineItem,
     updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
-    periodItems: ProductLineItem[],
-    hideAddedTag = false
+    periodItems: ProductLineItem[]
   ) => {
     if (item.isOverallDiscount) {
       return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
@@ -3630,7 +3621,6 @@ export function ProductsPricingTable({
               name={item.name}
               isAttention={isAttention}
               amendmentChange={item.amendmentChange}
-              hideAddedTag={hideAddedTag}
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
               openRequestId={lineItemEditRequest[item.id]}
@@ -3919,8 +3909,7 @@ export function ProductsPricingTable({
 
   const renderLineItem = (
     item: ProductLineItem,
-    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
-    hideAddedTag = false
+    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void
   ) => {
     if (item.isOverallDiscount) {
       const hasDiscountValue = parseFloat(item.discount ?? '') > 0
@@ -4077,7 +4066,6 @@ export function ProductsPricingTable({
               name={item.name}
               isAttention={isAttention}
               amendmentChange={item.amendmentChange}
-              hideAddedTag={hideAddedTag}
               isRowHovered={isRowFilled && !isActive}
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
@@ -4800,8 +4788,7 @@ export function ProductsPricingTable({
                     renderExpandedLineItem(
                       item,
                       updatePeriodItems,
-                      period.items,
-                      period.periodChange === 'added'
+                      period.items
                     )
                   )}
                 </ExpandedScrollContainer>
@@ -4813,7 +4800,7 @@ export function ProductsPricingTable({
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
                   {sortAmendmentItems(period.items).map((item) =>
-                    renderLineItem(item, updatePeriodItems, period.periodChange === 'added')
+                    renderLineItem(item, updatePeriodItems)
                   )}
                 </>
               )}
