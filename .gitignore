@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Accidental nested clone of this repo — not a submodule
+/slg-quoting-contracting/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

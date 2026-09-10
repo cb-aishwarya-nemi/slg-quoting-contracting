@@ -8,14 +8,17 @@
 @import '@fontsource/sora/600.css';
 @import '@fontsource/sora/700.css';
 
-button,
-a,
-[role="button"],
-[role="link"],
-select,
-label[for],
-summary {
-  cursor: pointer;
+/* Kept in the base layer so per-element cursor utilities (e.g. cursor-help) still win. */
+@layer base {
+  button,
+  a,
+  [role="button"],
+  [role="link"],
+  select,
+  label[for],
+  summary {
+    cursor: pointer;
+  }
 }
 @theme {
   /* Orange Accent - Primary action, highlights, CTA surfaces */

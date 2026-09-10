@@ -39,6 +39,8 @@ interface DatePickerFieldProps {
   onActiveChange?: (active: boolean) => void
   ariaLabel?: string
   className?: string
+  /** Keep the date blue when the parent row is hovered (e.g. a red error row). */
+  keepInkOnRowHover?: boolean
 }
 
 /**
@@ -52,6 +54,7 @@ export function DatePickerField({
   onActiveChange,
   ariaLabel,
   className,
+  keepInkOnRowHover = false,
 }: DatePickerFieldProps) {
   const isControlled = active !== undefined
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
@@ -274,13 +277,17 @@ export function DatePickerField({
           setOpen(true)
         }}
         className={cn(
-          'inline-flex max-w-full cursor-pointer items-center gap-1.5 text-[14px] font-medium text-blue-700 transition-colors group-hover:text-white',
+          'inline-flex max-w-full cursor-pointer items-center gap-1.5 text-[14px] font-medium text-blue-700 transition-colors',
+          !keepInkOnRowHover && 'group-hover:text-white',
           className
         )}
       >
         <Calendar
           size={14}
-          className="shrink-0 text-blue-700 transition-colors group-hover:text-white"
+          className={cn(
+            'shrink-0 text-blue-700 transition-colors',
+            !keepInkOnRowHover && 'group-hover:text-white'
+          )}
         />
         <span className="truncate">{value || 'Select date'}</span>
       </button>

@@ -42,17 +42,22 @@ function SkeletonBar({ className }: { className?: string }) {
   )
 }
 
+function contractTypeLabel(task: WorkbenchItem): string {
+  if (task.taskName) return task.taskName
+  return task.taskType.replace(/\s*Contract Ingestion$/i, '').replace(/:\s*$/, '').trim() || task.taskType
+}
+
 function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
   return (
     <tr className="border-b border-neutral-100">
-      {/* Task Type — skeleton */}
+      {/* Customer — skeleton */}
       <td className="py-2.5 pl-4 pr-4">
-        <SkeletonBar className="w-[140px]" />
+        <SkeletonBar className="w-[96px]" />
       </td>
 
-      {/* Customer — skeleton */}
+      {/* Contract type — skeleton */}
       <td className="py-2.5 pr-4">
-        <SkeletonBar className="w-[96px]" />
+        <SkeletonBar className="w-[140px]" />
       </td>
 
       {/* Subject — PDF name */}
@@ -439,11 +444,11 @@ export function WorkbenchPage() {
                   style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
                   <tr className="bg-white">
-                    <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 220, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Task Type
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Customer
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 220, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Contract type
                     </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Subject
@@ -502,9 +507,8 @@ export function WorkbenchPage() {
                             isNew && "animate-highlight-row"
                           )}
                         >
-                          {/* Task Type (merged with Task Name) */}
+                          {/* Customer */}
                           <td className="py-1.5 pl-4 pr-4 relative">
-                            {/* Sweep animation overlay for new items */}
                             {isNew && (
                               <span className="row-sweep-overlay-table" aria-hidden="true">
                                 <span className="row-sweep-band" />
@@ -514,15 +518,17 @@ export function WorkbenchPage() {
                               {isNew && (
                                 <Sparkles size={14} className="shrink-0 text-violet-500 animate-pulse group-hover:text-white/70" />
                               )}
-                              <div className="inline-block px-2 py-1 text-[13px] font-medium whitespace-nowrap bg-neutral-100 text-brand-navy group-hover:bg-white/20 group-hover:text-white">
-                                {task.taskName ? `${task.taskName}: ${task.taskType}` : task.taskType}
-                              </div>
+                              <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
+                                {task.customer}
+                              </span>
                             </div>
                           </td>
 
-                          {/* Customer */}
-                          <td className="py-1.5 pr-4 text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
-                            {task.customer}
+                          {/* Contract type */}
+                          <td className="py-1.5 pr-4 relative z-10">
+                            <div className="inline-block px-2 py-1 text-[13px] font-medium whitespace-nowrap bg-neutral-100 text-brand-navy group-hover:bg-white/20 group-hover:text-white">
+                              {contractTypeLabel(task)}
+                            </div>
                           </td>
 
                           {/* Subject */}

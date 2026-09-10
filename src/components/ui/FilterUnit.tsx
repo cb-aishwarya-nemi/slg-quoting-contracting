@@ -19,7 +19,7 @@ interface FilterUnitProps {
 
 const FILTER_ATTRIBUTES = [
   { id: 'taskId', label: 'Task ID' },
-  { id: 'taskType', label: 'Task Type' },
+  { id: 'taskType', label: 'Contract type' },
   { id: 'taskName', label: 'Task Name' },
   { id: 'customer', label: 'Customer' },
   { id: 'subject', label: 'Subject' },

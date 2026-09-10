@@ -194,7 +194,7 @@ export function Customer360Page() {
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   /** One panel for the whole page — any section's bubble toggles all of it. */
-  const [areCommentsVisible, setAreCommentsVisible] = useState(true)
+  const [areCommentsVisible, setAreCommentsVisible] = useState(false)
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
   )

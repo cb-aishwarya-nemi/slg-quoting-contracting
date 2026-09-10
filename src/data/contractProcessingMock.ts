@@ -13,6 +13,11 @@ export interface LabelValue {
   options?: string[]
   /** AI could not extract this field from the source document */
   extractionFailed?: boolean
+  /** Validation or extraction notice shown at the right of the row */
+  notice?: {
+    tone: 'error' | 'info'
+    message: string
+  }
 }
 
 export const DISCOUNT_UNITS = ['%', 'USD'] as const
@@ -256,12 +261,23 @@ export const contractProcessing = {
       value: '36 months',
       options: ['Month-to-month', '6 months', '12 months', '24 months', '36 months']
     },
-    { label: 'Effective date', value: 'May 1, 2026' },
+    {
+      label: 'Effective date',
+      value: 'May 1, 2026',
+      notice: {
+        tone: 'error',
+        message: 'Effective date must be less than End date.',
+      },
+    },
     { label: 'End date', value: 'Apr 30, 2029' },
     { 
       label: 'Auto-renewal', 
-      value: 'No',
-      options: ['Yes', 'No']
+      value: 'Select',
+      options: ['Yes', 'No'],
+      notice: {
+        tone: 'info',
+        message: 'Auto-renewal information could not be found in the contract pdf.',
+      },
     },
     { 
       label: 'Currency', 

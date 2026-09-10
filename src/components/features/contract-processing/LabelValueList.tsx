@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { ChevronDown, FileText, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { AlertTriangle, ChevronDown, FileText, Info, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
@@ -28,6 +29,101 @@ import { GradientSparkle } from './GradientSparkle'
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
 
 const DATE_FIELD_LABELS = new Set(['Effective date', 'End date'])
+
+function FieldNotice({
+  tone,
+  message,
+  onResolve,
+}: {
+  tone: 'error' | 'info'
+  message: string
+  onResolve: () => void
+}) {
+  const [open, setIsOpen] = useState(false)
+  const iconRef = useRef<HTMLButtonElement>(null)
+  const [rect, setRect] = useState<DOMRect | null>(null)
+  const hideTimer = useRef<number | null>(null)
+  const isError = tone === 'error'
+  const Icon = isError ? AlertTriangle : Info
+
+  const clearHide = () => {
+    if (hideTimer.current) {
+      window.clearTimeout(hideTimer.current)
+      hideTimer.current = null
+    }
+  }
+
+  const show = () => {
+    clearHide()
+    setRect(iconRef.current?.getBoundingClientRect() ?? null)
+    setIsOpen(true)
+  }
+
+  // Short grace period so the pointer can travel from the icon into the tooltip.
+  const scheduleHide = () => {
+    clearHide()
+    hideTimer.current = window.setTimeout(() => setIsOpen(false), 160)
+  }
+
+  useEffect(() => clearHide, [])
+
+  return (
+    <>
+      <button
+        ref={iconRef}
+        type="button"
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+        onClick={(e) => e.stopPropagation()}
+        className={cn(
+          'flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full',
+          isError ? 'text-red-500' : 'text-amber-500'
+        )}
+        aria-label={message}
+      >
+        <Icon size={16} strokeWidth={2} />
+      </button>
+      {open &&
+        rect &&
+        createPortal(
+          <div
+            className="fixed z-[90] -translate-y-1/2 pl-2"
+            style={{ left: rect.right, top: rect.top + rect.height / 2 }}
+            onMouseEnter={show}
+            onMouseLeave={scheduleHide}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              className={cn(
+                'max-w-[240px] rounded-lg border bg-white text-[13px] leading-snug shadow-lg',
+                isError
+                  ? 'border-red-300 text-red-700'
+                  : 'border-amber-300 text-amber-800'
+              )}
+            >
+              <div className="px-3 py-2">{message}</div>
+              {!isError && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    clearHide()
+                    setIsOpen(false)
+                    onResolve()
+                  }}
+                  className="flex w-full items-center gap-1.5 border-t border-amber-200 px-3 py-2 text-[12px] font-medium text-amber-800 transition-colors hover:bg-amber-50"
+                >
+                  <Check size={13} strokeWidth={2.5} />
+                  Mark as resolved
+                </button>
+              )}
+            </div>
+          </div>,
+          document.body
+        )}
+    </>
+  )
+}
 
 function getUnresolvedMessage(label: string): string {
   return `Data not found. Enter ${label.toLowerCase()}.`
@@ -62,6 +158,8 @@ interface LabelValueRowProps {
   createdCustomerContact?: { contactName: string; email: string }
   /** Opens the section's source preview — same drawer the thumbnails open. */
   onOpenSource?: () => void
+  /** Keeps a notice-sized slot on every row, so hover actions line up down the section. */
+  reserveNoticeSlot?: boolean
 }
 
 function LabelValueRow({
@@ -75,6 +173,7 @@ function LabelValueRow({
   accountPickerVariant = 'current',
   createdCustomerContact,
   onOpenSource,
+  reserveNoticeSlot,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
@@ -88,10 +187,16 @@ function LabelValueRow({
         ? ACCOUNT_NAME_OPTIONS
         : undefined
   const isSelect = !!options
+  const isPlaceholderSelect =
+    isSelect &&
+    (!item.value.trim() || item.value.trim().toLowerCase() === 'select')
   const isDateField = DATE_FIELD_LABELS.has(item.label)
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
   const isEdited =
     !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
+  const [noticeResolved, setNoticeResolved] = useState(false)
+  const notice = noticeResolved ? undefined : item.notice
+  const isErrorRow = notice?.tone === 'error'
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -410,15 +515,17 @@ function LabelValueRow({
       onClick={handleRowClick}
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
-        isEdited && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
-        !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
+        isErrorRow && 'bg-red-50',
+        isEdited && !isErrorRow && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
+        !isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
+        isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-[#fdd6d6]'
       )}
       style={{ minHeight: 36 }}
     >
       <div
         className={cn(
           'relative z-10 flex w-[210px] shrink-0 items-center',
-          !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
+          !isErrorRow && !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
         )}
       >
         <span className={FLAG_SLOT}>
@@ -489,6 +596,7 @@ function LabelValueRow({
             onActiveChange={setDateActive}
             ariaLabel={item.label}
             onChange={(next) => commitValue(next)}
+            keepInkOnRowHover={isErrorRow}
           />
         ) : isAccountComboboxV2 && options ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
@@ -525,10 +633,12 @@ function LabelValueRow({
                 'flex cursor-pointer items-center gap-1.5 text-[14px] font-medium transition-colors',
                 isOpen
                   ? cn(ACTIVE_FIELD_STYLE, 'w-auto bg-neutral-200')
-                  : 'text-blue-700 group-hover:text-white'
+                  : isPlaceholderSelect
+                    ? 'text-brand-fog group-hover:text-white'
+                    : 'text-blue-700 group-hover:text-white'
               )}
             >
-              <span>{item.value}</span>
+              <span>{item.value || `Select ${item.label.toLowerCase()}`}</span>
               <ChevronDown size={14} className={cn(
                 'transition-colors',
                 isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
@@ -575,7 +685,12 @@ function LabelValueRow({
                     e.stopPropagation()
                     onOpenSource()
                   }}
-                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
+                  className={cn(
+                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
+                    isErrorRow
+                      ? 'text-brand-navy hover:bg-red-200/60'
+                      : 'text-white hover:bg-white/15'
+                  )}
                   aria-label={`View source for ${item.label}`}
                   title="View source document"
                 >
@@ -586,7 +701,12 @@ function LabelValueRow({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onRemove() }}
-                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
+                  className={cn(
+                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
+                    isErrorRow
+                      ? 'text-brand-navy hover:bg-red-200/60'
+                      : 'text-white hover:bg-white/15'
+                  )}
                   aria-label={`Remove ${item.label}`}
                 >
                   <X size={14} />
@@ -598,7 +718,12 @@ function LabelValueRow({
                     e.stopPropagation()
                     handleRowClick()
                   }}
-                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] group-hover:bg-white/15 group-hover:opacity-100"
+                  className={cn(
+                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
+                    isErrorRow
+                      ? 'text-brand-navy hover:bg-red-200/60'
+                      : 'text-white group-hover:bg-white/15'
+                  )}
                   aria-label={`Edit ${item.label}`}
                   title="Edit"
                 >
@@ -607,6 +732,15 @@ function LabelValueRow({
               )}
             </>
           )}
+          {notice ? (
+            <FieldNotice
+              tone={notice.tone}
+              message={notice.message}
+              onResolve={() => setNoticeResolved(true)}
+            />
+          ) : reserveNoticeSlot ? (
+            <span className="h-6 w-6 shrink-0" aria-hidden />
+          ) : null}
         </div>
       </div>
     </div>
@@ -789,6 +923,10 @@ export function LabelValueList({
     setCustomFields(prev => prev.filter(f => f.label !== label))
   }, [])
 
+  // One row carrying a notice reserves the slot for all of them, so the hover
+  // actions sit at the same place down the whole section.
+  const reserveNoticeSlot = listItems.some((item) => item.notice)
+
   return (
     <div>
       {listItems.map((item) => (
@@ -809,6 +947,7 @@ export function LabelValueList({
           }
           accountPickerVariant={accountPickerVariant}
           onOpenSource={onOpenSource}
+          reserveNoticeSlot={reserveNoticeSlot}
         />
       ))}
       {customFields.map((field) => (
@@ -819,6 +958,7 @@ export function LabelValueList({
           sectionLabel={sectionLabel}
           onItemChange={handleCustomFieldChange}
           onRemove={() => handleRemove(field.label)}
+          reserveNoticeSlot={reserveNoticeSlot}
         />
       ))}
       {showAddField && (
