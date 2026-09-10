@@ -421,6 +421,9 @@ export function CreditNotePreview({
 
 export type BreakdownView = 'invoice' | 'credit-note'
 
+/** The worked proration is parked behind this while the section is redesigned. */
+const SHOW_PRORATION_BREAKDOWN = false
+
 /** Apr 1 sits 59 days into the 89-day Feb 1 – Apr 30 cycle. */
 const CHANGE_PERCENT = 66.3
 
@@ -772,9 +775,46 @@ export function BillingBreakdownView({
       </header>
 
       <main className="min-h-0 flex-1 overflow-y-auto bg-neutral-50/60">
-        <div className="flex min-h-full items-center justify-center px-12 py-20">
-          <p className="text-[15px] text-brand-fog">Proration calculation will be shown here</p>
-        </div>
+        {SHOW_PRORATION_BREAKDOWN ? (
+          <div className="mx-auto max-w-[1040px] px-12 pb-20 pt-8">
+            <div className="mb-5 flex items-center gap-3">
+              <span className="rounded-full border border-neutral-300 bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+                What&apos;s changing
+              </span>
+              <p className="text-[13px] text-brand-navy">
+                Amendment effective Apr 1, 2027 — charges and credits are prorated within the
+                current billing cycle.
+              </p>
+            </div>
+
+            <div className="rounded-xl border border-neutral-200 bg-white px-8 pb-8 pt-7">
+              <BillingCycleTimeline />
+
+              <div className="mx-[4%] space-y-4">
+                <InvoiceAmountBreakdown />
+                <CreditNoteAmountBreakdown />
+
+                <div className="flex items-center justify-between rounded-lg border border-violet-200 bg-violet-50/60 px-5 py-3.5">
+                  <div>
+                    <p className="text-[11px] uppercase tracking-[-0.25px] text-brand-fog">
+                      Net billing adjustment
+                    </p>
+                    <p className="mt-0.5 text-[12px] text-brand-fog">
+                      $375.00 invoiced less $37,500.00 credited
+                    </p>
+                  </div>
+                  <p className="font-heading text-[18px] font-semibold text-violet-700">
+                    −$37,125.00
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-full items-center justify-center px-12 py-20">
+            <p className="text-[15px] text-brand-fog">Proration calculation will be shown here</p>
+          </div>
+        )}
       </main>
     </div>,
     document.body
