@@ -23,6 +23,7 @@ import type {
   RampPeriod,
 } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
+import { VersionMark } from '@/components/ui/VersionMark'
 
 interface SalesOrderAmendmentComparisonProps {
   isOpen: boolean
@@ -421,21 +422,39 @@ function SectionCardRow({
   )
 
   if (!cell) {
+    const isRemovedAfter = side === 'after'
+    const removedAmount = isRemovedAfter ? counterpart?.amount : undefined
     return (
       <div className={rowClass} {...hoverProps}>
         <span
           className={cn(
             'min-w-0 flex-1 truncate text-[13px]',
-            isHovered ? 'text-white/70' : 'text-brand-mist'
+            isHovered ? 'text-white/70' : 'text-brand-mist',
+            isRemovedAfter && 'line-through'
           )}
         >
           {row.name}
         </span>
-        <span
-          className={cn('shrink-0 text-[12px]', isHovered ? 'text-white/70' : 'text-brand-mist')}
-        >
-          {side === 'before' ? 'Not on this order' : 'Removed'}
-        </span>
+        {removedAmount ? (
+          <span
+            className={cn(
+              'ml-auto shrink-0 text-right text-[13px] line-through',
+              hasAmounts ? 'w-[104px]' : 'max-w-[52%] truncate',
+              isHovered ? 'text-white/70' : 'text-brand-mist'
+            )}
+          >
+            {removedAmount}
+            {counterpart?.amountNote && (
+              <span className="ml-1">{counterpart.amountNote}</span>
+            )}
+          </span>
+        ) : (
+          <span
+            className={cn('shrink-0 text-[12px]', isHovered ? 'text-white/70' : 'text-brand-mist')}
+          >
+            Not on this order
+          </span>
+        )}
         {tooltip}
       </div>
     )
@@ -1232,17 +1251,10 @@ function VerticalContractAxis({
                 onMouseLeave={clear}
                 aria-label={`${marker.version}: ${marker.title}`}
               >
-                <span
-                  className={cn(
-                    // Matches the version marks on the Sales Order page timeline.
-                    'flex h-4 w-4 items-center justify-center rounded-full text-[8px] font-semibold leading-none tracking-[-0.2px] ring-1',
-                    isPositive
-                      ? 'bg-green-600 text-white ring-green-600 shadow-[0_0_0_2px_rgba(22,163,74,0.14)]'
-                      : 'bg-blue-500 text-white ring-blue-500 shadow-[0_0_0_2px_rgba(59,130,246,0.16)]'
-                  )}
-                >
-                  {marker.version}
-                </span>
+                <VersionMark
+                  version={marker.version}
+                  tone={isPositive ? 'positive' : 'default'}
+                />
               </button>
             </div>
           )

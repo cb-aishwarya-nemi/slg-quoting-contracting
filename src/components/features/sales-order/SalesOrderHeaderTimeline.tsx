@@ -2,6 +2,7 @@ import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import { CirclePlus, FileText } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
+import { VersionMark } from '@/components/ui/VersionMark'
 import { contractProcessing, type SourceDocument } from '@/data/contractProcessingMock'
 
 interface SalesOrderHeaderTimelineProps {
@@ -164,16 +165,11 @@ export function SalesOrderHeaderTimeline({
               )}
 
               <div className="flex flex-1 items-start gap-3 pb-6">
-                <span
-                  className={cn(
-                    'relative z-10 -mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-[8px] font-semibold leading-none tracking-[-0.2px] ring-1',
-                    isPositive
-                      ? 'bg-green-50 text-green-700 ring-green-300'
-                      : 'bg-blue-50 text-blue-700 ring-blue-300'
-                  )}
-                >
-                  {marker.version}
-                </span>
+                <VersionMark
+                  version={marker.version}
+                  tone={isPositive ? 'positive' : 'default'}
+                  className="relative z-10 -mt-0.5"
+                />
 
                 <span className="min-w-0 flex-1">
                   <span className="block text-[11px] leading-none text-brand-fog">
