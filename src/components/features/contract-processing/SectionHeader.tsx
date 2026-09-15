@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import { MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
+import { CircleHelp, MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
-import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 interface SectionHeaderProps {
   title: string
@@ -16,6 +15,10 @@ interface SectionHeaderProps {
   hideLine?: boolean
   /** number of comments linked to this section */
   commentCount?: number
+  /** number of open AI questions linked to this section */
+  questionCount?: number
+  /** jumps to this section's questions in the comment rail */
+  onSelectQuestions?: () => void
   /** optional action rendered at the far end, before the comment count */
   trailing?: ReactNode
   /** show a grey refresh icon beside the title */
@@ -40,6 +43,8 @@ export function SectionHeader({
   minimal = false, 
   hideLine = false,
   commentCount,
+  questionCount,
+  onSelectQuestions,
   trailing,
   showRefreshIcon = false,
   extraStatus,
@@ -50,6 +55,10 @@ export function SectionHeader({
   const commentLabel = hasComments
     ? `${commentCount} ${commentCount === 1 ? 'comment' : 'comments'}`
     : 'Add a comment'
+  const hasQuestions = questionCount !== undefined && questionCount > 0
+  const questionLabel = hasQuestions
+    ? `${questionCount} ${questionCount === 1 ? 'question' : 'questions'}`
+    : ''
 
   return (
     <div className="relative flex items-center gap-3">
@@ -70,10 +79,7 @@ export function SectionHeader({
         {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}
 
         {statusLabel && status === 'attention' ? (
-          <span className="inline-flex items-center gap-1">
-            <AttentionFlagIcon id={title.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
-            <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
-          </span>
+          <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
         ) : statusLabel && status !== 'ready' ? (
           <span
             className={cn(
@@ -103,6 +109,24 @@ export function SectionHeader({
 
           {/* Optional trailing action */}
           {trailing && <div className="shrink-0">{trailing}</div>}
+
+          {/* Open AI questions — sits before the comment count, in its own brown tone. */}
+          {hasQuestions && (
+            <button
+              type="button"
+              onClick={onSelectQuestions}
+              disabled={!onSelectQuestions}
+              className={cn(
+                'flex shrink-0 items-center gap-1 rounded-full border border-amber-700/35 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 transition-colors',
+                onSelectQuestions ? 'cursor-pointer hover:bg-amber-100' : 'cursor-default'
+              )}
+              aria-label={questionLabel}
+              title={questionLabel}
+            >
+              <CircleHelp size={12} strokeWidth={2.25} aria-hidden />
+              {questionLabel}
+            </button>
+          )}
 
           {/* Item-pinned mode wires a toggle and gets the interactive bubble. */}
           {onToggleComments ? (

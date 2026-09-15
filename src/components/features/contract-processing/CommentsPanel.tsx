@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useMemo, type RefObject } from 'react'
 import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
-import { type Comment } from '@/data/contractProcessingMock'
+import { type Comment, type CommentQuestion } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
 import {
   commentMatchesViewEditsFocus,
@@ -14,6 +14,14 @@ import {
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
+
+/** 'other' carries the reviewer's own typed value. */
+export type QuestionChoice = 'confirm' | 'change' | 'other'
+export type AnswerQuestionHandler = (
+  commentId: string,
+  choice: QuestionChoice,
+  value?: string
+) => void
 
 // Parse comment body to highlight mentions
 function parseCommentBody(text: string) {
@@ -319,12 +327,149 @@ function CommentMoreMenu({
   )
 }
 
+/**
+ * AI question card — same shell as a comment, but it leads with what the AI is
+ * unsure about and ends with the reviewer's way out.
+ */
+function QuestionCard({
+  comment,
+  question,
+  isEntering = false,
+  isAnswered = false,
+  onAnswer,
+}: {
+  comment: Comment
+  question: CommentQuestion
+  isEntering?: boolean
+  isAnswered?: boolean
+  onAnswer?: AnswerQuestionHandler
+}) {
+  const [isTypingOther, setIsTypingOther] = useState(false)
+  const [otherValue, setOtherValue] = useState('')
+  const otherInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (isTypingOther) otherInputRef.current?.focus()
+  }, [isTypingOther])
+
+  const closeOther = () => {
+    setIsTypingOther(false)
+    setOtherValue('')
+  }
+
+  const submitOther = () => {
+    const trimmed = otherValue.trim()
+    if (!trimmed) return
+    onAnswer?.(comment.id, 'other', trimmed)
+    closeOther()
+  }
+
+  return (
+    <div
+      className={cn(
+        'group relative rounded-lg px-2 py-2 transition-[background-color,opacity] duration-300 ease-out hover:bg-neutral-50',
+        isEntering && 'animate-comment-appear',
+        isAnswered && 'opacity-60'
+      )}
+    >
+      <div className="flex items-center gap-1.5">
+        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800">
+          Question
+        </span>
+        {comment.linkedSection && (
+          <span className="truncate text-[11px] text-brand-fog">{comment.linkedSection}</span>
+        )}
+      </div>
+
+      <p className="mt-1.5 text-[12px] font-semibold leading-[1.4] text-brand-navy">
+        {question.headline}
+      </p>
+
+      <p className="mt-1 text-[12px] leading-[1.5] text-brand-fog">{comment.body}</p>
+
+      {isAnswered ? (
+        <p className="mt-2.5 text-[11px] font-medium text-brand-fog">Answered</p>
+      ) : (
+        // Clicks stay on the card — the collapsed stack around it expands on click.
+        <div
+          className="mt-2.5 flex flex-wrap items-center gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {isTypingOther ? (
+            <div className="w-full">
+              <input
+                ref={otherInputRef}
+                type="text"
+                value={otherValue}
+                onChange={(e) => setOtherValue(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    submitOther()
+                  }
+                  if (e.key === 'Escape') {
+                    e.preventDefault()
+                    closeOther()
+                  }
+                }}
+                onBlur={() => {
+                  if (!otherValue.trim()) closeOther()
+                }}
+                placeholder="Type a value…"
+                className="w-full rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[12px] text-brand-navy placeholder:text-brand-mist focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+              />
+              <div className="mt-1 flex items-center gap-1 px-0.5 text-[10px] text-brand-mist">
+                <CornerDownLeft size={10} />
+                <span>Enter to submit · Esc to cancel</span>
+              </div>
+            </div>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => onAnswer?.(comment.id, 'confirm')}
+                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+              >
+                {question.confirmLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => onAnswer?.(comment.id, 'change')}
+                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+              >
+                {question.changeLabel}
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsTypingOther(true)}
+                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+              >
+                Other
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
+      {/* Footer row: same author line as a comment */}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.02em] ai-gradient-text">
+          Apex AI
+        </span>
+        <span className="shrink-0 text-[10px] text-brand-fog">{comment.timestamp}</span>
+        <div className="h-px flex-1 bg-neutral-200" />
+      </div>
+    </div>
+  )
+}
+
 function CommentCard({
   comment,
   isActive,
   onJump,
   onDelete,
   onResolve,
+  onAnswerQuestion,
   commentStatus = 'open',
   dense = false,
   isEntering = false,
@@ -336,6 +481,7 @@ function CommentCard({
   onJump?: (sectionId: string) => void
   onDelete?: (commentId: string) => void
   onResolve?: (commentId: string) => void
+  onAnswerQuestion?: AnswerQuestionHandler
   commentStatus?: CommentStatus
   /** slightly larger body text (+1px) for full-width comment lists */
   dense?: boolean
@@ -348,6 +494,7 @@ function CommentCard({
 }) {
   const bodyTextClass = dense ? 'text-[13px]' : 'text-[12px]'
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
+  const question = comment.question
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [isExpanded, setIsExpanded] = useState(false)
@@ -392,6 +539,18 @@ function CommentCard({
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isResolved, isExpanded])
+
+  if (question) {
+    return (
+      <QuestionCard
+        comment={comment}
+        question={question}
+        isEntering={isEntering}
+        isAnswered={isResolved}
+        onAnswer={onAnswerQuestion}
+      />
+    )
+  }
 
   return (
     <div
@@ -532,6 +691,8 @@ export interface SectionCommentStackProps {
   onAddNote: (text: string, status: ContractStatus) => void
   onDelete: (id: string) => void
   onResolve: (id: string) => void
+  /** Records the reviewer's answer to an AI question. */
+  onAnswerQuestion?: AnswerQuestionHandler
   /** Opens the composer when true. Uncontrolled if omitted. */
   showAddNote?: boolean
   onShowAddNoteChange?: (show: boolean) => void
@@ -544,6 +705,7 @@ export function SectionCommentStack({
   onAddNote,
   onDelete,
   onResolve,
+  onAnswerQuestion,
   showAddNote: showAddNoteProp,
   onShowAddNoteChange,
 }: SectionCommentStackProps) {
@@ -570,7 +732,16 @@ export function SectionCommentStack({
   }
 
   const orderedComments = useMemo(() => {
-    if (!isViewingEdits || !viewEditsFocus) return comments
+    if (!isViewingEdits || !viewEditsFocus) {
+      // Unanswered questions block the review, so they sit above the notes.
+      const open: typeof comments = []
+      const rest: typeof comments = []
+      for (const comment of comments) {
+        if (comment.question && comment.status !== 'resolved') open.push(comment)
+        else rest.push(comment)
+      }
+      return [...open, ...rest]
+    }
     const matching: typeof comments = []
     const rest: typeof comments = []
     for (const comment of comments) {
@@ -667,6 +838,7 @@ export function SectionCommentStack({
         isActive={false}
         onDelete={onDelete}
         onResolve={onResolve}
+        onAnswerQuestion={onAnswerQuestion}
         isEntering={enteringIds.has(comment.id)}
         isFocusedEdit={isViewingEdits && isMatch}
         isDimmed={isViewingEdits && !isMatch}

@@ -19,6 +19,7 @@ import {
   getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
+  type AnswerQuestionHandler,
 } from '@/components/features/contract-processing'
 
 const BASE_NAV_SECTIONS: NavSection[] = [
@@ -50,6 +51,7 @@ function IngestionSectionRow({
   onAddNote,
   onDelete,
   onResolve,
+  onAnswerQuestion,
 }: {
   sectionId: string
   sectionLabel: string
@@ -62,6 +64,7 @@ function IngestionSectionRow({
   onAddNote: (text: string, status?: 'Blocked' | 'In progress') => void
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
+  onAnswerQuestion?: AnswerQuestionHandler
 }) {
   return (
     <div className="flex items-start gap-8">
@@ -75,6 +78,7 @@ function IngestionSectionRow({
             onAddNote={(text, status) => onAddNote(text, status)}
             onDelete={onDelete}
             onResolve={onResolve}
+            onAnswerQuestion={onAnswerQuestion}
           />
         </div>
       )}
@@ -465,6 +469,13 @@ function ContractProcessingView({
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
   )
+  // Owned by the view so answering an AI question can write the value back.
+  const [addressItems, setAddressItems] = useState<LabelValue[]>(() =>
+    data.addresses.map((item) => ({ ...item }))
+  )
+  const [termsItems, setTermsItems] = useState<LabelValue[]>(() =>
+    data.termsAndBilling.map((item) => ({ ...item }))
+  )
 
   const accountAttention = useMemo(
     () => getExtractionAttentionStatus(accountItems),
@@ -473,6 +484,14 @@ function ContractProcessingView({
 
   const handleAccountItemChange = useCallback((label: string, newValue: string) => {
     setAccountItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
+  const handleAddressItemChange = useCallback((label: string, newValue: string) => {
+    setAddressItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
+  const handleTermsItemChange = useCallback((label: string, newValue: string) => {
+    setTermsItems((prev) => applyFieldValue(prev, label, newValue))
   }, [])
 
   const navSections = useMemo<NavSection[]>(
@@ -493,6 +512,14 @@ function ContractProcessingView({
   useEffect(() => {
     setAccountItems(data.account.map((item) => ({ ...item })))
   }, [data.account])
+
+  useEffect(() => {
+    setAddressItems(data.addresses.map((item) => ({ ...item })))
+  }, [data.addresses])
+
+  useEffect(() => {
+    setTermsItems(data.termsAndBilling.map((item) => ({ ...item })))
+  }, [data.termsAndBilling])
 
   const centerRef = useRef<HTMLDivElement>(null)
   const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({})
@@ -524,13 +551,63 @@ function ContractProcessingView({
     return grouped
   }, [localComments])
 
+  // Questions are counted on their own — they ask for a decision, notes don't.
   const commentCountsBySection = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const [sectionId, comments] of Object.entries(commentsBySection)) {
-      counts[sectionId] = comments.length
+      counts[sectionId] = comments.filter((c) => !c.question).length
     }
     return counts
   }, [commentsBySection])
+
+  const openQuestionsBySection = useMemo(() => {
+    const grouped: Record<string, Array<Comment & { status?: 'open' | 'resolved' }>> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      const open = comments.filter((c) => c.question && c.status !== 'resolved')
+      if (open.length) grouped[sectionId] = open
+    }
+    return grouped
+  }, [commentsBySection])
+
+  const questionCountsBySection = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const [sectionId, questions] of Object.entries(openQuestionsBySection)) {
+      counts[sectionId] = questions.length
+    }
+    return counts
+  }, [openQuestionsBySection])
+
+  const questionFieldsBySection = useMemo(() => {
+    const fields: Record<string, string[]> = {}
+    for (const [sectionId, questions] of Object.entries(openQuestionsBySection)) {
+      fields[sectionId] = questions
+        .map((c) => c.question?.fieldLabel)
+        .filter((label): label is string => !!label)
+    }
+    return fields
+  }, [openQuestionsBySection])
+
+  /** Answering closes the question; taking the alternative also writes the value back. */
+  const handleAnswerQuestion = useCallback<AnswerQuestionHandler>(
+    (commentId, choice, value) => {
+      const answered = localComments.find((c) => c.id === commentId)
+      const question = answered?.question
+      const nextValue = choice === 'change' ? question?.changeValue : value
+      if (choice !== 'confirm' && question?.fieldLabel && nextValue) {
+        if (answered?.linkedSectionId === 'account') {
+          handleAccountItemChange(question.fieldLabel, nextValue)
+        } else if (answered?.linkedSectionId === 'addresses') {
+          handleAddressItemChange(question.fieldLabel, nextValue)
+        } else if (answered?.linkedSectionId === 'terms') {
+          handleTermsItemChange(question.fieldLabel, nextValue)
+        }
+      }
+      setLocalComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, status: 'resolved' as const } : c))
+      )
+    },
+    [localComments, handleAccountItemChange, handleAddressItemChange, handleTermsItemChange]
+  )
 
   const setSectionRef = useCallback(
     (id: string) => (el: HTMLDivElement | null) => {
@@ -802,12 +879,14 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('account', 'Account', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <SectionHeader
                   title="Account"
                   status={accountAttention.status}
                   statusLabel={accountAttention.statusLabel}
                   commentCount={commentCountsBySection['account']}
+                  questionCount={questionCountsBySection['account']}
                 />
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
                   <LabelValueList
@@ -817,6 +896,7 @@ function ContractProcessingView({
                     showAddField
                     controlled
                     onItemChange={handleAccountItemChange}
+                    questionFields={questionFieldsBySection['account']}
                   />
                 </div>
               </IngestionSectionRow>
@@ -837,15 +917,24 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('addresses', 'Addresses', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <SectionHeader
                   title="Addresses"
                   status="ready"
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['addresses']}
+                  questionCount={questionCountsBySection['addresses']}
                 />
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  <LabelValueList items={data.addresses} />
+                  <LabelValueList
+                    items={addressItems}
+                    sectionId="addresses"
+                    sectionLabel="Addresses"
+                    controlled
+                    onItemChange={handleAddressItemChange}
+                    questionFields={questionFieldsBySection['addresses']}
+                  />
                 </div>
               </IngestionSectionRow>
             </section>
@@ -865,15 +954,24 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('terms', 'Terms and billing', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <SectionHeader
                   title="Terms and billing"
                   status="ready"
                   statusLabel="Ready"
                   commentCount={commentCountsBySection['terms']}
+                  questionCount={questionCountsBySection['terms']}
                 />
                 <div className="mt-4" style={{ maxWidth: bodyWidth }}>
-                  <LabelValueList items={data.termsAndBilling} />
+                  <LabelValueList
+                    items={termsItems}
+                    sectionId="terms"
+                    sectionLabel="Terms and billing"
+                    controlled
+                    onItemChange={handleTermsItemChange}
+                    questionFields={questionFieldsBySection['terms']}
+                  />
                 </div>
               </IngestionSectionRow>
             </section>
@@ -892,6 +990,7 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('products', 'Products and pricing', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <div style={{ width: productsWidth }}>
                   <ProductsPricingTable
@@ -927,6 +1026,7 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('schedule', 'Billing schedule', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <SectionHeader
                   title="Billing schedule"
@@ -950,6 +1050,7 @@ function ContractProcessingView({
                 onAddNote={(text) => handleAddComment('invoice', 'Invoice preview', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
+                onAnswerQuestion={handleAnswerQuestion}
               >
                 <div style={{ maxWidth: bodyWidth }}>
                   <InvoicePreview isFlashing={false} />

@@ -8,7 +8,13 @@ export { AllocationTable } from './AllocationTable'
 export { InvoicePreview } from './InvoicePreview'
 export { PaymentSchedule } from './PaymentSchedule'
 export { InPageNav, type NavSection } from './InPageNav'
-export { CommentsPanel, SectionCommentStack, type SectionCommentStackProps } from './CommentsPanel'
+export {
+  CommentsPanel,
+  SectionCommentStack,
+  type SectionCommentStackProps,
+  type QuestionChoice,
+  type AnswerQuestionHandler,
+} from './CommentsPanel'
 export { PdfThumbnail } from './PdfThumbnail'
 export { SectionSourceThumbnails, SECTION_SOURCE_THUMBNAILS_HEIGHT } from './SectionSourceThumbnails'
 export { SourcePreviewDrawer } from './SourcePreviewDrawer'

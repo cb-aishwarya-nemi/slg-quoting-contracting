@@ -79,6 +79,23 @@ export interface RampPeriod {
   items: ProductLineItem[]
 }
 
+/**
+ * A judgement call the AI had to make and wants confirmed. The comment `body`
+ * carries the reasoning; this carries what it read and how sure it is.
+ */
+export interface CommentQuestion {
+  /** Row this question sits on — matched against `LabelValue.label`. */
+  fieldLabel?: string
+  /** One-line statement of the ambiguity. */
+  headline: string
+  /** Keeps the value the AI chose. */
+  confirmLabel: string
+  /** Switches to the alternative reading. */
+  changeLabel: string
+  /** Value applied to the field when the reviewer takes the alternative. */
+  changeValue?: string
+}
+
 export interface Comment {
   id: string
   author: string
@@ -86,6 +103,8 @@ export interface Comment {
   isAI?: boolean
   timestamp: string
   body: string
+  /** Present when the AI is asking the reviewer to confirm an interpretation. */
+  question?: CommentQuestion
   /** section this comment is linked to (renders as a grey tag) */
   linkedSection?: string
   /** in-page section id this comment maps to (drives scroll + active-section peek) */
@@ -561,6 +580,39 @@ export const contractProcessing = {
   ] as SourceDocument[],
 
   comments: [
+    {
+      id: 'q-1',
+      author: 'Apex AI',
+      initials: 'AI',
+      isAI: true,
+      timestamp: 'Just now',
+      body: 'The recital says two years. The payment table says twelve quarterly installments, which is three. I went with 36 months because the payment table is more specific, but this is a coin flip.',
+      linkedSection: 'Terms and billing',
+      linkedSectionId: 'terms',
+      question: {
+        fieldLabel: 'Payment terms',
+        headline: 'The contract states two different terms',
+        confirmLabel: 'Confirm 36 months',
+        changeLabel: 'Change to 24 months',
+      },
+    },
+    {
+      id: 'q-3',
+      author: 'Apex AI',
+      initials: 'AI',
+      isAI: true,
+      timestamp: 'Just now',
+      body: 'The MSA header and the notices clause give different addresses. I used the header address for billing, but the notices clause is the more recent document.',
+      linkedSection: 'Addresses',
+      linkedSectionId: 'addresses',
+      question: {
+        fieldLabel: 'Address line 1',
+        headline: 'Two billing addresses appear on the contract',
+        confirmLabel: 'Confirm 340 Market Street',
+        changeLabel: 'Change to 1200 Bryant Street',
+        changeValue: '1200 Bryant Street, Floor 3',
+      },
+    },
     {
       id: 'c-1',
       author: 'Adrian Brody',

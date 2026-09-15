@@ -25,6 +25,7 @@ import {
   applyFieldValue,
   type NavSection,
   type ProductsPricingVariant,
+  type AnswerQuestionHandler,
 } from '@/components/features/contract-processing'
 import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import {
@@ -85,6 +86,7 @@ function ContractSectionRow({
   onAddNote,
   onDelete,
   onResolve,
+  onAnswerQuestion,
   showAddNote,
   onShowAddNoteChange,
 }: {
@@ -100,6 +102,7 @@ function ContractSectionRow({
   onAddNote: (text: string, status: ContractStatus) => void
   onDelete: (commentId: string) => void
   onResolve: (commentId: string) => void
+  onAnswerQuestion?: AnswerQuestionHandler
   showAddNote?: boolean
   onShowAddNoteChange?: (show: boolean) => void
 }) {
@@ -136,6 +139,7 @@ function ContractSectionRow({
             onAddNote={onAddNote}
             onDelete={onDelete}
             onResolve={onResolve}
+            onAnswerQuestion={onAnswerQuestion}
             showAddNote={showAddNote}
             onShowAddNoteChange={onShowAddNoteChange}
           />
@@ -197,6 +201,13 @@ export function Customer360Page() {
   const [areCommentsVisible, setAreCommentsVisible] = useState(false)
   const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
     data.account.map((item) => ({ ...item }))
+  )
+  // Owned by the page so answering an AI question can write the value back.
+  const [addressItems, setAddressItems] = useState<LabelValue[]>(() =>
+    data.addresses.map((item) => ({ ...item }))
+  )
+  const [termsItems, setTermsItems] = useState<LabelValue[]>(() =>
+    data.termsAndBilling.map((item) => ({ ...item }))
   )
   const [customerName, setCustomerName] = useState(data.customerName)
 
@@ -262,6 +273,14 @@ export function Customer360Page() {
     }
   }, [])
 
+  const handleAddressItemChange = useCallback((label: string, newValue: string) => {
+    setAddressItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
+  const handleTermsItemChange = useCallback((label: string, newValue: string) => {
+    setTermsItems((prev) => applyFieldValue(prev, label, newValue))
+  }, [])
+
   const handleCreateAccountCustomer = useCallback((name?: string) => {
     const createdName = name?.trim()
     if (!createdName) return
@@ -316,13 +335,41 @@ export function Customer360Page() {
     return grouped
   }, [localComments])
 
+  // Questions are counted on their own — they ask for a decision, notes don't.
   const commentCountsBySection = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const [sectionId, comments] of Object.entries(commentsBySection)) {
-      counts[sectionId] = comments.length
+      counts[sectionId] = comments.filter((c) => !c.question).length
     }
     return counts
   }, [commentsBySection])
+
+  const openQuestionsBySection = useMemo(() => {
+    const grouped: Record<string, Array<Comment & { status?: CommentStatus }>> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      const open = comments.filter((c) => c.question && c.status !== 'resolved')
+      if (open.length) grouped[sectionId] = open
+    }
+    return grouped
+  }, [commentsBySection])
+
+  const questionCountsBySection = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const [sectionId, questions] of Object.entries(openQuestionsBySection)) {
+      counts[sectionId] = questions.length
+    }
+    return counts
+  }, [openQuestionsBySection])
+
+  const questionFieldsBySection = useMemo(() => {
+    const fields: Record<string, string[]> = {}
+    for (const [sectionId, questions] of Object.entries(openQuestionsBySection)) {
+      fields[sectionId] = questions
+        .map((c) => c.question?.fieldLabel)
+        .filter((label): label is string => !!label)
+    }
+    return fields
+  }, [openQuestionsBySection])
 
   const [addNoteSectionId, setAddNoteSectionId] = useState<string | null>(null)
   const handleSectionCommentIcon = useCallback(
@@ -447,6 +494,28 @@ export function Customer360Page() {
       )
     )
   }, [])
+
+  /** Answering closes the question; taking the alternative also writes the value back. */
+  const handleAnswerQuestion = useCallback<AnswerQuestionHandler>(
+    (commentId, choice, value) => {
+      const answered = localComments.find((c) => c.id === commentId)
+      const question = answered?.question
+      const nextValue = choice === 'change' ? question?.changeValue : value
+      if (choice !== 'confirm' && question?.fieldLabel && nextValue) {
+        if (answered?.linkedSectionId === 'account') {
+          handleAccountItemChange(question.fieldLabel, nextValue)
+        } else if (answered?.linkedSectionId === 'addresses') {
+          handleAddressItemChange(question.fieldLabel, nextValue)
+        } else if (answered?.linkedSectionId === 'terms') {
+          handleTermsItemChange(question.fieldLabel, nextValue)
+        }
+      }
+      setLocalComments((prev) =>
+        prev.map((c) => (c.id === commentId ? { ...c, status: 'resolved' as CommentStatus } : c))
+      )
+    },
+    [localComments, handleAccountItemChange, handleAddressItemChange, handleTermsItemChange]
+  )
 
   // Scroll spy — runs during smooth programmatic scroll so the nav indicator animates fluidly
   useEffect(() => {
@@ -680,6 +749,7 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    onAnswerQuestion={handleAnswerQuestion}
                     showAddNote={addNoteSectionId === 'account'}
                     onShowAddNoteChange={setSectionAddNote('account')}
                   >
@@ -697,6 +767,10 @@ export function Customer360Page() {
                       }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
+                      questionCount={questionCountsBySection['account']}
+                      onSelectQuestions={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('account') : undefined
+                      }
                       commentsVisible={arePageCommentsVisible}
                       onToggleComments={
                         isItemPinnedVariant ? () => handleSectionCommentIcon('account') : undefined
@@ -713,6 +787,7 @@ export function Customer360Page() {
                         onCreateAsNewCustomer={handleCreateAccountCustomer}
                         createdCustomerName={createdAccountCustomer}
                         accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
+                        questionFields={questionFieldsBySection['account']}
                         onOpenSource={
                           sectionSources.account?.length
                             ? () => setPreview({ sectionId: 'account', index: 0 })
@@ -737,6 +812,7 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('addresses', 'Addresses', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    onAnswerQuestion={handleAnswerQuestion}
                     showAddNote={addNoteSectionId === 'addresses'}
                     onShowAddNoteChange={setSectionAddNote('addresses')}
                   >
@@ -746,6 +822,10 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['addresses']}
+                      questionCount={questionCountsBySection['addresses']}
+                      onSelectQuestions={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('addresses') : undefined
+                      }
                       commentsVisible={arePageCommentsVisible}
                       onToggleComments={
                         isItemPinnedVariant ? () => handleSectionCommentIcon('addresses') : undefined
@@ -753,9 +833,12 @@ export function Customer360Page() {
                     />
                     <div className="mt-4">
                       <LabelValueList
-                        items={data.addresses}
+                        items={addressItems}
                         sectionId="addresses"
                         sectionLabel="Addresses"
+                        controlled
+                        onItemChange={handleAddressItemChange}
+                        questionFields={questionFieldsBySection['addresses']}
                         onOpenSource={
                           sectionSources.addresses?.length
                             ? () => setPreview({ sectionId: 'addresses', index: 0 })
@@ -780,6 +863,7 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('terms', 'Terms and billing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    onAnswerQuestion={handleAnswerQuestion}
                     showAddNote={addNoteSectionId === 'terms'}
                     onShowAddNoteChange={setSectionAddNote('terms')}
                   >
@@ -789,6 +873,10 @@ export function Customer360Page() {
                       statusLabel="Ready"
                       isFlashing={false}
                       commentCount={commentCountsBySection['terms']}
+                      questionCount={questionCountsBySection['terms']}
+                      onSelectQuestions={
+                        isItemPinnedVariant ? () => handleSectionCommentIcon('terms') : undefined
+                      }
                       commentsVisible={arePageCommentsVisible}
                       onToggleComments={
                         isItemPinnedVariant ? () => handleSectionCommentIcon('terms') : undefined
@@ -796,9 +884,12 @@ export function Customer360Page() {
                     />
                     <div className="mt-4">
                       <LabelValueList
-                        items={data.termsAndBilling}
+                        items={termsItems}
                         sectionId="terms"
                         sectionLabel="Terms and billing"
+                        controlled
+                        onItemChange={handleTermsItemChange}
+                        questionFields={questionFieldsBySection['terms']}
                         onOpenSource={
                           sectionSources.terms?.length
                             ? () => setPreview({ sectionId: 'terms', index: 0 })
@@ -824,6 +915,7 @@ export function Customer360Page() {
                     onAddNote={(text, status) => handleAddComment('products', 'Products and pricing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    onAnswerQuestion={handleAnswerQuestion}
                     showAddNote={addNoteSectionId === 'products'}
                     onShowAddNoteChange={setSectionAddNote('products')}
                   >
@@ -898,6 +990,7 @@ export function Customer360Page() {
                     }
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
+                    onAnswerQuestion={handleAnswerQuestion}
                     showAddNote={addNoteSectionId === 'allocation'}
                     onShowAddNoteChange={setSectionAddNote('allocation')}
                   >
@@ -943,6 +1036,7 @@ export function Customer360Page() {
                       }
                       onDelete={handleDeleteComment}
                       onResolve={handleResolveComment}
+                      onAnswerQuestion={handleAnswerQuestion}
                     >
                       <SectionHeader
                         title="Billing schedule"
@@ -978,6 +1072,7 @@ export function Customer360Page() {
                       }
                       onDelete={handleDeleteComment}
                       onResolve={handleResolveComment}
+                      onAnswerQuestion={handleAnswerQuestion}
                     >
                       <div style={{ maxWidth: WIDE_CONTENT_WIDTH }}>
                         <InvoicePreview

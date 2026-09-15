@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { cn } from '@/lib/utils'
-import { AttentionFlagIcon } from './AttentionFlagIcon'
 
 export interface NavSection {
   id: string
@@ -102,9 +101,9 @@ export function InPageNav({ sections, activeId, onNavigate }: InPageNavProps) {
           {sections.map((section) => {
             const isActive = section.id === activeId
             const isItemHovered = hoveredId === section.id
-            const showFlag =
-              section.id === 'account' || section.id.toLowerCase().includes('product')
-            const useGradient = section.status === 'attention'
+            const useGradient =
+              section.status === 'attention' &&
+              (section.id === 'account' || section.id.toLowerCase().includes('product'))
 
             return (
               <li key={section.id}>
@@ -125,7 +124,7 @@ export function InPageNav({ sections, activeId, onNavigate }: InPageNavProps) {
                         ? 'font-bold text-white'
                         : isItemHovered
                           ? 'font-medium text-brand-navy'
-                          : section.status === 'attention' && showFlag
+                          : useGradient
                             ? 'font-normal ai-gradient-text'
                             : section.status === 'attention'
                               ? 'font-normal text-red-600'
@@ -134,12 +133,6 @@ export function InPageNav({ sections, activeId, onNavigate }: InPageNavProps) {
                   >
                     {section.label}
                   </span>
-                  {showFlag && (
-                    <AttentionFlagIcon
-                      id={section.id}
-                      variant={isActive ? 'white' : useGradient ? 'gradient' : 'navy'}
-                    />
-                  )}
                 </button>
               </li>
             )
