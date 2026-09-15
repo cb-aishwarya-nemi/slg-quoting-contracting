@@ -1,4 +1,5 @@
 import { AppLayout } from './components/layout'
+import { UseCaseSwitcher } from './components/ui/UseCaseSwitcher'
 import { WorkbenchPage, CustomersPage, Customer360Page, InvoiceDetailsPage, AllInvoicesPage, AllContractsPage, ContractIngestionPage, SalesOrdersPage } from './pages'
 import { NavigationProvider, useNavigation } from './context/NavigationContext'
 import { UseCaseProvider } from './context/UseCaseContext'
@@ -72,6 +73,7 @@ function App() {
               <AppLayout>
                 <PageRouter />
               </AppLayout>
+              <UseCaseSwitcher />
             </NavigationProvider>
           </NotificationProvider>
         </UseCaseProvider>

@@ -29,19 +29,30 @@ export interface UseCasePage {
 }
 
 /**
- * Registry of sales-order stage variants for this branch.
- * Single page: Invoice overdue only.
+ * Registry of sales-order contract-timeline explorations.
+ * Filled-simplified and Minimal currently reuse the Filled-loaded axis until defined.
  */
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
     id: 'sales-order-details',
     label: 'Sales Order Details',
-    defaultVariant: 'invoice-overdue',
+    defaultVariant: 'filled-loaded',
     variants: [
       {
-        id: 'invoice-overdue',
-        label: 'Invoice overdue',
-        description: 'Sales order with an overdue invoice that needs attention',
+        id: 'filled-loaded',
+        label: '1. Filled-loaded',
+      },
+      {
+        id: 'filled-simplified',
+        label: '2. Filled - simplified',
+      },
+      {
+        id: 'minimal',
+        label: '3. Minimal',
+      },
+      {
+        id: 'single-year',
+        label: '4. Single year',
       },
     ],
   },

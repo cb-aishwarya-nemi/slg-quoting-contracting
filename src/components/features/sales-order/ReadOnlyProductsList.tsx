@@ -160,12 +160,27 @@ function ProductTableHeader() {
   )
 }
 
+export function ProductPeriodTable({ period }: { period: SalesOrderRampPeriod }) {
+  return (
+    <div>
+      <ProductTableHeader />
+      {period.items.map((item, idx) => (
+        <LineRow
+          key={item.id}
+          item={item}
+          isLast={idx === period.items.length - 1}
+        />
+      ))}
+    </div>
+  )
+}
+
 function numericQuantity(value: string): number {
   const qty = Number.parseInt(value, 10)
   return Number.isFinite(qty) ? qty : 0
 }
 
-function rampChangeSummary(
+export function rampChangeSummary(
   previous: SalesOrderRampPeriod | undefined,
   next: SalesOrderRampPeriod
 ): { detail: string; count: number } | null {

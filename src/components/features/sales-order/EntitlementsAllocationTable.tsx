@@ -107,6 +107,13 @@ function allocationsForYear(year: 1 | 2 | 3): AllocationGroup[] {
   }))
 }
 
+export function entitlementChangeCount(year: 1 | 2 | 3): number {
+  return allocationsForYear(year).reduce(
+    (count, group) => count + group.sources.filter((source) => source.unitsChange != null).length,
+    0
+  )
+}
+
 function UnitsChangeBadge({ change }: { change: number }) {
   const isIncrease = change >= 0
   const Icon = isIncrease ? TrendingUp : TrendingDown
@@ -143,7 +150,7 @@ function TableHeader() {
       style={{ gridTemplateColumns: COLS }}
     >
       <div className="pr-6 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-        Entitlement
+        Feature
       </div>
       <div className="pr-6 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Item

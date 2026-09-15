@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import { RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { VersionMark } from '@/components/ui/VersionMark'
 import {
   dateToTimelinePercent,
   parseTimelineDate,
@@ -53,14 +55,23 @@ const DEFAULT_PERIOD_INDEX = 1
 /** Full Pioneer contract span (3 annual periods). */
 const FULL_TERM_START = CONTRACT_PERIODS[0].startDate
 const FULL_TERM_END = CONTRACT_PERIODS[CONTRACT_PERIODS.length - 1].endDate
+/** Renewal falls the day after the term ends. */
+const RENEWAL_DATE = '2029-05-01'
 /** Prototype “today” — late Year 1, March on the full-term axis. */
 const INVOICE_OVERDUE_TODAY_DATE = '2027-03-15'
 const INVOICE_OVERDUE_TODAY_LABEL = "Mar 15 '27"
 /** Subtle inset for full-term date scale — keeps May/Apr off the axis edges. */
 const FULL_TERM_EDGE_PAD = 1.25
 
-/** Upcoming ramp milestones at Year 2 / Year 3 starts (dotted circles). */
+/** Scheduled ramps across the term — those before today read as already applied. */
 const RAMP_MARKERS = [
+  {
+    id: 'ramp-y1-mid',
+    date: '2026-11-01',
+    title: 'Ramp · Mid Year 1',
+    detail: '+10 seats · Growth services',
+    dateLabel: "Nov 1 '26",
+  },
   {
     id: 'ramp-y2',
     date: '2027-05-01',
@@ -77,17 +88,82 @@ const RAMP_MARKERS = [
   },
 ] as const
 
-/** Signed amendments on the term (green dotted circles). */
-const AMENDMENT_MARKERS = [
+/**
+ * Contract versions — v1 the original order, each amendment the next version.
+ * `kind` drives the colour: expansions green, contractions red.
+ */
+const VERSION_MARKERS: {
+  id: string
+  version: string
+  kind: 'original' | 'expansion' | 'contraction'
+  date: string
+  title: string
+  detail: string
+  dateLabel: string
+}[] = [
   {
-    id: 'amendment-aug-27',
+    id: 'version-1',
+    version: 'v1',
+    kind: 'original',
+    date: '2026-05-01',
+    title: 'Original contract',
+    detail: 'SO-2026-0153 · 50 seats',
+    dateLabel: "May 1 '26",
+  },
+  {
+    id: 'version-2',
+    version: 'v2',
+    kind: 'expansion',
+    date: '2026-09-15',
+    title: 'Amendment · Premium support',
+    detail: '+Premium support SLA',
+    dateLabel: "Sep 15 '26",
+  },
+  {
+    id: 'version-3',
+    version: 'v3',
+    kind: 'expansion',
     date: '2027-08-01',
     title: 'Amendment · Contract expansion',
     detail: '+15 seats · Premium support upgrade',
     dateLabel: "Aug 1 '27",
-    status: 'scheduled',
   },
-] as const
+]
+
+/** Hollow dot for anything not yet in effect. */
+const UPCOMING_DOT = 'border border-dashed border-neutral-400 bg-white'
+
+/** Simplified axis: every milestone is a 7px dot — filled once in effect, outlined while ahead. */
+const COMPACT_DOT = 'block h-[7px] w-[7px] rounded-full border transition-all duration-200'
+
+/** Minimal marks contract versions with a diamond so they read apart from the ramp dots. */
+const COMPACT_DIAMOND = 'block h-[8px] w-[8px] rotate-45 border transition-all duration-200'
+
+/** Minimal only: filled dots take a 1px white stroke to lift them off the gradient line. */
+const FILLED_DOT_STROKE = 'ring-1 ring-white'
+
+const COMPACT_DOT_TONES = {
+  default: {
+    filled: 'border-blue-500 bg-blue-500',
+    outlined: 'border-blue-500 bg-white',
+    glow: 'shadow-[0_0_0_3px_rgba(59,130,246,0.14)]',
+  },
+  positive: {
+    filled: 'border-green-600 bg-green-600',
+    outlined: 'border-green-600 bg-white',
+    glow: 'shadow-[0_0_0_3px_rgba(22,163,74,0.14)]',
+  },
+  critical: {
+    filled: 'border-red-600 bg-red-600',
+    outlined: 'border-red-500 bg-white',
+    glow: 'shadow-[0_0_0_3px_rgba(220,38,38,0.14)]',
+  },
+  neutral: {
+    filled: 'border-brand-mist bg-brand-mist',
+    outlined: 'border-neutral-400 bg-white',
+    glow: 'shadow-[0_0_0_3px_rgba(155,153,180,0.2)]',
+  },
+} as const
 
 /** Lucide `flag` path with optional longer pole (sticky timeline). */
 function YearFlag({
@@ -185,11 +261,15 @@ function buildMonthTicks(
 
 export function SalesOrderHeaderTimeline({
   orderId: _orderId,
-  variant: _variant,
+  variant,
   children,
 }: SalesOrderHeaderTimelineProps) {
-  // Single sales-order page: always Invoice overdue full-term timeline
-  const showFullTerm = true
+  /** Minimal collapses the axis to a single progress line; today reads off the gradient end. */
+  const isMinimal = variant === 'minimal'
+  /** Simplified and minimal both trade the numbered discs for uniform 7px dots. */
+  const compactDots = variant === 'filled-simplified' || isMinimal
+  /** Single year narrows the axis to one contract period — no year flags, monthly ticks. */
+  const showFullTerm = variant !== 'single-year'
   const [periodIndex] = useState(DEFAULT_PERIOD_INDEX)
   const period =
     CONTRACT_PERIODS.find((p) => p.index === periodIndex) ?? CONTRACT_PERIODS[0]
@@ -203,7 +283,7 @@ export function SalesOrderHeaderTimeline({
     title: string
     detail: string
     dateLabel: string
-    status?: string
+    status: string
     rect: DOMRect
   } | null>(null)
   const [isTimelineStuck, setIsTimelineStuck] = useState(false)
@@ -248,12 +328,31 @@ export function SalesOrderHeaderTimeline({
   }, [])
 
   const months = useMemo(
-    () => buildMonthTicks(axisStart, axisEnd, showFullTerm ? 3 : 1),
-    [axisStart, axisEnd, showFullTerm],
+    // Minimal steps half-yearly; the full term quarterly; a single period monthly.
+    () => buildMonthTicks(axisStart, axisEnd, showFullTerm ? (isMinimal ? 6 : 3) : 1),
+    [axisStart, axisEnd, showFullTerm, isMinimal],
   )
 
   const activeTodayDate = INVOICE_OVERDUE_TODAY_DATE
   const activeTodayLabel = INVOICE_OVERDUE_TODAY_LABEL
+
+  /** Anything on or before today has already taken effect. */
+  const hasPassed = (date: string) =>
+    parseTimelineDate(date) <= parseTimelineDate(activeTodayDate)
+
+  /** Countdown for anything still ahead — “in 12 days”, “in 5 months”, “in 2 years”. */
+  const timeUntil = (date: string) => {
+    const days = Math.round(
+      (parseTimelineDate(date).getTime() - parseTimelineDate(activeTodayDate).getTime()) /
+        86_400_000,
+    )
+    if (days <= 0) return 'today'
+    if (days < 31) return `in ${days} ${days === 1 ? 'day' : 'days'}`
+    const months = Math.round(days / 30.44)
+    if (months < 12) return `in ${months} ${months === 1 ? 'month' : 'months'}`
+    const years = Math.round(months / 12)
+    return `in ${years} ${years === 1 ? 'year' : 'years'}`
+  }
 
   const todayInPeriod =
     parseTimelineDate(activeTodayDate) >= parseTimelineDate(axisStart) &&
@@ -261,18 +360,22 @@ export function SalesOrderHeaderTimeline({
   const todayPercent = todayInPeriod
     ? dateToTimelinePercent(activeTodayDate, axisStart, axisEnd)
     : null
-  const todayTrackPercent =
-    todayPercent != null ? toTrackPercent(todayPercent, showFullTerm) : null
+  const todayTrackPercent = todayPercent != null ? toTrackPercent(todayPercent, true) : null
+
+  /** Markers only make sense inside the span the axis is showing. */
+  const withinAxis = (date: string) => {
+    const value = parseTimelineDate(date)
+    return value >= parseTimelineDate(axisStart) && value <= parseTimelineDate(axisEnd)
+  }
+
+  /** Centre of the axis line, so every marker sits on it rather than half a pixel above. */
+  const markerTop = isMinimal ? 1.5 : 0.5
 
   const trackLeft = (dateStr: string) =>
-    toTrackPercent(dateToTimelinePercent(dateStr, axisStart, axisEnd), showFullTerm)
+    toTrackPercent(dateToTimelinePercent(dateStr, axisStart, axisEnd), true)
 
   const selectedVersionId = undefined
   const isTodaySelected = todayTrackPercent != null
-
-  const monthGridStyle = {
-    gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))`,
-  }
 
   return (
     <div className="w-full">
@@ -291,13 +394,34 @@ export function SalesOrderHeaderTimeline({
         <div
           className={cn(
             'relative transition-[height,margin] duration-200',
-            isTimelineStuck ? 'mb-0 h-5' : 'mb-2 h-7'
+            isMinimal ? 'mb-2 h-5' : isTimelineStuck ? 'mb-0 h-5' : 'mb-2 h-7'
           )}
         >
           {CONTRACT_PERIODS.map((p) => {
             const flagColor =
               p.index === 1 ? 'text-green-600' : 'text-neutral-400'
             const fillOpacity = p.index === 1 ? 0.45 : 0.35
+
+            // Minimal — flag on the line with a short Y1 / Y2 / Y3 beside it
+            if (isMinimal) {
+              return (
+                <div
+                  key={`year-${p.index}`}
+                  // Pole sits 2px into the 12px glyph — pull it back so it lines up with the markers
+                  className="absolute bottom-0 flex -translate-x-[2px] items-start gap-1"
+                  style={{ left: `${trackLeft(p.startDate)}%` }}
+                >
+                  <YearFlag
+                    longPole
+                    className={cn('shrink-0 translate-y-px', flagColor)}
+                    fillOpacity={fillOpacity}
+                  />
+                  <span className="pt-0.5 whitespace-nowrap text-[10px] font-medium leading-none text-brand-fog">
+                    Y{p.index}
+                  </span>
+                </div>
+              )
+            }
 
             if (isTimelineStuck) {
               return (
@@ -337,10 +461,10 @@ export function SalesOrderHeaderTimeline({
         </div>
       )}
 
-      {/* Timeline band: top line → months → bottom line */}
-      <div className="relative">
-        {/* Elapsed fill — Invoice overdue only: axis left → today */}
-        {showFullTerm && todayTrackPercent != null && (
+      {/* Timeline band: top line → months → bottom line. Minimal flips it so months sit below. */}
+      <div className={cn('relative', isMinimal && 'flex flex-col-reverse')}>
+        {/* Elapsed fill — axis left → today. Minimal carries it on the line instead. */}
+        {!isMinimal && todayTrackPercent != null && (
           <div
             aria-hidden
             className="pointer-events-none absolute inset-y-0 left-0 z-0"
@@ -352,70 +476,72 @@ export function SalesOrderHeaderTimeline({
           />
         )}
 
-        {/* Top axis line — above month labels */}
-        <div className="relative z-10 h-px bg-neutral-300" />
+        {/* Top axis line — above month labels; minimal runs on a single line only */}
+        {!isMinimal && <div className="relative z-10 h-px bg-neutral-300" />}
 
-        {/* Month labels — between the two axis lines */}
+        {/* Month labels — positioned by date so they line up with the ticks */}
         <div className="relative z-10">
-          {showFullTerm ? (
-            <div className="relative h-9">
-              {months.map((month) => {
-                const left = trackLeft(month.iso)
-                return (
-                  <div
-                    key={`label-${month.iso}`}
-                    className={cn(
-                      'absolute top-2.5 whitespace-nowrap text-left text-[10px] font-medium tracking-[0.02em]',
-                      month.emphasize ? 'font-semibold text-brand-navy' : 'text-brand-fog',
-                    )}
-                    style={{ left: `${left}%` }}
-                  >
-                    {month.label}
-                  </div>
-                )
-              })}
-            </div>
-          ) : (
-            <div className="grid" style={monthGridStyle}>
-              {months.map((month, index) => (
-                <div
-                  key={`label-${month.iso}`}
-                  className={cn(
-                    'relative py-2 text-[10px] font-medium tracking-[0.02em]',
-                    month.emphasize ? 'font-semibold text-brand-navy' : 'text-brand-fog',
-                    index === 0 ? 'text-left' : index === months.length - 1 ? 'text-right' : 'text-center',
-                  )}
-                >
-                  {month.label}
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="relative h-9">
+            {months.map((month) => (
+              <div
+                key={`label-${month.iso}`}
+                className={cn(
+                  'absolute top-2.5 whitespace-nowrap text-left text-[10px] font-medium tracking-[0.02em]',
+                  month.emphasize ? 'font-semibold text-brand-navy' : 'text-brand-fog',
+                )}
+                style={{ left: `${trackLeft(month.iso)}%` }}
+              >
+                {month.label}
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Bottom axis + markers (same positioning as before) */}
         <div className="relative">
-          <div className="relative z-10 h-px bg-neutral-300" />
+          {isMinimal ? (
+            /* Minimal — one line: a 3px gradient for the elapsed span, 1px grey for the rest */
+            <div className="relative z-10 h-[3px] w-full">
+              <div
+                aria-hidden
+                className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 rounded-full bg-neutral-300"
+              />
+              {todayTrackPercent != null && (
+                <div
+                  aria-hidden
+                  className="absolute inset-y-0 left-0 rounded-full"
+                  style={{
+                    width: `${todayTrackPercent}%`,
+                    background: 'linear-gradient(90deg, #ff3300 0%, #8b5cf6 100%)',
+                  }}
+                />
+              )}
+            </div>
+          ) : (
+            <div className="relative z-10 h-px bg-neutral-300" />
+          )}
 
-          {/* Month tick marks — above the axis, aligned with labels */}
-          {showFullTerm &&
-            months.map((month) => {
+          {/* Month tick marks — on the label side of the axis */}
+          {months.map((month) => {
               const left = trackLeft(month.iso)
               return (
                 <span
                   key={`tick-${month.iso}`}
                   aria-hidden
-                  className="pointer-events-none absolute z-10 h-1.5 w-px -translate-y-full bg-neutral-300"
-                  style={{ left: `${left}%`, top: 0 }}
+                  className={cn(
+                    'pointer-events-none absolute z-10 h-1.5 w-px bg-neutral-300',
+                    !isMinimal && '-translate-y-full',
+                  )}
+                  style={{ left: `${left}%`, top: isMinimal ? 3 : 0 }}
                 />
               )
             })}
 
-          {/* Today — diamond on the axis with label beneath */}
-          {todayTrackPercent != null && (
+          {/* Today — diamond on the axis with label beneath; minimal marks it with the gradient end */}
+          {!isMinimal && todayTrackPercent != null && (
             <div
               className="absolute z-20 -translate-x-1/2"
-              style={{ left: `${todayTrackPercent}%`, top: 0 }}
+              style={{ left: `${todayTrackPercent}%`, top: markerTop }}
               aria-pressed={isTodaySelected}
               aria-label={`Today, ${activeTodayLabel}`}
             >
@@ -429,22 +555,25 @@ export function SalesOrderHeaderTimeline({
             </div>
           )}
 
-          {/* Ramp markers — Year 2 / Year 3 (dotted, like renewal) */}
+          {/* Ramps — applied ones sit filled on the elapsed span, upcoming stay dotted.
+              Single year leaves them off and shows contract versions only. */}
           {showFullTerm &&
-            RAMP_MARKERS.map((ramp) => {
+            RAMP_MARKERS.filter((ramp) => withinAxis(ramp.date)).map((ramp) => {
               const isHovered = rampHovered?.id === ramp.id
+              const applied = hasPassed(ramp.date)
               return (
                 <button
                   key={ramp.id}
                   type="button"
                   className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-default"
-                  style={{ left: `${trackLeft(ramp.date)}%`, top: 0 }}
+                  style={{ left: `${trackLeft(ramp.date)}%`, top: markerTop }}
                   onMouseEnter={(e) => {
                     setRampHovered({
                       id: ramp.id,
                       title: ramp.title,
                       detail: ramp.detail,
                       dateLabel: ramp.dateLabel,
+                      status: applied ? 'applied' : timeUntil(ramp.date),
                       rect: e.currentTarget.getBoundingClientRect(),
                     })
                   }}
@@ -453,43 +582,75 @@ export function SalesOrderHeaderTimeline({
                 >
                   <span
                     className={cn(
-                      'block h-4 w-4 rounded-full border border-dashed border-neutral-400 bg-white transition-all duration-200',
-                      isHovered && 'scale-110 shadow-[0_0_0_4px_rgba(163,163,163,0.2)]',
+                      compactDots
+                        ? cn(
+                            COMPACT_DOT,
+                            COMPACT_DOT_TONES.neutral[applied ? 'filled' : 'outlined'],
+                            applied && isMinimal && FILLED_DOT_STROKE,
+                          )
+                        : cn(
+                            'block h-2.5 w-2.5 rounded-full transition-all duration-200',
+                            applied ? 'border border-brand-fog bg-brand-fog' : UPCOMING_DOT,
+                          ),
+                      isHovered &&
+                        (isMinimal
+                          ? cn('scale-110', COMPACT_DOT_TONES.neutral.glow)
+                          : 'scale-125 shadow-[0_0_0_3px_rgba(163,163,163,0.2)]'),
                     )}
                   />
                 </button>
               )
             })}
 
-          {/* Amendment markers — signed changes on the term (green dotted) */}
-          {showFullTerm &&
-            AMENDMENT_MARKERS.map((amendment) => {
-              const isHovered = rampHovered?.id === amendment.id
+          {/* Contract versions — v1 original, then each amendment; signed ones read solid */}
+          {VERSION_MARKERS.filter((marker) => withinAxis(marker.date)).map((marker) => {
+              const isHovered = rampHovered?.id === marker.id
+              const signed = hasPassed(marker.date)
+              const isOriginal = marker.kind === 'original'
+              const versionTone = isOriginal
+                ? 'default'
+                : marker.kind === 'contraction'
+                  ? 'critical'
+                  : 'positive'
               return (
                 <button
-                  key={amendment.id}
+                  key={marker.id}
                   type="button"
                   className="absolute z-30 -translate-x-1/2 -translate-y-1/2 cursor-default"
-                  style={{ left: `${trackLeft(amendment.date)}%`, top: 0 }}
+                  style={{ left: `${trackLeft(marker.date)}%`, top: markerTop }}
                   onMouseEnter={(e) => {
                     setRampHovered({
-                      id: amendment.id,
-                      title: amendment.title,
-                      detail: amendment.detail,
-                      dateLabel: amendment.dateLabel,
-                      status: amendment.status,
+                      id: marker.id,
+                      title: marker.title,
+                      detail: marker.detail,
+                      dateLabel: marker.dateLabel,
+                      status: signed ? 'signed' : timeUntil(marker.date),
                       rect: e.currentTarget.getBoundingClientRect(),
                     })
                   }}
                   onMouseLeave={() => setRampHovered(null)}
-                  aria-label={amendment.title}
+                  aria-label={`${marker.version}: ${marker.title}`}
                 >
-                  <span
-                    className={cn(
-                      'block h-4 w-4 rounded-full border-[1.5px] border-dashed border-green-600 bg-white transition-all duration-200',
-                      isHovered && 'scale-110 shadow-[0_0_0_4px_rgba(22,163,74,0.2)]',
-                    )}
-                  />
+                  {compactDots ? (
+                    <span
+                      className={cn(
+                        isMinimal ? COMPACT_DIAMOND : COMPACT_DOT,
+                        COMPACT_DOT_TONES[versionTone][signed ? 'filled' : 'outlined'],
+                        signed && isMinimal && FILLED_DOT_STROKE,
+                        isHovered &&
+                          (isMinimal
+                            ? cn('scale-110', COMPACT_DOT_TONES[versionTone].glow)
+                            : 'scale-125'),
+                      )}
+                    />
+                  ) : (
+                    <VersionMark
+                      version={marker.version}
+                      tone={versionTone}
+                      variant={signed ? 'solid' : 'outline'}
+                      className={cn('transition-all duration-200', isHovered && 'scale-125')}
+                    />
+                  )}
                 </button>
               )
             })}
@@ -501,7 +662,7 @@ export function SalesOrderHeaderTimeline({
               className="absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-default"
               style={{
                 left: `${Math.min(100, trackLeft(FULL_TERM_END) + 1.75)}%`,
-                top: 0,
+                top: markerTop,
               }}
               onMouseEnter={(e) => {
                 setRenewalHovered({ rect: e.currentTarget.getBoundingClientRect() })
@@ -509,12 +670,29 @@ export function SalesOrderHeaderTimeline({
               onMouseLeave={() => setRenewalHovered(null)}
               aria-label="Renewal"
             >
-              <span
-                className={cn(
-                  'block h-4 w-4 rounded-full border border-dashed border-neutral-400 bg-white transition-all duration-200',
-                  renewalHovered && 'scale-110 shadow-[0_0_0_4px_rgba(163,163,163,0.2)]',
-                )}
-              />
+              {isMinimal ? (
+                /* Minimal — renewal reads as a refresh glyph rather than another dot */
+                <span
+                  className={cn(
+                    'flex h-[15px] w-[15px] items-center justify-center rounded-full bg-white text-brand-fog transition-all duration-200',
+                    renewalHovered && 'scale-125',
+                  )}
+                >
+                  <RefreshCw className="h-3 w-3" strokeWidth={2} />
+                </span>
+              ) : (
+                <span
+                  className={cn(
+                    compactDots
+                      ? cn(COMPACT_DOT, COMPACT_DOT_TONES.neutral.outlined)
+                      : cn(
+                          'block h-2.5 w-2.5 rounded-full transition-all duration-200',
+                          UPCOMING_DOT,
+                        ),
+                    renewalHovered && 'scale-125 shadow-[0_0_0_3px_rgba(163,163,163,0.2)]',
+                  )}
+                />
+              )}
             </button>
           )}
         </div>
@@ -537,11 +715,13 @@ export function SalesOrderHeaderTimeline({
                 <p className="whitespace-nowrap text-[12px] font-semibold text-brand-navy">
                   {rampHovered.title}
                 </p>
-                <p className="whitespace-nowrap text-[12px] text-brand-navy">
-                  {rampHovered.detail}
-                </p>
+                {rampHovered.detail && (
+                  <p className="whitespace-nowrap text-[12px] text-brand-navy">
+                    {rampHovered.detail}
+                  </p>
+                )}
                 <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
-                  {rampHovered.dateLabel} · {rampHovered.status ?? 'upcoming'}
+                  {rampHovered.dateLabel} · {rampHovered.status}
                 </p>
               </div>
             </div>,
@@ -563,7 +743,7 @@ export function SalesOrderHeaderTimeline({
                   Renewal
                 </p>
                 <p className="mt-0.5 whitespace-nowrap text-[11px] text-brand-fog">
-                  May 1 &apos;29 · upcoming
+                  May 1 &apos;29 · {timeUntil(RENEWAL_DATE)}
                 </p>
               </div>
             </div>,

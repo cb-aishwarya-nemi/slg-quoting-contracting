@@ -1,97 +1,116 @@
 import { useState } from 'react'
-import { Calendar, ChevronDown, ChevronsUpDown } from 'lucide-react'
+import { Calendar, ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import {
   type SalesOrderProduct,
   type SalesOrderRampPeriod,
 } from '@/data/salesOrderMock'
-import { EntitlementsAllocationTable } from './EntitlementsAllocationTable'
-import { ReadOnlyProductsList } from './ReadOnlyProductsList'
+import {
+  EntitlementsAllocationTable,
+  entitlementChangeCount,
+} from './EntitlementsAllocationTable'
+import { ProductPeriodTable, rampChangeSummary } from './ReadOnlyProductsList'
 import { SectionRuleTitle } from './SectionRuleTitle'
 
-type RampView = 'products' | 'entitlements'
-
-const VIEW_LABELS: Record<RampView, string> = {
-  products: 'Products and pricing',
-  entitlements: 'Entitlements',
+function yearFromUpcomingIndex(index: number): 2 | 3 {
+  return (index + 2) as 2 | 3
 }
 
-function RampViewSwitcher({
-  value,
-  onChange,
+function RampPeriodAccordion({
+  period,
+  previousPeriod,
+  year,
+  isExpanded,
+  onToggle,
+  onSelectEntitlement,
 }: {
-  value: RampView
-  onChange: (value: RampView) => void
+  period: SalesOrderRampPeriod
+  previousPeriod?: SalesOrderRampPeriod
+  year: 2 | 3
+  isExpanded: boolean
+  onToggle: () => void
+  onSelectEntitlement?: (featureLabel: string) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const productSummary = rampChangeSummary(previousPeriod, period)
+  const totalCount = (productSummary?.count ?? 0) + entitlementChangeCount(year)
+  const summaryLabel =
+    totalCount === 0
+      ? null
+      : `${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`
 
   return (
-    <div className="relative shrink-0">
+    <div>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="flex cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy transition-colors hover:bg-neutral-50"
-        aria-haspopup="menu"
-        aria-expanded={open}
+        onClick={onToggle}
+        className={cn(
+          'flex w-full cursor-pointer items-center border-b border-neutral-200 py-3 pl-1 pr-2 text-left transition-colors hover:bg-neutral-50'
+        )}
       >
-        <ChevronsUpDown size={18} strokeWidth={2} className="text-blue-700" />
-        {VIEW_LABELS[value]}
+        <ChevronDown
+          size={16}
+          className={cn(
+            '-ml-6 mr-2 shrink-0 text-blue-700 transition-transform',
+            isExpanded && 'rotate-180'
+          )}
+        />
+        <span className="shrink-0 text-[13px] font-semibold text-brand-navy">
+          {period.label.replace(/^Period\s+/i, 'Year ')}
+        </span>
+        <span className="mx-2 text-[13px] text-brand-fog">·</span>
+        <span className="flex items-center gap-1.5 text-[12px] text-brand-fog">
+          <Calendar size={14} className="text-brand-mist" />
+          {period.startDate} to {period.endDate}
+        </span>
+        {summaryLabel ? (
+          <>
+            <span className="mx-2 text-[13px] text-brand-fog">·</span>
+            <span className="truncate text-[12px] text-brand-fog">{summaryLabel}</span>
+          </>
+        ) : null}
       </button>
-      {open ? (
-        <div
-          role="menu"
-          className="absolute left-0 top-full z-30 mt-1 min-w-[190px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-        >
-          {(Object.keys(VIEW_LABELS) as RampView[]).map((view) => (
-            <button
-              key={view}
-              type="button"
-              role="menuitem"
-              onClick={() => {
-                onChange(view)
-                setOpen(false)
-              }}
-              className={cn(
-                'flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] transition-colors',
-                view === value
-                  ? 'bg-blue-50 font-medium text-blue-700'
-                  : 'text-brand-navy hover:bg-neutral-50'
-              )}
-            >
-              {VIEW_LABELS[view]}
-            </button>
-          ))}
+      {isExpanded ? (
+        <div className="space-y-8 pt-4 pb-6">
+          <div>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
+              Products and pricing
+            </p>
+            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white px-3 py-2">
+              <ProductPeriodTable period={period} />
+            </div>
+          </div>
+          <div>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
+              Entitlements
+            </p>
+            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white px-3 py-2">
+              <EntitlementsAllocationTable
+                year={year}
+                onSelectFeature={onSelectEntitlement}
+              />
+            </div>
+          </div>
         </div>
       ) : null}
     </div>
   )
 }
 
-const ENTITLEMENT_RAMP_PERIODS = [
-  {
-    id: 'entitlements-year-2',
-    year: 2 as const,
-    label: 'Year 2',
-    startDate: '1 May 2027',
-    endDate: '30 Apr 2028',
-    summary: '2 entitlement increases',
-  },
-  {
-    id: 'entitlements-year-3',
-    year: 3 as const,
-    label: 'Year 3',
-    startDate: '1 May 2028',
-    endDate: '30 Apr 2029',
-    summary: '2 entitlement increases',
-  },
-]
-
-function EntitlementRamps({
-  onSelectFeature,
+export function UpcomingRampsSection({
+  items: _items,
+  periods,
+  onSelectEntitlement,
 }: {
-  onSelectFeature?: (featureLabel: string) => void
+  items: SalesOrderProduct[]
+  periods: SalesOrderRampPeriod[]
+  onSelectEntitlement?: (featureLabel: string) => void
 }) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [currentPeriod, ...upcomingPeriods] = periods
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(upcomingPeriods[0] ? [upcomingPeriods[0].id] : [])
+  )
+
+  if (upcomingPeriods.length === 0) return null
 
   const toggle = (id: string) => {
     setExpanded((current) => {
@@ -103,78 +122,19 @@ function EntitlementRamps({
   }
 
   return (
-    <div>
-      {ENTITLEMENT_RAMP_PERIODS.map((period) => {
-        const isExpanded = expanded.has(period.id)
-        return (
-          <div key={period.id}>
-            <button
-              type="button"
-              onClick={() => toggle(period.id)}
-              className="flex w-full cursor-pointer items-center border-b border-neutral-200 py-3 pl-1 pr-2 text-left transition-colors hover:bg-neutral-50"
-            >
-              <ChevronDown
-                size={16}
-                className={cn(
-                  '-ml-6 mr-2 shrink-0 text-blue-700 transition-transform',
-                  isExpanded && 'rotate-180'
-                )}
-              />
-              <span className="shrink-0 text-[13px] font-semibold text-brand-navy">
-                {period.label}
-              </span>
-              <span className="mx-2 text-[13px] text-brand-fog">·</span>
-              <span className="flex items-center gap-1.5 text-[12px] text-brand-fog">
-                <Calendar size={14} className="text-brand-mist" />
-                {period.startDate} to {period.endDate}
-              </span>
-              <span className="mx-2 text-[13px] text-brand-fog">·</span>
-              <span className="text-[12px] text-brand-fog">{period.summary}</span>
-            </button>
-            {isExpanded ? (
-              <div className="pt-3">
-                <EntitlementsAllocationTable
-                  year={period.year}
-                  onSelectFeature={onSelectFeature}
-                />
-              </div>
-            ) : null}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-export function UpcomingRampsSection({
-  items,
-  periods,
-  onSelectEntitlement,
-}: {
-  items: SalesOrderProduct[]
-  periods: SalesOrderRampPeriod[]
-  onSelectEntitlement?: (featureLabel: string) => void
-}) {
-  const [view, setView] = useState<RampView>('products')
-
-  return (
     <div className="space-y-4">
-      <SectionRuleTitle
-        as="h3"
-        afterTitle={<RampViewSwitcher value={view} onChange={setView} />}
-      >
-        Upcoming ramps for
-      </SectionRuleTitle>
-      {view === 'products' ? (
-        <ReadOnlyProductsList
-          items={items}
-          periods={periods}
-          upcomingOnly
-          hideUpcomingTitle
+      <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
+      {upcomingPeriods.map((period, index) => (
+        <RampPeriodAccordion
+          key={period.id}
+          period={period}
+          previousPeriod={index === 0 ? currentPeriod : upcomingPeriods[index - 1]}
+          year={yearFromUpcomingIndex(index)}
+          isExpanded={expanded.has(period.id)}
+          onToggle={() => toggle(period.id)}
+          onSelectEntitlement={onSelectEntitlement}
         />
-      ) : (
-        <EntitlementRamps onSelectFeature={onSelectEntitlement} />
-      )}
+      ))}
     </div>
   )
 }

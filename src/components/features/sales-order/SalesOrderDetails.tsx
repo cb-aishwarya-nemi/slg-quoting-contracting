@@ -286,7 +286,7 @@ export function SalesOrderDetails({
   onCloseChat,
   onViewUsageDetails,
 }: SalesOrderDetailsProps) {
-  usePageUseCase('sales-order-details')
+  const { currentVariant } = usePageUseCase('sales-order-details')
   const [showMoreMenu, setShowMoreMenu] = useState(false)
   const [internalChatOpen, setInternalChatOpen] = useState(false)
   const [internalChatTurns, setInternalChatTurns] = useState<AskChatTurn[]>([])
@@ -458,6 +458,7 @@ export function SalesOrderDetails({
 
           <SalesOrderCollapsedSections
             order={order}
+            variant={currentVariant}
             onViewUsageDetails={onViewUsageDetails}
           />
 

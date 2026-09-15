@@ -515,7 +515,7 @@ export function CollapsibleSection({
 
 export function SalesOrderCollapsedSections({
   order,
-  variant: _variant,
+  variant,
   setSectionRef,
   onViewUsageDetails,
 }: {
@@ -663,7 +663,7 @@ export function SalesOrderCollapsedSections({
   }
 
   return (
-    <SalesOrderHeaderTimeline orderId={order.id}>
+    <SalesOrderHeaderTimeline orderId={order.id} variant={variant}>
       {({ periodIndex, selectedVersionId }) =>
         renderSections(periodIndex, selectedVersionId)
       }

@@ -96,7 +96,7 @@ export function UseCaseSwitcher() {
           <div className="border-b border-neutral-100 px-4 py-3">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-semibold uppercase tracking-wider text-brand-fog">
-                Sales order stages
+                Contract timeline
               </span>
               <span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-medium text-violet-700">
                 Prototype
