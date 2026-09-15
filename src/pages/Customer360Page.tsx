@@ -23,6 +23,7 @@ import {
   SourcePreviewDrawer,
   getExtractionAttentionStatus,
   applyFieldValue,
+  resolveQuestionAnswerValue,
   type NavSection,
   type ProductsPricingVariant,
   type AnswerQuestionHandler,
@@ -43,6 +44,9 @@ export interface SectionOffset {
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
+
+/** Address fields carrying an AI note rather than an open question. */
+const ADDRESS_INFO_FIELDS = ['Postal code']
 
 const C360_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
@@ -510,8 +514,19 @@ export function Customer360Page() {
           handleTermsItemChange(question.fieldLabel, nextValue)
         }
       }
+      const answerValue = question
+        ? resolveQuestionAnswerValue(question, choice, value)
+        : undefined
       setLocalComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, status: 'resolved' as CommentStatus } : c))
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                status: 'resolved' as CommentStatus,
+                ...(answerValue ? { questionAnswer: { choice, value: answerValue } } : {}),
+              }
+            : c
+        )
       )
     },
     [localComments, handleAccountItemChange, handleAddressItemChange, handleTermsItemChange]
@@ -839,6 +854,7 @@ export function Customer360Page() {
                         controlled
                         onItemChange={handleAddressItemChange}
                         questionFields={questionFieldsBySection['addresses']}
+                        infoFields={ADDRESS_INFO_FIELDS}
                         onOpenSource={
                           sectionSources.addresses?.length
                             ? () => setPreview({ sectionId: 'addresses', index: 0 })

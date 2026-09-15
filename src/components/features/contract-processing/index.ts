@@ -11,6 +11,7 @@ export { InPageNav, type NavSection } from './InPageNav'
 export {
   CommentsPanel,
   SectionCommentStack,
+  resolveQuestionAnswerValue,
   type SectionCommentStackProps,
   type QuestionChoice,
   type AnswerQuestionHandler,

@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { CircleHelp, MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
+import { MessageCircleMore, MessageCircleQuestionMark, PackagePlus, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 
@@ -123,7 +123,7 @@ export function SectionHeader({
               aria-label={questionLabel}
               title={questionLabel}
             >
-              <CircleHelp size={12} strokeWidth={2.25} aria-hidden />
+              <MessageCircleQuestionMark size={12} strokeWidth={2.25} aria-hidden />
               {questionLabel}
             </button>
           )}

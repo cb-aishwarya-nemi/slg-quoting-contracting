@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, useMemo, type RefObject } from 'react'
-import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X } from 'lucide-react'
+import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { type Comment, type CommentQuestion } from '@/data/contractProcessingMock'
 import { type SectionOffset } from '@/pages/Customer360Page'
 import {
+  commentMatchesQuestionFocus,
   commentMatchesViewEditsFocus,
   formatAddedFieldEditComment,
   formatDeletedFieldEditComment,
@@ -17,6 +18,25 @@ type ContractStatus = 'Blocked' | 'In progress'
 
 /** 'other' carries the reviewer's own typed value. */
 export type QuestionChoice = 'confirm' | 'change' | 'other'
+
+function stripPrefix(label: string, prefix: string) {
+  return label.toLowerCase().startsWith(prefix.toLowerCase())
+    ? label.slice(prefix.length).trim()
+    : label
+}
+
+/** The value a question ends up with, phrased for the resolved card. */
+export function resolveQuestionAnswerValue(
+  question: CommentQuestion,
+  choice: QuestionChoice,
+  typedValue?: string
+): string {
+  if (choice === 'other') return typedValue?.trim() ?? ''
+  if (choice === 'change') {
+    return question.changeValue ?? stripPrefix(question.changeLabel, 'Change to ')
+  }
+  return stripPrefix(question.confirmLabel, 'Confirm ')
+}
 export type AnswerQuestionHandler = (
   commentId: string,
   choice: QuestionChoice,
@@ -336,12 +356,15 @@ function QuestionCard({
   question,
   isEntering = false,
   isAnswered = false,
+  isHighlighted = false,
   onAnswer,
 }: {
   comment: Comment
   question: CommentQuestion
   isEntering?: boolean
   isAnswered?: boolean
+  /** The field this question is about is being edited right now. */
+  isHighlighted?: boolean
   onAnswer?: AnswerQuestionHandler
 }) {
   const [isTypingOther, setIsTypingOther] = useState(false)
@@ -364,39 +387,79 @@ function QuestionCard({
     closeOther()
   }
 
+  const answer = comment.questionAnswer
+  const answerSummary = !answer
+    ? 'Answered'
+    : answer.choice === 'confirm'
+      ? `You kept ${answer.value}`
+      : `You changed this to ${answer.value}`
+
   return (
     <div
       className={cn(
         'group relative rounded-lg px-2 py-2 transition-[background-color,opacity] duration-300 ease-out hover:bg-neutral-50',
         isEntering && 'animate-comment-appear',
-        isAnswered && 'opacity-60'
+        // Same amber as the section-title question pill.
+        isHighlighted && 'bg-amber-50 hover:bg-amber-50'
       )}
     >
       <div className="flex items-center gap-1.5">
-        <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800">
-          Question
-        </span>
-        {comment.linkedSection && (
-          <span className="truncate text-[11px] text-brand-fog">{comment.linkedSection}</span>
+        {isAnswered ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-green-700">
+            <Check size={10} strokeWidth={3} aria-hidden />
+            Resolved
+          </span>
+        ) : (
+          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800">
+            Question
+          </span>
         )}
       </div>
 
-      <p className="mt-1.5 text-[12px] font-semibold leading-[1.4] text-brand-navy">
+      <p
+        className={cn(
+          'mt-1.5 text-[12px] font-semibold leading-[1.4]',
+          isAnswered ? 'text-brand-fog' : 'text-brand-navy'
+        )}
+      >
         {question.headline}
       </p>
 
-      <p className="mt-1 text-[12px] leading-[1.5] text-brand-fog">{comment.body}</p>
+      {!isAnswered && (
+        <p className="mt-1 text-[12px] leading-[1.5] text-brand-fog">{comment.body}</p>
+      )}
 
       {isAnswered ? (
-        <p className="mt-2.5 text-[11px] font-medium text-brand-fog">Answered</p>
+        // Say what the reviewer settled on, not just that it's closed.
+        <div className="mt-2 flex items-start gap-1.5 rounded-md bg-green-50 px-2 py-1.5">
+          <Check size={12} strokeWidth={2.5} className="mt-px shrink-0 text-green-700" aria-hidden />
+          <span className="min-w-0 text-[11px] leading-[1.4] text-green-800">
+            {answerSummary}
+          </span>
+        </div>
       ) : (
         // Clicks stay on the card — the collapsed stack around it expands on click.
         <div
-          className="mt-2.5 flex flex-wrap items-center gap-1.5"
+          className="mt-2.5 flex flex-wrap items-center gap-1"
           onClick={(e) => e.stopPropagation()}
         >
+          <button
+            type="button"
+            onClick={() => onAnswer?.(comment.id, 'confirm')}
+            className="cursor-pointer rounded-full border border-blue-200 px-2 py-0.5 text-[11px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+          >
+            {question.confirmLabel}
+          </button>
+          <button
+            type="button"
+            onClick={() => onAnswer?.(comment.id, 'change')}
+            className="cursor-pointer rounded-full border border-blue-200 px-2 py-0.5 text-[11px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
+          >
+            {question.changeLabel}
+          </button>
           {isTypingOther ? (
-            <div className="w-full">
+            // The pill becomes the field and takes the full rail width to type in.
+            <span className="flex w-full items-center gap-1 rounded-full border border-blue-400 bg-white pl-2 pr-1.5 py-0.5 ring-1 ring-blue-200">
               <input
                 ref={otherInputRef}
                 type="text"
@@ -415,38 +478,29 @@ function QuestionCard({
                 onBlur={() => {
                   if (!otherValue.trim()) closeOther()
                 }}
-                placeholder="Type a value…"
-                className="w-full rounded-lg border border-blue-200 bg-white px-2.5 py-1 text-[12px] text-brand-navy placeholder:text-brand-mist focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                placeholder="Type value"
+                aria-label="Enter your own value"
+                className="min-w-0 flex-1 border-0 bg-transparent p-0 text-[11px] font-medium text-brand-navy placeholder:font-normal placeholder:text-brand-mist focus:outline-none"
               />
-              <div className="mt-1 flex items-center gap-1 px-0.5 text-[10px] text-brand-mist">
-                <CornerDownLeft size={10} />
-                <span>Enter to submit · Esc to cancel</span>
-              </div>
-            </div>
+              <CornerDownLeft
+                size={11}
+                className={cn(
+                  'shrink-0 transition-colors',
+                  otherValue.trim() ? 'text-blue-700' : 'text-brand-mist'
+                )}
+                aria-hidden
+              />
+            </span>
           ) : (
-            <>
-              <button
-                type="button"
-                onClick={() => onAnswer?.(comment.id, 'confirm')}
-                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-              >
-                {question.confirmLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => onAnswer?.(comment.id, 'change')}
-                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-              >
-                {question.changeLabel}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsTypingOther(true)}
-                className="cursor-pointer rounded-full border border-blue-200 px-3 py-1 text-[12px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
-              >
-                Other
-              </button>
-            </>
+            // Reads as an empty field, not a third choice: dashed edge, placeholder
+            // tone, text cursor.
+            <button
+              type="button"
+              onClick={() => setIsTypingOther(true)}
+              className="inline-flex cursor-text items-center rounded-full border border-dashed border-blue-300 px-2 py-0.5 text-[11px] text-brand-mist transition-colors hover:border-blue-400 hover:bg-blue-50/60 hover:text-brand-fog"
+            >
+              Other…
+            </button>
           )}
         </div>
       )}
@@ -475,6 +529,7 @@ function CommentCard({
   isEntering = false,
   isFocusedEdit = false,
   isDimmed = false,
+  isFocusedQuestion = false,
 }: {
   comment: Comment & { status?: CommentStatus }
   isActive: boolean
@@ -491,6 +546,8 @@ function CommentCard({
   isFocusedEdit?: boolean
   /** Soften non-matching comments while viewing edits */
   isDimmed?: boolean
+  /** The field this question is about is being edited right now */
+  isFocusedQuestion?: boolean
 }) {
   const bodyTextClass = dense ? 'text-[13px]' : 'text-[12px]'
   const isLinked = !!comment.linkedSectionId || !!comment.linkedSection
@@ -547,6 +604,7 @@ function CommentCard({
         question={question}
         isEntering={isEntering}
         isAnswered={isResolved}
+        isHighlighted={isFocusedQuestion}
         onAnswer={onAnswerQuestion}
       />
     )
@@ -712,6 +770,7 @@ export function SectionCommentStack({
   const editHistory = useOptionalFieldEditHistory()
   const viewEditsFocus = editHistory?.viewEditsFocus ?? null
   const isViewingEdits = viewEditsFocus?.sectionId === sectionId
+  const questionFocus = editHistory?.questionFocus ?? null
 
   const [isExpanded, setIsExpanded] = useState(false)
   const [isStackHovered, setIsStackHovered] = useState(false)
@@ -758,6 +817,13 @@ export function SectionCommentStack({
     setShowAddNote(false)
     stackRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [isViewingEdits, viewEditsFocus?.fieldLabel])
+
+  // A highlighted question buried under the top card is no use — open the stack.
+  useEffect(() => {
+    if (!questionFocus || questionFocus.sectionId !== sectionId) return
+    const index = orderedComments.findIndex((c) => commentMatchesQuestionFocus(c, questionFocus))
+    if (index > 0) setIsExpanded(true)
+  }, [questionFocus, sectionId, orderedComments])
 
   // Collapse on outside click
   useEffect(() => {
@@ -842,6 +908,7 @@ export function SectionCommentStack({
         isEntering={enteringIds.has(comment.id)}
         isFocusedEdit={isViewingEdits && isMatch}
         isDimmed={isViewingEdits && !isMatch}
+        isFocusedQuestion={commentMatchesQuestionFocus(comment, questionFocus)}
       />
     )
   }

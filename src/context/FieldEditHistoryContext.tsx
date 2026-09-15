@@ -150,6 +150,12 @@ export interface ViewEditsFocus {
   itemPrefix?: boolean
 }
 
+/** The field row the reviewer is currently editing that has an open AI question. */
+export interface QuestionFocus {
+  sectionId: string
+  fieldLabel: string
+}
+
 interface FieldEditHistoryContextValue {
   recordEdit: (
     sectionId: string,
@@ -164,6 +170,10 @@ interface FieldEditHistoryContextValue {
   viewEditsFocus: ViewEditsFocus | null
   focusViewEdits: (focus: ViewEditsFocus) => void
   clearViewEditsFocus: () => void
+  questionFocus: QuestionFocus | null
+  focusQuestion: (focus: QuestionFocus) => void
+  /** Passing a focus only clears it if that row still owns the highlight. */
+  clearQuestionFocus: (focus?: QuestionFocus) => void
   editedFieldCount: number
   editCount: number
   isDownstreamRefreshing: boolean
@@ -201,6 +211,7 @@ export function FieldEditHistoryProvider({
   /** Session-only: fields the user has changed (excludes seed history) */
   const [editedFieldKeys, setEditedFieldKeys] = useState<Set<string>>(() => new Set())
   const [viewEditsFocus, setViewEditsFocus] = useState<ViewEditsFocus | null>(null)
+  const [questionFocus, setQuestionFocus] = useState<QuestionFocus | null>(null)
 
   const triggerDownstreamRefresh = useCallback(() => {
     setIsDownstreamRefreshing(true)
@@ -327,6 +338,27 @@ export function FieldEditHistoryProvider({
     setViewEditsFocus(null)
   }, [])
 
+  const focusQuestion = useCallback((focus: QuestionFocus) => {
+    setQuestionFocus((prev) =>
+      prev && prev.sectionId === focus.sectionId && prev.fieldLabel === focus.fieldLabel
+        ? prev
+        : focus
+    )
+  }, [])
+
+  const clearQuestionFocus = useCallback((focus?: QuestionFocus) => {
+    setQuestionFocus((prev) => {
+      if (!prev) return prev
+      if (
+        focus &&
+        (prev.sectionId !== focus.sectionId || prev.fieldLabel !== focus.fieldLabel)
+      ) {
+        return prev
+      }
+      return null
+    })
+  }, [])
+
   const editedFieldCount = useMemo(
     () => Object.values(editsByField).filter((records) => records.length > 0).length,
     [editsByField]
@@ -349,6 +381,9 @@ export function FieldEditHistoryProvider({
       viewEditsFocus,
       focusViewEdits,
       clearViewEditsFocus,
+      questionFocus,
+      focusQuestion,
+      clearQuestionFocus,
       editedFieldCount,
       editCount,
       isDownstreamRefreshing,
@@ -356,7 +391,7 @@ export function FieldEditHistoryProvider({
       refreshDownstream: triggerDownstreamRefresh,
       formatEditTime,
     }),
-    [recordEdit, getEdits, hasEdits, isFieldEdited, viewEditsFocus, focusViewEdits, clearViewEditsFocus, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
+    [recordEdit, getEdits, hasEdits, isFieldEdited, viewEditsFocus, focusViewEdits, clearViewEditsFocus, questionFocus, focusQuestion, clearQuestionFocus, editedFieldCount, editCount, isDownstreamRefreshing, downstreamUpdatedAt, triggerDownstreamRefresh]
   )
 
   return (
@@ -402,6 +437,17 @@ export function formatFieldEditCommentBody(event: FieldEditEvent): string {
     return `Updated ${fieldLabel} from "${event.previousValue}" to "${event.newValue}"`
   }
   return `Set ${fieldLabel} to "${event.newValue}"`
+}
+
+export function commentMatchesQuestionFocus(
+  comment: { linkedSectionId?: string; question?: { fieldLabel?: string } },
+  focus: QuestionFocus | null
+): boolean {
+  if (!focus || !comment.question?.fieldLabel) return false
+  return (
+    comment.linkedSectionId === focus.sectionId &&
+    comment.question.fieldLabel === focus.fieldLabel
+  )
 }
 
 export function commentMatchesViewEditsFocus(

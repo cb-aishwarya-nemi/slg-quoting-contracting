@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, CircleHelp, FileText, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
+import { ChevronDown, MessageCircleQuestionMark, FileText, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
 import { useUseCase } from '@/context/UseCaseContext'
+import { MessageCircleInfoIcon } from './MessageCircleInfoIcon'
 import { applyFieldValue } from './sectionAttention'
 import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 import { DatePickerField } from './DatePickerField'
@@ -25,7 +26,7 @@ import {
 } from './AccountCustomerPickerV2'
 import { GradientSparkle } from './GradientSparkle'
 
-const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
+const FLAG_SLOT = 'mr-1.5 flex w-3.5 shrink-0 items-center justify-start'
 
 const DATE_FIELD_LABELS = new Set(['Effective date', 'End date'])
 
@@ -64,6 +65,8 @@ interface LabelValueRowProps {
   onOpenSource?: () => void
   /** The AI is asking the reviewer to confirm this field — marks the row with a question mark. */
   hasQuestion?: boolean
+  /** The AI left a note on this field — marks the row with a grey info bubble. */
+  hasInfo?: boolean
 }
 
 function LabelValueRow({
@@ -78,6 +81,7 @@ function LabelValueRow({
   createdCustomerContact,
   onOpenSource,
   hasQuestion,
+  hasInfo,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
@@ -132,6 +136,17 @@ function LabelValueRow({
       return () => window.clearTimeout(timer)
     }
   }, [isOpen, item.label])
+
+  // While this row is being edited, its AI question lights up in the comment rail.
+  const isRowActive = isEditing || isOpen || dateActive
+  const focusQuestion = editHistory?.focusQuestion
+  const clearQuestionFocus = editHistory?.clearQuestionFocus
+  useEffect(() => {
+    if (!hasQuestion || !sectionId || !focusQuestion || !clearQuestionFocus) return
+    const focus = { sectionId, fieldLabel: item.label }
+    if (isRowActive) focusQuestion(focus)
+    else clearQuestionFocus(focus)
+  }, [isRowActive, hasQuestion, sectionId, item.label, focusQuestion, clearQuestionFocus])
 
   const handleRowClick = () => {
     if (isEditing || isOpen || dateActive) return
@@ -426,18 +441,23 @@ function LabelValueRow({
           !isEditing &&
             !isOpen &&
             !dateActive &&
-            'group-hover:[&_.label-text]:text-white group-hover:[&_.question-mark]:text-amber-300'
+            'group-hover:[&_.label-text]:text-white group-hover:[&_.question-mark]:text-amber-300 group-hover:[&_.info-mark]:text-white/75'
         )}
       >
         <span className={FLAG_SLOT}>
-          {hasQuestion && (
-            <CircleHelp
-              size={12}
-              strokeWidth={2.5}
+          {hasQuestion ? (
+            <MessageCircleQuestionMark
+              size={14}
+              strokeWidth={2.25}
               className="question-mark shrink-0 text-amber-700 transition-colors"
               aria-label="Needs your confirmation"
             />
-          )}
+          ) : hasInfo ? (
+            <MessageCircleInfoIcon
+              className="info-mark shrink-0 text-brand-fog transition-colors"
+              aria-label="Has a note"
+            />
+          ) : null}
         </span>
         <span
           className={cn(
@@ -732,6 +752,8 @@ interface LabelValueListProps {
   onOpenSource?: () => void
   /** Labels of fields the AI has an open question on — each gets a question mark. */
   questionFields?: string[]
+  /** Labels of fields carrying an AI note — each gets a grey info bubble. */
+  infoFields?: string[]
 }
 
 export function LabelValueList({
@@ -747,6 +769,7 @@ export function LabelValueList({
   accountPickerVariant = 'current',
   onOpenSource,
   questionFields,
+  infoFields,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -828,6 +851,7 @@ export function LabelValueList({
           accountPickerVariant={accountPickerVariant}
           onOpenSource={onOpenSource}
           hasQuestion={questionFields?.includes(item.label)}
+          hasInfo={infoFields?.includes(item.label)}
         />
       ))}
       {customFields.map((field) => (

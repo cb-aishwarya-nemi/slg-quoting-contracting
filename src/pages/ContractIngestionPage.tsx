@@ -18,9 +18,13 @@ import {
   SourcePreviewDrawer,
   getExtractionAttentionStatus,
   applyFieldValue,
+  resolveQuestionAnswerValue,
   type NavSection,
   type AnswerQuestionHandler,
 } from '@/components/features/contract-processing'
+
+/** Address fields carrying an AI note rather than an open question. */
+const ADDRESS_INFO_FIELDS = ['Postal code']
 
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
@@ -602,8 +606,19 @@ function ContractProcessingView({
           handleTermsItemChange(question.fieldLabel, nextValue)
         }
       }
+      const answerValue = question
+        ? resolveQuestionAnswerValue(question, choice, value)
+        : undefined
       setLocalComments((prev) =>
-        prev.map((c) => (c.id === commentId ? { ...c, status: 'resolved' as const } : c))
+        prev.map((c) =>
+          c.id === commentId
+            ? {
+                ...c,
+                status: 'resolved' as const,
+                ...(answerValue ? { questionAnswer: { choice, value: answerValue } } : {}),
+              }
+            : c
+        )
       )
     },
     [localComments, handleAccountItemChange, handleAddressItemChange, handleTermsItemChange]
@@ -934,6 +949,7 @@ function ContractProcessingView({
                     controlled
                     onItemChange={handleAddressItemChange}
                     questionFields={questionFieldsBySection['addresses']}
+                    infoFields={ADDRESS_INFO_FIELDS}
                   />
                 </div>
               </IngestionSectionRow>

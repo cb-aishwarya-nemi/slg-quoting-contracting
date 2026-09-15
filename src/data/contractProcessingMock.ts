@@ -96,6 +96,13 @@ export interface CommentQuestion {
   changeValue?: string
 }
 
+/** What the reviewer settled on, kept so the resolved card can say so. */
+export interface CommentQuestionAnswer {
+  choice: 'confirm' | 'change' | 'other'
+  /** The value the field ended up with. */
+  value: string
+}
+
 export interface Comment {
   id: string
   author: string
@@ -105,6 +112,8 @@ export interface Comment {
   body: string
   /** Present when the AI is asking the reviewer to confirm an interpretation. */
   question?: CommentQuestion
+  /** Set once the reviewer answers the question. */
+  questionAnswer?: CommentQuestionAnswer
   /** section this comment is linked to (renders as a grey tag) */
   linkedSection?: string
   /** in-page section id this comment maps to (drives scroll + active-section peek) */
