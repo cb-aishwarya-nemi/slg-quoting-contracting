@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useMemo, type RefObject } from 'react'
-import { MessageCircleMore, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X, Check } from 'lucide-react'
+import { MessageCircleMore, MessageCircleQuestionMark, CornerDownLeft, ChevronRight, ArrowRight, MoreHorizontal, ChevronDown, X, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
-import { type Comment, type CommentQuestion } from '@/data/contractProcessingMock'
+import { type Comment, type CommentInfo, type CommentQuestion } from '@/data/contractProcessingMock'
+import { MessageCircleInfoIcon } from './MessageCircleInfoIcon'
 import { type SectionOffset } from '@/pages/Customer360Page'
 import {
   commentMatchesQuestionFocus,
@@ -306,7 +307,8 @@ function CommentMoreMenu({
   anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
   onResolve: () => void
-  onEdit: () => void
+  /** Omitted for AI notes, which the reviewer can't rewrite. */
+  onEdit?: () => void
   onDelete: () => void
   isResolved: boolean
 }) {
@@ -327,13 +329,15 @@ function CommentMoreMenu({
           >
             Resolve
           </button>
-          <button
-            type="button"
-            onClick={onEdit}
-            className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
-          >
-            Edit
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[12px] text-brand-navy transition-colors hover:bg-neutral-50"
+            >
+              Edit
+            </button>
+          )}
         </>
       )}
       <button
@@ -410,7 +414,8 @@ function QuestionCard({
             Resolved
           </span>
         ) : (
-          <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800">
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-amber-800">
+            <MessageCircleQuestionMark size={10} strokeWidth={2.75} aria-hidden />
             Question
           </span>
         )}
@@ -517,6 +522,124 @@ function QuestionCard({
   )
 }
 
+/**
+ * AI note card — same shell as a question, minus the ask. Grey throughout to
+ * match the row's info bubble and to stay quieter than an open question.
+ */
+function InfoCard({
+  comment,
+  info,
+  isEntering = false,
+  isHighlighted = false,
+  isResolved = false,
+  onResolve,
+  onDelete,
+}: {
+  comment: Comment
+  info: CommentInfo
+  isEntering?: boolean
+  /** The field this note is about is being edited right now. */
+  isHighlighted?: boolean
+  isResolved?: boolean
+  onResolve?: (commentId: string) => void
+  onDelete?: (commentId: string) => void
+}) {
+  const [showMoreMenu, setShowMoreMenu] = useState(false)
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const moreButtonRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <div
+      className={cn(
+        'group relative rounded-lg px-2 py-2 transition-[background-color,opacity] duration-300 ease-out hover:bg-neutral-50',
+        isEntering && 'animate-comment-appear',
+        isHighlighted && 'bg-neutral-100 hover:bg-neutral-100'
+      )}
+    >
+      <CommentMoreMenu
+        isOpen={showMoreMenu}
+        anchorRef={moreButtonRef}
+        onClose={() => setShowMoreMenu(false)}
+        onResolve={() => {
+          onResolve?.(comment.id)
+          setShowMoreMenu(false)
+        }}
+        onDelete={() => {
+          setShowMoreMenu(false)
+          setShowDeleteConfirm(true)
+        }}
+        isResolved={isResolved}
+      />
+
+      <DeleteConfirmationPopover
+        isOpen={showDeleteConfirm}
+        anchorRef={moreButtonRef}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          onDelete?.(comment.id)
+          setShowDeleteConfirm(false)
+        }}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
+
+      <div className="flex items-center gap-1.5">
+        {isResolved ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-green-700">
+            <Check size={10} strokeWidth={3} aria-hidden />
+            Resolved
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-neutral-200 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em] text-brand-navy">
+            <MessageCircleInfoIcon size={10} strokeWidth={2.75} />
+            Info
+          </span>
+        )}
+      </div>
+
+      <p
+        className={cn(
+          'mt-1.5 text-[12px] font-semibold leading-[1.4]',
+          isResolved ? 'text-brand-fog' : 'text-brand-navy'
+        )}
+      >
+        {info.headline}
+      </p>
+
+      <p
+        className={cn(
+          'mt-1 text-[12px] leading-[1.5]',
+          isResolved ? 'text-brand-mist' : 'text-brand-fog'
+        )}
+      >
+        {comment.body}
+      </p>
+
+      {/* Footer row: same author line as a comment */}
+      <div className="mt-2 flex items-center gap-2">
+        <span className="shrink-0 text-[11px] font-bold uppercase tracking-[0.02em] ai-gradient-text">
+          Apex AI
+        </span>
+        <span className="shrink-0 text-[10px] text-brand-fog">{comment.timestamp}</span>
+        <div className="h-px flex-1 bg-neutral-200" />
+        {(onResolve || onDelete) && (
+          <button
+            ref={moreButtonRef}
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              setShowMoreMenu(!showMoreMenu)
+            }}
+            className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-brand-fog transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+            title="More options"
+          >
+            <MoreHorizontal size={14} />
+          </button>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function CommentCard({
   comment,
   isActive,
@@ -596,6 +719,20 @@ function CommentCard({
     document.addEventListener('click', handleClickOutside)
     return () => document.removeEventListener('click', handleClickOutside)
   }, [isResolved, isExpanded])
+
+  if (comment.info) {
+    return (
+      <InfoCard
+        comment={comment}
+        info={comment.info}
+        isEntering={isEntering}
+        isHighlighted={isFocusedQuestion}
+        isResolved={isResolved}
+        onResolve={onResolve}
+        onDelete={onDelete}
+      />
+    )
+  }
 
   if (question) {
     return (
@@ -783,7 +920,9 @@ export function SectionCommentStack({
   }
   const [enteringIds, setEnteringIds] = useState<Set<string>>(() => new Set())
   const stackRef = useRef<HTMLDivElement>(null)
+  const scrollerRef = useRef<HTMLDivElement>(null)
   const knownIdsRef = useRef<Set<string> | null>(null)
+  const [revealCommentId, setRevealCommentId] = useState<string | null>(null)
 
   // Seed known IDs on first render so initial comments don't animate in
   if (knownIdsRef.current === null) {
@@ -824,6 +963,17 @@ export function SectionCommentStack({
     const index = orderedComments.findIndex((c) => commentMatchesQuestionFocus(c, questionFocus))
     if (index > 0) setIsExpanded(true)
   }, [questionFocus, sectionId, orderedComments])
+
+  // Bring the focused card to the top of the stack's viewport.
+  useEffect(() => {
+    if (!isExpanded || !questionFocus || questionFocus.sectionId !== sectionId) return
+    const scroller = scrollerRef.current
+    const card = scroller?.querySelector<HTMLElement>('[data-focused-comment]')
+    if (!scroller || !card) return
+    const delta = card.getBoundingClientRect().top - scroller.getBoundingClientRect().top
+    if (Math.abs(delta) < 1) return
+    scroller.scrollTo({ top: scroller.scrollTop + delta, behavior: 'smooth' })
+  }, [isExpanded, questionFocus, sectionId, orderedComments])
 
   // Collapse on outside click
   useEffect(() => {
@@ -896,20 +1046,36 @@ export function SectionCommentStack({
 
   const renderCommentCard = (comment: Comment & { status?: CommentStatus }) => {
     const isMatch = commentMatchesViewEditsFocus(comment, viewEditsFocus)
+    const isFocusedQuestion = commentMatchesQuestionFocus(comment, questionFocus)
     return (
-      <CommentCard
+      <div
         key={comment.id}
-        comment={comment}
-        commentStatus={comment.status}
-        isActive={false}
-        onDelete={onDelete}
-        onResolve={onResolve}
-        onAnswerQuestion={onAnswerQuestion}
-        isEntering={enteringIds.has(comment.id)}
-        isFocusedEdit={isViewingEdits && isMatch}
-        isDimmed={isViewingEdits && !isMatch}
-        isFocusedQuestion={commentMatchesQuestionFocus(comment, questionFocus)}
-      />
+        data-comment-id={comment.id}
+        data-focused-comment={isFocusedQuestion || undefined}
+        className="scroll-mb-2"
+        ref={
+          comment.id === revealCommentId
+            ? (node) => {
+                if (!node) return
+                node.scrollIntoView({ behavior: 'smooth', block: 'end', inline: 'nearest' })
+                queueMicrotask(() => setRevealCommentId(null))
+              }
+            : undefined
+        }
+      >
+        <CommentCard
+          comment={comment}
+          commentStatus={comment.status}
+          isActive={false}
+          onDelete={onDelete}
+          onResolve={onResolve}
+          onAnswerQuestion={onAnswerQuestion}
+          isEntering={enteringIds.has(comment.id)}
+          isFocusedEdit={isViewingEdits && isMatch}
+          isDimmed={isViewingEdits && !isMatch}
+          isFocusedQuestion={isFocusedQuestion}
+        />
+      </div>
     )
   }
 
@@ -968,13 +1134,13 @@ export function SectionCommentStack({
       {commentCount > 0 && (
         <>
           {isExpanded ? (
-            // Expanded: all comments with internal scroll capped at ~320px
-            <div className="relative">
-              <div className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1">
-                {orderedComments.map((comment) => renderCommentCard(comment))}
-              </div>
-              {/* Fade at bottom */}
-              <div className="pointer-events-none absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
+            // Expanded: all comments, scrolled within ~320px. No bottom fade —
+            // it washed out whatever message sat at the edge.
+            <div
+              ref={scrollerRef}
+              className="flex max-h-[320px] flex-col gap-3 overflow-y-auto pr-1"
+            >
+              {orderedComments.map((comment) => renderCommentCard(comment))}
             </div>
           ) : (
             // Collapsed: top comment + 3 peek lines for stack depth cue
@@ -983,6 +1149,7 @@ export function SectionCommentStack({
               tabIndex={hasStack ? 0 : undefined}
               onClick={() => {
                 if (hasStack) {
+                  setRevealCommentId(orderedComments[1]?.id ?? null)
                   setIsExpanded(true)
                   setIsStackHovered(false)
                 }
@@ -990,6 +1157,7 @@ export function SectionCommentStack({
               onKeyDown={(e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && hasStack) {
                   e.preventDefault()
+                  setRevealCommentId(orderedComments[1]?.id ?? null)
                   setIsExpanded(true)
                   setIsStackHovered(false)
                 }
@@ -1005,7 +1173,7 @@ export function SectionCommentStack({
                 <div className="mt-1.5 flex flex-col items-center gap-1">
                   {/* Label - always visible in blue */}
                   <div className="text-[11px] font-medium text-blue-700">
-                    +{commentCount - 1} {commentCount - 1 === 1 ? 'comment' : 'comments'}
+                    +{commentCount - 1} more
                   </div>
                   {/* Lines - cascade in on hover */}
                   <div

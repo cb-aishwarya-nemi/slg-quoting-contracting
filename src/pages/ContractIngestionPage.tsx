@@ -2,7 +2,7 @@ import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import { Upload, Sparkles, Maximize2, Minimize2, Send, X, FileText, ArrowRight, ArrowLeft } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { useFileDrop } from '@/context/FileDropContext'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnFocus, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import { sectionSources, type Comment, type LabelValue, getContractById } from '@/data/contractProcessingMock'
 import {
   SectionHeader,
@@ -22,9 +22,6 @@ import {
   type NavSection,
   type AnswerQuestionHandler,
 } from '@/components/features/contract-processing'
-
-/** Address fields carrying an AI note rather than an open question. */
-const ADDRESS_INFO_FIELDS = ['Postal code']
 
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'Summary', status: 'ai' },
@@ -559,7 +556,7 @@ function ContractProcessingView({
   const commentCountsBySection = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const [sectionId, comments] of Object.entries(commentsBySection)) {
-      counts[sectionId] = comments.filter((c) => !c.question).length
+      counts[sectionId] = comments.filter((c) => !c.question && !c.info).length
     }
     return counts
   }, [commentsBySection])
@@ -590,6 +587,18 @@ function ContractProcessingView({
     }
     return fields
   }, [openQuestionsBySection])
+
+  const infoFieldsBySection = useMemo(() => {
+    const fields: Record<string, string[]> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      const labels = comments
+        .filter((c) => c.status !== 'resolved')
+        .map((c) => c.info?.fieldLabel)
+        .filter((label): label is string => !!label)
+      if (labels.length) fields[sectionId] = labels
+    }
+    return fields
+  }, [commentsBySection])
 
   /** Answering closes the question; taking the alternative also writes the value back. */
   const handleAnswerQuestion = useCallback<AnswerQuestionHandler>(
@@ -813,7 +822,7 @@ function ContractProcessingView({
       </div>
 
       <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
-      <EnsurePanelsOnViewEdits onNeedPanels={() => setIsPanelsExpanded(true)} />
+      <EnsurePanelsOnFocus onNeedPanels={() => setIsPanelsExpanded(true)} />
       {/* Body */}
       <div className="relative min-h-0 flex-1 px-9">
         {/* Left nav */}
@@ -829,7 +838,7 @@ function ContractProcessingView({
             style={{ width: LEFT_NAV_WIDTH }}
           >
             <InPageNav
-              sections={navSections}
+              sections={navSectionsWithAttention}
               activeId={activeSection}
               onNavigate={handleNavigate}
             />
@@ -949,7 +958,7 @@ function ContractProcessingView({
                     controlled
                     onItemChange={handleAddressItemChange}
                     questionFields={questionFieldsBySection['addresses']}
-                    infoFields={ADDRESS_INFO_FIELDS}
+                    infoFields={infoFieldsBySection['addresses']}
                   />
                 </div>
               </IngestionSectionRow>

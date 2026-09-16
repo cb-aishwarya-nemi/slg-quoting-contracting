@@ -96,6 +96,17 @@ export interface CommentQuestion {
   changeValue?: string
 }
 
+/**
+ * Something the AI decided on its own and wants on the record. No answer is
+ * expected — unlike CommentQuestion, this is purely informational.
+ */
+export interface CommentInfo {
+  /** Row this note sits on — matched against `LabelValue.label`. */
+  fieldLabel?: string
+  /** One-line statement of what the AI did. */
+  headline: string
+}
+
 /** What the reviewer settled on, kept so the resolved card can say so. */
 export interface CommentQuestionAnswer {
   choice: 'confirm' | 'change' | 'other'
@@ -114,6 +125,8 @@ export interface Comment {
   question?: CommentQuestion
   /** Set once the reviewer answers the question. */
   questionAnswer?: CommentQuestionAnswer
+  /** Present when the AI is telling the reviewer something, no answer needed. */
+  info?: CommentInfo
   /** section this comment is linked to (renders as a grey tag) */
   linkedSection?: string
   /** in-page section id this comment maps to (drives scroll + active-section peek) */
@@ -620,6 +633,20 @@ export const contractProcessing = {
         confirmLabel: 'Confirm 340 Market Street',
         changeLabel: 'Change to 1200 Bryant Street',
         changeValue: '1200 Bryant Street, Floor 3',
+      },
+    },
+    {
+      id: 'i-1',
+      author: 'Apex AI',
+      initials: 'AI',
+      isAI: true,
+      timestamp: 'Just now',
+      body: 'The contract lists the city and state but no postal code. I filled in 94103 from the street address on the MSA header. Worth a glance before invoicing.',
+      linkedSection: 'Addresses',
+      linkedSectionId: 'addresses',
+      info: {
+        fieldLabel: 'Postal code',
+        headline: 'Postal code was not in the contract',
       },
     },
     {

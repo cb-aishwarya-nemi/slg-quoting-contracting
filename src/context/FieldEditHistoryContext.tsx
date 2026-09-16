@@ -411,12 +411,17 @@ export function useOptionalFieldEditHistory() {
   return useContext(FieldEditHistoryContext)
 }
 
-/** Expands comment panels when the user clicks "View edits" on a field row. */
-export function EnsurePanelsOnViewEdits({ onNeedPanels }: { onNeedPanels: () => void }) {
+/**
+ * Expands comment panels whenever a field row points at something in the rail —
+ * "View edits", or editing a row that carries an AI question or note.
+ */
+export function EnsurePanelsOnFocus({ onNeedPanels }: { onNeedPanels: () => void }) {
   const history = useOptionalFieldEditHistory()
+  const viewEditsFocus = history?.viewEditsFocus
+  const questionFocus = history?.questionFocus
   useEffect(() => {
-    if (history?.viewEditsFocus) onNeedPanels()
-  }, [history?.viewEditsFocus, onNeedPanels])
+    if (viewEditsFocus || questionFocus) onNeedPanels()
+  }, [viewEditsFocus, questionFocus, onNeedPanels])
   return null
 }
 
@@ -439,15 +444,19 @@ export function formatFieldEditCommentBody(event: FieldEditEvent): string {
   return `Set ${fieldLabel} to "${event.newValue}"`
 }
 
+/** Matches the question or info note attached to the row being edited. */
 export function commentMatchesQuestionFocus(
-  comment: { linkedSectionId?: string; question?: { fieldLabel?: string } },
+  comment: {
+    linkedSectionId?: string
+    question?: { fieldLabel?: string }
+    info?: { fieldLabel?: string }
+  },
   focus: QuestionFocus | null
 ): boolean {
-  if (!focus || !comment.question?.fieldLabel) return false
-  return (
-    comment.linkedSectionId === focus.sectionId &&
-    comment.question.fieldLabel === focus.fieldLabel
-  )
+  if (!focus) return false
+  const fieldLabel = comment.question?.fieldLabel ?? comment.info?.fieldLabel
+  if (!fieldLabel) return false
+  return comment.linkedSectionId === focus.sectionId && fieldLabel === focus.fieldLabel
 }
 
 export function commentMatchesViewEditsFocus(

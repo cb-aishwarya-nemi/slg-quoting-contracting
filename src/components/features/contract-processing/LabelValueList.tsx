@@ -137,16 +137,17 @@ function LabelValueRow({
     }
   }, [isOpen, item.label])
 
-  // While this row is being edited, its AI question lights up in the comment rail.
+  // While this row is being edited, its AI question or note lights up in the rail.
   const isRowActive = isEditing || isOpen || dateActive
+  const hasAINote = !!hasQuestion || !!hasInfo
   const focusQuestion = editHistory?.focusQuestion
   const clearQuestionFocus = editHistory?.clearQuestionFocus
   useEffect(() => {
-    if (!hasQuestion || !sectionId || !focusQuestion || !clearQuestionFocus) return
+    if (!hasAINote || !sectionId || !focusQuestion || !clearQuestionFocus) return
     const focus = { sectionId, fieldLabel: item.label }
     if (isRowActive) focusQuestion(focus)
     else clearQuestionFocus(focus)
-  }, [isRowActive, hasQuestion, sectionId, item.label, focusQuestion, clearQuestionFocus])
+  }, [isRowActive, hasAINote, sectionId, item.label, focusQuestion, clearQuestionFocus])
 
   const handleRowClick = () => {
     if (isEditing || isOpen || dateActive) return

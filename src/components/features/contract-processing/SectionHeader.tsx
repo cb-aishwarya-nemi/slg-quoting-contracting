@@ -78,9 +78,7 @@ export function SectionHeader({
 
         {status === 'ai-created' && <PackagePlus size={14} className="ai-gradient-text" />}
 
-        {statusLabel && status === 'attention' ? (
-          <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
-        ) : statusLabel && status !== 'ready' ? (
+        {statusLabel && status !== 'ready' && status !== 'attention' ? (
           <span
             className={cn(
               'text-[12px] font-medium',

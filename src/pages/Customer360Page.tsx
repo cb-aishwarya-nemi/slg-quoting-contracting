@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Maximize2, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, Maximize2, MessageCircleQuestionMark, UserPlus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -28,7 +28,7 @@ import {
   type ProductsPricingVariant,
   type AnswerQuestionHandler,
 } from '@/components/features/contract-processing'
-import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnViewEdits, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
+import { FieldEditHistoryProvider, formatFieldEditCommentBody, EnsurePanelsOnFocus, type FieldEditEvent } from '@/context/FieldEditHistoryContext'
 import {
   applyAccountPickerV2Seed,
   getAccountPickerV2Scenario,
@@ -44,9 +44,6 @@ export interface SectionOffset {
 
 type CommentStatus = 'open' | 'resolved'
 type ContractStatus = 'Blocked' | 'In progress'
-
-/** Address fields carrying an AI note rather than an open question. */
-const ADDRESS_INFO_FIELDS = ['Postal code']
 
 const C360_TABS: TabItem[] = [
   { id: 'overview', label: 'Overview' },
@@ -343,7 +340,7 @@ export function Customer360Page() {
   const commentCountsBySection = useMemo(() => {
     const counts: Record<string, number> = {}
     for (const [sectionId, comments] of Object.entries(commentsBySection)) {
-      counts[sectionId] = comments.filter((c) => !c.question).length
+      counts[sectionId] = comments.filter((c) => !c.question && !c.info).length
     }
     return counts
   }, [commentsBySection])
@@ -374,6 +371,51 @@ export function Customer360Page() {
     }
     return fields
   }, [openQuestionsBySection])
+
+  const infoCountsBySection = useMemo(() => {
+    const counts: Record<string, number> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      const open = comments.filter((c) => c.info && c.status !== 'resolved').length
+      if (open) counts[sectionId] = open
+    }
+    return counts
+  }, [commentsBySection])
+
+  /** Nav markers so the rail shows, at a glance, what still needs the reviewer. */
+  const navSectionsWithAttention = useMemo<NavSection[]>(
+    () =>
+      navSections.map((section) => ({
+        ...section,
+        questionCount: questionCountsBySection[section.id],
+        infoCount: infoCountsBySection[section.id],
+      })),
+    [navSections, questionCountsBySection, infoCountsBySection]
+  )
+
+  const openQuestionCount = useMemo(
+    () => Object.values(questionCountsBySection).reduce((sum, n) => sum + n, 0),
+    [questionCountsBySection]
+  )
+  const openNoteCount = useMemo(
+    () => Object.values(infoCountsBySection).reduce((sum, n) => sum + n, 0),
+    [infoCountsBySection]
+  )
+  const firstOpenQuestionSectionId = useMemo(
+    () => navSections.find((section) => (questionCountsBySection[section.id] ?? 0) > 0)?.id,
+    [navSections, questionCountsBySection]
+  )
+
+  const infoFieldsBySection = useMemo(() => {
+    const fields: Record<string, string[]> = {}
+    for (const [sectionId, comments] of Object.entries(commentsBySection)) {
+      const labels = comments
+        .filter((c) => c.status !== 'resolved')
+        .map((c) => c.info?.fieldLabel)
+        .filter((label): label is string => !!label)
+      if (labels.length) fields[sectionId] = labels
+    }
+    return fields
+  }, [commentsBySection])
 
   const [addNoteSectionId, setAddNoteSectionId] = useState<string | null>(null)
   const handleSectionCommentIcon = useCallback(
@@ -438,6 +480,12 @@ export function Customer360Page() {
   }, [])
 
   const handleNavigate = scrollToSection
+
+  const handleReviewOpenQuestions = useCallback(() => {
+    if (!firstOpenQuestionSectionId) return
+    if (isItemPinnedVariant) setAreCommentsVisible(true)
+    scrollToSection(firstOpenQuestionSectionId)
+  }, [firstOpenQuestionSectionId, isItemPinnedVariant, scrollToSection])
 
   const handleCreateSalesOrder = useCallback(() => {
     setActiveTab('sales-order')
@@ -637,7 +685,7 @@ export function Customer360Page() {
       {/* Tasks tab — contract processing body */}
       {activeTab === 'tasks' && (
         <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
-        <EnsurePanelsOnViewEdits onNeedPanels={() => setAreCommentsVisible(true)} />
+        <EnsurePanelsOnFocus onNeedPanels={() => setAreCommentsVisible(true)} />
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
           {/* Secondary nav */}
           <div data-c360-secondary-nav className="flex shrink-0 items-center py-3">
@@ -669,7 +717,7 @@ export function Customer360Page() {
             <aside className="shrink-0 overflow-visible pt-4 transition-all duration-300 ease-out" style={{ width: LEFT_NAV_WIDTH }}>
               <div className="transition-opacity duration-200 opacity-100">
                 <InPageNav
-                  sections={navSections}
+                  sections={navSectionsWithAttention}
                   activeId={activeSection}
                   onNavigate={handleNavigate}
                 />
@@ -748,6 +796,36 @@ export function Customer360Page() {
                       </button>
                     </span>
                   </div>
+                  <p
+                    className="mt-2 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[13px] leading-5 text-brand-navy"
+                    aria-live="polite"
+                  >
+                    {openQuestionCount > 0 ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleReviewOpenQuestions}
+                          className="inline-flex items-center gap-1 rounded-full border border-amber-700/35 bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100"
+                        >
+                          <MessageCircleQuestionMark size={12} strokeWidth={2.25} aria-hidden />
+                          {openQuestionCount}{' '}
+                          {openQuestionCount === 1 ? 'question' : 'questions'}
+                        </button>
+                        <span>
+                          still {openQuestionCount === 1 ? 'needs' : 'need'} a decision
+                          {openNoteCount > 0
+                            ? ` · ${openNoteCount} ${openNoteCount === 1 ? 'note' : 'notes'} open.`
+                            : '.'}
+                        </span>
+                      </>
+                    ) : openNoteCount > 0 ? (
+                      <span>
+                        {openNoteCount} {openNoteCount === 1 ? 'note' : 'notes'} still open.
+                      </span>
+                    ) : (
+                      <span className="text-brand-fog">No open questions.</span>
+                    )}
+                  </p>
                 </section>
 
                 {/* Account */}
@@ -854,7 +932,7 @@ export function Customer360Page() {
                         controlled
                         onItemChange={handleAddressItemChange}
                         questionFields={questionFieldsBySection['addresses']}
-                        infoFields={ADDRESS_INFO_FIELDS}
+                        infoFields={infoFieldsBySection['addresses']}
                         onOpenSource={
                           sectionSources.addresses?.length
                             ? () => setPreview({ sectionId: 'addresses', index: 0 })
