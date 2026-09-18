@@ -143,10 +143,14 @@ function frequencySuffix(frequency: string): string {
   return frequency ? `/${key}` : ''
 }
 
-function TableHeader() {
+function TableHeader({
+  ruleClassName = 'border-neutral-200',
+}: {
+  ruleClassName?: string
+}) {
   return (
     <div
-      className="grid items-center border-b border-neutral-200 pb-2 pl-1 pr-2"
+      className={cn('grid items-center border-b pb-2 pl-1 pr-2', ruleClassName)}
       style={{ gridTemplateColumns: COLS }}
     >
       <div className="pr-6 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
@@ -210,15 +214,17 @@ function FeatureCell({
 export function EntitlementsAllocationTable({
   onSelectFeature,
   year = 1,
+  headerRuleClassName = 'border-neutral-200',
 }: {
   onSelectFeature?: (featureLabel: string) => void
   year?: 1 | 2 | 3
+  headerRuleClassName?: string
 }) {
   const allocations = allocationsForYear(year)
 
   return (
     <div className="w-full">
-      <TableHeader />
+      <TableHeader ruleClassName={headerRuleClassName} />
       {allocations.map((group, groupIndex) => {
         const isLastGroup = groupIndex === allocations.length - 1
 

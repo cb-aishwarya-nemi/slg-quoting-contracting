@@ -39,57 +39,44 @@ function RampPeriodAccordion({
       : `${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`
 
   return (
-    <div>
+    <div className="relative overflow-hidden rounded-lg border border-brand-navy/25 bg-white">
       <button
         type="button"
         onClick={onToggle}
-        className={cn(
-          'flex w-full cursor-pointer items-center border-b border-neutral-200 py-3 pl-1 pr-2 text-left transition-colors hover:bg-neutral-50'
-        )}
+        className="relative z-10 flex w-full cursor-pointer items-center gap-3 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
       >
         <ChevronDown
-          size={16}
+          size={18}
           className={cn(
-            '-ml-6 mr-2 shrink-0 text-blue-700 transition-transform',
+            'shrink-0 text-blue-700 transition-transform duration-200',
             isExpanded && 'rotate-180'
           )}
         />
-        <span className="shrink-0 text-[13px] font-semibold text-brand-navy">
-          {period.label.replace(/^Period\s+/i, 'Year ')}
+        <span className="flex min-w-0 flex-1 items-center">
+          <span className="shrink-0 text-[15px] font-semibold text-brand-navy">
+            {period.label.replace(/^Period\s+/i, 'Year ')}
+          </span>
+          <span className="mx-2 text-[13px] text-brand-fog">·</span>
+          <span className="flex items-center gap-1.5 text-[12px] text-brand-fog">
+            <Calendar size={14} className="text-brand-mist" />
+            {period.startDate} to {period.endDate}
+          </span>
+          {summaryLabel ? (
+            <>
+              <span className="mx-2 text-[13px] text-brand-fog">·</span>
+              <span className="truncate text-[12px] text-brand-fog">{summaryLabel}</span>
+            </>
+          ) : null}
         </span>
-        <span className="mx-2 text-[13px] text-brand-fog">·</span>
-        <span className="flex items-center gap-1.5 text-[12px] text-brand-fog">
-          <Calendar size={14} className="text-brand-mist" />
-          {period.startDate} to {period.endDate}
-        </span>
-        {summaryLabel ? (
-          <>
-            <span className="mx-2 text-[13px] text-brand-fog">·</span>
-            <span className="truncate text-[12px] text-brand-fog">{summaryLabel}</span>
-          </>
-        ) : null}
       </button>
       {isExpanded ? (
-        <div className="space-y-8 pt-4 pb-6">
-          <div>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-              Products and pricing
-            </p>
-            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white px-3 py-2">
-              <ProductPeriodTable period={period} />
-            </div>
-          </div>
-          <div>
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-[-0.25px] text-brand-fog">
-              Entitlements
-            </p>
-            <div className="overflow-hidden rounded-lg border border-neutral-200 bg-white px-3 py-2">
-              <EntitlementsAllocationTable
-                year={year}
-                onSelectFeature={onSelectEntitlement}
-              />
-            </div>
-          </div>
+        <div className="space-y-8 border-t border-brand-navy/25 bg-white px-4 py-4">
+          <ProductPeriodTable period={period} headerRuleClassName="border-brand-navy/25" />
+          <EntitlementsAllocationTable
+            year={year}
+            onSelectFeature={onSelectEntitlement}
+            headerRuleClassName="border-brand-navy/25"
+          />
         </div>
       ) : null}
     </div>
@@ -123,7 +110,10 @@ export function UpcomingRampsSection({
 
   return (
     <div className="space-y-4">
-      <SectionRuleTitle as="h3">Upcoming ramps</SectionRuleTitle>
+      <SectionRuleTitle as="h3" hideRule>
+        Upcoming ramps
+      </SectionRuleTitle>
+      <div className="space-y-3">
       {upcomingPeriods.map((period, index) => (
         <RampPeriodAccordion
           key={period.id}
@@ -135,6 +125,7 @@ export function UpcomingRampsSection({
           onSelectEntitlement={onSelectEntitlement}
         />
       ))}
+      </div>
     </div>
   )
 }

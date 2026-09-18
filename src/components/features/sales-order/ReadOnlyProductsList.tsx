@@ -149,9 +149,13 @@ function LineRow({
   )
 }
 
-function ProductTableHeader() {
+function ProductTableHeader({
+  ruleClassName = 'border-neutral-200',
+}: {
+  ruleClassName?: string
+}) {
   return (
-    <div className="flex items-center border-b border-neutral-200 pb-2 pl-1 pr-2">
+    <div className={cn('flex items-center border-b pb-2 pl-1 pr-2', ruleClassName)}>
       <div className="flex-1 text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
         Item
       </div>
@@ -160,10 +164,16 @@ function ProductTableHeader() {
   )
 }
 
-export function ProductPeriodTable({ period }: { period: SalesOrderRampPeriod }) {
+export function ProductPeriodTable({
+  period,
+  headerRuleClassName = 'border-neutral-200',
+}: {
+  period: SalesOrderRampPeriod
+  headerRuleClassName?: string
+}) {
   return (
     <div>
-      <ProductTableHeader />
+      <ProductTableHeader ruleClassName={headerRuleClassName} />
       {period.items.map((item, idx) => (
         <LineRow
           key={item.id}
