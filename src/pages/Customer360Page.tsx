@@ -33,6 +33,7 @@ import {
   getAccountPickerV2Seed,
   isAccountPickerV2Variant,
 } from '@/components/features/contract-processing/AccountCustomerPickerV2'
+import { DEFAULT_ACCOUNT_NAME } from '@/components/features/contract-processing/AccountCustomerPicker'
 import { cn } from '@/lib/utils'
 
 export interface SectionOffset {
@@ -270,6 +271,13 @@ export function Customer360Page() {
     setCustomerTitleConfirmed(true)
     setAccountItems((prev) => applyFieldValue(prev, 'Account', createdName))
   }, [])
+
+  const handleDeleteAccountCustomer = useCallback(() => {
+    setCreatedAccountCustomer(null)
+    setCustomerName(data.customerName)
+    setCustomerTitleConfirmed(false)
+    setAccountItems((prev) => applyFieldValue(prev, 'Account', DEFAULT_ACCOUNT_NAME))
+  }, [data.customerName])
   const cameFromSalesOrders =
     view.name === 'customer360' && view.returnTo === 'salesOrders'
   const handleBack = cameFromSalesOrders ? goToSalesOrders : goToCustomers
@@ -711,6 +719,7 @@ export function Customer360Page() {
                         controlled
                         onItemChange={handleAccountItemChange}
                         onCreateAsNewCustomer={handleCreateAccountCustomer}
+                        onDeleteCreatedCustomer={handleDeleteAccountCustomer}
                         createdCustomerName={createdAccountCustomer}
                         accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
                         onOpenSource={
@@ -851,8 +860,6 @@ export function Customer360Page() {
                           )}
                           <SectionHeader
                             title="Products and pricing"
-                            status="ai-created"
-                            statusLabel="Created 2 items"
                             isFlashing={false}
                             commentCount={
                               isProductsLifted

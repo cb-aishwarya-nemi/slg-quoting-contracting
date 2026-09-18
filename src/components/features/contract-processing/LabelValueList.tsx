@@ -27,17 +27,16 @@ import {
 import { GradientSparkle } from './GradientSparkle'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
+const NOTICE_SLOT = 'mr-1.5 flex h-6 w-6 shrink-0 items-center justify-center'
 
 const DATE_FIELD_LABELS = new Set(['Effective date', 'End date'])
 
 function FieldNotice({
   tone,
   message,
-  onResolve,
 }: {
   tone: 'error' | 'info'
   message: string
-  onResolve: () => void
 }) {
   const [open, setIsOpen] = useState(false)
   const iconRef = useRef<HTMLButtonElement>(null)
@@ -54,6 +53,7 @@ function FieldNotice({
   }
 
   const show = () => {
+    if (!isError) return
     clearHide()
     setRect(iconRef.current?.getBoundingClientRect() ?? null)
     setIsOpen(true)
@@ -72,18 +72,19 @@ function FieldNotice({
       <button
         ref={iconRef}
         type="button"
-        onMouseEnter={show}
-        onMouseLeave={scheduleHide}
+        onMouseEnter={isError ? show : undefined}
+        onMouseLeave={isError ? scheduleHide : undefined}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'flex h-6 w-6 shrink-0 cursor-help items-center justify-center rounded-full',
-          isError ? 'text-red-500' : 'text-amber-500'
+          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
+          isError ? 'cursor-help text-red-500' : 'text-amber-500'
         )}
         aria-label={message}
       >
         <Icon size={16} strokeWidth={2} />
       </button>
-      {open &&
+      {isError &&
+        open &&
         rect &&
         createPortal(
           <div
@@ -93,30 +94,8 @@ function FieldNotice({
             onMouseLeave={scheduleHide}
             onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className={cn(
-                'max-w-[240px] rounded-lg border bg-white text-[13px] leading-snug shadow-lg',
-                isError
-                  ? 'border-red-300 text-red-700'
-                  : 'border-amber-300 text-amber-800'
-              )}
-            >
-              <div className="px-3 py-2">{message}</div>
-              {!isError && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    clearHide()
-                    setIsOpen(false)
-                    onResolve()
-                  }}
-                  className="flex w-full items-center gap-1.5 border-t border-amber-200 px-3 py-2 text-[12px] font-medium text-amber-800 transition-colors hover:bg-amber-50"
-                >
-                  <Check size={13} strokeWidth={2.5} />
-                  Mark as resolved
-                </button>
-              )}
+            <div className="max-w-[240px] rounded-lg border border-red-300 bg-white px-3 py-2 text-[13px] leading-snug text-red-700 shadow-lg">
+              {message}
             </div>
           </div>,
           document.body
@@ -152,13 +131,14 @@ interface LabelValueRowProps {
   onItemChange?: (label: string, newValue: string) => void
   onRemove?: () => void
   onCreateAsNewCustomer?: (name?: string) => void
+  onDeleteCreatedCustomer?: () => void
   createdCustomerName?: string | null
   accountPickerVariant?: 'current' | 'v2'
   /** Contact details for a customer that only exists in this section. */
   createdCustomerContact?: { contactName: string; email: string }
   /** Opens the section's source preview — same drawer the thumbnails open. */
   onOpenSource?: () => void
-  /** Keeps a notice-sized slot on every row, so hover actions line up down the section. */
+  /** Keeps a notice-sized slot before every label, so labels line up down the section. */
   reserveNoticeSlot?: boolean
 }
 
@@ -169,6 +149,7 @@ function LabelValueRow({
   onItemChange,
   onRemove,
   onCreateAsNewCustomer,
+  onDeleteCreatedCustomer,
   createdCustomerName,
   accountPickerVariant = 'current',
   createdCustomerContact,
@@ -194,9 +175,10 @@ function LabelValueRow({
   const isUnresolved = !!item.extractionFailed && !item.value.trim()
   const isEdited =
     !!sectionId && !!editHistory?.isFieldEdited(sectionId, item.label)
-  const [noticeResolved, setNoticeResolved] = useState(false)
-  const notice = noticeResolved ? undefined : item.notice
+  const notice = item.notice
   const isErrorRow = notice?.tone === 'error'
+  const isInfoRow = notice?.tone === 'info'
+  const keepInkOnRowHover = isErrorRow || isInfoRow
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -516,35 +498,42 @@ function LabelValueRow({
       className={cn(
         'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
         isErrorRow && 'bg-red-50',
-        isEdited && !isErrorRow && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
-        !isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
-        isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-[#fdd6d6]'
+        isEdited && !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
+        !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
+        isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-[#fdd6d6]',
+        isInfoRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-amber-100'
       )}
       style={{ minHeight: 36 }}
     >
       <div
         className={cn(
           'relative z-10 flex w-[210px] shrink-0 items-center',
-          !isErrorRow && !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
+          !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
         )}
       >
-        <span className={FLAG_SLOT}>
-          {isUnresolved && (
+        <span className={reserveNoticeSlot ? NOTICE_SLOT : FLAG_SLOT}>
+          {notice ? (
+            <FieldNotice
+              tone={notice.tone}
+              message={notice.message}
+            />
+          ) : isUnresolved ? (
             <AttentionFlagIcon id={item.label.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
-          )}
+          ) : null}
         </span>
         <span
           className={cn(
-            'label-text min-w-0 flex-1 text-left text-[12px] uppercase tracking-[-0.25px] text-brand-navy transition-colors',
-            (isEditing || isOpen || dateActive) && 'text-brand-navy'
+            'label-text min-w-0 flex-1 text-left text-[12px] uppercase tracking-[-0.25px] transition-colors',
+            isErrorRow ? 'text-red-500' : 'text-brand-navy'
           )}
         >
           {item.label}
         </span>
       </div>
 
-      <div className="flex flex-1 items-center justify-between gap-2">
-        <div className="min-w-0 flex-1 text-left">
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        {/* Notice rows use a fixed value width so every inline message starts at the same x. */}
+        <div className={cn('min-w-0 text-left', notice ? 'w-[132px] shrink-0' : 'flex-1')}>
         {isUnresolvedActive && isSelect ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
             <button
@@ -596,7 +585,7 @@ function LabelValueRow({
             onActiveChange={setDateActive}
             ariaLabel={item.label}
             onChange={(next) => commitValue(next)}
-            keepInkOnRowHover={isErrorRow}
+            keepInkOnRowHover={keepInkOnRowHover}
           />
         ) : isAccountComboboxV2 && options ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
@@ -621,6 +610,7 @@ function LabelValueRow({
               }
               onSelect={commitValue}
               onCreateAsNewCustomer={onCreateAsNewCustomer}
+              onDeleteCreatedCustomer={onDeleteCreatedCustomer}
             />
           </div>
         ) : isSelect ? (
@@ -634,14 +624,22 @@ function LabelValueRow({
                 isOpen
                   ? cn(ACTIVE_FIELD_STYLE, 'w-auto bg-neutral-200')
                   : isPlaceholderSelect
-                    ? 'text-brand-fog group-hover:text-white'
-                    : 'text-blue-700 group-hover:text-white'
+                    ? keepInkOnRowHover
+                      ? 'text-brand-fog'
+                      : 'text-brand-fog group-hover:text-white'
+                    : keepInkOnRowHover
+                      ? 'text-blue-700'
+                      : 'text-blue-700 group-hover:text-white'
               )}
             >
               <span>{item.value || `Select ${item.label.toLowerCase()}`}</span>
               <ChevronDown size={14} className={cn(
                 'transition-colors',
-                isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
+                isOpen
+                  ? 'text-brand-mist'
+                  : keepInkOnRowHover
+                    ? 'text-brand-mist'
+                    : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
             {isBestMatch ? (
@@ -675,7 +673,20 @@ function LabelValueRow({
         )}
         </div>
 
-        <div className="flex shrink-0 items-center gap-0.5">
+        {notice ? (
+          <span
+            className={cn(
+              // 12px padding + the row's 8px gap keeps a 20px gutter after the value.
+              'w-[268px] shrink-0 truncate pl-3 pr-4 text-left text-[12px]',
+              isErrorRow ? 'text-red-500' : isInfoRow ? 'text-amber-800' : 'text-brand-navy'
+            )}
+            title={notice.message}
+          >
+            {notice.message}
+          </span>
+        ) : null}
+
+        <div className="ml-auto flex shrink-0 items-center gap-0.5">
           {!isEditing && !isOpen && !dateActive && (
             <>
               {onOpenSource && (
@@ -689,7 +700,9 @@ function LabelValueRow({
                     'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
                     isErrorRow
                       ? 'text-brand-navy hover:bg-red-200/60'
-                      : 'text-white hover:bg-white/15'
+                      : isInfoRow
+                        ? 'text-brand-navy hover:bg-amber-200/60'
+                        : 'text-white hover:bg-white/15'
                   )}
                   aria-label={`View source for ${item.label}`}
                   title="View source document"
@@ -705,7 +718,9 @@ function LabelValueRow({
                     'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
                     isErrorRow
                       ? 'text-brand-navy hover:bg-red-200/60'
-                      : 'text-white hover:bg-white/15'
+                      : isInfoRow
+                        ? 'text-brand-navy hover:bg-amber-200/60'
+                        : 'text-white hover:bg-white/15'
                   )}
                   aria-label={`Remove ${item.label}`}
                 >
@@ -722,7 +737,9 @@ function LabelValueRow({
                     'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
                     isErrorRow
                       ? 'text-brand-navy hover:bg-red-200/60'
-                      : 'text-white group-hover:bg-white/15'
+                      : isInfoRow
+                        ? 'text-brand-navy hover:bg-amber-200/60'
+                        : 'text-white group-hover:bg-white/15'
                   )}
                   aria-label={`Edit ${item.label}`}
                   title="Edit"
@@ -732,15 +749,6 @@ function LabelValueRow({
               )}
             </>
           )}
-          {notice ? (
-            <FieldNotice
-              tone={notice.tone}
-              message={notice.message}
-              onResolve={() => setNoticeResolved(true)}
-            />
-          ) : reserveNoticeSlot ? (
-            <span className="h-6 w-6 shrink-0" aria-hidden />
-          ) : null}
         </div>
       </div>
     </div>
@@ -844,6 +852,7 @@ interface LabelValueListProps {
   onItemsChange?: (items: LabelValue[]) => void
   showAddField?: boolean
   onCreateAsNewCustomer?: (name?: string) => void
+  onDeleteCreatedCustomer?: () => void
   createdCustomerName?: string | null
   /** Explicit Account picker implementation; current remains the default. */
   accountPickerVariant?: 'current' | 'v2'
@@ -860,6 +869,7 @@ export function LabelValueList({
   onItemsChange,
   showAddField,
   onCreateAsNewCustomer,
+  onDeleteCreatedCustomer,
   createdCustomerName,
   accountPickerVariant = 'current',
   onOpenSource,
@@ -923,8 +933,8 @@ export function LabelValueList({
     setCustomFields(prev => prev.filter(f => f.label !== label))
   }, [])
 
-  // One row carrying a notice reserves the slot for all of them, so the hover
-  // actions sit at the same place down the whole section.
+  // One row carrying a notice reserves the leading slot for all of them, so
+  // labels stay aligned down the whole section.
   const reserveNoticeSlot = listItems.some((item) => item.notice)
 
   return (
@@ -938,6 +948,9 @@ export function LabelValueList({
           onItemChange={handleItemChange}
           onCreateAsNewCustomer={
             item.label === 'Account' ? onCreateAsNewCustomer : undefined
+          }
+          onDeleteCreatedCustomer={
+            item.label === 'Account' ? onDeleteCreatedCustomer : undefined
           }
           createdCustomerName={
             item.label === 'Account' ? createdCustomerName : undefined

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2 } from 'lucide-react'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2, AlertTriangle } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
@@ -1085,6 +1085,8 @@ interface ItemNameButtonProps {
   className?: string
   /** Item pinned — selected catalog row uses a blue fill instead of grey. */
   highlightSelected?: boolean
+  /** Red alert to the left of the name. Every row still reserves the slot. */
+  showAlert?: boolean
 }
 
 function ItemNameButton({
@@ -1098,6 +1100,7 @@ function ItemNameButton({
   hangIcon = true,
   className,
   highlightSelected,
+  showAlert = false,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1122,6 +1125,11 @@ function ItemNameButton({
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
         </div>
       )}
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden={!showAlert}>
+        {showAlert ? (
+          <AlertTriangle size={14} strokeWidth={2} className="text-red-500" />
+        ) : null}
+      </span>
       <button
         ref={buttonRef}
         type="button"
@@ -1137,13 +1145,25 @@ function ItemNameButton({
             : hangIcon
               ? (isOpen || isRowHovered)
                 ? 'text-white'
+                : showAlert
+                  ? 'font-normal text-red-500'
+                  : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
+              : showAlert
+                ? 'font-normal text-red-500'
                 : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
-              : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
         )}
       >
         {/* On the pill the gradient has to sit on the text alone — as a button
             class its background would paint over the pill fill. */}
-        <span className={cn('truncate', asField && isAttention && 'ai-gradient-text')}>{name}</span>
+        <span
+          className={cn(
+            'truncate',
+            asField && showAlert && 'font-normal text-red-500',
+            asField && !showAlert && isAttention && 'ai-gradient-text'
+          )}
+        >
+          {name}
+        </span>
         <ChevronDown size={14} className={cn(
           "shrink-0 transition-colors",
           hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
@@ -3396,7 +3416,8 @@ export function ProductsPricingTable({
   const renderExpandedLineItem = (
     item: ProductLineItem,
     updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
-    periodItems: ProductLineItem[]
+    periodItems: ProductLineItem[],
+    showAlert = false
   ) => {
     if (item.isOverallDiscount) {
       return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
@@ -3414,12 +3435,16 @@ export function ProductsPricingTable({
     const quantityOptions = QUANTITY_OPTIONS.includes(item.quantity)
       ? QUANTITY_OPTIONS
       : [item.quantity, ...QUANTITY_OPTIONS]
+    // Sticky cells paint their own background, so the alert fill has to be set
+    // on the row and on every opaque cell in it.
+    const alertFill = showAlert ? 'bg-red-50' : undefined
 
     return (
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail relative items-stretch bg-white pl-1 pr-2',
+          'group row-hover-trail relative items-stretch pl-1 pr-2',
+          showAlert ? 'bg-red-50' : 'bg-white',
           ROW_STROKE,
           !isFullPageExpanded && 'flex',
           // Lift the whole row while the item picker is open so the absolute
@@ -3436,7 +3461,7 @@ export function ProductsPricingTable({
             'min-w-0',
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-30',
-            isItemEdited ? 'bg-amber-50' : 'bg-white',
+            isItemEdited ? 'bg-amber-50' : alertFill ?? 'bg-white',
             isItemPinnedVariant && EXPANDED_BODY_ROW_STROKE
           )}
         >
@@ -3447,6 +3472,7 @@ export function ProductsPricingTable({
               isAttention={isAttention}
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
+              showAlert={showAlert}
               openRequestId={lineItemEditRequest[item.id]}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
@@ -3654,7 +3680,7 @@ export function ProductsPricingTable({
             'min-w-0 justify-end',
             !isFullPageExpanded && 'shrink-0',
             !isFullPageExpanded && pinRightColumns && 'z-20',
-            isTotalEdited ? 'bg-amber-50' : 'bg-white'
+            isTotalEdited ? 'bg-amber-50' : alertFill ?? 'bg-white'
           )}
         >
           {isTotalEdited ? <EditedCellFill /> : null}
@@ -3683,7 +3709,8 @@ export function ProductsPricingTable({
         }
           className={cellChrome(
             false,
-            'justify-end bg-white',
+            'justify-end',
+            alertFill ?? 'bg-white',
             !isFullPageExpanded && 'shrink-0',
             pinMenuColumn && !isFullPageExpanded && 'z-20'
           )}
@@ -3701,7 +3728,11 @@ export function ProductsPricingTable({
     )
   }
 
-  const renderLineItem = (item: ProductLineItem, updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void) => {
+  const renderLineItem = (
+    item: ProductLineItem,
+    updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
+    showAlert = false
+  ) => {
     if (item.isOverallDiscount) {
       const hasDiscountValue = parseFloat(item.discount ?? '') > 0
 
@@ -3809,8 +3840,9 @@ export function ProductsPricingTable({
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
     // The lifted table already marks every cell as editable, so the navy row fill
-    // would only add noise — it stays behind for the inline table.
-    const isRowFilled = !isEditMode && (isActive || isHovered)
+    // would only add noise — it stays behind for the inline table. Alert rows keep
+    // their red fill instead of inverting to navy.
+    const isRowFilled = !isEditMode && !showAlert && (isActive || isHovered)
     const hasDiscount = parseFloat(item.discount ?? '') > 0
     const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
     const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
@@ -3829,14 +3861,17 @@ export function ProductsPricingTable({
         className={cn(
           'group row-hover-trail items-stretch border-b pl-1 pr-2 transition-colors',
           !isEditMode && 'flex',
+          showAlert && 'bg-red-50',
           isEditMode
             ? cn(
                 showFieldPills && 'rounded-lg',
                 'border-neutral-100'
               )
-            : isActive
-              ? 'bg-brand-navy border-brand-navy cursor-pointer'
-              : 'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
+            : showAlert
+              ? 'border-neutral-100 cursor-pointer hover:bg-[#fdd6d6]'
+              : isActive
+                ? 'bg-brand-navy border-brand-navy cursor-pointer'
+                : 'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
         )}
         style={editRowGridStyle}
       >
@@ -3850,6 +3885,7 @@ export function ProductsPricingTable({
               isRowHovered={isRowFilled && !isActive}
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
+              showAlert={showAlert}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
                 if (isOpen) enterEditMode()
@@ -4508,8 +4544,8 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item) =>
-                    renderExpandedLineItem(item, updatePeriodItems, period.items)
+                  {period.items.map((item, index) =>
+                    renderExpandedLineItem(item, updatePeriodItems, period.items, index === 0)
                   )}
                 </ExpandedScrollContainer>
               ) : (
@@ -4519,7 +4555,7 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item) => renderLineItem(item, updatePeriodItems))}
+                  {period.items.map((item, index) => renderLineItem(item, updatePeriodItems, index === 0))}
                 </>
               )}
 
@@ -4560,12 +4596,12 @@ export function ProductsPricingTable({
           pinnedRightWidth={TOTAL_W + MENU_W}
         >
           {renderExpandedTableHeader()}
-          {items.map((item) => renderExpandedLineItem(item, setItems, items))}
+          {items.map((item, index) => renderExpandedLineItem(item, setItems, items, index === 0))}
         </ExpandedScrollContainer>
       ) : (
         <>
           {renderTableHeader()}
-          {items.map((item) => renderLineItem(item, setItems))}
+          {items.map((item, index) => renderLineItem(item, setItems, index === 0))}
         </>
       )}
 

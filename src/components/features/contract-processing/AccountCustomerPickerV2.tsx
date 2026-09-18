@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, CirclePlus, UserPlus } from 'lucide-react'
+import { ChevronDown, ChevronUp, CirclePlus, UserPlus, X } from 'lucide-react'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from './GradientSparkle'
@@ -131,6 +131,7 @@ export interface AccountCustomerPickerV2Props {
   isExtractedCustomer?: boolean
   onSelect: (name: string) => void
   onCreateAsNewCustomer?: (name?: string) => void
+  onDeleteCreatedCustomer?: () => void
 }
 
 /**
@@ -155,12 +156,19 @@ export function AccountCustomerPickerV2({
   isExtractedCustomer = false,
   onSelect,
   onCreateAsNewCustomer,
+  onDeleteCreatedCustomer,
 }: AccountCustomerPickerV2Props) {
   /** Search text, or the draft customer name while editsCreatedName is on. */
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(editsCreatedName ? -1 : 0)
+  /**
+   * Renaming the created customer is a plain text edit — the pill swaps for an
+   * input and the catalog list stays closed.
+   */
+  const [renameDraft, setRenameDraft] = useState<string | null>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const renameInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     if (!isOpen) {
@@ -174,6 +182,22 @@ export function AccountCustomerPickerV2({
     const timer = window.setTimeout(() => inputRef.current?.focus(), 0)
     return () => window.clearTimeout(timer)
   }, [isOpen, editsCreatedName, value])
+
+  const isRenaming = renameDraft !== null
+
+  useEffect(() => {
+    if (!isRenaming) return
+    const timer = window.setTimeout(() => renameInputRef.current?.select(), 0)
+    return () => window.clearTimeout(timer)
+  }, [isRenaming])
+
+  const startRename = () => setRenameDraft(value)
+
+  const commitRename = () => {
+    const next = renameDraft?.trim()
+    if (next && next !== createdCustomerName) onCreateAsNewCustomer?.(next)
+    setRenameDraft(null)
+  }
 
   const draftName = query.trim()
   const rankedOptions = createdCustomerName
@@ -282,6 +306,59 @@ export function AccountCustomerPickerV2({
             <ChevronUp size={14} />
           </button>
         </div>
+      ) : isRenaming ? (
+        <div className="flex w-full items-center gap-1.5 rounded bg-neutral-200 px-2 py-1">
+          <input
+            ref={renameInputRef}
+            type="text"
+            value={renameDraft ?? ''}
+            onChange={(event) => setRenameDraft(event.target.value)}
+            onBlur={commitRename}
+            onKeyDown={(event) => {
+              event.stopPropagation()
+              if (event.key === 'Enter') {
+                event.preventDefault()
+                commitRename()
+              } else if (event.key === 'Escape') {
+                event.preventDefault()
+                setRenameDraft(null)
+              }
+            }}
+            onClick={(event) => event.stopPropagation()}
+            placeholder="Customer name"
+            aria-label="Customer name"
+            className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-brand-navy outline-none placeholder:font-medium placeholder:text-brand-fog"
+          />
+        </div>
+      ) : createdCustomerName === value ? (
+        <span className="flex w-full min-w-0 items-center gap-2">
+          <span className="inline-flex min-w-0 items-center rounded-full border border-amber-300 bg-amber-50 text-amber-800">
+            <button
+              type="button"
+              onClick={startRename}
+              className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2.5 pr-1 text-[13px] font-medium"
+              aria-label={`Edit customer ${value}`}
+            >
+              <UserPlus size={13} className="shrink-0" />
+              <span className="truncate">{value}</span>
+            </button>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation()
+                onDeleteCreatedCustomer?.()
+              }}
+              className="mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-amber-700 transition-colors hover:bg-amber-200/70"
+              aria-label={`Remove created customer ${value}`}
+              title="Remove created customer"
+            >
+              <X size={12} strokeWidth={2.25} />
+            </button>
+          </span>
+          <span className="shrink-0 text-[12px] text-amber-800">
+            Customer will be created
+          </span>
+        </span>
       ) : (
         <span className="inline-flex items-center gap-1.5">
           <button
@@ -299,12 +376,6 @@ export function AccountCustomerPickerV2({
               className="text-brand-mist transition-colors group-hover:text-white/70"
             />
           </button>
-          {createdCustomerName === value ? (
-            <UserPlus
-              size={14}
-              className="shrink-0 ai-gradient-text transition-colors group-hover:text-white"
-            />
-          ) : null}
           {showBestMatch ? (
             <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
               <GradientSparkle size={12} />

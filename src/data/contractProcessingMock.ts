@@ -13,7 +13,7 @@ export interface LabelValue {
   options?: string[]
   /** AI could not extract this field from the source document */
   extractionFailed?: boolean
-  /** Validation or extraction notice shown at the right of the row */
+  /** Validation or extraction notice shown in front of the field label */
   notice?: {
     tone: 'error' | 'info'
     message: string
@@ -276,7 +276,7 @@ export const contractProcessing = {
       options: ['Yes', 'No'],
       notice: {
         tone: 'info',
-        message: 'Auto-renewal information could not be found in the contract pdf.',
+        message: 'Auto-renewal was not found in contract.',
       },
     },
     { 
@@ -311,7 +311,7 @@ export const contractProcessing = {
     {
       id: 'li-3',
       name: 'Onboarding & Training',
-      status: 'attention',
+      status: 'ready',
       billingPeriod: 'Yearly',
       quantity: '01',
       unitPrice: '$9,500.00',
@@ -432,7 +432,7 @@ export const contractProcessing = {
         {
           id: 'rp1-li-3',
           name: 'Onboarding & Training',
-          status: 'attention',
+          status: 'ready',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$9,500.00',
@@ -495,7 +495,7 @@ export const contractProcessing = {
         {
           id: 'rp2-li-3',
           name: 'Onboarding & Training',
-          status: 'attention',
+          status: 'ready',
           billingPeriod: 'Yearly',
           quantity: '01',
           unitPrice: '$10,165.00',

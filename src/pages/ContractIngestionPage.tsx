@@ -905,8 +905,6 @@ function ContractProcessingView({
                         />
                         <SectionHeader
                           title="Products and pricing"
-                          status="ai-created"
-                          statusLabel="Created 2 items"
                           commentCount={commentCountsBySection['products']}
                         />
                       </>
