@@ -172,14 +172,35 @@ export function ProductPeriodTable({
   headerRuleClassName?: string
 }) {
   return (
-    <div>
-      <ProductTableHeader ruleClassName={headerRuleClassName} />
+    <div className="w-full">
+      <div
+        className={cn(
+          'grid items-center border-b px-2 pb-2 text-[10px] font-medium uppercase tracking-[-0.35px] text-brand-deep',
+          headerRuleClassName
+        )}
+        style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(110px, 1fr) 90px 180px 170px' }}
+      >
+        <div>Item</div>
+        <div>Frequency</div>
+        <div className="text-right">Qty</div>
+        <div className="text-right">Unit price</div>
+        <div className="text-right">Total price</div>
+      </div>
       {period.items.map((item, idx) => (
-        <LineRow
+        <div
           key={item.id}
-          item={item}
-          isLast={idx === period.items.length - 1}
-        />
+          className={cn(
+            'grid min-h-8 items-center px-2 py-1.5 text-[13px] font-normal text-brand-navy',
+            idx < period.items.length - 1 && 'border-b border-neutral-200'
+          )}
+          style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(110px, 1fr) 90px 180px 170px' }}
+        >
+          <div className="truncate pr-5">{item.name}</div>
+          <div className="truncate pr-5">{item.frequency}</div>
+          <div className="text-right tabular-nums">{item.quantity}</div>
+          <div className="text-right tabular-nums">{item.unitPrice}</div>
+          <div className="text-right tabular-nums">{item.totalPrice}</div>
+        </div>
       ))}
     </div>
   )

@@ -39,43 +39,44 @@ function RampPeriodAccordion({
       : `${totalCount} ${totalCount === 1 ? 'change' : 'changes'}`
 
   return (
-    <div className="relative overflow-hidden rounded-lg border border-brand-navy/25 bg-white">
+    <div className="relative overflow-hidden rounded-lg border border-brand-navy/40 bg-white">
       <button
         type="button"
         onClick={onToggle}
-        className="relative z-10 flex w-full cursor-pointer items-center gap-3 bg-white px-4 py-3 text-left transition-colors hover:bg-neutral-50"
+        className="relative z-10 flex h-[52px] w-full cursor-pointer items-center gap-2 bg-white px-5 text-left transition-colors hover:bg-neutral-50"
       >
         <ChevronDown
-          size={18}
+          size={16}
           className={cn(
             'shrink-0 text-blue-700 transition-transform duration-200',
             isExpanded && 'rotate-180'
           )}
         />
         <span className="flex min-w-0 flex-1 items-center">
-          <span className="shrink-0 text-[15px] font-semibold text-brand-navy">
+          <span className="shrink-0 text-[13px] font-medium text-brand-navy">
             {period.label.replace(/^Period\s+/i, 'Year ')}
           </span>
-          <span className="mx-2 text-[13px] text-brand-fog">·</span>
+          <span className="mx-2 text-[12px] text-brand-mist">·</span>
           <span className="flex items-center gap-1.5 text-[12px] text-brand-fog">
-            <Calendar size={14} className="text-brand-mist" />
+            <Calendar size={13} className="text-brand-fog" />
             {period.startDate} to {period.endDate}
           </span>
           {summaryLabel ? (
             <>
-              <span className="mx-2 text-[13px] text-brand-fog">·</span>
+              <span className="mx-2 text-[12px] text-brand-mist">·</span>
               <span className="truncate text-[12px] text-brand-fog">{summaryLabel}</span>
             </>
           ) : null}
         </span>
       </button>
       {isExpanded ? (
-        <div className="space-y-8 border-t border-brand-navy/25 bg-white px-4 py-4">
-          <ProductPeriodTable period={period} headerRuleClassName="border-brand-navy/25" />
+        <div className="space-y-11 border-t border-brand-navy/40 bg-white px-5 pb-5 pt-8">
+          <ProductPeriodTable period={period} headerRuleClassName="border-brand-navy/40" />
           <EntitlementsAllocationTable
             year={year}
             onSelectFeature={onSelectEntitlement}
-            headerRuleClassName="border-brand-navy/25"
+            headerRuleClassName="border-brand-navy/40"
+            rampLayout
           />
         </div>
       ) : null}
@@ -114,17 +115,17 @@ export function UpcomingRampsSection({
         Upcoming ramps
       </SectionRuleTitle>
       <div className="space-y-3">
-      {upcomingPeriods.map((period, index) => (
-        <RampPeriodAccordion
-          key={period.id}
-          period={period}
-          previousPeriod={index === 0 ? currentPeriod : upcomingPeriods[index - 1]}
-          year={yearFromUpcomingIndex(index)}
-          isExpanded={expanded.has(period.id)}
-          onToggle={() => toggle(period.id)}
-          onSelectEntitlement={onSelectEntitlement}
-        />
-      ))}
+        {upcomingPeriods.map((period, index) => (
+          <RampPeriodAccordion
+            key={period.id}
+            period={period}
+            previousPeriod={index === 0 ? currentPeriod : upcomingPeriods[index - 1]}
+            year={yearFromUpcomingIndex(index)}
+            isExpanded={expanded.has(period.id)}
+            onToggle={() => toggle(period.id)}
+            onSelectEntitlement={onSelectEntitlement}
+          />
+        ))}
       </div>
     </div>
   )

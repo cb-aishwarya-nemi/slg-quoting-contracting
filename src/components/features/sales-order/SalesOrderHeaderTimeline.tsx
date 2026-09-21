@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { VersionMark } from '@/components/ui/VersionMark'
+import { useUseCase } from '@/context/UseCaseContext'
 import {
   dateToTimelinePercent,
   parseTimelineDate,
@@ -264,6 +265,7 @@ export function SalesOrderHeaderTimeline({
   variant,
   children,
 }: SalesOrderHeaderTimelineProps) {
+  const { isTimelineHidden } = useUseCase()
   /** Minimal collapses the axis to a single progress line; today reads off the gradient end. */
   const isMinimal = variant === 'minimal'
   /** Simplified and minimal both trade the numbered discs for uniform 7px dots. */
@@ -376,6 +378,20 @@ export function SalesOrderHeaderTimeline({
 
   const selectedVersionId = undefined
   const isTodaySelected = todayTrackPercent != null
+
+  if (isTimelineHidden) {
+    return (
+      <div className="w-full">
+        {children ? (
+          <div className="space-y-16 pt-6">
+            {typeof children === 'function'
+              ? children({ periodIndex, selectedVersionId })
+              : children}
+          </div>
+        ) : null}
+      </div>
+    )
+  }
 
   return (
     <div className="w-full">

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { GitBranch, Check } from 'lucide-react'
+import { GitBranch, Check, EyeOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUseCase, type UseCaseVariant } from '@/context/UseCaseContext'
 import { useNavigation } from '@/context/NavigationContext'
@@ -14,9 +14,11 @@ export function UseCaseSwitcher() {
   const {
     activePage,
     activeVariant,
+    isTimelineHidden,
     getPage,
     setVariant,
     setActivePage,
+    setTimelineHidden,
   } = useUseCase()
 
   const { goToCustomer360 } = useNavigation()
@@ -108,7 +110,7 @@ export function UseCaseSwitcher() {
           </div>
 
           <div className="max-h-[360px] overflow-y-auto p-2">
-            <div className="space-y-1">
+            <div className={cn('space-y-1', isTimelineHidden && 'pointer-events-none opacity-40')}>
               {variants.map((variant) => {
                 const isActive = isOnSalesOrder && activeVariant === variant.id
                 return (
@@ -145,6 +147,40 @@ export function UseCaseSwitcher() {
                 )
               })}
             </div>
+          </div>
+
+          <div className="border-t border-neutral-100 p-2">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isTimelineHidden}
+              onClick={() => setTimelineHidden(!isTimelineHidden)}
+              className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-neutral-50"
+            >
+              <EyeOff
+                size={14}
+                className={cn(
+                  'shrink-0',
+                  isTimelineHidden ? 'text-brand-navy' : 'text-brand-fog'
+                )}
+              />
+              <span className="min-w-0 flex-1 text-[13px] font-medium text-brand-navy">
+                Hide timeline
+              </span>
+              <span
+                className={cn(
+                  'relative h-4 w-7 shrink-0 rounded-full transition-colors',
+                  isTimelineHidden ? 'bg-brand-navy' : 'bg-neutral-300'
+                )}
+              >
+                <span
+                  className={cn(
+                    'absolute top-0.5 h-3 w-3 rounded-full bg-white transition-all',
+                    isTimelineHidden ? 'left-3.5' : 'left-0.5'
+                  )}
+                />
+              </span>
+            </button>
           </div>
         </div>
       )}

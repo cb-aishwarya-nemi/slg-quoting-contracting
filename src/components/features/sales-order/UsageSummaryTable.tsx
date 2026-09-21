@@ -90,7 +90,7 @@ export function UsageSummaryTable({
           Feature
         </div>
         <div className="text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
-          Committed usage
+          Included usage
         </div>
         <div className="text-[11px] font-normal uppercase tracking-[-0.5px] text-brand-navy">
           On-demand usage

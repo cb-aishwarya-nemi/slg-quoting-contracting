@@ -215,12 +215,86 @@ export function EntitlementsAllocationTable({
   onSelectFeature,
   year = 1,
   headerRuleClassName = 'border-neutral-200',
+  rampLayout = false,
 }: {
   onSelectFeature?: (featureLabel: string) => void
   year?: 1 | 2 | 3
   headerRuleClassName?: string
+  rampLayout?: boolean
 }) {
   const allocations = allocationsForYear(year)
+
+  if (rampLayout) {
+    const rampColumns = '28% 35% 37%'
+
+    return (
+      <div className="w-full">
+        <div
+          className={cn(
+            'grid items-center border-b px-2 pb-2 text-[10px] font-medium uppercase tracking-[-0.35px] text-brand-deep',
+            headerRuleClassName
+          )}
+          style={{ gridTemplateColumns: rampColumns }}
+        >
+          <div>Entitlement</div>
+          <div>Item</div>
+          <div>Units</div>
+        </div>
+        {allocations.map((group, groupIndex) => (
+          <div
+            key={group.id}
+            className={cn(
+              'grid items-stretch px-2',
+              groupIndex < allocations.length - 1 && 'border-b border-neutral-200'
+            )}
+            style={{ gridTemplateColumns: rampColumns }}
+          >
+            <div
+              className="flex min-w-0 items-center pr-6"
+              style={{ gridRow: `1 / span ${Math.max(group.sources.length, 1)}` }}
+            >
+              {onSelectFeature ? (
+                <button
+                  type="button"
+                  onClick={() => onSelectFeature(group.feature)}
+                  className="min-w-0 cursor-pointer truncate text-left text-[13px] font-normal text-brand-navy transition-colors hover:text-blue-700"
+                >
+                  {group.feature}
+                </button>
+              ) : (
+                <span className="min-w-0 truncate text-[13px] font-normal text-brand-navy">
+                  {group.feature}
+                </span>
+              )}
+            </div>
+            {group.sources.map((source, sourceIndex) => (
+              <div key={source.id} className="contents">
+                <div
+                  className={cn(
+                    'flex min-h-8 min-w-0 items-center py-1.5 pr-6 text-[13px] text-brand-navy',
+                    sourceIndex > 0 && 'border-t border-neutral-200'
+                  )}
+                >
+                  <span className="truncate">{source.name}</span>
+                </div>
+                <div
+                  className={cn(
+                    'flex min-h-8 min-w-0 items-center py-1.5 text-[13px] text-brand-navy',
+                    sourceIndex > 0 && 'border-t border-neutral-200'
+                  )}
+                >
+                  <span className="tabular-nums">
+                    {source.units} {group.unitLabel}
+                    {frequencySuffix(source.frequency)}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+    )
+  }
 
   return (
     <div className="w-full">

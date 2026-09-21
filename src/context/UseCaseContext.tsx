@@ -64,6 +64,7 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
 const URL_PARAMS = {
   PAGE: 'page',
   VARIANT: 'variant',
+  TIMELINE: 'timeline',
 } as const
 
 /**
@@ -73,6 +74,7 @@ interface UseCaseContextValue {
   // Current state
   activePage: string | null
   activeVariant: string | null
+  isTimelineHidden: boolean
   
   // Registry access
   registry: UseCasePage[]
@@ -82,6 +84,7 @@ interface UseCaseContextValue {
   // Actions
   setActivePage: (pageId: string | null) => void
   setVariant: (variantId: string) => void
+  setTimelineHidden: (hidden: boolean) => void
   
   // URL helpers
   getShareableUrl: () => string
@@ -92,25 +95,36 @@ const UseCaseContext = createContext<UseCaseContextValue | null>(null)
 /**
  * Parse URL query parameters to get initial state
  */
-function getInitialStateFromUrl(): { page: string | null; variant: string | null } {
+function getInitialStateFromUrl(): {
+  page: string | null
+  variant: string | null
+  timelineHidden: boolean
+} {
   if (typeof window === 'undefined') {
-    return { page: null, variant: null }
+    return { page: null, variant: null, timelineHidden: false }
   }
   
   const params = new URLSearchParams(window.location.search)
   const page = params.get(URL_PARAMS.PAGE)
   const variant = params.get(URL_PARAMS.VARIANT)
+  const timelineHidden = params.get(URL_PARAMS.TIMELINE) === 'hidden'
   
-  return { page, variant }
+  return { page, variant, timelineHidden }
 }
 
 /**
  * Update URL query parameters without page reload
  */
-function updateUrl(page: string | null, variant: string | null) {
+function updateUrl(page: string | null, variant: string | null, timelineHidden: boolean) {
   if (typeof window === 'undefined') return
   
   const url = new URL(window.location.href)
+  
+  if (timelineHidden) {
+    url.searchParams.set(URL_PARAMS.TIMELINE, 'hidden')
+  } else {
+    url.searchParams.delete(URL_PARAMS.TIMELINE)
+  }
   
   if (page) {
     url.searchParams.set(URL_PARAMS.PAGE, page)
@@ -137,6 +151,7 @@ export function UseCaseProvider({ children }: { children: ReactNode }) {
   
   const [activePage, setActivePageState] = useState<string | null>(initialState.page)
   const [activeVariant, setActiveVariantState] = useState<string | null>(initialState.variant)
+  const [isTimelineHidden, setIsTimelineHidden] = useState(initialState.timelineHidden)
   
   // Get page definition from registry
   const getPage = useCallback((pageId: string) => {
@@ -178,10 +193,14 @@ export function UseCaseProvider({ children }: { children: ReactNode }) {
     setActiveVariantState(variantId)
   }, [])
   
+  const setTimelineHidden = useCallback((hidden: boolean) => {
+    setIsTimelineHidden(hidden)
+  }, [])
+  
   // Sync state changes to URL
   useEffect(() => {
-    updateUrl(activePage, activeVariant)
-  }, [activePage, activeVariant])
+    updateUrl(activePage, activeVariant, isTimelineHidden)
+  }, [activePage, activeVariant, isTimelineHidden])
   
   // Generate shareable URL
   const getShareableUrl = useCallback(() => {
@@ -192,17 +211,22 @@ export function UseCaseProvider({ children }: { children: ReactNode }) {
     if (activeVariant) {
       url.searchParams.set(URL_PARAMS.VARIANT, activeVariant)
     }
+    if (isTimelineHidden) {
+      url.searchParams.set(URL_PARAMS.TIMELINE, 'hidden')
+    }
     return url.toString()
-  }, [activePage, activeVariant])
+  }, [activePage, activeVariant, isTimelineHidden])
   
   const value: UseCaseContextValue = {
     activePage,
     activeVariant,
+    isTimelineHidden,
     registry: USE_CASE_REGISTRY,
     getPage,
     getVariantsForPage,
     setActivePage,
     setVariant,
+    setTimelineHidden,
     getShareableUrl,
   }
   
@@ -229,7 +253,14 @@ export function useUseCase() {
  * This should be called at the top of each page/modal component
  */
 export function usePageUseCase(pageId: string) {
-  const { activePage, activeVariant, setActivePage, getPage, setVariant } = useUseCase()
+  const {
+    activePage,
+    activeVariant,
+    isTimelineHidden,
+    setActivePage,
+    getPage,
+    setVariant,
+  } = useUseCase()
   
   // Register this page when component mounts
   useEffect(() => {
@@ -259,6 +290,7 @@ export function usePageUseCase(pageId: string) {
     currentVariant,
     variants: page?.variants ?? [],
     setVariant,
+    isTimelineHidden,
     isActive: activePage === pageId,
   }
 }
