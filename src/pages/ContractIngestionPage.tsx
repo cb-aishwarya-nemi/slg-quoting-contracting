@@ -13,8 +13,6 @@ import {
   PaymentSchedule,
   InPageNav,
   SectionCommentStack,
-  SectionSourceThumbnails,
-  SECTION_SOURCE_THUMBNAILS_HEIGHT,
   SourcePreviewDrawer,
   getExtractionAttentionStatus,
   applyFieldValue,
@@ -789,10 +787,6 @@ function ContractProcessingView({
 
             {/* Account */}
             <section ref={setSectionRef('account')} className="group/section">
-              <SectionSourceThumbnails
-                sources={sectionSources.account}
-                onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
-              />
               <IngestionSectionRow
                 sectionId="account"
                 sectionLabel="Account"
@@ -824,10 +818,6 @@ function ContractProcessingView({
 
             {/* Addresses */}
             <section ref={setSectionRef('addresses')} className="group/section">
-              <SectionSourceThumbnails
-                sources={sectionSources.addresses}
-                onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
-              />
               <IngestionSectionRow
                 sectionId="addresses"
                 sectionLabel="Addresses"
@@ -852,10 +842,6 @@ function ContractProcessingView({
 
             {/* Terms and billing */}
             <section ref={setSectionRef('terms')} className="group/section">
-              <SectionSourceThumbnails
-                sources={sectionSources.terms}
-                onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
-              />
               <IngestionSectionRow
                 sectionId="terms"
                 sectionLabel="Terms and billing"
@@ -886,9 +872,6 @@ function ContractProcessingView({
                 isPanelsExpanded={isPanelsExpanded}
                 contentWidth={contentWidth}
                 comments={commentsBySection['products'] ?? []}
-                commentsOffsetTop={
-                  sectionSources.products?.length ? SECTION_SOURCE_THUMBNAILS_HEIGHT : 0
-                }
                 onAddNote={(text) => handleAddComment('products', 'Products and pricing', text)}
                 onDelete={handleDeleteComment}
                 onResolve={handleResolveComment}
@@ -906,16 +889,10 @@ function ContractProcessingView({
                       )?.value
                     }
                     header={
-                      <>
-                        <SectionSourceThumbnails
-                          sources={sectionSources.products}
-                          onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                        />
-                        <SectionHeader
-                          title="Products and pricing"
-                          commentCount={commentCountsBySection['products']}
-                        />
-                      </>
+                      <SectionHeader
+                        title="Products and pricing"
+                        commentCount={commentCountsBySection['products']}
+                      />
                     }
                   />
                 </div>

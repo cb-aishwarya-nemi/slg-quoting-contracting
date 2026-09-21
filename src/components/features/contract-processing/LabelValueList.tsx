@@ -76,8 +76,10 @@ function FieldNotice({
         onMouseLeave={isError ? scheduleHide : undefined}
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full',
-          isError ? 'cursor-help text-red-500' : 'text-amber-500'
+          'flex h-6 w-6 shrink-0 items-center justify-center rounded-full transition-colors',
+          isError
+            ? 'cursor-help text-red-500 group-hover:text-[var(--color-red-200)]'
+            : 'text-amber-500 group-hover:text-[var(--color-amber-200)]'
         )}
         aria-label={message}
       >
@@ -140,6 +142,7 @@ interface LabelValueRowProps {
   onOpenSource?: () => void
   /** Keeps a notice-sized slot before every label, so labels line up down the section. */
   reserveNoticeSlot?: boolean
+  hideAttentionFlags?: boolean
 }
 
 function LabelValueRow({
@@ -155,6 +158,7 @@ function LabelValueRow({
   createdCustomerContact,
   onOpenSource,
   reserveNoticeSlot,
+  hideAttentionFlags = false,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
@@ -178,7 +182,6 @@ function LabelValueRow({
   const notice = item.notice
   const isErrorRow = notice?.tone === 'error'
   const isInfoRow = notice?.tone === 'info'
-  const keepInkOnRowHover = isErrorRow || isInfoRow
 
   const [isEditing, setIsEditing] = useState(false)
   const [isOpen, setIsOpen] = useState(false)
@@ -496,19 +499,34 @@ function LabelValueRow({
     <div
       onClick={handleRowClick}
       className={cn(
-        'group row-hover-trail relative flex items-center border-b border-neutral-200 px-2 transition-colors',
-        isErrorRow && 'bg-red-50',
-        isEdited && !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
-        !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy',
-        isErrorRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-[#fdd6d6]',
-        isInfoRow && !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-amber-100'
+        'group row-hover-trail relative flex items-center border-b px-2 transition-colors',
+        isErrorRow
+          ? 'border-red-500 bg-red-50'
+          : isInfoRow
+            ? 'border-[var(--color-amber-500)]'
+            : 'border-neutral-200',
+        isEdited && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
+        !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy',
+        // Error / info rows keep their stroke on hover; only neutral rows take the navy edge.
+        !isEditing &&
+          !isOpen &&
+          !dateActive &&
+          !isErrorRow &&
+          !isInfoRow &&
+          'hover:border-brand-navy'
       )}
       style={{ minHeight: 36 }}
     >
       <div
         className={cn(
           'relative z-10 flex w-[210px] shrink-0 items-center',
-          !keepInkOnRowHover && !isEditing && !isOpen && !dateActive && 'group-hover:[&_.label-text]:text-white'
+          // Colored labels keep their hue on hover, lightened for the navy fill.
+          !isErrorRow &&
+            !isInfoRow &&
+            !isEditing &&
+            !isOpen &&
+            !dateActive &&
+            'group-hover:[&_.label-text]:text-white'
         )}
       >
         <span className={reserveNoticeSlot ? NOTICE_SLOT : FLAG_SLOT}>
@@ -517,14 +535,18 @@ function LabelValueRow({
               tone={notice.tone}
               message={notice.message}
             />
-          ) : isUnresolved ? (
+          ) : isUnresolved && !hideAttentionFlags ? (
             <AttentionFlagIcon id={item.label.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
           ) : null}
         </span>
         <span
           className={cn(
             'label-text min-w-0 flex-1 text-left text-[12px] uppercase tracking-[-0.25px] transition-colors',
-            isErrorRow ? 'text-red-500' : 'text-brand-navy'
+            isErrorRow
+              ? 'text-red-500 group-hover:text-[var(--color-red-200)]'
+              : isInfoRow
+                ? 'text-amber-800 group-hover:text-[var(--color-amber-200)]'
+                : 'text-brand-navy'
           )}
         >
           {item.label}
@@ -585,7 +607,6 @@ function LabelValueRow({
             onActiveChange={setDateActive}
             ariaLabel={item.label}
             onChange={(next) => commitValue(next)}
-            keepInkOnRowHover={keepInkOnRowHover}
           />
         ) : isAccountComboboxV2 && options ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
@@ -624,22 +645,14 @@ function LabelValueRow({
                 isOpen
                   ? cn(ACTIVE_FIELD_STYLE, 'w-auto bg-neutral-200')
                   : isPlaceholderSelect
-                    ? keepInkOnRowHover
-                      ? 'text-brand-fog'
-                      : 'text-brand-fog group-hover:text-white'
-                    : keepInkOnRowHover
-                      ? 'text-blue-700'
-                      : 'text-blue-700 group-hover:text-white'
+                    ? 'text-brand-fog group-hover:text-white'
+                    : 'text-blue-700 group-hover:text-white'
               )}
             >
               <span>{item.value || `Select ${item.label.toLowerCase()}`}</span>
               <ChevronDown size={14} className={cn(
                 'transition-colors',
-                isOpen
-                  ? 'text-brand-mist'
-                  : keepInkOnRowHover
-                    ? 'text-brand-mist'
-                    : 'text-brand-mist group-hover:text-white/70'
+                isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
             {isBestMatch ? (
@@ -677,8 +690,12 @@ function LabelValueRow({
           <span
             className={cn(
               // 12px padding + the row's 8px gap keeps a 20px gutter after the value.
-              'w-[268px] shrink-0 truncate pl-3 pr-4 text-left text-[12px]',
-              isErrorRow ? 'text-red-500' : isInfoRow ? 'text-amber-800' : 'text-brand-navy'
+              'w-[268px] shrink-0 truncate pl-3 pr-4 text-left text-[12px] transition-colors',
+              isErrorRow
+                ? 'text-red-500 group-hover:text-[var(--color-red-200)]'
+                : isInfoRow
+                  ? 'text-amber-800 group-hover:text-[var(--color-amber-200)]'
+                  : 'text-brand-navy group-hover:text-white'
             )}
             title={notice.message}
           >
@@ -696,14 +713,7 @@ function LabelValueRow({
                     e.stopPropagation()
                     onOpenSource()
                   }}
-                  className={cn(
-                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
-                    isErrorRow
-                      ? 'text-brand-navy hover:bg-red-200/60'
-                      : isInfoRow
-                        ? 'text-brand-navy hover:bg-amber-200/60'
-                        : 'text-white hover:bg-white/15'
-                  )}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
                   aria-label={`View source for ${item.label}`}
                   title="View source document"
                 >
@@ -714,14 +724,7 @@ function LabelValueRow({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); onRemove() }}
-                  className={cn(
-                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
-                    isErrorRow
-                      ? 'text-brand-navy hover:bg-red-200/60'
-                      : isInfoRow
-                        ? 'text-brand-navy hover:bg-amber-200/60'
-                        : 'text-white hover:bg-white/15'
-                  )}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] hover:bg-white/15 group-hover:opacity-100"
                   aria-label={`Remove ${item.label}`}
                 >
                   <X size={14} />
@@ -733,14 +736,7 @@ function LabelValueRow({
                     e.stopPropagation()
                     handleRowClick()
                   }}
-                  className={cn(
-                    'flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded opacity-0 transition-[opacity,background-color] group-hover:opacity-100',
-                    isErrorRow
-                      ? 'text-brand-navy hover:bg-red-200/60'
-                      : isInfoRow
-                        ? 'text-brand-navy hover:bg-amber-200/60'
-                        : 'text-white group-hover:bg-white/15'
-                  )}
+                  className="flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded text-white opacity-0 transition-[opacity,background-color] group-hover:bg-white/15 group-hover:opacity-100"
                   aria-label={`Edit ${item.label}`}
                   title="Edit"
                 >
@@ -858,6 +854,8 @@ interface LabelValueListProps {
   accountPickerVariant?: 'current' | 'v2'
   /** Opens the section's source preview from a row's PDF icon. */
   onOpenSource?: () => void
+  /** Hide extraction-failed flags on rows. */
+  hideAttentionFlags?: boolean
 }
 
 export function LabelValueList({
@@ -873,6 +871,7 @@ export function LabelValueList({
   createdCustomerName,
   accountPickerVariant = 'current',
   onOpenSource,
+  hideAttentionFlags = false,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -961,6 +960,7 @@ export function LabelValueList({
           accountPickerVariant={accountPickerVariant}
           onOpenSource={onOpenSource}
           reserveNoticeSlot={reserveNoticeSlot}
+          hideAttentionFlags={hideAttentionFlags}
         />
       ))}
       {customFields.map((field) => (

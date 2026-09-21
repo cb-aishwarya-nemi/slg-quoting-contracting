@@ -41,6 +41,9 @@ function isProductFieldEdited(
 const WAVY_UNDERLINE_ERROR = 'wavy-underline wavy-underline-error'
 const WAVY_UNDERLINE_INFO = 'wavy-underline wavy-underline-info'
 
+/** Lifts the flagged-value tooltips off the row without the weight of a popover. */
+const TOOLTIP_SHADOW = 'shadow-[0_2px_8px_rgba(28,27,46,0.10)]'
+
 /** Cell shell — vertical padding lives here unless the cell is edited. */
 const CELL_BOX = 'relative flex min-h-0 items-center self-stretch'
 const CELL_PAD_Y = 'py-1.5'
@@ -181,18 +184,26 @@ function MiniDropdown({
         'flex items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
         width != null ? 'shrink-0' : 'w-full min-w-0',
         alignTop && 'self-start',
-        asField
+          asField
           ? cn(ACTIVE_FIELD_STYLE, 'cursor-pointer hover:bg-neutral-200')
-          : isRowActive || isRowHovered
-            ? 'text-white hover:bg-white/10'
-            : 'text-brand-navy hover:bg-neutral-100',
+          : // Plain row cells lean on the row's own hover fill.
+            isRowActive || isRowHovered
+            ? error
+              ? 'text-red-500'
+              : 'text-white'
+            : error
+              ? 'text-red-500'
+              : 'text-brand-navy',
         className
       )}
     >
       <span
         className={cn(
           error
-            ? cn('min-w-0 whitespace-nowrap text-red-500', WAVY_UNDERLINE_ERROR)
+            ? cn(
+                'min-w-0 whitespace-nowrap text-red-500 group-hover:text-[var(--color-red-200)]',
+                WAVY_UNDERLINE_ERROR
+              )
             : 'truncate'
         )}
       >
@@ -216,11 +227,14 @@ function QuantityErrorTooltip() {
   return (
     <span
       role="tooltip"
-      className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-md border border-red-200 bg-white px-2 py-1 text-[12px] font-medium text-red-500 shadow-sm group-hover:flex"
+      className={cn(
+        'pointer-events-none absolute left-1/2 top-full z-50 mt-2 hidden -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-md border border-red-200 bg-white px-2 py-1 text-[12px] font-medium text-red-500 group-hover:flex',
+        TOOLTIP_SHADOW
+      )}
     >
       <span
         aria-hidden
-        className="absolute -left-[5px] top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l border-red-200 bg-white"
+        className="absolute -top-[5px] left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 border-l border-t border-red-200 bg-white"
       />
       <AlertTriangle size={12} strokeWidth={2} className="shrink-0" />
       {QUANTITY_ERROR_MESSAGE}
@@ -238,8 +252,9 @@ const UNIT_PRICE_INFO_MESSAGE = 'Unit price not found in contract'
 function UnitPriceInfoAnchor({ enabled, children }: { enabled: boolean; children: ReactNode }) {
   const anchorRef = useRef<HTMLSpanElement>(null)
   const tipRef = useRef<HTMLSpanElement>(null)
-  const [anchor, setAnchor] = useState<{ top: number; left: number; right: number } | null>(null)
-  const [side, setSide] = useState<'right' | 'left'>('right')
+  const [anchor, setAnchor] = useState<{ top: number; centerX: number } | null>(null)
+  /** Nudge off centre when the centred bubble would run past a window edge. */
+  const [shift, setShift] = useState(0)
 
   useEffect(() => {
     const el = anchorRef.current
@@ -248,7 +263,8 @@ function UnitPriceInfoAnchor({ enabled, children }: { enabled: boolean; children
 
     const show = () => {
       const rect = el.getBoundingClientRect()
-      setAnchor({ top: rect.top + rect.height / 2, left: rect.left, right: rect.right })
+      setAnchor({ top: rect.bottom + 8, centerX: rect.left + rect.width / 2 })
+      setShift(0)
     }
     const hide = () => setAnchor(null)
 
@@ -263,11 +279,13 @@ function UnitPriceInfoAnchor({ enabled, children }: { enabled: boolean; children
     }
   }, [enabled])
 
-  // Prefer the right of the value; fall back to the left when the window can't hold it.
+  // Centred under the value, pulled back in when either edge would overflow.
   useLayoutEffect(() => {
     if (!anchor || !tipRef.current) return
-    const width = tipRef.current.offsetWidth
-    setSide(anchor.right + 8 + width + 12 <= window.innerWidth ? 'right' : 'left')
+    const half = tipRef.current.offsetWidth / 2
+    const overflowRight = anchor.centerX + half + 12 - window.innerWidth
+    const overflowLeft = 12 - (anchor.centerX - half)
+    setShift(overflowRight > 0 ? -overflowRight : overflowLeft > 0 ? overflowLeft : 0)
   }, [anchor])
 
   if (!enabled) return <>{children}</>
@@ -282,17 +300,18 @@ function UnitPriceInfoAnchor({ enabled, children }: { enabled: boolean; children
               role="tooltip"
               style={{
                 top: anchor.top,
-                left: side === 'right' ? anchor.right + 8 : anchor.left - 8,
-                transform: side === 'right' ? 'translateY(-50%)' : 'translate(-100%, -50%)',
+                left: anchor.centerX,
+                transform: `translateX(calc(-50% + ${shift}px))`,
               }}
-              className="pointer-events-none fixed z-[100] flex items-center gap-1.5 whitespace-nowrap rounded-md border border-amber-200 bg-white px-2 py-1 text-[12px] font-medium text-amber-800 shadow-sm"
+              className={cn(
+                'pointer-events-none fixed z-[100] flex items-center gap-1.5 whitespace-nowrap rounded-md border border-amber-200 bg-white px-2 py-1 text-[12px] font-medium text-amber-800',
+                TOOLTIP_SHADOW
+              )}
             >
               <span
                 aria-hidden
-                className={cn(
-                  'absolute top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-amber-200 bg-white',
-                  side === 'right' ? '-left-[5px] border-b border-l' : '-right-[5px] border-r border-t'
-                )}
+                style={{ transform: `translateX(calc(-50% - ${shift}px)) rotate(45deg)` }}
+                className="absolute -top-[5px] left-1/2 h-2 w-2 border-l border-t border-amber-200 bg-white"
               />
               <Info size={12} strokeWidth={2} className="shrink-0" />
               {UNIT_PRICE_INFO_MESSAGE}
@@ -350,10 +369,15 @@ function InteractiveMiniDropdown({
         onClick={() => setIsOpen((open) => !open)}
         className={cn(
           'flex w-full items-center justify-between gap-1 rounded px-1 py-1 text-[14px] transition-colors',
+          // No fill of its own — the cell reads as plain row text.
           disabled
             ? 'cursor-not-allowed opacity-50 text-brand-mist'
-            : 'cursor-pointer hover:bg-neutral-100',
-          isPlaceholder ? 'text-brand-mist' : 'text-brand-navy'
+            : 'cursor-pointer',
+          isPlaceholder
+            ? 'text-brand-mist'
+            : error
+              ? 'text-red-500'
+              : 'text-brand-navy'
         )}
       >
         <span
@@ -365,7 +389,10 @@ function InteractiveMiniDropdown({
         >
           {displayLabel}
         </span>
-        <ChevronDown size={14} className="shrink-0 text-brand-mist" />
+        <ChevronDown
+          size={14}
+          className={cn('shrink-0', error ? 'text-red-500' : 'text-brand-mist')}
+        />
       </button>
       {!disabled ? (
         <MiniDropdownPopover
@@ -1253,6 +1280,14 @@ function ItemNameButton({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- open only when request id bumps
   }, [openRequestId])
 
+  // Notice colours lighten only on the inline table, whose row fills navy.
+  const noticeNameClass = showAlert
+    ? cn('font-normal', isRowHovered ? 'text-[var(--color-red-200)]' : 'text-red-500')
+    : showInfo
+      ? cn('font-normal', isRowHovered ? 'text-[var(--color-amber-200)]' : 'text-amber-800')
+      : null
+  const invertName = !noticeNameClass && hangIcon && (isOpen || isRowHovered)
+
   return (
     <div className={cn('group/item relative flex min-w-0 flex-1 items-center gap-1.5', className)}>
       {/* Edit-state: hang the attention icon in the left gutter outside the column. */}
@@ -1263,9 +1298,17 @@ function ItemNameButton({
       )}
       <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden={!showAlert && !showInfo}>
         {showAlert ? (
-          <AlertTriangle size={14} strokeWidth={2} className="text-red-500" />
+          <AlertTriangle
+            size={14}
+            strokeWidth={2}
+            className={isRowHovered ? 'text-[var(--color-red-200)]' : 'text-red-500'}
+          />
         ) : showInfo ? (
-          <Info size={14} strokeWidth={2} className="text-amber-500" />
+          <Info
+            size={14}
+            strokeWidth={2}
+            className={isRowHovered ? 'text-[var(--color-amber-200)]' : 'text-amber-500'}
+          />
         ) : null}
       </span>
       <button
@@ -1280,15 +1323,9 @@ function ItemNameButton({
                 'justify-between hover:bg-neutral-200',
                 isOpen && 'bg-neutral-200'
               )
-            : hangIcon
-              ? (isOpen || isRowHovered)
-                ? 'text-white'
-                : showAlert
-                  ? 'font-normal text-red-500'
-                  : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
-              : showAlert
-                ? 'font-normal text-red-500'
-                : (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
+            : invertName
+              ? 'text-white'
+              : noticeNameClass ?? (isAttention ? 'ai-gradient-text' : 'text-brand-navy')
         )}
       >
         {/* On the pill the gradient has to sit on the text alone — as a button
@@ -1296,15 +1333,15 @@ function ItemNameButton({
         <span
           className={cn(
             'truncate',
-            asField && showAlert && 'font-normal text-red-500',
-            asField && !showAlert && isAttention && 'ai-gradient-text'
+            asField && noticeNameClass,
+            asField && !noticeNameClass && isAttention && 'ai-gradient-text'
           )}
         >
           {name}
         </span>
         <ChevronDown size={14} className={cn(
           "shrink-0 transition-colors",
-          hangIcon && !asField && (isOpen || isRowHovered) ? "text-white/70" : "text-brand-mist"
+          hangIcon && !asField && invertName ? "text-white/70" : "text-brand-mist"
         )} />
       </button>
       {/* Expanded sticky cell: sit the attention icon at the trailing edge. */}
@@ -1841,7 +1878,7 @@ function RampStartMenu({
     >
       <div className="w-[300px] p-3">
         <span className="block text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
-          When do you want this ramp to begin?
+          Period start date
         </span>
 
         <label className="mt-3 flex cursor-pointer items-center gap-2">
@@ -2539,7 +2576,9 @@ function RampPriceChangeBadge({ change }: { change: number }) {
   const Icon = isIncrease ? TrendingUp : TrendingDown
 
   return (
-    <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
+    // `mr-auto` keeps the badge on the cell's leading edge whether the price
+    // beside it fills the column or hugs its text (info rows).
+    <span className="mr-auto inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-medium text-green-700">
       <Icon size={12} strokeWidth={2} className="shrink-0 text-green-700" />
       {Math.abs(change)}%
     </span>
@@ -3676,7 +3715,7 @@ export function ProductsPricingTable({
       <div
         key={item.id}
         className={cn(
-          'group relative items-stretch bg-white pl-1 pr-2',
+          'group relative items-stretch bg-white pl-1 pr-2 transition-colors',
           ROW_STROKE,
           !isFullPageExpanded && 'flex'
         )}
@@ -3830,17 +3869,17 @@ export function ProductsPricingTable({
     const quantityOptions = QUANTITY_OPTIONS.includes(item.quantity)
       ? QUANTITY_OPTIONS
       : [item.quantity, ...QUANTITY_OPTIONS]
-    // Sticky cells paint their own background, so the alert fill has to be set
+    // Sticky cells paint their own background, so the row's fill has to be set
     // on the row and on every opaque cell in it.
-    const alertFill = showAlert ? 'bg-red-50 group-hover:bg-[#fdd6d6]' : undefined
+    const cellFill = showAlert ? 'bg-red-50' : 'bg-white'
 
     return (
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail relative items-stretch pl-1 pr-2 transition-colors',
-          showAlert ? 'bg-red-50 hover:bg-[#fdd6d6]' : 'bg-white',
+          'group row-hover-trail relative items-stretch bg-white pl-1 pr-2 transition-colors',
           ROW_STROKE,
+          showAlert && 'bg-red-50',
           !isFullPageExpanded && 'flex',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
@@ -3856,7 +3895,7 @@ export function ProductsPricingTable({
             'min-w-0',
             !isFullPageExpanded && 'shrink-0',
             activeRowId === item.id ? 'z-40' : 'z-30',
-            isItemEdited ? 'bg-amber-50' : alertFill ?? 'bg-white',
+            isItemEdited ? 'bg-amber-50' : cellFill,
             isItemPinnedVariant && EXPANDED_BODY_ROW_STROKE
           )}
         >
@@ -4088,7 +4127,7 @@ export function ProductsPricingTable({
             'min-w-0 justify-end',
             !isFullPageExpanded && 'shrink-0',
             !isFullPageExpanded && pinRightColumns && 'z-20',
-            isTotalEdited ? 'bg-amber-50' : alertFill ?? 'bg-white'
+            isTotalEdited ? 'bg-amber-50' : cellFill
           )}
         >
           {isTotalEdited ? <EditedCellFill /> : null}
@@ -4118,7 +4157,7 @@ export function ProductsPricingTable({
           className={cellChrome(
             false,
             'justify-end',
-            alertFill ?? 'bg-white',
+            cellFill,
             !isFullPageExpanded && 'shrink-0',
             pinMenuColumn && !isFullPageExpanded && 'z-20'
           )}
@@ -4148,10 +4187,7 @@ export function ProductsPricingTable({
       return (
         <div
           key={item.id}
-          className={cn(
-            'items-stretch border-b border-neutral-100 pl-1 pr-2',
-            !isEditMode && 'flex'
-          )}
+          className={cn('items-stretch border-b border-neutral-100 pl-1 pr-2', !isEditMode && 'flex')}
           style={editRowGridStyle}
           onClick={() => {
             if (!isEditMode) enterEditMode()
@@ -4249,9 +4285,8 @@ export function ProductsPricingTable({
     const isActive = activeRowId === item.id
     const isHovered = hoveredRowId === item.id
     // The lifted table already marks every cell as editable, so the navy row fill
-    // would only add noise — it stays behind for the inline table. Alert rows keep
-    // their red fill instead of inverting to navy.
-    const isRowFilled = !isEditMode && !showAlert && (isActive || isHovered)
+    // would only add noise — it stays behind for the inline table.
+    const isRowFilled = !isEditMode && (isActive || isHovered)
     const hasDiscount = parseFloat(item.discount ?? '') > 0
     const isItemEdited = isProductFieldEdited(editHistory, item.id, 'Item')
     const isFrequencyEdited = isProductFieldEdited(editHistory, item.id, 'Frequency')
@@ -4268,19 +4303,14 @@ export function ProductsPricingTable({
         onMouseLeave={() => setHoveredRowId(null)}
         onClick={() => enterEditMode()}
         className={cn(
-          'group row-hover-trail items-stretch border-b pl-1 pr-2 transition-colors',
+          'group row-hover-trail items-stretch border-b border-neutral-100 pl-1 pr-2 transition-colors',
           !isEditMode && 'flex',
-          showAlert && 'bg-red-50',
+          !isEditMode && !isRowFilled && showAlert && 'bg-red-50',
           isEditMode
-            ? cn(
-                showFieldPills && 'rounded-lg',
-                'border-neutral-100'
-              )
-            : showAlert
-              ? 'border-neutral-100 cursor-pointer hover:bg-[#fdd6d6]'
-              : isActive
-                ? 'bg-brand-navy border-brand-navy cursor-pointer'
-                : 'border-neutral-100 cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
+            ? showFieldPills && 'rounded-lg'
+            : isRowFilled
+              ? 'bg-brand-navy border-brand-navy cursor-pointer'
+              : 'cursor-pointer hover:bg-brand-navy hover:border-brand-navy'
         )}
         style={editRowGridStyle}
       >
@@ -4463,7 +4493,10 @@ export function ProductsPricingTable({
                 className={cn(
                   'text-right text-[14px] font-medium transition-colors',
                   showInfo
-                    ? cn('whitespace-nowrap font-normal text-amber-800', WAVY_UNDERLINE_INFO)
+                    ? cn(
+                        'whitespace-nowrap font-normal text-amber-800 group-hover:text-[var(--color-amber-200)]',
+                        WAVY_UNDERLINE_INFO
+                      )
                     : isRowFilled
                       ? 'text-white'
                       : 'text-brand-navy'

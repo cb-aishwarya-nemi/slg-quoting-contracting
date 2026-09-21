@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Maximize2 } from 'lucide-react'
+import { ChevronLeft, Maximize2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
 import { useUseCase } from '@/context/UseCaseContext'
 import { useNotifications } from '@/context/NotificationContext'
 import { useFileDrop } from '@/context/FileDropContext'
-import { contractProcessing, sectionSources, type Comment, type LabelValue, type SourceDocument } from '@/data/contractProcessingMock'
+import { contractProcessing, sectionSources, type Comment, type LabelValue } from '@/data/contractProcessingMock'
 import {
   GradientSparkle,
   SectionHeader,
@@ -18,10 +18,8 @@ import {
   PaymentSchedule,
   InPageNav,
   SectionCommentStack,
-  SectionSourceThumbnails,
-  SECTION_SOURCE_THUMBNAILS_HEIGHT,
+  PdfThumbnail,
   SourcePreviewDrawer,
-  getExtractionAttentionStatus,
   applyFieldValue,
   type NavSection,
   type ProductsPricingVariant,
@@ -57,7 +55,7 @@ const C360_TABS: TabItem[] = [
 
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'New deal summary', status: 'ai' },
-  { id: 'account', label: 'Account', status: 'attention' },
+  { id: 'account', label: 'Account', status: 'ready' },
   { id: 'addresses', label: 'Billing and Shipping addresses', status: 'ready' },
   { id: 'terms', label: 'Terms and billing', status: 'ready' },
   { id: 'products', label: 'Products and pricing', status: 'attention' },
@@ -207,25 +205,17 @@ export function Customer360Page() {
     value: string
     unit: '%' | 'USD'
   } | null>(null)
-  const [sourceDocuments, setSourceDocuments] = useState<SourceDocument[]>(
-    () => data.sourceDocuments
-  )
-  const sourceDocsInputRef = useRef<HTMLInputElement>(null)
 
-  const handleAddSourceDocuments = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(event.target.files ?? [])
-      if (files.length === 0) return
-      setSourceDocuments((prev) => [
-        ...prev,
-        ...files.map((file) => ({
-          id: `doc-${file.name}-${file.lastModified}-${file.size}`,
-          name: file.name,
-        })),
-      ])
-      event.target.value = ''
-    },
-    []
+  const summarySources = useMemo(
+    () =>
+      data.sourceDocuments.map((doc) => ({
+        id: doc.id,
+        docName: doc.name,
+        pageLabel: 'Page 1',
+        highlightId: '',
+        caption: doc.name,
+      })),
+    [data.sourceDocuments]
   )
 
   useEffect(() => {
@@ -248,11 +238,6 @@ export function Customer360Page() {
   useEffect(() => {
     setIsProductsLifted(false)
   }, [productsPricingVariant])
-
-  const accountAttention = useMemo(
-    () => getExtractionAttentionStatus(accountItems),
-    [accountItems]
-  )
 
   const handleAccountItemChange = useCallback((label: string, newValue: string) => {
     setAccountItems((prev) => applyFieldValue(prev, label, newValue))
@@ -283,15 +268,7 @@ export function Customer360Page() {
   const handleBack = cameFromSalesOrders ? goToSalesOrders : goToCustomers
   const backLabel = cameFromSalesOrders ? 'Back to sales orders' : 'Back to customers'
 
-  const navSections = useMemo<NavSection[]>(
-    () =>
-      BASE_NAV_SECTIONS.map((section) =>
-        section.id === 'account'
-          ? { ...section, status: accountAttention.status }
-          : section
-      ),
-    [accountAttention.status]
-  )
+  const navSections = BASE_NAV_SECTIONS
 
   // Comment state lifted to page so all stacks share the same source of truth
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
@@ -628,58 +605,20 @@ export function Customer360Page() {
                     customerName={data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
-                  <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
-                    <span className="text-brand-fog">Source Docs:</span>
-                    {sourceDocuments.map((doc, index) => (
-                      <span key={doc.id} className="inline-flex items-center gap-2">
-                        {index > 0 && (
-                          <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            window.open(
-                              `/pdf-viewer.html?doc=${encodeURIComponent(doc.name)}`,
-                              `pdf-${doc.id}`,
-                              'popup,width=680,height=800'
-                            )
-                          }}
-                          className="cursor-pointer text-blue-700 hover:underline"
-                        >
-                          {doc.name}
-                        </button>
-                      </span>
-                    ))}
-                    <span className="inline-flex items-center gap-2">
-                      {sourceDocuments.length > 0 && (
-                        <span className="h-3 w-px shrink-0 bg-neutral-300" aria-hidden />
-                      )}
-                      <input
-                        ref={sourceDocsInputRef}
-                        type="file"
-                        accept=".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg"
-                        multiple
-                        className="sr-only"
-                        onChange={handleAddSourceDocuments}
+                  <div className="mt-4 flex flex-wrap items-end gap-2">
+                    {summarySources.map((source, index) => (
+                      <PdfThumbnail
+                        key={source.id}
+                        docName={source.docName}
+                        highlightId={source.highlightId}
+                        onClick={() => setPreview({ sectionId: 'summary', index })}
                       />
-                      <button
-                        type="button"
-                        onClick={() => sourceDocsInputRef.current?.click()}
-                        className="inline-flex cursor-pointer items-center gap-1.5 text-blue-700 hover:underline"
-                      >
-                        <CirclePlus size={16} className="text-blue-700" />
-                        Add
-                      </button>
-                    </span>
+                    ))}
                   </div>
                 </section>
 
                 {/* Account */}
                 <section ref={setSectionRef('account')} className="group/section">
-                  <SectionSourceThumbnails
-                    sources={sectionSources.account}
-                    onOpen={(i) => setPreview({ sectionId: 'account', index: i })}
-                  />
                   <ContractSectionRow
                     sectionId="account"
                     sectionLabel="Account"
@@ -693,8 +632,9 @@ export function Customer360Page() {
                   >
                     <SectionHeader
                       title="Account"
-                      status={accountAttention.status}
-                      statusLabel={accountAttention.statusLabel}
+                      helper={
+                        createdAccountCustomer ? 'New customer will be created' : undefined
+                      }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                       commentsVisible={arePageCommentsVisible}
@@ -714,6 +654,7 @@ export function Customer360Page() {
                         onDeleteCreatedCustomer={handleDeleteAccountCustomer}
                         createdCustomerName={createdAccountCustomer}
                         accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
+                        hideAttentionFlags
                         onOpenSource={
                           sectionSources.account?.length
                             ? () => setPreview({ sectionId: 'account', index: 0 })
@@ -726,10 +667,6 @@ export function Customer360Page() {
 
                 {/* Addresses */}
                 <section ref={setSectionRef('addresses')} className="group/section">
-                  <SectionSourceThumbnails
-                    sources={sectionSources.addresses}
-                    onOpen={(i) => setPreview({ sectionId: 'addresses', index: i })}
-                  />
                   <ContractSectionRow
                     sectionId="addresses"
                     sectionLabel="Addresses"
@@ -769,10 +706,6 @@ export function Customer360Page() {
 
                 {/* Terms and billing */}
                 <section ref={setSectionRef('terms')} className="group/section">
-                  <SectionSourceThumbnails
-                    sources={sectionSources.terms}
-                    onOpen={(i) => setPreview({ sectionId: 'terms', index: i })}
-                  />
                   <ContractSectionRow
                     sectionId="terms"
                     sectionLabel="Terms and billing"
@@ -819,9 +752,6 @@ export function Customer360Page() {
                     expandIntoCommentsWhenHidden={isItemPinnedVariant}
                     expandedPaddingRight={24}
                     comments={commentsBySection['products'] ?? []}
-                    commentsOffsetTop={
-                      sectionSources.products?.length ? SECTION_SOURCE_THUMBNAILS_HEIGHT : 0
-                    }
                     onAddNote={(text, status) => handleAddComment('products', 'Products and pricing', text, status)}
                     onDelete={handleDeleteComment}
                     onResolve={handleResolveComment}
@@ -852,12 +782,6 @@ export function Customer360Page() {
                       }
                       header={
                         <>
-                          {!isProductsLifted && (
-                            <SectionSourceThumbnails
-                              sources={sectionSources.products}
-                              onOpen={(i) => setPreview({ sectionId: 'products', index: i })}
-                            />
-                          )}
                           <SectionHeader
                             title="Products and pricing"
                             isFlashing={false}
@@ -1009,7 +933,13 @@ export function Customer360Page() {
 
       <SourcePreviewDrawer
         open={!!preview}
-        sources={preview ? sectionSources[preview.sectionId] : []}
+        sources={
+          preview
+            ? preview.sectionId === 'summary'
+              ? summarySources
+              : sectionSources[preview.sectionId]
+            : []
+        }
         activeIndex={preview?.index ?? 0}
         onIndexChange={(index) => setPreview((prev) => (prev ? { ...prev, index } : null))}
         onClose={() => setPreview(null)}

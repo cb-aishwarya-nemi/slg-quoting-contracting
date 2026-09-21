@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { MessageCircleMore, PackagePlus, Plus } from 'lucide-react'
+import { MessageCircleMore, PackagePlus, Plus, UserPlus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { DownstreamRefreshIndicator } from './DownstreamRefreshIndicator'
 import { AttentionFlagIcon } from './AttentionFlagIcon'
@@ -24,6 +24,8 @@ interface SectionHeaderProps {
   commentsVisible?: boolean
   /** makes the bubble a toggle for this section's comment stack */
   onToggleComments?: () => void
+  /** Optional note shown next to the title, e.g. a create-customer hint. */
+  helper?: string
 }
 
 /**
@@ -42,6 +44,7 @@ export function SectionHeader({
   showRefreshIcon = false,
   commentsVisible = true,
   onToggleComments,
+  helper,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
   const commentLabel = hasComments
@@ -71,17 +74,26 @@ export function SectionHeader({
             <AttentionFlagIcon id={title.replace(/[^a-zA-Z0-9]+/g, '-').toLowerCase()} />
             <span className="text-[12px] font-medium ai-gradient-text">{statusLabel}</span>
           </span>
-        ) : statusLabel && status !== 'ready' ? (
-          <span
-            className={cn(
-              'text-[12px] font-medium',
-              status === 'ai-created' ? 'ai-gradient-text' : 'text-green-600'
-            )}
-          >
-            {statusLabel}
-          </span>
-        ) : null}
-      </div>
+          ) : statusLabel && status !== 'ready' ? (
+            <span
+              className={cn(
+                'text-[12px] font-medium',
+                status === 'ai-created' ? 'ai-gradient-text' : 'text-green-600'
+              )}
+            >
+              {statusLabel}
+            </span>
+          ) : null}
+
+          {helper ? (
+            <span className="inline-flex items-center gap-1">
+              <UserPlus size={14} className="shrink-0 ai-gradient-text" />
+              <span className="text-[12px] font-medium normal-case tracking-normal ai-gradient-text">
+                {helper}
+              </span>
+            </span>
+          ) : null}
+        </div>
 
       {!minimal && (
         <>

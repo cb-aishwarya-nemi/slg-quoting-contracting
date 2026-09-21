@@ -162,10 +162,11 @@ export function AccountCustomerPickerV2({
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(editsCreatedName ? -1 : 0)
   /**
-   * Renaming the created customer is a plain text edit — the pill swaps for an
+   * Creating or renaming a customer is a plain text edit — the row swaps to an
    * input and the catalog list stays closed.
    */
   const [renameDraft, setRenameDraft] = useState<string | null>(null)
+  const [nameEditMode, setNameEditMode] = useState<'create' | 'rename' | null>(null)
   const anchorRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const renameInputRef = useRef<HTMLInputElement>(null)
@@ -183,20 +184,30 @@ export function AccountCustomerPickerV2({
     return () => window.clearTimeout(timer)
   }, [isOpen, editsCreatedName, value])
 
-  const isRenaming = renameDraft !== null
+  const isEditingName = renameDraft !== null
 
   useEffect(() => {
-    if (!isRenaming) return
+    if (!isEditingName) return
     const timer = window.setTimeout(() => renameInputRef.current?.select(), 0)
     return () => window.clearTimeout(timer)
-  }, [isRenaming])
+  }, [isEditingName])
 
-  const startRename = () => setRenameDraft(value)
+  const startRename = () => {
+    setNameEditMode('rename')
+    setRenameDraft(value)
+  }
+
+  const startCreate = () => {
+    onOpenChange(false)
+    setNameEditMode('create')
+    setRenameDraft('')
+  }
 
   const commitRename = () => {
     const next = renameDraft?.trim()
     if (next && next !== createdCustomerName) onCreateAsNewCustomer?.(next)
     setRenameDraft(null)
+    setNameEditMode(null)
   }
 
   const draftName = query.trim()
@@ -306,7 +317,7 @@ export function AccountCustomerPickerV2({
             <ChevronUp size={14} />
           </button>
         </div>
-      ) : isRenaming ? (
+      ) : isEditingName ? (
         <div className="flex w-full items-center gap-1.5 rounded bg-neutral-200 px-2 py-1">
           <input
             ref={renameInputRef}
@@ -322,42 +333,40 @@ export function AccountCustomerPickerV2({
               } else if (event.key === 'Escape') {
                 event.preventDefault()
                 setRenameDraft(null)
+                setNameEditMode(null)
               }
             }}
             onClick={(event) => event.stopPropagation()}
-            placeholder="Customer name"
+            placeholder={
+              nameEditMode === 'create' ? 'Enter customer name' : 'Customer name'
+            }
             aria-label="Customer name"
             className="min-w-0 flex-1 bg-transparent text-[14px] font-medium text-brand-navy outline-none placeholder:font-medium placeholder:text-brand-fog"
           />
         </div>
       ) : createdCustomerName === value ? (
-        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="inline-flex items-center rounded bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100">
-            <button
-              type="button"
-              onClick={startRename}
-              className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-1.5 py-0.5 text-[14px] font-normal leading-4"
-              aria-label={`Edit customer ${value}`}
-            >
-              <UserPlus size={14} className="shrink-0" />
-              <span>{value}</span>
-            </button>
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation()
-                onDeleteCreatedCustomer?.()
-              }}
-              className="mr-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-200/70"
-              aria-label={`Remove created customer ${value}`}
-              title="Remove created customer"
-            >
-              <X size={12} strokeWidth={2.25} />
-            </button>
-          </span>
-          <span className="text-[12px] font-normal leading-4 text-brand-navy transition-colors group-hover:text-white">
-            New customer will be created
-          </span>
+        <span className="inline-flex items-center rounded bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100">
+          <button
+            type="button"
+            onClick={startRename}
+            className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-1.5 py-0.5 text-[14px] font-normal leading-4"
+            aria-label={`Edit customer ${value}`}
+          >
+            <UserPlus size={14} className="shrink-0" />
+            <span>{value}</span>
+          </button>
+          <button
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation()
+              onDeleteCreatedCustomer?.()
+            }}
+            className="mr-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-200/70"
+            aria-label={`Remove created customer ${value}`}
+            title="Remove created customer"
+          >
+            <X size={12} strokeWidth={2.25} />
+          </button>
         </span>
       ) : (
         <span className="inline-flex items-center gap-1.5">
@@ -535,13 +544,12 @@ export function AccountCustomerPickerV2({
             onMouseDown={(event) => {
               event.preventDefault()
               event.stopPropagation()
-              onCreateAsNewCustomer?.(query.trim() || value)
-              onOpenChange(false)
+              startCreate()
             }}
             className="flex w-full cursor-pointer items-center justify-center gap-2 px-3 py-2.5 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
           >
             <CirclePlus size={16} className="shrink-0 text-blue-700" />
-            Create as new customer
+            Create new customer
           </button>
         </div>
       </AnchoredMenu>
