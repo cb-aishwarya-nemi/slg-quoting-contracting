@@ -41,6 +41,9 @@ interface DatePickerFieldProps {
   className?: string
   /** Keep the date blue when the parent row is hovered (e.g. a red error row). */
   keepInkOnRowHover?: boolean
+  /** Optional inclusive calendar bounds. Typed values are validated by the caller. */
+  minDate?: string
+  maxDate?: string
 }
 
 /**
@@ -55,6 +58,8 @@ export function DatePickerField({
   ariaLabel,
   className,
   keepInkOnRowHover = false,
+  minDate,
+  maxDate,
 }: DatePickerFieldProps) {
   const isControlled = active !== undefined
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
@@ -140,6 +145,8 @@ export function DatePickerField({
 
   const todayKey = toDateKey(new Date())
   const selectedKey = toDateKey(selected)
+  const minDateValue = minDate ? parseDisplayDate(minDate) : null
+  const maxDateValue = maxDate ? parseDisplayDate(maxDate) : null
 
   const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate()
   const firstWeekday = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay()
@@ -238,11 +245,16 @@ export function DatePickerField({
             const key = toDateKey(date)
             const isSelected = key === selectedKey
             const isToday = key === todayKey
+            const isDisabled =
+              (minDateValue != null && date < minDateValue) ||
+              (maxDateValue != null && date > maxDateValue)
             return (
               <button
                 key={key}
                 type="button"
+                disabled={isDisabled}
                 onClick={() => {
+                  if (isDisabled) return
                   const next = formatDisplayDate(date)
                   setDraft(next)
                   onChange(next)
@@ -251,7 +263,9 @@ export function DatePickerField({
                 }}
                 className={cn(
                   'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
-                  isSelected
+                  isDisabled
+                    ? 'cursor-not-allowed text-neutral-300'
+                    : isSelected
                     ? 'bg-brand-navy font-semibold text-white'
                     : isToday
                       ? 'font-semibold text-blue-700 hover:bg-blue-50'

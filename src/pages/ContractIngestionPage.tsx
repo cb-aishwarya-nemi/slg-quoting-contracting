@@ -897,6 +897,14 @@ function ContractProcessingView({
                   <ProductsPricingTable
                     items={data.products}
                     periods={data.rampPeriods}
+                    contractEndDate={
+                      data.termsAndBilling.find((term) => term.label === 'End date')?.value
+                    }
+                    billingFrequency={
+                      data.termsAndBilling.find(
+                        (term) => term.label === 'Billing frequency'
+                      )?.value
+                    }
                     header={
                       <>
                         <SectionSourceThumbnails

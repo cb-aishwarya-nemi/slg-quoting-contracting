@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, CirclePlus, Maximize2, UserPlus } from 'lucide-react'
+import { ChevronLeft, CirclePlus, Maximize2 } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -695,14 +695,6 @@ export function Customer360Page() {
                       title="Account"
                       status={accountAttention.status}
                       statusLabel={accountAttention.statusLabel}
-                      extraStatus={
-                        createdAccountCustomer
-                          ? {
-                              icon: <UserPlus size={14} />,
-                              label: 'Created customer',
-                            }
-                          : undefined
-                      }
                       isFlashing={false}
                       commentCount={commentCountsBySection['account']}
                       commentsVisible={arePageCommentsVisible}
@@ -840,6 +832,14 @@ export function Customer360Page() {
                       key="products-pricing-discount-period-v2"
                       items={data.products}
                       periods={data.rampPeriods}
+                      contractEndDate={
+                        data.termsAndBilling.find((term) => term.label === 'End date')?.value
+                      }
+                      billingFrequency={
+                        data.termsAndBilling.find(
+                          (term) => term.label === 'Billing frequency'
+                        )?.value
+                      }
                       variant={productsPricingVariant}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}

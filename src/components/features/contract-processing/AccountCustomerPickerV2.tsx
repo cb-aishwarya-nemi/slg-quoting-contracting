@@ -331,16 +331,16 @@ export function AccountCustomerPickerV2({
           />
         </div>
       ) : createdCustomerName === value ? (
-        <span className="flex w-full min-w-0 items-center gap-2">
-          <span className="inline-flex min-w-0 items-center rounded-full border border-amber-300 bg-amber-50 text-amber-800">
+        <span className="flex w-full min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span className="inline-flex items-center rounded bg-blue-50 text-blue-700 transition-colors hover:bg-blue-100">
             <button
               type="button"
               onClick={startRename}
-              className="inline-flex min-w-0 cursor-pointer items-center gap-1.5 py-1 pl-2.5 pr-1 text-[13px] font-medium"
+              className="inline-flex cursor-pointer items-center gap-1.5 whitespace-nowrap px-1.5 py-0.5 text-[14px] font-normal leading-4"
               aria-label={`Edit customer ${value}`}
             >
-              <UserPlus size={13} className="shrink-0" />
-              <span className="truncate">{value}</span>
+              <UserPlus size={14} className="shrink-0" />
+              <span>{value}</span>
             </button>
             <button
               type="button"
@@ -348,15 +348,15 @@ export function AccountCustomerPickerV2({
                 event.stopPropagation()
                 onDeleteCreatedCustomer?.()
               }}
-              className="mr-1 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-full text-amber-700 transition-colors hover:bg-amber-200/70"
+              className="mr-0.5 flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-200/70"
               aria-label={`Remove created customer ${value}`}
               title="Remove created customer"
             >
               <X size={12} strokeWidth={2.25} />
             </button>
           </span>
-          <span className="shrink-0 text-[12px] text-amber-800">
-            Customer will be created
+          <span className="text-[12px] font-normal leading-4 text-brand-navy transition-colors group-hover:text-white">
+            New customer will be created
           </span>
         </span>
       ) : (

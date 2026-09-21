@@ -382,6 +382,32 @@ body {
   }
 }
 
+/* Flagged-value underline for product rows.
+   `text-decoration: wavy` ties its wavelength to the stroke thickness, so a thin
+   line is always a dense buzz. Painting the wave ourselves keeps the stroke fine
+   while stretching the period, and the pseudo-element leaves layout untouched. */
+.wavy-underline {
+  position: relative;
+}
+.wavy-underline::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -3px;
+  /* Tile is 1px taller than the wave so the stroke's round caps aren't clipped. */
+  height: 5px;
+  background-repeat: repeat-x;
+  background-position: left bottom;
+  background-size: 11px 5px;
+}
+.wavy-underline-error::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='5' viewBox='0 0 11 5'%3E%3Cpath d='M0 3.5 Q2.75 1.2 5.5 3.5 T11 3.5' fill='none' stroke='%23d4183d' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+.wavy-underline-info::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='5' viewBox='0 0 11 5'%3E%3Cpath d='M0 3.5 Q2.75 1.2 5.5 3.5 T11 3.5' fill='none' stroke='%2392400e' stroke-width='1.1' stroke-linecap='round'/%3E%3C/svg%3E");
+}
+
 /* Asymmetric hover trail for workbench table rows.
    Snap in fast, linger on the way out to leave a visible trail. */
 .row-hover-trail {

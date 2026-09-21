@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type ReactNode, type RefObject } from 'react'
-import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2, AlertTriangle } from 'lucide-react'
+import { createPortal } from 'react-dom'
+import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2, AlertTriangle, Info } from 'lucide-react'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
@@ -16,6 +17,7 @@ import {
   useOptionalFieldEditHistory,
 } from '@/context/FieldEditHistoryContext'
 import { ACTIVE_FIELD_STYLE } from './fieldStyles'
+import { DatePickerField } from './DatePickerField'
 
 const PRODUCTS_SECTION_ID = 'products'
 const PRODUCTS_SECTION_LABEL = 'Products and pricing'
@@ -31,6 +33,13 @@ function isProductFieldEdited(
 ) {
   return !!editHistory?.isFieldEdited(PRODUCTS_SECTION_ID, productFieldLabel(itemId, field))
 }
+
+/**
+ * Flagged-value underline. Drawn as a background wave (see `.wavy-underline`)
+ * because `decoration-wavy` can't space its squiggles independently of stroke.
+ */
+const WAVY_UNDERLINE_ERROR = 'wavy-underline wavy-underline-error'
+const WAVY_UNDERLINE_INFO = 'wavy-underline wavy-underline-info'
 
 /** Cell shell — vertical padding lives here unless the cell is edited. */
 const CELL_BOX = 'relative flex min-h-0 items-center self-stretch'
@@ -152,6 +161,7 @@ function MiniDropdown({
   alignTop,
   asField,
   className,
+  error,
 }: {
   label: string
   width?: number
@@ -161,6 +171,7 @@ function MiniDropdown({
   /** Wear the page's grey edit pill instead of reading as plain row text. */
   asField?: boolean
   className?: string
+  error?: boolean
 }) {
   return (
     <button
@@ -178,7 +189,15 @@ function MiniDropdown({
         className
       )}
     >
-      <span className="truncate">{label}</span>
+      <span
+        className={cn(
+          error
+            ? cn('min-w-0 whitespace-nowrap text-red-500', WAVY_UNDERLINE_ERROR)
+            : 'truncate'
+        )}
+      >
+        {label}
+      </span>
       <ChevronDown
         size={14}
         className={cn(
@@ -187,6 +206,101 @@ function MiniDropdown({
         )}
       />
     </button>
+  )
+}
+
+const QUANTITY_ERROR_MESSAGE = 'Minimum quantity should be 100'
+
+/** Row-hover hint for a flagged quantity — floats out of the cell so column widths stay put. */
+function QuantityErrorTooltip() {
+  return (
+    <span
+      role="tooltip"
+      className="pointer-events-none absolute left-full top-1/2 z-50 ml-2 hidden -translate-y-1/2 items-center gap-1.5 whitespace-nowrap rounded-md border border-red-200 bg-white px-2 py-1 text-[12px] font-medium text-red-500 shadow-sm group-hover:flex"
+    >
+      <span
+        aria-hidden
+        className="absolute -left-[5px] top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-b border-l border-red-200 bg-white"
+      />
+      <AlertTriangle size={12} strokeWidth={2} className="shrink-0" />
+      {QUANTITY_ERROR_MESSAGE}
+    </span>
+  )
+}
+
+const UNIT_PRICE_INFO_MESSAGE = 'Unit price not found in contract'
+
+/**
+ * Row-hover hint for the flagged unit price. The column sits near the right edge of
+ * the horizontal scroller, so the bubble is portalled out and fixed-positioned —
+ * inside the row it would be clipped by the scroller.
+ */
+function UnitPriceInfoAnchor({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  const anchorRef = useRef<HTMLSpanElement>(null)
+  const tipRef = useRef<HTMLSpanElement>(null)
+  const [anchor, setAnchor] = useState<{ top: number; left: number; right: number } | null>(null)
+  const [side, setSide] = useState<'right' | 'left'>('right')
+
+  useEffect(() => {
+    const el = anchorRef.current
+    const row = el?.closest('.group')
+    if (!el || !row) return
+
+    const show = () => {
+      const rect = el.getBoundingClientRect()
+      setAnchor({ top: rect.top + rect.height / 2, left: rect.left, right: rect.right })
+    }
+    const hide = () => setAnchor(null)
+
+    row.addEventListener('mouseenter', show)
+    row.addEventListener('mouseleave', hide)
+    // Fixed positioning is captured on enter, so any scroll would strand the bubble.
+    window.addEventListener('scroll', hide, true)
+    return () => {
+      row.removeEventListener('mouseenter', show)
+      row.removeEventListener('mouseleave', hide)
+      window.removeEventListener('scroll', hide, true)
+    }
+  }, [enabled])
+
+  // Prefer the right of the value; fall back to the left when the window can't hold it.
+  useLayoutEffect(() => {
+    if (!anchor || !tipRef.current) return
+    const width = tipRef.current.offsetWidth
+    setSide(anchor.right + 8 + width + 12 <= window.innerWidth ? 'right' : 'left')
+  }, [anchor])
+
+  if (!enabled) return <>{children}</>
+
+  return (
+    <span ref={anchorRef} className="relative inline-flex items-center">
+      {children}
+      {anchor
+        ? createPortal(
+            <span
+              ref={tipRef}
+              role="tooltip"
+              style={{
+                top: anchor.top,
+                left: side === 'right' ? anchor.right + 8 : anchor.left - 8,
+                transform: side === 'right' ? 'translateY(-50%)' : 'translate(-100%, -50%)',
+              }}
+              className="pointer-events-none fixed z-[100] flex items-center gap-1.5 whitespace-nowrap rounded-md border border-amber-200 bg-white px-2 py-1 text-[12px] font-medium text-amber-800 shadow-sm"
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'absolute top-1/2 h-2 w-2 -translate-y-1/2 rotate-45 border-amber-200 bg-white',
+                  side === 'right' ? '-left-[5px] border-b border-l' : '-right-[5px] border-r border-t'
+                )}
+              />
+              <Info size={12} strokeWidth={2} className="shrink-0" />
+              {UNIT_PRICE_INFO_MESSAGE}
+            </span>,
+            document.body
+          )
+        : null}
+    </span>
   )
 }
 
@@ -201,6 +315,7 @@ function InteractiveMiniDropdown({
   limitedPeriodOption,
   placeholder,
   className,
+  error,
 }: {
   label: string
   width?: number
@@ -212,6 +327,7 @@ function InteractiveMiniDropdown({
   /** Shown in mist when `label` is empty (e.g. overall discount period). */
   placeholder?: string
   className?: string
+  error?: boolean
 }) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -240,7 +356,15 @@ function InteractiveMiniDropdown({
           isPlaceholder ? 'text-brand-mist' : 'text-brand-navy'
         )}
       >
-        <span className="truncate">{displayLabel}</span>
+        <span
+          className={cn(
+            error
+              ? cn('min-w-0 whitespace-nowrap text-red-500', WAVY_UNDERLINE_ERROR)
+              : 'truncate'
+          )}
+        >
+          {displayLabel}
+        </span>
         <ChevronDown size={14} className="shrink-0 text-brand-mist" />
       </button>
       {!disabled ? (
@@ -748,6 +872,8 @@ interface PriceFieldProps {
   className?: string
   /** Soften the resting label (e.g. row is navy-filled). */
   muted?: boolean
+  /** Brown info treatment — wavy underline, same ink as Auto-renewal. */
+  info?: boolean
 }
 
 /**
@@ -761,6 +887,7 @@ function PriceField({
   align = 'right',
   className,
   muted,
+  info,
 }: PriceFieldProps) {
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(value)
@@ -824,17 +951,23 @@ function PriceField({
         setIsEditing(true)
       }}
       className={cn(
-        'w-full cursor-pointer truncate text-[14px] font-medium transition-colors',
+        'w-full cursor-pointer text-[14px] font-medium transition-colors',
         align === 'right' && 'text-right',
-        muted
-          ? 'text-white'
-          : value
-            ? 'text-brand-navy'
-            : 'text-brand-mist',
+        info
+          ? 'whitespace-nowrap font-normal text-amber-800'
+          : cn(
+              'truncate',
+              muted ? 'text-white' : value ? 'text-brand-navy' : 'text-brand-mist'
+            ),
         className
       )}
     >
-      {value || '–'}
+      {/* The wave hugs the text, so it can't live on the full-width button. */}
+      {info ? (
+        <span className={cn('inline-block', WAVY_UNDERLINE_INFO)}>{value || '–'}</span>
+      ) : (
+        value || '–'
+      )}
     </button>
   )
 }
@@ -1087,6 +1220,8 @@ interface ItemNameButtonProps {
   highlightSelected?: boolean
   /** Red alert to the left of the name. Every row still reserves the slot. */
   showAlert?: boolean
+  /** Amber info icon in the same slot as the alert. */
+  showInfo?: boolean
 }
 
 function ItemNameButton({
@@ -1101,6 +1236,7 @@ function ItemNameButton({
   className,
   highlightSelected,
   showAlert = false,
+  showInfo = false,
 }: ItemNameButtonProps) {
   const [isOpen, setIsOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -1125,9 +1261,11 @@ function ItemNameButton({
           <PackagePlus size={16} className="shrink-0 ai-gradient-text" />
         </div>
       )}
-      <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden={!showAlert}>
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center" aria-hidden={!showAlert && !showInfo}>
         {showAlert ? (
           <AlertTriangle size={14} strokeWidth={2} className="text-red-500" />
+        ) : showInfo ? (
+          <Info size={14} strokeWidth={2} className="text-amber-500" />
         ) : null}
       </span>
       <button
@@ -1588,6 +1726,262 @@ function formatPeriodDate(date: Date): string {
   })
 }
 
+function addMonthsPreservingDay(date: Date, months: number): Date {
+  const next = new Date(date)
+  const day = next.getDate()
+  next.setDate(1)
+  next.setMonth(next.getMonth() + months)
+  next.setDate(Math.min(day, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()))
+  return next
+}
+
+function getUpcomingBillingDates(
+  periods: RampPeriod[],
+  contractEndDate: string,
+  billingFrequency: string
+): string[] {
+  const end = parsePeriodDate(contractEndDate)
+  if (!end) return []
+
+  const starts = periods
+    .map((period) => parsePeriodDate(period.startDate))
+    .filter((date): date is Date => date != null)
+    .sort((a, b) => a.getTime() - b.getTime())
+  const anchor = starts[0] ?? new Date()
+  const frequency = billingFrequency.toLowerCase()
+  const intervalMonths = frequency.includes('annual')
+    ? 12
+    : frequency.includes('quarter')
+      ? 3
+      : 1
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  let candidate = new Date(anchor)
+  while (candidate <= today) candidate = addMonthsPreservingDay(candidate, intervalMonths)
+
+  const dates: string[] = []
+  while (candidate < end && dates.length < 6) {
+    dates.push(formatPeriodDate(candidate))
+    candidate = addMonthsPreservingDay(candidate, intervalMonths)
+  }
+  return dates
+}
+
+function RampStartDialog({
+  periods,
+  contractEndDate,
+  billingFrequency,
+  onCancel,
+  onCreate,
+}: {
+  periods: RampPeriod[]
+  contractEndDate: string
+  billingFrequency: string
+  onCancel: () => void
+  onCreate: (startDate: string) => void
+}) {
+  const upcomingDates = getUpcomingBillingDates(periods, contractEndDate, billingFrequency)
+  const contractEnd = parsePeriodDate(contractEndDate)
+  const latestStart = contractEnd
+    ? new Date(contractEnd.getFullYear(), contractEnd.getMonth(), contractEnd.getDate() - 1)
+    : null
+  const tomorrow = new Date()
+  tomorrow.setHours(0, 0, 0, 0)
+  tomorrow.setDate(tomorrow.getDate() + 1)
+
+  const [mode, setMode] = useState<'billing' | 'specific'>('billing')
+  const [selectedBillingDate, setSelectedBillingDate] = useState(upcomingDates[0] ?? '')
+  const [specificDate, setSpecificDate] = useState(upcomingDates[0] ?? formatPeriodDate(tomorrow))
+  const [billingMenuOpen, setBillingMenuOpen] = useState(false)
+  const [datePickerOpen, setDatePickerOpen] = useState(false)
+  const billingAnchorRef = useRef<HTMLButtonElement>(null)
+
+  const selectedDate = mode === 'billing' ? selectedBillingDate : specificDate
+  const parsedSelected = parsePeriodDate(selectedDate)
+  const canCreate =
+    parsedSelected != null &&
+    parsedSelected >= tomorrow &&
+    (latestStart == null || parsedSelected <= latestStart)
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onCancel()
+    }
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [onCancel])
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-brand-navy/20 p-6"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) onCancel()
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="ramp-start-title"
+        className="w-full max-w-[520px] rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl"
+      >
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <div>
+            <h2
+              id="ramp-start-title"
+              className="text-[18px] font-semibold tracking-[-0.35px] text-brand-navy"
+            >
+              When do you want this ramp to begin?
+            </h2>
+            <p className="mt-1 text-[12px] text-brand-fog">
+              Choose a billing date or set a specific date before {contractEndDate}.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-mist transition-colors hover:bg-neutral-100 hover:text-brand-navy"
+            aria-label="Close"
+          >
+            <X size={16} />
+          </button>
+        </div>
+
+        <div className="space-y-5">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="radio"
+              name="ramp-start"
+              checked={mode === 'billing'}
+              onChange={() => setMode('billing')}
+              className="mt-1 h-4 w-4 accent-blue-700"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-medium text-brand-navy">
+                On an upcoming billing date
+              </span>
+              <button
+                ref={billingAnchorRef}
+                type="button"
+                disabled={mode !== 'billing' || upcomingDates.length === 0}
+                onClick={(event) => {
+                  event.preventDefault()
+                  setMode('billing')
+                  setBillingMenuOpen((open) => !open)
+                }}
+                className={cn(
+                  'mt-2 flex h-10 w-full items-center justify-between rounded-lg border px-3 text-left text-[14px] transition-colors',
+                  mode === 'billing'
+                    ? 'cursor-pointer border-neutral-300 bg-white text-brand-navy hover:border-blue-400'
+                    : 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-brand-mist'
+                )}
+              >
+                <span>{selectedBillingDate || 'No billing dates available'}</span>
+                <ChevronDown size={16} className="shrink-0 text-brand-mist" />
+              </button>
+              <AnchoredMenu
+                isOpen={billingMenuOpen}
+                anchorRef={billingAnchorRef}
+                onClose={() => setBillingMenuOpen(false)}
+                matchAnchorWidth
+                offset={4}
+                className="overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+              >
+                {upcomingDates.map((date) => (
+                  <button
+                    key={date}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBillingDate(date)
+                      setBillingMenuOpen(false)
+                    }}
+                    className={cn(
+                      'flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] transition-colors hover:bg-blue-50',
+                      date === selectedBillingDate
+                        ? 'font-medium text-blue-700'
+                        : 'text-brand-navy'
+                    )}
+                  >
+                    {date}
+                  </button>
+                ))}
+              </AnchoredMenu>
+            </span>
+          </label>
+
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="radio"
+              name="ramp-start"
+              checked={mode === 'specific'}
+              onChange={() => {
+                setMode('specific')
+                setDatePickerOpen(true)
+              }}
+              className="mt-1 h-4 w-4 accent-blue-700"
+            />
+            <span className="min-w-0 flex-1">
+              <span className="block text-[14px] font-medium text-brand-navy">
+                On a specific date
+              </span>
+              <span
+                className={cn(
+                  'mt-2 flex h-10 w-full items-center rounded-lg border px-3 transition-colors',
+                  mode === 'specific'
+                    ? 'border-neutral-300 bg-white'
+                    : 'border-neutral-200 bg-neutral-50 opacity-60'
+                )}
+                onClick={(event) => {
+                  event.preventDefault()
+                  setMode('specific')
+                  setDatePickerOpen(true)
+                }}
+              >
+                <DatePickerField
+                  value={specificDate}
+                  onChange={setSpecificDate}
+                  active={mode === 'specific' && datePickerOpen}
+                  onActiveChange={setDatePickerOpen}
+                  ariaLabel="Ramp start date"
+                  minDate={formatPeriodDate(tomorrow)}
+                  maxDate={latestStart ? formatPeriodDate(latestStart) : undefined}
+                  keepInkOnRowHover
+                  className="w-full"
+                />
+              </span>
+            </span>
+          </label>
+        </div>
+
+        {!canCreate && mode === 'specific' ? (
+          <p className="mt-3 pl-7 text-[12px] text-red-500">
+            Choose a date before the contract end date.
+          </p>
+        ) : null}
+
+        <div className="mt-7 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="h-9 cursor-pointer rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={!canCreate}
+            onClick={() => onCreate(selectedDate)}
+            className="h-9 cursor-pointer rounded-lg bg-blue-700 px-4 text-[13px] font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+          >
+            Create period
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  )
+}
+
 /** Sort chronologically by start (then end) and relabel Period 1…N. */
 function renumberPeriodsByDate(periods: RampPeriod[]): RampPeriod[] {
   return sortPeriodsByDate(periods).map((period, index) => ({
@@ -1622,12 +2016,15 @@ function PeriodDateEdit({
   onChange,
   defaultOpen = false,
   onOpenChange,
+  isEdited = false,
 }: {
   value: string
   onChange: (value: string) => void
   /** Open the calendar on mount — used after "Add period" to prompt for the from date. */
   defaultOpen?: boolean
   onOpenChange?: (open: boolean) => void
+  /** Yellow edit fill — same treatment as changed cells on this page. */
+  isEdited?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [draft, setDraft] = useState(value)
@@ -1864,7 +2261,9 @@ function PeriodDateEdit({
           'inline-flex max-w-full items-center gap-1.5 px-1.5 py-0.5 text-[12px] font-normal leading-4 transition-colors',
           open
             ? 'rounded bg-neutral-200 text-brand-navy'
-            : 'cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100'
+            : isEdited
+              ? 'cursor-pointer bg-amber-50 text-brand-navy hover:bg-amber-100'
+              : 'cursor-pointer bg-blue-50 text-blue-700 hover:bg-blue-100'
         )}
       >
         {open ? (
@@ -1880,7 +2279,7 @@ function PeriodDateEdit({
           </button>
         ) : (
           <span className="flex h-4 w-3.5 shrink-0 items-center justify-center">
-            <Calendar size={14} className="text-blue-700" />
+            <Calendar size={14} className={isEdited ? 'text-brand-navy' : 'text-blue-700'} />
           </span>
         )}
         {/* Hidden twin sets the width; the input floats over it so its
@@ -1935,12 +2334,21 @@ function PeriodIdentity({
   autoOpenStartDate?: boolean
   onStartDatePickerClose?: () => void
 }) {
+  const editHistory = useOptionalFieldEditHistory()
+  const startEdited =
+    isProductFieldEdited(editHistory, period.id, 'Start date') ||
+    isProductFieldEdited(editHistory, period.id, `${period.label} Start date`)
+  const endEdited =
+    isProductFieldEdited(editHistory, period.id, 'End date') ||
+    isProductFieldEdited(editHistory, period.id, `${period.label} End date`)
+
   return (
     <div className="flex min-w-0 items-center gap-2 overflow-hidden pr-2">
       <span className="shrink-0 text-[13px] font-semibold text-brand-navy">{period.label}</span>
       <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
         <PeriodDateEdit
           value={period.startDate}
+          isEdited={startEdited}
           defaultOpen={autoOpenStartDate}
           onOpenChange={(next) => {
             if (!next) onStartDatePickerClose?.()
@@ -1952,6 +2360,7 @@ function PeriodIdentity({
         <span className="shrink-0 text-[12px] text-brand-fog">to</span>
         <PeriodDateEdit
           value={period.endDate}
+          isEdited={endEdited}
           onChange={(endDate) =>
             onChangeDates?.({ startDate: period.startDate, endDate })
           }
@@ -2245,6 +2654,10 @@ interface ProductsPricingTableProps {
   onLiftedChange?: (lifted: boolean) => void
   /** First-period invoice-level discount so Invoice preview can tally totals. */
   onInvoiceLevelDiscountChange?: (discount: { value: string; unit: DiscountUnit } | null) => void
+  /** Used to constrain ramp start choices. */
+  contractEndDate?: string
+  /** Controls the cadence of the upcoming billing-date choices. */
+  billingFrequency?: string
 }
 
 export function ProductsPricingTable({
@@ -2256,6 +2669,8 @@ export function ProductsPricingTable({
   lifted,
   onLiftedChange,
   onInvoiceLevelDiscountChange,
+  contractEndDate,
+  billingFrequency = 'Quarterly',
 }: ProductsPricingTableProps) {
   const isExpandedVariant = variant === 'expanded-state' || variant === 'item-pinned'
   const isItemPinnedVariant = variant === 'item-pinned'
@@ -2336,8 +2751,7 @@ export function ProductsPricingTable({
     }
     return new Set()
   })
-  /** After "Add period", open this period's from-date picker once. */
-  const [openStartDatePeriodId, setOpenStartDatePeriodId] = useState<string | null>(null)
+  const [showRampStartDialog, setShowRampStartDialog] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<{
     period: RampPeriod
     index: number
@@ -2843,10 +3257,6 @@ export function ProductsPricingTable({
         <PeriodIdentity
           period={period}
           onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
-          autoOpenStartDate={openStartDatePeriodId === period.id}
-          onStartDatePickerClose={() => {
-            if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
-          }}
         />
       </div>
       <div
@@ -3165,10 +3575,6 @@ export function ProductsPricingTable({
           <PeriodIdentity
             period={period}
             onChangeDates={(dates) => updatePeriodDates(period.id, dates)}
-            autoOpenStartDate={openStartDatePeriodId === period.id}
-            onStartDatePickerClose={() => {
-              if (openStartDatePeriodId === period.id) setOpenStartDatePeriodId(null)
-            }}
           />
         </div>
       </div>
@@ -3417,7 +3823,8 @@ export function ProductsPricingTable({
     item: ProductLineItem,
     updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
     periodItems: ProductLineItem[],
-    showAlert = false
+    showAlert = false,
+    showInfo = false
   ) => {
     if (item.isOverallDiscount) {
       return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
@@ -3437,14 +3844,14 @@ export function ProductsPricingTable({
       : [item.quantity, ...QUANTITY_OPTIONS]
     // Sticky cells paint their own background, so the alert fill has to be set
     // on the row and on every opaque cell in it.
-    const alertFill = showAlert ? 'bg-red-50' : undefined
+    const alertFill = showAlert ? 'bg-red-50 group-hover:bg-[#fdd6d6]' : undefined
 
     return (
       <div
         key={item.id}
         className={cn(
-          'group row-hover-trail relative items-stretch pl-1 pr-2',
-          showAlert ? 'bg-red-50' : 'bg-white',
+          'group row-hover-trail relative items-stretch pl-1 pr-2 transition-colors',
+          showAlert ? 'bg-red-50 hover:bg-[#fdd6d6]' : 'bg-white',
           ROW_STROKE,
           !isFullPageExpanded && 'flex',
           // Lift the whole row while the item picker is open so the absolute
@@ -3473,6 +3880,7 @@ export function ProductsPricingTable({
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
               showAlert={showAlert}
+              showInfo={showInfo}
               openRequestId={lineItemEditRequest[item.id]}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
@@ -3534,7 +3942,12 @@ export function ProductsPricingTable({
         </div>
         <Separator fillStart={isFrequencyEdited} fillEnd={isQtyEdited} />
         <div
-          className={cellChrome(isQtyEdited, !isFullPageExpanded && 'shrink-0')}
+          className={cellChrome(
+            isQtyEdited,
+            !isFullPageExpanded && 'shrink-0',
+            // Let the hover tooltip paint over the columns to its right.
+            showAlert && 'group-hover:z-50'
+          )}
           style={isFullPageExpanded ? undefined : { width: QTY_W }}
         >
           {isQtyEdited ? <EditedCellFill /> : null}
@@ -3543,6 +3956,7 @@ export function ProductsPricingTable({
               label={item.quantity}
               options={quantityOptions}
               ariaLabel={`Quantity for ${item.name}`}
+              error={showAlert}
               onSelect={(next) => {
                 recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
                 updateItems((prev) =>
@@ -3558,6 +3972,7 @@ export function ProductsPricingTable({
                 )
               }}
             />
+            {showAlert ? <QuantityErrorTooltip /> : null}
           </div>
         </div>
         <Separator fillStart={isQtyEdited} fillEnd={isUnitPriceEdited} />
@@ -3575,9 +3990,13 @@ export function ProductsPricingTable({
             {item.rampPriceChange && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
+            {/* Info rows hug the value so the tooltip anchors to the price, not the column. */}
+            <UnitPriceInfoAnchor enabled={showInfo}>
             <PriceField
               value={item.unitPrice}
               ariaLabel={`Unit price for ${item.name}`}
+              info={showInfo}
+              className={showInfo ? 'w-auto' : undefined}
               onCommit={(nextPrice) => {
                 recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
                 updateItems((prev) =>
@@ -3593,6 +4012,7 @@ export function ProductsPricingTable({
                 )
               }}
             />
+            </UnitPriceInfoAnchor>
           </div>
         </div>
 
@@ -3731,7 +4151,8 @@ export function ProductsPricingTable({
   const renderLineItem = (
     item: ProductLineItem,
     updateItems: (updater: (prev: ProductLineItem[]) => ProductLineItem[]) => void,
-    showAlert = false
+    showAlert = false,
+    showInfo = false
   ) => {
     if (item.isOverallDiscount) {
       const hasDiscountValue = parseFloat(item.discount ?? '') > 0
@@ -3886,6 +4307,7 @@ export function ProductsPricingTable({
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
               showAlert={showAlert}
+              showInfo={showInfo}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
                 if (isOpen) enterEditMode()
@@ -3952,7 +4374,12 @@ export function ProductsPricingTable({
           fillEnd={!isRowFilled && isQtyEdited}
         />
         <div
-          className={cellBoxPad(!isRowFilled && isQtyEdited, !isEditMode && 'shrink-0')}
+          className={cellBoxPad(
+            !isRowFilled && isQtyEdited,
+            !isEditMode && 'shrink-0',
+            // Let the hover tooltip paint over the columns to its right.
+            showAlert && 'group-hover:z-50'
+          )}
           style={isEditMode ? undefined : { width: QTY_W }}
         >
           {!isRowFilled && isQtyEdited ? <EditedCellFill /> : null}
@@ -3966,6 +4393,7 @@ export function ProductsPricingTable({
                     : [item.quantity, ...QUANTITY_OPTIONS]
                 }
                 ariaLabel={`Quantity for ${item.name}`}
+                error={showAlert}
                 onSelect={(next) => {
                   recordProductEdit(editHistory, item.id, 'Qty', item.quantity, next)
                   updateItems((prev) =>
@@ -3987,8 +4415,10 @@ export function ProductsPricingTable({
                 isRowHovered={isRowFilled}
                 isRowActive={isRowFilled}
                 asField={showFieldPills}
+                error={showAlert}
               />
             )}
+            {showAlert ? <QuantityErrorTooltip /> : null}
           </div>
         </div>
         <Separator
@@ -4017,10 +4447,14 @@ export function ProductsPricingTable({
             {item.rampPriceChange && !isRowFilled && (
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
+            {/* Info rows hug the value so the tooltip anchors to the price, not the column. */}
+            <UnitPriceInfoAnchor enabled={showInfo}>
             {isEditMode ? (
               <PriceField
                 value={item.unitPrice}
                 ariaLabel={`Unit price for ${item.name}`}
+                info={showInfo}
+                className={showInfo ? 'w-auto' : undefined}
                 onCommit={(nextPrice) => {
                   recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
                   updateItems((prev) =>
@@ -4040,12 +4474,17 @@ export function ProductsPricingTable({
               <span
                 className={cn(
                   'text-right text-[14px] font-medium transition-colors',
-                  isRowFilled ? 'text-white' : 'text-brand-navy'
+                  showInfo
+                    ? cn('whitespace-nowrap font-normal text-amber-800', WAVY_UNDERLINE_INFO)
+                    : isRowFilled
+                      ? 'text-white'
+                      : 'text-brand-navy'
                 )}
               >
                 {item.unitPrice}
               </span>
             )}
+            </UnitPriceInfoAnchor>
           </div>
         </div>
         {isEditMode ? (
@@ -4416,22 +4855,18 @@ export function ProductsPricingTable({
     )
   }
 
-  const handleAddPeriod = () => {
-    const lastPeriod = periods?.[periods.length - 1]
-    let startDate = 'Jul 17, 2028'
-    let endDate = 'Jul 17, 2029'
-    if (lastPeriod) {
-      const lastEnd = new Date(lastPeriod.endDate)
-      if (!isNaN(lastEnd.getTime())) {
-        const start = new Date(lastEnd)
-        start.setDate(start.getDate() + 1)
-        const end = new Date(start)
-        end.setFullYear(end.getFullYear() + 1)
-        end.setDate(end.getDate() - 1)
-        startDate = formatPeriodDate(start)
-        endDate = formatPeriodDate(end)
-      }
-    }
+  const resolvedContractEndDate =
+    contractEndDate ??
+    [...(periods ?? [])]
+      .sort((a, b) => {
+        const aEnd = parsePeriodDate(a.endDate)?.getTime() ?? 0
+        const bEnd = parsePeriodDate(b.endDate)?.getTime() ?? 0
+        return bEnd - aEnd
+      })[0]?.endDate ??
+    formatPeriodDate(addMonthsPreservingDay(new Date(), 12))
+
+  const handleAddPeriod = (startDate: string) => {
+    const endDate = resolvedContractEndDate
     const newPeriod: RampPeriod = {
       id: `period-new-${Date.now()}`,
       label: `Period ${(periods?.length ?? 0) + 1}`,
@@ -4459,7 +4894,7 @@ export function ProductsPricingTable({
       next.add(newPeriod.id)
       return next
     })
-    setOpenStartDatePeriodId(newPeriod.id)
+    setShowRampStartDialog(false)
 
     const dateRange = `${added.startDate} to ${added.endDate}`
     const addValue =
@@ -4545,7 +4980,13 @@ export function ProductsPricingTable({
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
                   {period.items.map((item, index) =>
-                    renderExpandedLineItem(item, updatePeriodItems, period.items, index === 0)
+                    renderExpandedLineItem(
+                      item,
+                      updatePeriodItems,
+                      period.items,
+                      index === 0,
+                      item.name === 'Onboarding & Training'
+                    )
                   )}
                 </ExpandedScrollContainer>
               ) : (
@@ -4555,7 +4996,14 @@ export function ProductsPricingTable({
                     () => togglePeriod(period.id),
                     () => handleDeletePeriod(period, periodIndexInList)
                   )}
-                  {period.items.map((item, index) => renderLineItem(item, updatePeriodItems, index === 0))}
+                  {period.items.map((item, index) =>
+                    renderLineItem(
+                      item,
+                      updatePeriodItems,
+                      index === 0,
+                      item.name === 'Onboarding & Training'
+                    )
+                  )}
                 </>
               )}
 
@@ -4571,7 +5019,7 @@ export function ProductsPricingTable({
         <div className="pl-1 pr-2">
           <button
             type="button"
-            onClick={handleAddPeriod}
+            onClick={() => setShowRampStartDialog(true)}
             className="-ml-6 flex w-[calc(100%+1.5rem)] cursor-pointer items-center gap-1 py-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -4580,6 +5028,15 @@ export function ProductsPricingTable({
             Add period
           </button>
         </div>
+        {showRampStartDialog ? (
+          <RampStartDialog
+            periods={periods}
+            contractEndDate={resolvedContractEndDate}
+            billingFrequency={billingFrequency}
+            onCancel={() => setShowRampStartDialog(false)}
+            onCreate={handleAddPeriod}
+          />
+        ) : null}
       </>
     )
   }
@@ -4596,12 +5053,22 @@ export function ProductsPricingTable({
           pinnedRightWidth={TOTAL_W + MENU_W}
         >
           {renderExpandedTableHeader()}
-          {items.map((item, index) => renderExpandedLineItem(item, setItems, items, index === 0))}
+          {items.map((item, index) =>
+            renderExpandedLineItem(
+              item,
+              setItems,
+              items,
+              index === 0,
+              item.name === 'Onboarding & Training'
+            )
+          )}
         </ExpandedScrollContainer>
       ) : (
         <>
           {renderTableHeader()}
-          {items.map((item, index) => renderLineItem(item, setItems, index === 0))}
+          {items.map((item, index) =>
+            renderLineItem(item, setItems, index === 0, item.name === 'Onboarding & Training')
+          )}
         </>
       )}
 

@@ -20,8 +20,6 @@ interface SectionHeaderProps {
   trailing?: ReactNode
   /** show a grey refresh icon beside the title */
   showRefreshIcon?: boolean
-  /** extra status after the main label, e.g. Created customer */
-  extraStatus?: { icon: ReactNode; label: string }
   /** whether this section's comment stack is on screen — drives the bubble's filled state */
   commentsVisible?: boolean
   /** makes the bubble a toggle for this section's comment stack */
@@ -42,7 +40,6 @@ export function SectionHeader({
   commentCount,
   trailing,
   showRefreshIcon = false,
-  extraStatus,
   commentsVisible = true,
   onToggleComments,
 }: SectionHeaderProps) {
@@ -83,16 +80,6 @@ export function SectionHeader({
           >
             {statusLabel}
           </span>
-        ) : null}
-
-        {extraStatus ? (
-          <>
-            <span className="h-3 w-px shrink-0 bg-brand-mist" aria-hidden />
-            <span className="inline-flex items-center gap-1">
-              <span className="text-brand-navy">{extraStatus.icon}</span>
-              <span className="text-[12px] font-medium ai-gradient-text">{extraStatus.label}</span>
-            </span>
-          </>
         ) : null}
       </div>
 
