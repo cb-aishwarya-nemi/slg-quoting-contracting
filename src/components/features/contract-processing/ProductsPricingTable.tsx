@@ -1735,6 +1735,12 @@ function addMonthsPreservingDay(date: Date, months: number): Date {
   return next
 }
 
+function addDays(date: Date, days: number): Date {
+  const next = new Date(date)
+  next.setDate(next.getDate() + days)
+  return next
+}
+
 function getUpcomingBillingDates(
   periods: RampPeriod[],
   contractEndDate: string,
@@ -1768,17 +1774,22 @@ function getUpcomingBillingDates(
   return dates
 }
 
-function RampStartDialog({
+/** Ramp start chooser — same panel chrome as the discount Limited Period step. */
+function RampStartMenu({
+  isOpen,
+  anchorRef,
   periods,
   contractEndDate,
   billingFrequency,
-  onCancel,
+  onClose,
   onCreate,
 }: {
+  isOpen: boolean
+  anchorRef: RefObject<HTMLElement | null>
   periods: RampPeriod[]
   contractEndDate: string
   billingFrequency: string
-  onCancel: () => void
+  onClose: () => void
   onCreate: (startDate: string) => void
 }) {
   const upcomingDates = getUpcomingBillingDates(periods, contractEndDate, billingFrequency)
@@ -1793,9 +1804,22 @@ function RampStartDialog({
   const [mode, setMode] = useState<'billing' | 'specific'>('billing')
   const [selectedBillingDate, setSelectedBillingDate] = useState(upcomingDates[0] ?? '')
   const [specificDate, setSpecificDate] = useState(upcomingDates[0] ?? formatPeriodDate(tomorrow))
-  const [billingMenuOpen, setBillingMenuOpen] = useState(false)
-  const [datePickerOpen, setDatePickerOpen] = useState(false)
-  const billingAnchorRef = useRef<HTMLButtonElement>(null)
+  const [isCalendarOpen, setCalendarOpen] = useState(false)
+  const [isBillingListOpen, setBillingListOpen] = useState(false)
+  const billingTriggerRef = useRef<HTMLButtonElement>(null)
+  // The calendar and the date list are their own portals, so an outside-click
+  // there would otherwise close this panel before the date lands.
+  const hasNestedMenuRef = useRef(false)
+  hasNestedMenuRef.current = isCalendarOpen || isBillingListOpen
+
+  useEffect(() => {
+    if (isOpen) return
+    setMode('billing')
+    setSelectedBillingDate(upcomingDates[0] ?? '')
+    setCalendarOpen(false)
+    setBillingListOpen(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on close
+  }, [isOpen])
 
   const selectedDate = mode === 'billing' ? selectedBillingDate : specificDate
   const parsedSelected = parsePeriodDate(selectedDate)
@@ -1804,166 +1828,125 @@ function RampStartDialog({
     parsedSelected >= tomorrow &&
     (latestStart == null || parsedSelected <= latestStart)
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onCancel()
-    }
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [onCancel])
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-brand-navy/20 p-6"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel()
+  return (
+    <AnchoredMenu
+      isOpen={isOpen}
+      anchorRef={anchorRef}
+      onClose={() => {
+        if (hasNestedMenuRef.current) return
+        onClose()
       }}
+      offset={4}
+      className="rounded-lg border border-neutral-200 bg-white shadow-lg"
     >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ramp-start-title"
-        className="w-full max-w-[520px] rounded-xl border border-neutral-200 bg-white p-6 shadow-2xl"
-      >
-        <div className="mb-6 flex items-start justify-between gap-4">
-          <div>
-            <h2
-              id="ramp-start-title"
-              className="text-[18px] font-semibold tracking-[-0.35px] text-brand-navy"
+      <div className="w-[300px] p-3">
+        <span className="block text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+          When do you want this ramp to begin?
+        </span>
+
+        <label className="mt-3 flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name="ramp-start"
+            checked={mode === 'billing'}
+            onChange={() => {
+              setMode('billing')
+              setCalendarOpen(false)
+            }}
+            className="h-3.5 w-3.5 accent-blue-700"
+          />
+          <span className="text-[13px] font-medium text-brand-navy">
+            On an upcoming billing date
+          </span>
+        </label>
+
+        {mode === 'billing' ? (
+          <>
+            <button
+              ref={billingTriggerRef}
+              type="button"
+              disabled={upcomingDates.length === 0}
+              aria-haspopup="listbox"
+              aria-expanded={isBillingListOpen}
+              onClick={() => setBillingListOpen((open) => !open)}
+              className={cn(
+                'mt-2 flex w-full items-center justify-between gap-2 rounded-lg border px-2.5 py-1.5 text-left text-[14px] transition-colors',
+                upcomingDates.length === 0
+                  ? 'cursor-not-allowed border-neutral-200 text-brand-mist'
+                  : 'cursor-pointer border-neutral-200 text-brand-navy hover:border-brand-navy'
+              )}
             >
-              When do you want this ramp to begin?
-            </h2>
-            <p className="mt-1 text-[12px] text-brand-fog">
-              Choose a billing date or set a specific date before {contractEndDate}.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-mist transition-colors hover:bg-neutral-100 hover:text-brand-navy"
-            aria-label="Close"
-          >
-            <X size={16} />
-          </button>
-        </div>
-
-        <div className="space-y-5">
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="ramp-start"
-              checked={mode === 'billing'}
-              onChange={() => setMode('billing')}
-              className="mt-1 h-4 w-4 accent-blue-700"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-medium text-brand-navy">
-                On an upcoming billing date
+              <span className={cn('truncate', !selectedBillingDate && 'text-brand-mist')}>
+                {selectedBillingDate ||
+                  (upcomingDates.length === 0 ? 'No billing dates available' : 'Select date')}
               </span>
-              <button
-                ref={billingAnchorRef}
-                type="button"
-                disabled={mode !== 'billing' || upcomingDates.length === 0}
-                onClick={(event) => {
-                  event.preventDefault()
-                  setMode('billing')
-                  setBillingMenuOpen((open) => !open)
-                }}
-                className={cn(
-                  'mt-2 flex h-10 w-full items-center justify-between rounded-lg border px-3 text-left text-[14px] transition-colors',
-                  mode === 'billing'
-                    ? 'cursor-pointer border-neutral-300 bg-white text-brand-navy hover:border-blue-400'
-                    : 'cursor-not-allowed border-neutral-200 bg-neutral-50 text-brand-mist'
-                )}
-              >
-                <span>{selectedBillingDate || 'No billing dates available'}</span>
-                <ChevronDown size={16} className="shrink-0 text-brand-mist" />
-              </button>
-              <AnchoredMenu
-                isOpen={billingMenuOpen}
-                anchorRef={billingAnchorRef}
-                onClose={() => setBillingMenuOpen(false)}
-                matchAnchorWidth
-                offset={4}
-                className="overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
-              >
-                {upcomingDates.map((date) => (
-                  <button
-                    key={date}
-                    type="button"
-                    onClick={() => {
-                      setSelectedBillingDate(date)
-                      setBillingMenuOpen(false)
-                    }}
-                    className={cn(
-                      'flex w-full cursor-pointer items-center px-3 py-2 text-left text-[13px] transition-colors hover:bg-blue-50',
-                      date === selectedBillingDate
-                        ? 'font-medium text-blue-700'
-                        : 'text-brand-navy'
-                    )}
-                  >
-                    {date}
-                  </button>
-                ))}
-              </AnchoredMenu>
-            </span>
-          </label>
-
-          <label className="flex cursor-pointer items-start gap-3">
-            <input
-              type="radio"
-              name="ramp-start"
-              checked={mode === 'specific'}
-              onChange={() => {
-                setMode('specific')
-                setDatePickerOpen(true)
-              }}
-              className="mt-1 h-4 w-4 accent-blue-700"
-            />
-            <span className="min-w-0 flex-1">
-              <span className="block text-[14px] font-medium text-brand-navy">
-                On a specific date
-              </span>
-              <span
-                className={cn(
-                  'mt-2 flex h-10 w-full items-center rounded-lg border px-3 transition-colors',
-                  mode === 'specific'
-                    ? 'border-neutral-300 bg-white'
-                    : 'border-neutral-200 bg-neutral-50 opacity-60'
-                )}
-                onClick={(event) => {
-                  event.preventDefault()
-                  setMode('specific')
-                  setDatePickerOpen(true)
-                }}
-              >
-                <DatePickerField
-                  value={specificDate}
-                  onChange={setSpecificDate}
-                  active={mode === 'specific' && datePickerOpen}
-                  onActiveChange={setDatePickerOpen}
-                  ariaLabel="Ramp start date"
-                  minDate={formatPeriodDate(tomorrow)}
-                  maxDate={latestStart ? formatPeriodDate(latestStart) : undefined}
-                  keepInkOnRowHover
-                  className="w-full"
-                />
-              </span>
-            </span>
-          </label>
-        </div>
-
-        {!canCreate && mode === 'specific' ? (
-          <p className="mt-3 pl-7 text-[12px] text-red-500">
-            Choose a date before the contract end date.
-          </p>
+              <ChevronDown size={14} className="shrink-0 text-brand-mist" />
+            </button>
+            <AnchoredMenu
+              isOpen={isBillingListOpen}
+              anchorRef={billingTriggerRef}
+              onClose={() => setBillingListOpen(false)}
+              matchAnchorWidth
+              className="max-h-[200px] overflow-y-auto rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+            >
+              {upcomingDates.map((date) => (
+                <button
+                  key={date}
+                  type="button"
+                  onClick={() => {
+                    setSelectedBillingDate(date)
+                    setBillingListOpen(false)
+                  }}
+                  className={cn(
+                    'flex w-full cursor-pointer items-center px-3 py-1.5 text-left text-[14px] transition-colors',
+                    date === selectedBillingDate
+                      ? 'bg-neutral-100 font-medium text-brand-navy'
+                      : 'text-brand-navy hover:bg-brand-navy hover:text-white'
+                  )}
+                >
+                  {date}
+                </button>
+              ))}
+            </AnchoredMenu>
+          </>
         ) : null}
 
-        <div className="mt-7 flex justify-end gap-2">
+        <label className="mt-3 flex cursor-pointer items-center gap-2">
+          <input
+            type="radio"
+            name="ramp-start"
+            checked={mode === 'specific'}
+            onChange={() => {
+              setMode('specific')
+              setBillingListOpen(false)
+              setCalendarOpen(true)
+            }}
+            className="h-3.5 w-3.5 accent-blue-700"
+          />
+          <span className="text-[13px] font-medium text-brand-navy">On a specific date</span>
+        </label>
+
+        {mode === 'specific' ? (
+          <div className="mt-2 flex items-center rounded-lg border border-neutral-200 px-2.5 py-1.5 transition-colors focus-within:border-brand-navy">
+            <DatePickerField
+              value={specificDate}
+              onChange={setSpecificDate}
+              active={isCalendarOpen}
+              onActiveChange={setCalendarOpen}
+              ariaLabel="Ramp start date"
+              minDate={formatPeriodDate(tomorrow)}
+              maxDate={latestStart ? formatPeriodDate(latestStart) : undefined}
+              keepInkOnRowHover
+              className="w-full"
+            />
+          </div>
+        ) : null}
+
+        <div className="mt-3 flex items-center justify-end gap-2">
           <button
             type="button"
-            onClick={onCancel}
-            className="h-9 cursor-pointer rounded-lg border border-neutral-300 bg-white px-4 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
+            onClick={onClose}
+            className="cursor-pointer rounded-md border border-neutral-200 px-3 py-1.5 text-[13px] font-medium text-brand-navy transition-colors hover:bg-neutral-50"
           >
             Cancel
           </button>
@@ -1971,14 +1954,18 @@ function RampStartDialog({
             type="button"
             disabled={!canCreate}
             onClick={() => onCreate(selectedDate)}
-            className="h-9 cursor-pointer rounded-lg bg-blue-700 px-4 text-[13px] font-medium text-white transition-colors hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-neutral-300"
+            className={cn(
+              'rounded-md px-3 py-1.5 text-[13px] font-semibold text-white transition-colors',
+              canCreate
+                ? 'cursor-pointer bg-brand-navy hover:bg-brand-soft'
+                : 'cursor-not-allowed bg-neutral-300'
+            )}
           >
-            Create period
+            Create
           </button>
         </div>
       </div>
-    </div>,
-    document.body
+    </AnchoredMenu>
   )
 }
 
@@ -2751,7 +2738,8 @@ export function ProductsPricingTable({
     }
     return new Set()
   })
-  const [showRampStartDialog, setShowRampStartDialog] = useState(false)
+  const [showRampStartMenu, setShowRampStartMenu] = useState(false)
+  const addPeriodRef = useRef<HTMLButtonElement>(null)
   const [pendingDelete, setPendingDelete] = useState<{
     period: RampPeriod
     index: number
@@ -4867,6 +4855,7 @@ export function ProductsPricingTable({
 
   const handleAddPeriod = (startDate: string) => {
     const endDate = resolvedContractEndDate
+    const newStart = parsePeriodDate(startDate)
     const newPeriod: RampPeriod = {
       id: `period-new-${Date.now()}`,
       label: `Period ${(periods?.length ?? 0) + 1}`,
@@ -4876,8 +4865,41 @@ export function ProductsPricingTable({
     }
 
     const previousById = new Map((periods ?? []).map((p) => [p.id, p]))
-    const nextPeriods = renumberPeriodsByDate([...(periods ?? []), newPeriod])
+    const predecessorEndDate = newStart ? formatPeriodDate(addDays(newStart, -1)) : null
+    const predecessorEndMs = predecessorEndDate
+      ? parsePeriodDate(predecessorEndDate)?.getTime()
+      : null
+    const newStartMs = newStart?.getTime() ?? Number.POSITIVE_INFINITY
+
+    const predecessor = sortPeriodsByDate(periods ?? [])
+      .filter((period) => {
+        const startMs = parsePeriodDate(period.startDate)?.getTime() ?? Number.NEGATIVE_INFINITY
+        return startMs < newStartMs
+      })
+      .at(-1)
+
+    const withAdjustedPredecessor = (periods ?? []).map((period) => {
+      if (!predecessor || period.id !== predecessor.id || predecessorEndDate == null) {
+        return period
+      }
+      const startMs = parsePeriodDate(period.startDate)?.getTime()
+      if (startMs == null || predecessorEndMs == null || startMs > predecessorEndMs) {
+        return period
+      }
+      return { ...period, endDate: predecessorEndDate }
+    })
+
+    const nextPeriods = renumberPeriodsByDate([...withAdjustedPredecessor, newPeriod])
     const added = nextPeriods.find((p) => p.id === newPeriod.id) ?? newPeriod
+    const predecessorAfter = predecessor
+      ? nextPeriods.find((p) => p.id === predecessor.id)
+      : undefined
+    const predecessorNote =
+      predecessor &&
+      predecessorAfter &&
+      predecessor.endDate !== predecessorAfter.endDate
+        ? `${predecessorAfter.label} end date is now ${predecessorAfter.endDate}`
+        : null
     const renumberNotes = nextPeriods
       .filter((p) => {
         const previous = previousById.get(p.id)
@@ -4887,6 +4909,7 @@ export function ProductsPricingTable({
         const previous = previousById.get(p.id)!
         return `${previous.label} (${previous.startDate} to ${previous.endDate}) is now ${p.label}`
       })
+    const extraNotes = [...renumberNotes, ...(predecessorNote ? [predecessorNote] : [])]
 
     setPeriods(nextPeriods)
     setExpandedPeriods((prev) => {
@@ -4894,11 +4917,10 @@ export function ProductsPricingTable({
       next.add(newPeriod.id)
       return next
     })
-    setShowRampStartDialog(false)
+    setShowRampStartMenu(false)
 
     const dateRange = `${added.startDate} to ${added.endDate}`
-    const addValue =
-      renumberNotes.length > 0 ? `Added|${renumberNotes.join('. ')}` : 'Added'
+    const addValue = extraNotes.length > 0 ? `Added|${extraNotes.join('. ')}` : 'Added'
     recordProductEdit(editHistory, added.id, added.label, dateRange, addValue)
   }
 
@@ -5018,8 +5040,11 @@ export function ProductsPricingTable({
 
         <div className="pl-1 pr-2">
           <button
+            ref={addPeriodRef}
             type="button"
-            onClick={() => setShowRampStartDialog(true)}
+            aria-expanded={showRampStartMenu}
+            aria-haspopup="dialog"
+            onClick={() => setShowRampStartMenu((open) => !open)}
             className="-ml-6 flex w-[calc(100%+1.5rem)] cursor-pointer items-center gap-1 py-2 text-[13px] font-medium text-blue-700 transition-colors hover:bg-blue-50"
           >
             <span className="flex h-5 w-5 shrink-0 items-center justify-center">
@@ -5028,15 +5053,15 @@ export function ProductsPricingTable({
             Add period
           </button>
         </div>
-        {showRampStartDialog ? (
-          <RampStartDialog
-            periods={periods}
-            contractEndDate={resolvedContractEndDate}
-            billingFrequency={billingFrequency}
-            onCancel={() => setShowRampStartDialog(false)}
-            onCreate={handleAddPeriod}
-          />
-        ) : null}
+        <RampStartMenu
+          isOpen={showRampStartMenu}
+          anchorRef={addPeriodRef}
+          periods={periods}
+          contractEndDate={resolvedContractEndDate}
+          billingFrequency={billingFrequency}
+          onClose={() => setShowRampStartMenu(false)}
+          onCreate={handleAddPeriod}
+        />
       </>
     )
   }
