@@ -59,6 +59,14 @@ const SEPARATOR_W = SEPARATOR_GUTTER_PX * 2 + 1
  */
 const ROW_STROKE = 'border-b border-neutral-100'
 const HEADER_STROKE = 'border-b border-neutral-200'
+/**
+ * Alert rows are fenced in red rather than grey. The row owns the rule below it;
+ * whatever sits above (another row or the period header) recolours its own rule,
+ * so the two edges match without stacking a second line.
+ */
+const ALERT_ROW_MARKER = 'row-alert'
+const ALERT_ROW_STROKE = 'border-red-100'
+const STROKE_ABOVE_ALERT_ROW = '[&:has(+.row-alert)]:border-red-100'
 
 /** Cell chrome. Edited cells drop py so amber is flush to the row stroke. */
 function cellChrome(isEdited?: boolean, ...extra: Array<string | false | null | undefined>) {
@@ -3477,6 +3485,7 @@ export function ProductsPricingTable({
       className={cn(
         'relative items-center bg-white pb-2 pl-1 pr-2',
         HEADER_STROKE,
+        STROKE_ABOVE_ALERT_ROW,
         !isFullPageExpanded && 'flex'
       )}
       style={expandedFullPageGridStyle}
@@ -3587,6 +3596,7 @@ export function ProductsPricingTable({
       className={cn(
         'relative items-center bg-white pb-2 pl-1 pr-2',
         HEADER_STROKE,
+        STROKE_ABOVE_ALERT_ROW,
         !isFullPageExpanded && 'flex'
       )}
       style={expandedFullPageGridStyle}
@@ -3717,6 +3727,7 @@ export function ProductsPricingTable({
         className={cn(
           'group relative items-stretch bg-white pl-1 pr-2 transition-colors',
           ROW_STROKE,
+          STROKE_ABOVE_ALERT_ROW,
           !isFullPageExpanded && 'flex'
         )}
         style={expandedFullPageGridStyle}
@@ -3879,7 +3890,8 @@ export function ProductsPricingTable({
         className={cn(
           'group row-hover-trail relative items-stretch bg-white pl-1 pr-2 transition-colors',
           ROW_STROKE,
-          showAlert && 'bg-red-50',
+          STROKE_ABOVE_ALERT_ROW,
+          showAlert && cn('bg-red-50', ALERT_ROW_MARKER, ALERT_ROW_STROKE),
           !isFullPageExpanded && 'flex',
           // Lift the whole row while the item picker is open so the absolute
           // popover isn't painted under later sticky cells / row content.
