@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Share2, FilePenLine, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing'
@@ -291,6 +291,10 @@ export function SalesOrderDetails({
   const [internalChatOpen, setInternalChatOpen] = useState(false)
   const [internalChatTurns, setInternalChatTurns] = useState<AskChatTurn[]>([])
   const [askLeaving, setAskLeaving] = useState(false)
+  const [askHidden, setAskHidden] = useState(false)
+  const [askExitToken, setAskExitToken] = useState(0)
+  const [askEnterToken, setAskEnterToken] = useState(0)
+  const askBusy = useRef(false)
 
   const chatOpen = externalChat ? Boolean(chatOpenProp) : internalChatOpen
   const chatTurns = externalChat ? (chatTurnsProp ?? []) : internalChatTurns
@@ -359,6 +363,28 @@ export function SalesOrderDetails({
     }
     setInternalChatOpen(false)
   }
+
+  const requestAskClose = () => {
+    if (askBusy.current || askHidden || chatOpen) return
+    askBusy.current = true
+    setAskExitToken((token) => token + 1)
+  }
+
+  const requestAskOpen = () => {
+    if (askBusy.current || !askHidden || chatOpen) return
+    askBusy.current = true
+    setAskHidden(false)
+    setAskEnterToken((token) => token + 1)
+  }
+
+  useEffect(() => {
+    const onIcon = () => {
+      if (askHidden) requestAskOpen()
+      else requestAskClose()
+    }
+    window.addEventListener('ask-icon-click', onIcon)
+    return () => window.removeEventListener('ask-icon-click', onIcon)
+  })
 
   const content = (
     <div
@@ -466,7 +492,7 @@ export function SalesOrderDetails({
         </div>
       </div>
 
-      {!chatOpen && (
+      {!chatOpen && !askHidden && (
         <div
           className={cn(
             'pointer-events-none absolute inset-x-0 bottom-0 z-10 flex justify-center pb-6 transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]',
@@ -475,7 +501,19 @@ export function SalesOrderDetails({
               : 'translate-x-0 translate-y-0 scale-100 opacity-100',
           )}
         >
-          <SalesOrderAskBar onAsk={openChat} suggestions={askSuggestions} />
+          <SalesOrderAskBar
+            onAsk={openChat}
+            suggestions={askSuggestions}
+            exitToken={askExitToken}
+            enterToken={askEnterToken}
+            onDismissed={() => {
+              askBusy.current = false
+              setAskHidden(true)
+            }}
+            onEntered={() => {
+              askBusy.current = false
+            }}
+          />
         </div>
       )}
     </div>

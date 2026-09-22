@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type FocusEvent, type ReactNode } from 'react'
 import { PanelLeftClose, Send, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { GradientSparkle } from '@/components/features/contract-processing/GradientSparkle'
@@ -26,6 +26,109 @@ export function getAskSuggestions(_variant?: string | null): readonly string[] {
 export const ASK_SUGGESTIONS = ASK_SUGGESTIONS_JUST_CREATED
 
 export const ASK_CHAT_RAIL_WIDTH = 320
+
+const ASK_FLY_MS = 720
+
+function askIconEl() {
+  return document.querySelector<HTMLElement>('[data-ask-icon]')
+}
+
+function pulseAskIcon() {
+  askIconEl()?.animate(
+    [{ transform: 'scale(1)' }, { transform: 'scale(1.12)' }, { transform: 'scale(1)' }],
+    { duration: 320, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' },
+  )
+}
+
+function rectFrame(rect: DOMRect) {
+  return {
+    left: `${rect.left}px`,
+    top: `${rect.top}px`,
+    width: `${rect.width}px`,
+    height: `${rect.height}px`,
+  }
+}
+
+/** Fixed clone so the flight can leave the clipped page column and land on the rail icon. */
+function placeFlyClone(source: HTMLElement) {
+  const from = source.getBoundingClientRect()
+  const clone = source.cloneNode(true) as HTMLElement
+  clone.querySelector('[aria-label="Close ask"]')?.remove()
+  clone.style.position = 'fixed'
+  clone.style.margin = '0'
+  clone.style.zIndex = '80'
+  clone.style.pointerEvents = 'none'
+  clone.style.transition = 'none'
+  clone.style.left = `${from.left}px`
+  clone.style.top = `${from.top}px`
+  clone.style.width = `${from.width}px`
+  clone.style.height = `${from.height}px`
+  document.body.appendChild(clone)
+  source.style.visibility = 'hidden'
+  return { clone, from }
+}
+
+function finishFly(clone: HTMLElement, animation: Animation, onDone: () => void) {
+  let settled = false
+  const finish = () => {
+    if (settled) return
+    settled = true
+    clone.remove()
+    onDone()
+  }
+  animation.onfinish = finish
+  window.setTimeout(finish, ASK_FLY_MS + 80)
+}
+
+function flyComposerToIcon(source: HTMLElement, onDone: () => void) {
+  const icon = askIconEl()
+  if (!icon) {
+    onDone()
+    return
+  }
+  const { clone, from } = placeFlyClone(source)
+  const to = icon.getBoundingClientRect()
+  // The pill glides left and shortens into the sparkle. It stays opaque until it arrives.
+  const motion = clone.animate([rectFrame(from), rectFrame(to)], {
+    duration: ASK_FLY_MS,
+    easing: 'cubic-bezier(0.65, 0, 0.35, 1)',
+    fill: 'forwards',
+  })
+  clone.animate(
+    [
+      { opacity: 1, offset: 0 },
+      { opacity: 1, offset: 0.82 },
+      { opacity: 0, offset: 1 },
+    ],
+    { duration: ASK_FLY_MS, easing: 'linear', fill: 'forwards' },
+  )
+  finishFly(clone, motion, () => {
+    pulseAskIcon()
+    onDone()
+  })
+}
+
+function flyComposerFromIcon(source: HTMLElement, onDone: () => void) {
+  const icon = askIconEl()
+  if (!icon) {
+    source.style.visibility = ''
+    onDone()
+    return
+  }
+  const { clone, from } = placeFlyClone(source)
+  const to = icon.getBoundingClientRect()
+  const animation = clone.animate(
+    [
+      { ...rectFrame(to), opacity: 0 },
+      { ...rectFrame(from), opacity: 1 },
+    ],
+    { duration: ASK_FLY_MS, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'both' },
+  )
+  finishFly(clone, animation, () => {
+    source.style.visibility = ''
+    onDone()
+  })
+}
 
 const THINKING_MS = 2400
 
@@ -139,6 +242,7 @@ export function AskComposer({
   placeholderPhrases,
   autoFocus,
   fullWidth,
+  onDismiss,
 }: {
   value: string
   onChange: (value: string) => void
@@ -152,6 +256,7 @@ export function AskComposer({
   /** @deprecated Width is fitted to placeholder phrases; kept for call-site compat */
   expanded?: boolean
   fullWidth?: boolean
+  onDismiss?: () => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [focused, setFocused] = useState(false)
@@ -198,14 +303,29 @@ export function AskComposer({
 
   return (
     <div
+      data-ask-composer
       className={cn(
-        'rounded-full p-[1.5px] ai-gradient transition-all duration-300 ease-out',
+        'relative rounded-full p-[1.5px] ai-gradient transition-all duration-300 ease-out',
         fullWidth && 'w-full',
       )}
       style={fullWidth ? undefined : { width: fittedWidth }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
+      {onDismiss ? (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={(e) => {
+            e.stopPropagation()
+            onDismiss()
+          }}
+          className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full border border-neutral-200 bg-white text-brand-fog shadow-sm transition-colors hover:text-brand-navy"
+          aria-label="Close ask"
+        >
+          <X size={11} strokeWidth={2.25} />
+        </button>
+      ) : null}
       <div
         className="relative flex cursor-text items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm"
         onClick={() => inputRef.current?.focus()}
@@ -591,13 +711,25 @@ export function SalesOrderAskChatPanel({
 export function SalesOrderAskBar({
   onAsk,
   suggestions = ASK_SUGGESTIONS_JUST_CREATED,
+  exitToken = 0,
+  enterToken = 0,
+  onDismissed,
+  onEntered,
 }: {
   onAsk: (prompt: string) => void
   suggestions?: readonly string[]
+  /** Bump to fly the field into the bottom-left Ask icon. */
+  exitToken?: number
+  /** Bump to grow the field back out of that icon. 0 skips the entrance. */
+  enterToken?: number
+  onDismissed?: () => void
+  onEntered?: () => void
 }) {
   const [query, setQuery] = useState('')
   const [isExpanded, setIsExpanded] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
+  const seenExit = useRef(exitToken)
+  const dismissing = useRef(false)
 
   const showSuggestions = isExpanded && !query.trim()
 
@@ -614,6 +746,44 @@ export function SalesOrderAskBar({
     setIsExpanded(false)
     onAsk(trimmed)
   }
+
+  const composerEl = () =>
+    rootRef.current?.querySelector<HTMLElement>('[data-ask-composer]') ?? null
+
+  const dismiss = () => {
+    if (dismissing.current) return
+    const source = composerEl()
+    if (!source) {
+      onDismissed?.()
+      return
+    }
+    dismissing.current = true
+    setIsExpanded(false)
+    flyComposerToIcon(source, () => {
+      dismissing.current = false
+      onDismissed?.()
+    })
+  }
+
+  useEffect(() => {
+    if (exitToken === seenExit.current) return
+    seenExit.current = exitToken
+    dismiss()
+    // dismiss is stable enough for a token bump; it reads refs and current layout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exitToken])
+
+  useLayoutEffect(() => {
+    if (!enterToken) return
+    const source = composerEl()
+    if (!source) {
+      onEntered?.()
+      return
+    }
+    flyComposerFromIcon(source, () => onEntered?.())
+    // Play once per mount. A fresh enterToken arrives with a new mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enterToken])
 
   return (
     <div ref={rootRef} className="pointer-events-auto flex flex-col items-center gap-2.5">
@@ -639,6 +809,7 @@ export function SalesOrderAskBar({
         onSubmit={() => submit(query)}
         onFocus={() => setIsExpanded(true)}
         onBlur={handleBlur}
+        onDismiss={dismiss}
         expanded={isExpanded}
         placeholderPhrases={suggestions}
       />

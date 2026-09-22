@@ -1,82 +1,46 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
-  Home,
-  MessageSquarePlus,
-  History,
-  Users,
-  FileText,
-  List,
-  ReceiptText,
-  WalletCards,
-  BarChart3,
+  Bell,
+  CircleUser,
   ChevronsUpDown,
+  Folder,
+  Home,
+  MessageSquareText,
+  Package,
+  PieChart,
+  Settings,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { useNavigation } from '../../context/NavigationContext'
 import cbLogo from '../../assets/cb-logo-squircle.svg'
 
-function GradientMessageSquarePlus({ size = 18, paused = false }: { size?: number; paused?: boolean }) {
+function GradientSparkles({ size = 20 }: { size?: number }) {
   return (
-    <div style={{ width: size, height: size, position: 'relative' }}>
-      <style>{`
-        @keyframes aiGradientPulse1 {
-          0%, 100% { stop-color: #1c1b2e; }
-          50% { stop-color: #ff3300; }
-        }
-        @keyframes aiGradientPulse2 {
-          0%, 100% { stop-color: #1c1b2e; }
-          50% { stop-color: #8b5cf6; }
-        }
-        .ai-stop-top { animation: aiGradientPulse1 3s ease-in-out infinite; }
-        .ai-stop-bottom { animation: aiGradientPulse2 3s ease-in-out infinite; }
-        .ai-stop-top.paused { animation: none; }
-        .ai-stop-bottom.paused { animation: none; }
-      `}</style>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', inset: 0 }}>
-        <defs>
-          <linearGradient id="msgGrad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
-            <stop className={paused ? "ai-stop-top paused" : "ai-stop-top"} stopColor={paused ? "#ffffff" : "#1c1b2e"} />
-            <stop className={paused ? "ai-stop-bottom paused" : "ai-stop-bottom"} offset="1" stopColor={paused ? "#ffffff" : "#1c1b2e"} />
-          </linearGradient>
-        </defs>
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" stroke="url(#msgGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <line x1="12" y1="7" x2="12" y2="13" stroke="url(#msgGrad)" strokeWidth="2" strokeLinecap="round" />
-        <line x1="9" y1="10" x2="15" y2="10" stroke="url(#msgGrad)" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    </div>
-  )
-}
-
-function GradientHistory({ size = 18, paused = false }: { size?: number; paused?: boolean }) {
-  return (
-    <div style={{ width: size, height: size, position: 'relative' }}>
-      <style>{`
-        @keyframes aiGradientPulseHist1 {
-          0%, 100% { stop-color: #1c1b2e; }
-          50% { stop-color: #ff3300; }
-        }
-        @keyframes aiGradientPulseHist2 {
-          0%, 100% { stop-color: #1c1b2e; }
-          50% { stop-color: #8b5cf6; }
-        }
-        .ai-stop-top-hist { animation: aiGradientPulseHist1 3s ease-in-out infinite; }
-        .ai-stop-bottom-hist { animation: aiGradientPulseHist2 3s ease-in-out infinite; }
-        .ai-stop-top-hist.paused { animation: none; }
-        .ai-stop-bottom-hist.paused { animation: none; }
-      `}</style>
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', inset: 0 }}>
-        <defs>
-          <linearGradient id="histGrad" x1="12" y1="3" x2="12" y2="21" gradientUnits="userSpaceOnUse">
-            <stop className={paused ? "ai-stop-top-hist paused" : "ai-stop-top-hist"} stopColor={paused ? "#ffffff" : "#1c1b2e"} />
-            <stop className={paused ? "ai-stop-bottom-hist paused" : "ai-stop-bottom-hist"} offset="1" stopColor={paused ? "#ffffff" : "#1c1b2e"} />
-          </linearGradient>
-        </defs>
-        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke="url(#histGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M3 3v5h5" stroke="url(#histGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M12 7v5l4 2" stroke="url(#histGrad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-    </div>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id="askSparkGrad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
+          <stop stopColor="#ff3300" />
+          <stop offset="1" stopColor="#6d28d9" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+        stroke="url(#askSparkGrad)"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M20 2v4" stroke="url(#askSparkGrad)" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M22 4h-4" stroke="url(#askSparkGrad)" strokeWidth="1.75" strokeLinecap="round" />
+      <circle cx="4" cy="20" r="2" stroke="url(#askSparkGrad)" strokeWidth="1.75" />
+    </svg>
   )
 }
 
@@ -84,25 +48,32 @@ interface NavItem {
   icon: LucideIcon
   label: string
   href: string
-  isAI?: boolean
   onClick?: () => void
 }
 
 export function LeftNav() {
   const [isExpanded, setIsExpanded] = useState(false)
-  const [hoveredItem, setHoveredItem] = useState<string | null>(null)
+  const railRef = useRef<HTMLDivElement>(null)
   const { view, goToWorkbench, goToCustomers, goToSalesOrders } = useNavigation()
 
+  useEffect(() => {
+    if (!isExpanded) return
+    const close = (event: MouseEvent) => {
+      if (railRef.current && !railRef.current.contains(event.target as Node)) {
+        setIsExpanded(false)
+      }
+    }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [isExpanded])
+
   const navItems: NavItem[] = [
-    { icon: Home,              label: 'Workbench',   href: '/',              onClick: goToWorkbench },
-    { icon: MessageSquarePlus, label: 'New Chat',    href: '/chat',          isAI: true },
-    { icon: History,           label: 'History',     href: '/history',       isAI: true },
-    { icon: Users,             label: 'Customers',   href: '/customers',     onClick: goToCustomers },
-    { icon: FileText,          label: 'Quotes',      href: '/quotes' },
-    { icon: List,              label: 'Sales orders', href: '/sales-orders', onClick: goToSalesOrders },
-    { icon: ReceiptText,       label: 'Invoices',    href: '/invoices' },
-    { icon: WalletCards,       label: 'Collections', href: '/collections' },
-    { icon: BarChart3,         label: 'Reports',     href: '/reports' },
+    { icon: Home, label: 'Workbench', href: '/', onClick: goToWorkbench },
+    { icon: Folder, label: 'Customers', href: '/customers', onClick: goToCustomers },
+    { icon: Package, label: 'Sales orders', href: '/sales-orders', onClick: goToSalesOrders },
+    { icon: MessageSquareText, label: 'Quotes', href: '/quotes' },
+    { icon: PieChart, label: 'Reports', href: '/reports' },
+    { icon: Settings, label: 'Settings', href: '/settings' },
   ]
 
   const getIsActive = (item: NavItem): boolean => {
@@ -114,15 +85,14 @@ export function LeftNav() {
 
   return (
     <>
-      {/* Hover zone — always full height, width expands with card */}
+      {/* Icon rail. Labels open from the logo click; the icons themselves only navigate. */}
       <div
+        ref={railRef}
         className="fixed left-0 top-0 z-50 h-screen"
         style={{
           width: isExpanded ? 336 : 48,
           pointerEvents: 'auto',
         }}
-        onMouseEnter={() => setIsExpanded(true)}
-        onMouseLeave={() => setIsExpanded(false)}
       >
         {/* Visual card — gets inset margin when expanded for the "lifted" look */}
         <nav
@@ -143,7 +113,15 @@ export function LeftNav() {
         >
           {/* Header row — logo always visible; site selector text fades in */}
           <div className="flex h-10 shrink-0 items-center gap-2 overflow-hidden px-3">
-            <img src={cbLogo} alt="Chargebee" className="h-7 w-7 shrink-0 object-contain" />
+            <button
+              type="button"
+              onClick={() => setIsExpanded((open) => !open)}
+              className="flex h-7 w-7 shrink-0 cursor-pointer items-center justify-center"
+              aria-label={isExpanded ? 'Collapse navigation' : 'Expand navigation'}
+              aria-expanded={isExpanded}
+            >
+              <img src={cbLogo} alt="" className="h-7 w-7 object-contain" />
+            </button>
 
             {/* Site selector text */}
             <div
@@ -195,7 +173,10 @@ export function LeftNav() {
                 <button
                   key={item.href}
                   type="button"
-                  onClick={item.onClick}
+                  onClick={(event) => {
+                    event.stopPropagation()
+                    item.onClick?.()
+                  }}
                   className={cn(
                     'group flex cursor-pointer items-center rounded-lg text-left transition-colors',
                     isActive
@@ -210,22 +191,9 @@ export function LeftNav() {
                     gap: 12,
                     transition: 'width 140ms cubic-bezier(0.2,0,0,1), padding 140ms cubic-bezier(0.2,0,0,1), background-color 150ms ease-out, color 150ms ease-out',
                   }}
-                  onMouseEnter={() => setHoveredItem(item.href)}
-                  onMouseLeave={() => setHoveredItem(null)}
                 >
-                  {/* Icon wrapper — always 18px */}
                   <div className={cn("flex shrink-0 items-center justify-center", isActive && "text-orange-500")} style={{ width: 18, height: 18 }}>
-                    {item.isAI ? (
-                      item.label === 'New Chat' ? (
-                        <GradientMessageSquarePlus size={18} paused={hoveredItem === item.href} />
-                      ) : item.label === 'History' ? (
-                        <GradientHistory size={18} paused={hoveredItem === item.href} />
-                      ) : (
-                        <Icon size={18} />
-                      )
-                    ) : (
-                      <Icon size={18} />
-                    )}
+                    <Icon size={18} strokeWidth={1.75} />
                   </div>
 
                   {/* Label — slides in from left */}
@@ -249,6 +217,32 @@ export function LeftNav() {
             })}
           </div>
         </nav>
+
+        <div className="absolute bottom-4 left-0 flex w-12 flex-col items-center gap-5">
+          <button
+            type="button"
+            className="flex cursor-pointer items-center justify-center text-brand-navy"
+            aria-label="Notifications"
+          >
+            <Bell size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            className="flex cursor-pointer items-center justify-center text-brand-navy"
+            aria-label="Account"
+          >
+            <CircleUser size={20} strokeWidth={1.75} />
+          </button>
+          <button
+            type="button"
+            data-ask-icon
+            onClick={() => window.dispatchEvent(new CustomEvent('ask-icon-click'))}
+            className="flex cursor-pointer items-center justify-center"
+            aria-label="Ask"
+          >
+            <GradientSparkles />
+          </button>
+        </div>
       </div>
     </>
   )

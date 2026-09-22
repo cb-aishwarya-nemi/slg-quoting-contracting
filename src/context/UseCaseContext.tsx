@@ -30,7 +30,7 @@ export interface UseCasePage {
 
 /**
  * Registry of sales-order contract-timeline explorations.
- * Filled-simplified and Minimal currently reuse the Filled-loaded axis until defined.
+ * Minimal 2 starts as a copy of Minimal so the two can diverge.
  */
 export const USE_CASE_REGISTRY: UseCasePage[] = [
   {
@@ -51,8 +51,12 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
         label: '3. Minimal',
       },
       {
+        id: 'minimal-2',
+        label: '4. Minimal 2',
+      },
+      {
         id: 'single-year',
-        label: '4. Single year',
+        label: '5. Single year',
       },
     ],
   },

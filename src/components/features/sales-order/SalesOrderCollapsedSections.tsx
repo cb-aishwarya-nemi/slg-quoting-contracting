@@ -222,7 +222,7 @@ function BillingYearAccordion({
   const card = (
     <div
       className={cn(
-        'relative overflow-hidden rounded-lg border border-neutral-200 transition-all',
+        'relative overflow-hidden rounded-lg border border-brand-navy/40 transition-all',
         connected && 'z-10'
       )}
     >
@@ -243,7 +243,7 @@ function BillingYearAccordion({
       )}
 
       {showExpanded && (
-        <div className="relative z-10 border-t border-neutral-200 bg-white px-4 py-2">
+        <div className="relative z-10 border-t border-brand-navy/40 bg-white px-4 py-2">
           <div className="space-y-2">
             {group.items.map((item, idx) => (
               <BillingQuarterRow

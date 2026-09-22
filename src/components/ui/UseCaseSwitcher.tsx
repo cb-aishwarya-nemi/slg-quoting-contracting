@@ -72,7 +72,7 @@ export function UseCaseSwitcher() {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          'fixed bottom-4 left-4 z-[9999] flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200',
+          'fixed bottom-4 right-4 z-[9999] flex h-9 w-9 items-center justify-center rounded-lg transition-all duration-200',
           'bg-white border border-neutral-200',
           'shadow-[0_1px_3px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]',
           'hover:shadow-[0_2px_4px_rgba(0,0,0,0.08),0_1px_2px_rgba(0,0,0,0.04)]',
@@ -89,7 +89,7 @@ export function UseCaseSwitcher() {
         <div
           ref={dropdownRef}
           className={cn(
-            'fixed bottom-16 left-4 z-[9999] w-72 rounded-xl',
+            'fixed bottom-16 right-4 z-[9999] w-72 rounded-xl',
             'bg-white border border-neutral-200',
             'shadow-[0_4px_16px_rgba(0,0,0,0.08),0_2px_4px_rgba(0,0,0,0.04)]',
             'animate-in slide-in-from-bottom-2 duration-200'

@@ -140,6 +140,13 @@ const COMPACT_DOT = 'block h-[7px] w-[7px] rounded-full border transition-all du
 /** Minimal marks contract versions with a diamond so they read apart from the ramp dots. */
 const COMPACT_DIAMOND = 'block h-[8px] w-[8px] rotate-45 border transition-all duration-200'
 
+/** Minimal 2 version flags — same tones as the diamonds they replace. */
+const VERSION_FLAG_TONES = {
+  default: 'text-blue-500',
+  positive: 'text-green-600',
+  critical: 'text-red-600',
+} as const
+
 /** Minimal only: filled dots take a 1px white stroke to lift them off the gradient line. */
 const FILLED_DOT_STROKE = 'ring-1 ring-white'
 
@@ -196,6 +203,31 @@ function YearFlag({
       aria-hidden
     >
       <path d={d} fill="currentColor" fillOpacity={fillOpacity} />
+    </svg>
+  )
+}
+
+/** Minimal 2 contract version — filled once signed, outline while still ahead.
+ *  Pole lifts the cloth just clear of the axis. */
+function VersionFlag({ filled, className }: { filled: boolean; className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 36"
+      width={12}
+      height={18}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <path
+        d="M4 34V4a1 1 0 0 1 .4-.8A6 6 0 0 1 8 2c3 0 5 2 7.333 2q2 0 3.067-.8A1 1 0 0 1 20 4v10a1 1 0 0 1-.4.8A6 6 0 0 1 16 16c-3 0-5-2-8-2a6 6 0 0 0-4 1.528"
+        fill={filled ? 'currentColor' : 'white'}
+      />
     </svg>
   )
 }
@@ -266,8 +298,10 @@ export function SalesOrderHeaderTimeline({
   children,
 }: SalesOrderHeaderTimelineProps) {
   const { isTimelineHidden } = useUseCase()
-  /** Minimal collapses the axis to a single progress line; today reads off the gradient end. */
-  const isMinimal = variant === 'minimal'
+  /** Minimal collapses the axis to a single progress line; today reads off the gradient end.
+   *  Minimal 2 keeps that line, swaps version diamonds for flags, and drops year markers. */
+  const isMinimal = variant === 'minimal' || variant === 'minimal-2'
+  const isMinimal2 = variant === 'minimal-2'
   /** Simplified and minimal both trade the numbered discs for uniform 7px dots. */
   const compactDots = variant === 'filled-simplified' || isMinimal
   /** Single year narrows the axis to one contract period — no year flags, monthly ticks. */
@@ -405,8 +439,9 @@ export function SalesOrderHeaderTimeline({
         className="sticky top-0 z-20 bg-white pb-4"
         data-timeline-stuck={isTimelineStuck ? 'true' : 'false'}
       >
-      {/* Year milestones — stacked by default; beside flags with longer pole when stuck */}
-      {showFullTerm && (
+      {/* Year milestones — stacked by default; beside flags with longer pole when stuck.
+          Minimal 2 has no year markers. */}
+      {showFullTerm && !isMinimal2 && (
         <div
           className={cn(
             'relative transition-[height,margin] duration-200',
@@ -478,7 +513,7 @@ export function SalesOrderHeaderTimeline({
       )}
 
       {/* Timeline band: top line → months → bottom line. Minimal flips it so months sit below. */}
-      <div className={cn('relative', isMinimal && 'flex flex-col-reverse')}>
+      <div className={cn('relative', isMinimal && 'flex flex-col-reverse', isMinimal2 && 'pt-5')}>
         {/* Elapsed fill — axis left → today. Minimal carries it on the line instead. */}
         {!isMinimal && todayTrackPercent != null && (
           <div
@@ -632,7 +667,12 @@ export function SalesOrderHeaderTimeline({
                 <button
                   key={marker.id}
                   type="button"
-                  className="absolute z-30 -translate-x-1/2 -translate-y-1/2 cursor-default"
+                  className={cn(
+                    'absolute z-30 cursor-default',
+                    isMinimal2
+                      ? '-translate-x-[2px] -translate-y-[calc(100%-1px)]'
+                      : '-translate-x-1/2 -translate-y-1/2',
+                  )}
                   style={{ left: `${trackLeft(marker.date)}%`, top: markerTop }}
                   onMouseEnter={(e) => {
                     setRampHovered({
@@ -648,17 +688,28 @@ export function SalesOrderHeaderTimeline({
                   aria-label={`${marker.version}: ${marker.title}`}
                 >
                   {compactDots ? (
-                    <span
-                      className={cn(
-                        isMinimal ? COMPACT_DIAMOND : COMPACT_DOT,
-                        COMPACT_DOT_TONES[versionTone][signed ? 'filled' : 'outlined'],
-                        signed && isMinimal && FILLED_DOT_STROKE,
-                        isHovered &&
-                          (isMinimal
-                            ? cn('scale-110', COMPACT_DOT_TONES[versionTone].glow)
-                            : 'scale-125'),
-                      )}
-                    />
+                    isMinimal2 ? (
+                      <VersionFlag
+                        filled={signed}
+                        className={cn(
+                          'transition-transform duration-200',
+                          VERSION_FLAG_TONES[versionTone],
+                          isHovered && 'origin-bottom-left scale-110',
+                        )}
+                      />
+                    ) : (
+                      <span
+                        className={cn(
+                          isMinimal ? COMPACT_DIAMOND : COMPACT_DOT,
+                          COMPACT_DOT_TONES[versionTone][signed ? 'filled' : 'outlined'],
+                          signed && isMinimal && FILLED_DOT_STROKE,
+                          isHovered &&
+                            (isMinimal
+                              ? cn('scale-110', COMPACT_DOT_TONES[versionTone].glow)
+                              : 'scale-125'),
+                        )}
+                      />
+                    )
                   ) : (
                     <VersionMark
                       version={marker.version}
