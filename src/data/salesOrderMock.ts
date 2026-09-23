@@ -36,6 +36,10 @@ export interface SalesOrderProduct {
   totalPrice: string
   /** price change percentage vs. the previous ramp period (e.g. 7 for +7%) */
   rampPriceChange?: number
+  /** absolute unit-price delta label vs. previous period (e.g. "+$168.00") */
+  unitPriceDiff?: string
+  /** quantity delta vs. the previous ramp period (e.g. 25 for +25) */
+  quantityChange?: number
 }
 
 export interface SalesOrderRampPeriod {
@@ -52,6 +56,12 @@ export interface BillingScheduleLine {
   installment: string
   amount: string
   status: 'Paid' | 'Pending' | 'Upcoming'
+  /** Optional invoice id for preview in the timeline */
+  invoiceId?: string
+  /** Overrides the relative date parentheses, e.g. "sent 2m ago" */
+  dateAnnotation?: string
+  /** When set, status uses this date instead of billDate for due/overdue copy */
+  dueDate?: string
 }
 
 export interface PastInvoiceLine {
@@ -595,6 +605,21 @@ const fifthSalesOrder: SalesOrder = {
     { id: 'so5-a-1', label: 'Quote created', date: 'Sep 15, 2025', refId: 'Q-2025-2044' },
   ],
 }
+
+export const pioneerOverdueBillingSchedule: BillingScheduleLine[] = [
+  { id: 'so-bs-od-paid-1', billDate: 'Nov 1, 2025', installment: 'Year 1 · Q1', amount: '$38,500.00', status: 'Paid', invoiceId: 'INV-2025-9910' },
+  { id: 'so-bs-od-paid-2', billDate: 'Feb 1, 2026', installment: 'Year 1 · Q2', amount: '$41,000.00', status: 'Paid', invoiceId: 'INV-2026-0312' },
+  { id: 'so-bs-od-paid-3', billDate: 'May 1, 2026', installment: 'Year 1 · Q3', amount: '$41,000.00', status: 'Paid', invoiceId: 'INV-2026-0042' },
+  { id: 'so-bs-od-1', billDate: 'May 13, 2026', installment: 'Year 1 · Q4', amount: '$126,000.00', status: 'Pending', invoiceId: 'INV-2026-9584', dateAnnotation: 'sent 6w ago', dueDate: 'Jun 20, 2026' },
+  { id: 'so-bs-od-2', billDate: 'Aug 31, 2026', installment: 'Year 2 · Q1', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-9601' },
+  { id: 'so-bs-od-3', billDate: 'Nov 30, 2026', installment: 'Year 2 · Q2', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-9602' },
+  { id: 'so-bs-od-4', billDate: 'Feb 28, 2027', installment: 'Year 2 · Q3', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2026-9603' },
+  { id: 'so-bs-od-5', billDate: 'May 31, 2027', installment: 'Year 2 · Q4', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-9604' },
+  { id: 'so-bs-od-6', billDate: 'Aug 31, 2027', installment: 'Year 3 · Q1', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-9605' },
+  { id: 'so-bs-od-7', billDate: 'Nov 30, 2027', installment: 'Year 3 · Q2', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-9606' },
+  { id: 'so-bs-od-8', billDate: 'Feb 28, 2028', installment: 'Year 3 · Q3', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2027-9607' },
+  { id: 'so-bs-od-9', billDate: 'May 31, 2028', installment: 'Year 3 · Q4', amount: '$41,000.00', status: 'Upcoming', invoiceId: 'INV-2028-9608' },
+]
 
 export const salesOrders: SalesOrder[] = [
   pioneerSalesOrder,

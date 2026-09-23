@@ -33,6 +33,7 @@ import {
 } from '@/components/features/contract-processing/AccountCustomerPickerV2'
 import { DEFAULT_ACCOUNT_NAME } from '@/components/features/contract-processing/AccountCustomerPicker'
 import { cn } from '@/lib/utils'
+import { SubscriptionRecord } from '@/components/features/sales-order/SubscriptionRecord'
 
 export interface SectionOffset {
   top: number
@@ -47,7 +48,7 @@ const C360_TABS: TabItem[] = [
   { id: 'tasks', label: 'New deal: Ingestion' },
   { id: 'threads', label: 'Threads' },
   { id: 'quotes', label: 'Quotes' },
-  { id: 'sales-order', label: 'Sales Order' },
+  { id: 'sales-order', label: 'Subscription' },
   { id: 'invoices', label: 'Invoices' },
   { id: 'collections', label: 'Collections' },
   { id: 'revrec', label: 'Revrec' },
@@ -151,7 +152,7 @@ function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
     >
-      Create Sales Order
+      Create Subscription
     </button>
   )
 }
@@ -376,8 +377,8 @@ export function Customer360Page() {
   const handleCreateSalesOrder = useCallback(() => {
     setActiveTab('sales-order')
     addNotification({
-      title: 'Sales order created',
-      message: `A sales order has been created for ${data.customerName} from the processed contract.`,
+      title: 'Subscription created',
+      message: `A subscription has been created for ${data.customerName} from the processed contract.`,
       persistent: true,
     })
   }, [addNotification, data.customerName])
@@ -926,8 +927,9 @@ export function Customer360Page() {
         </FieldEditHistoryProvider>
       )}
 
-      {/* Other tabs (including Sales Order) — simple placeholders */}
-      {activeTab !== 'tasks' && (
+      {activeTab === 'sales-order' && <SubscriptionRecord />}
+
+      {activeTab !== 'tasks' && activeTab !== 'sales-order' && (
         <TabPlaceholder label={C360_TABS.find((t) => t.id === activeTab)?.label ?? 'Content'} />
       )}
 

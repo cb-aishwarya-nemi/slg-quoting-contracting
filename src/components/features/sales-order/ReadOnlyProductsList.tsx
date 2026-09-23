@@ -227,4 +227,88 @@ export function ReadOnlyProductsList({ items, periods }: ReadOnlyProductsListPro
   )
 }
 
+export function ProductPeriodTable({
+  period,
+  headerRuleClassName = 'border-neutral-200',
+}: {
+  period: SalesOrderRampPeriod
+  headerRuleClassName?: string
+}) {
+  return (
+    <div className="w-full">
+      <div
+        className={cn(
+          'grid items-center border-b px-2 pb-2 text-[10px] font-medium uppercase tracking-[-0.35px] text-brand-deep',
+          headerRuleClassName
+        )}
+        style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(110px, 1fr) 90px 180px 170px' }}
+      >
+        <div>Item</div>
+        <div>Frequency</div>
+        <div className="text-right">Qty</div>
+        <div className="text-right">Unit price</div>
+        <div className="text-right">Total price</div>
+      </div>
+      {period.items.map((item, idx) => (
+        <div
+          key={item.id}
+          className={cn(
+            'grid min-h-11 items-center px-2 py-2.5 text-[13px] font-normal text-brand-navy',
+            idx < period.items.length - 1 && 'border-b border-neutral-200'
+          )}
+          style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(110px, 1fr) 90px 180px 170px' }}
+        >
+          <div className="truncate pr-5">{item.name}</div>
+          <div className="truncate pr-5">{item.frequency}</div>
+          <div className="text-right tabular-nums">{item.quantity}</div>
+          <div className="text-right tabular-nums">{item.unitPrice}</div>
+          <div className="text-right tabular-nums">{item.totalPrice}</div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function numericQuantity(value: string): number {
+  const qty = Number.parseInt(value, 10)
+  return Number.isFinite(qty) ? qty : 0
+}
+
+export function rampChangeSummary(
+  previous: SalesOrderRampPeriod | undefined,
+  next: SalesOrderRampPeriod
+): { detail: string; count: number } | null {
+  if (!previous) return null
+
+  const prevByName = new Map(previous.items.map((item) => [item.name, item]))
+
+  let added = 0
+  let pricesIncreased = 0
+  let qtyIncreased = 0
+
+  for (const item of next.items) {
+    const prior = prevByName.get(item.name)
+    if (!prior) {
+      added += 1
+      continue
+    }
+    const delta = item.quantityChange ?? numericQuantity(item.quantity) - numericQuantity(prior.quantity)
+    if (delta > 0) qtyIncreased += 1
+    if (item.rampPriceChange != null || item.unitPriceDiff) pricesIncreased += 1
+  }
+
+  const count = added + pricesIncreased + qtyIncreased
+  if (count === 0) return null
+
+  const parts: string[] = []
+  if (added === 1) parts.push('1 add-on added')
+  else if (added > 1) parts.push(`${added} add-ons added`)
+  if (pricesIncreased === 1) parts.push('1 price increased')
+  else if (pricesIncreased > 1) parts.push(`${pricesIncreased} prices increased`)
+  if (qtyIncreased === 1) parts.push('1 quantity increase')
+  else if (qtyIncreased > 1) parts.push(`${qtyIncreased} quantity increases`)
+
+  return { detail: parts.join(' · '), count }
+}
+
 export default ReadOnlyProductsList

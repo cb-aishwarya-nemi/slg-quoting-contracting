@@ -21,6 +21,7 @@ const STATUS_BADGE_STYLES: Record<string, string> = {
   // Sales-order deal tags
   'NEW DEAL': 'bg-blue-50 text-blue-700',
   RENEWAL: 'bg-violet-50 text-violet-700',
+  Active: 'bg-green-50 text-green-700',
 }
 
 interface SecondaryNavSwitcherProps {
