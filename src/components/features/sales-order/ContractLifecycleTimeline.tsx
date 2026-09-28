@@ -1,3 +1,4 @@
+import { useRef, type MouseEvent } from 'react'
 import { cn } from '@/lib/utils'
 import { dateToTimelinePercent } from '@/data/salesOrderTimelineMock'
 
@@ -211,21 +212,31 @@ function EdgeMarker({
   const label = align === 'start' ? 'Start' : 'End'
   return (
     <div
+      data-timeline-marker
       className={cn(
-        'group/event absolute -top-1 flex cursor-pointer flex-col rounded-lg px-2 py-1 text-brand-navy transition-colors duration-150 hover:z-30 hover:bg-neutral-100',
-        align === 'start' ? 'left-0 items-start' : 'right-0 items-end',
+        'group/event absolute -top-1 cursor-pointer text-brand-navy hover:z-30',
+        align === 'start' ? 'left-0' : 'right-0',
       )}
     >
-      <span className={LABEL}>{label}</span>
-      <span
+      <div
+        data-dock-content
         className={cn(
-          'relative mt-0.5 flex h-5 items-center bg-white transition-colors duration-150 group-hover/event:bg-transparent',
-          align === 'start' ? 'pr-1.5' : 'pl-1.5',
+          'flex transform-gpu flex-col rounded-lg px-2 py-1 transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/event:bg-neutral-100',
+          align === 'start' ? 'origin-bottom-left items-start' : 'origin-bottom-right items-end',
         )}
+        style={{ transform: 'scale(var(--dock-scale, 1))' }}
       >
-        <FlagPennant />
-      </span>
-      <span className={cn(SUB, 'mt-0.5 font-semibold')}>{formatEdgeDate(date)}</span>
+        <span className={LABEL}>{label}</span>
+        <span
+          className={cn(
+            'relative mt-0.5 flex h-5 items-center bg-white transition-colors duration-150 group-hover/event:bg-transparent',
+            align === 'start' ? 'pr-1.5' : 'pl-1.5',
+          )}
+        >
+          <FlagPennant />
+        </span>
+        <span className={cn(SUB, 'mt-0.5 font-semibold')}>{formatEdgeDate(date)}</span>
+      </div>
       <span role="tooltip" className={cn(TOOLTIP, align === 'start' ? 'left-0' : 'right-0')}>
         <span className="border-b border-neutral-100 px-3 py-2">
           <span className={LABEL}>{align === 'start' ? 'Contract start' : 'Contract end'}</span>
@@ -246,9 +257,34 @@ function EdgeMarker({
  */
 export function ContractLifecycleTimeline() {
   const todayPercent = Math.min(100, Math.max(0, percentOf(TODAY)))
+  const timelineRef = useRef<HTMLDivElement>(null)
+
+  const resetDock = () => {
+    timelineRef.current?.querySelectorAll<HTMLElement>('[data-dock-content]').forEach((item) => {
+      item.style.removeProperty('--dock-scale')
+    })
+  }
+
+  const magnifyDock = (event: MouseEvent<HTMLDivElement>) => {
+    timelineRef.current?.querySelectorAll<HTMLElement>('[data-timeline-marker]').forEach((marker) => {
+      const content = marker.querySelector<HTMLElement>('[data-dock-content]')
+      if (!content) return
+
+      const rect = marker.getBoundingClientRect()
+      const distance = Math.abs(event.clientX - (rect.left + rect.width / 2))
+      const proximity = Math.max(0, 1 - distance / 180)
+      const scale = 1 + 0.18 * proximity * proximity
+      content.style.setProperty('--dock-scale', scale.toFixed(3))
+    })
+  }
 
   return (
-    <div className="relative z-20 h-[64px] w-full">
+    <div
+      ref={timelineRef}
+      className="relative z-20 h-[64px] w-full"
+      onMouseMove={magnifyDock}
+      onMouseLeave={resetDock}
+    >
       {/* Axis runs through the centre of the 20px icon row, below the 16px label and 2px gap. */}
       <div className="absolute inset-x-0 top-[28px] h-px">
         <div
@@ -274,18 +310,27 @@ export function ContractLifecycleTimeline() {
         return (
           <div
             key={event.id}
+            data-timeline-marker
             className={cn(
-              'group/event absolute -top-1 flex -translate-x-1/2 cursor-pointer flex-col items-center rounded-lg px-2 py-1 transition-colors duration-150 hover:z-30',
+              'group/event absolute -top-1 -translate-x-1/2 cursor-pointer hover:z-30',
               tone,
-              hover,
             )}
             style={{ left: `${percentOf(event.date)}%` }}
           >
-            <span className={LABEL}>{label}</span>
-            <span className="relative mt-0.5 flex h-5 items-center bg-white px-1.5 transition-colors duration-150 group-hover/event:bg-transparent">
-              {event.kind === 'amend' ? <AmendPen /> : <RampArrow />}
-            </span>
-            <span className={cn(SUB, 'mt-0.5 whitespace-nowrap')}>{event.amount}</span>
+            <div
+              data-dock-content
+              className={cn(
+                'flex origin-bottom transform-gpu flex-col items-center rounded-lg px-2 py-1 transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
+                hover,
+              )}
+              style={{ transform: 'scale(var(--dock-scale, 1))' }}
+            >
+              <span className={LABEL}>{label}</span>
+              <span className="relative mt-0.5 flex h-5 items-center bg-white px-1.5 transition-colors duration-150 group-hover/event:bg-transparent">
+                {event.kind === 'amend' ? <AmendPen /> : <RampArrow />}
+              </span>
+              <span className={cn(SUB, 'mt-0.5 whitespace-nowrap')}>{event.amount}</span>
+            </div>
             <span
               role="tooltip"
               className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden w-[280px] -translate-x-1/2 flex-col rounded-lg border border-neutral-200 bg-white text-left shadow-[0_8px_24px_rgba(28,27,46,0.12)] group-hover/event:flex"
