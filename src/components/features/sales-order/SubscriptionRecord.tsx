@@ -1,7 +1,7 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { ChevronDown, FilePenLine, MessageCircleMore, MoreHorizontal } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { CommentsPanel, GradientSparkle, SectionHeader } from '@/components/features/contract-processing'
+import { CommentsPanel, GradientSparkle } from '@/components/features/contract-processing'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import {
@@ -11,7 +11,7 @@ import {
   type ActivityItem,
   type SalesOrderRampPeriod,
 } from '@/data/salesOrderMock'
-import { SalesOrderHeaderTimeline } from './SalesOrderHeaderTimeline'
+import { ContractLifecycleTimeline } from './ContractLifecycleTimeline'
 import { BillingScheduleTimeline } from './BillingScheduleTimeline'
 import { UpcomingRampsSection } from './UpcomingRampsSection'
 
@@ -93,7 +93,7 @@ const ITEM_SEP = 'flex items-center self-stretch border-l border-neutral-200 pl-
 function SubscriptionItemsTable() {
   return (
     <div>
-      <div className="border-t border-brand-navy">
+      <div>
         <div
           className={cn(
             ITEM_GRID,
@@ -358,37 +358,8 @@ export function SubscriptionRecord() {
             </div>
           </section>
 
-          <section className="space-y-4">
-            <SectionHeader title="Contract lifecycle" hideLine />
-            <SalesOrderHeaderTimeline
-              orderId={pioneerSalesOrder.id}
-              variant="minimal"
-              showHeading={false}
-            />
-          </section>
-
-          <section className="w-1/2">
-            <FieldRow dense label="Status" labelClassName="text-brand-navy" valueClassName="font-semibold uppercase text-green-700">
-              Active
-            </FieldRow>
-            <FieldRow dense label="Channel" labelClassName="text-brand-navy" valueClassName="uppercase text-brand-navy">
-              Web
-            </FieldRow>
-            <FieldRow dense label="Product family" labelClassName="text-brand-navy" valueClassName="text-blue-700">
-              Eleven-software
-            </FieldRow>
-            <FieldRow dense label="Subscription ID" labelClassName="text-brand-navy" valueClassName="text-brand-navy">
-              Azq5tIVJfzvJw50
-            </FieldRow>
-            <FieldRow dense label="Currency" labelClassName="text-brand-navy" valueClassName="uppercase text-brand-navy">
-              EUR
-            </FieldRow>
-            <FieldRow dense label="Frequency" labelClassName="text-brand-navy" valueClassName="text-brand-navy">
-              Billed Monthly
-            </FieldRow>
-            <FieldRow dense label="Coupons" labelClassName="text-brand-navy" valueClassName="text-blue-700">
-              20% Off (Forever)
-            </FieldRow>
+          <section>
+            <ContractLifecycleTimeline />
           </section>
 
           <section>
