@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, Fragment } from 'react'
 import { GitBranch, Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUseCase, type UseCaseVariant } from '@/context/UseCaseContext'
+import { useNavigation } from '@/context/NavigationContext'
+import { useFileDrop } from '@/context/FileDropContext'
 
 const PRODUCTS_PRICING_PAGE_ID = 'customer360'
 
@@ -11,6 +13,8 @@ export function UseCaseSwitcher() {
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const { activeVariant, getPage, setActivePage, setVariant } = useUseCase()
+  const { goToWorkbench } = useNavigation()
+  const { shouldOpenModal, setShouldOpenModal } = useFileDrop()
 
   const page = getPage(PRODUCTS_PRICING_PAGE_ID)
   const variants = page?.variants ?? []
@@ -50,6 +54,17 @@ export function UseCaseSwitcher() {
     setActivePage(PRODUCTS_PRICING_PAGE_ID)
     setVariant(variant.id)
     setIsOpen(false)
+  }
+
+  const handleCustomerLinkToggle = () => {
+    const nextValue = !shouldOpenModal
+    setShouldOpenModal(nextValue)
+
+    if (nextValue) {
+      setActivePage('workbench')
+      setVariant('unidentified')
+      goToWorkbench()
+    }
   }
 
   return (
@@ -115,6 +130,9 @@ export function UseCaseSwitcher() {
                         {variant.group}
                       </div>
                     ) : null}
+                    {variant.separatorBefore ? (
+                      <div className="mx-3 my-1 border-t border-neutral-200" aria-hidden="true" />
+                    ) : null}
                     <button
                       type="button"
                       onClick={() => handleSelectVariant(variant)}
@@ -142,6 +160,32 @@ export function UseCaseSwitcher() {
                   </Fragment>
                 )
               })}
+            </div>
+            <div className="mt-2 border-t border-neutral-100 pt-2">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={shouldOpenModal}
+                onClick={handleCustomerLinkToggle}
+                className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-neutral-50"
+              >
+                <span className="text-[13px] font-medium text-brand-navy">
+                  Customer linking modal
+                </span>
+                <span
+                  className={cn(
+                    'relative h-5 w-9 shrink-0 rounded-full transition-colors',
+                    shouldOpenModal ? 'bg-brand-navy' : 'bg-neutral-300'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                      shouldOpenModal ? 'translate-x-[18px]' : 'translate-x-0.5'
+                    )}
+                  />
+                </span>
+              </button>
             </div>
           </div>
         </div>

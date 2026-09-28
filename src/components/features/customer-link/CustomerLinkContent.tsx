@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Search, Sparkles, ChevronDown, ChevronUp, Plus, AlertCircle } from 'lucide-react'
+import { Search, Sparkles, ChevronDown, Plus, AlertCircle } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { 
   allCustomers, 
@@ -30,7 +30,9 @@ export function CustomerLinkContent({
   variant: variantProp,
 }: CustomerLinkContentProps) {
   const [searchQuery, setSearchQuery] = useState('')
-  const [showAllCustomers, setShowAllCustomers] = useState(false)
+  const [showAllCustomers, setShowAllCustomers] = useState(
+    variantProp === 'unidentified'
+  )
   const [formData, setFormData] = useState<CreateCustomerDefaults>(createCustomerDefaults)
   const [hasAutoSwitched, setHasAutoSwitched] = useState(false)
   const [searchBarStuck, setSearchBarStuck] = useState(false)
@@ -71,6 +73,8 @@ export function CustomerLinkContent({
   // Reset mode and auto-switch flag when variant changes
   useEffect(() => {
     setHasAutoSwitched(false)
+    setShowAllCustomers(variant === 'unidentified')
+    setSearchQuery('')
     // Reset to "link" mode when variant changes to one with matches
     if (!hasNoMatches) {
       onModeChange('link')
@@ -139,7 +143,7 @@ export function CustomerLinkContent({
       {/* Content Area - Scrollable */}
       <div
         ref={scrollContainerRef}
-        className={cn('min-h-0 flex-1 overflow-y-auto', mode === 'link' && showAllCustomers && 'pb-16')}
+        className={cn('min-h-0 flex-1 overflow-y-auto')}
       >
         {/* Tabs with horizontal line */}
         <div className="mb-3 shrink-0 bg-white pt-[2px]">
@@ -241,8 +245,13 @@ export function CustomerLinkContent({
                     </thead>
                     <tbody>
                       {filteredCustomers.map((customer) => {
-                        const isClosestMatch = customer.matchLabel === 'Closest match'
-                        const isPerfectMatch = hasPerfectMatch && customer.matchLabel === 'Perfect match'
+                        const isClosestMatch =
+                          variant !== 'unidentified' &&
+                          customer.matchLabel === 'Closest match'
+                        const isPerfectMatch =
+                          variant !== 'unidentified' &&
+                          hasPerfectMatch &&
+                          customer.matchLabel === 'Perfect match'
                         const isSelected = selectedCustomerId === customer.id
                         
                         return (
@@ -306,7 +315,7 @@ export function CustomerLinkContent({
                                   )}>
                                     {customer.name}
                                   </span>
-                                  {customer.matchLabel && (
+                                  {variant !== 'unidentified' && customer.matchLabel && (
                                     <span title={customer.matchLabel}>
                                       <Sparkles
                                         size={14}
@@ -487,19 +496,6 @@ export function CustomerLinkContent({
           </div>
         )}
       </div>
-
-      {mode === 'link' && showAllCustomers && (
-        <div className="pointer-events-none absolute bottom-4 left-0 right-0 z-10 flex justify-center">
-          <button
-            type="button"
-            onClick={() => setShowAllCustomers(false)}
-            className="pointer-events-auto inline-flex cursor-pointer items-center gap-1.5 rounded-full bg-white px-4 py-2 text-[13px] font-medium text-blue-700 shadow-lg transition-colors hover:bg-neutral-50 hover:text-blue-800"
-          >
-            {hasNoMatches ? 'Back to empty state' : 'Show matches only'}
-            <ChevronUp size={14} />
-          </button>
-        </div>
-      )}
     </div>
   )
 }

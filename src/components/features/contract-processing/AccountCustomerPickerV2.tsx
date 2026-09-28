@@ -18,10 +18,16 @@ export const ACCOUNT_PICKER_V2_VARIANT_IDS = [
   'account-picker-v2',
   'account-picker-v2-single',
   'account-picker-v2-no-match',
+  'customer-scenarios',
+  'no-customer-data',
 ] as const
 
 export type AccountPickerV2VariantId = (typeof ACCOUNT_PICKER_V2_VARIANT_IDS)[number]
-export type AccountPickerV2Scenario = 'multiple-matches' | 'single-match' | 'no-match'
+export type AccountPickerV2Scenario =
+  | 'multiple-matches'
+  | 'single-match'
+  | 'no-match'
+  | 'no-customer-data'
 
 export function isAccountPickerV2Variant(
   variantId: string | null | undefined
@@ -39,6 +45,10 @@ export function getAccountPickerV2Scenario(
       return 'single-match'
     case 'account-picker-v2-no-match':
       return 'no-match'
+    case 'customer-scenarios':
+      return 'multiple-matches'
+    case 'no-customer-data':
+      return 'no-customer-data'
     default:
       return null
   }
@@ -51,6 +61,9 @@ export interface AccountPickerV2Seed {
   customerTitleConfirmed: boolean
   contactName: string
   email: string
+  phone?: string
+  /** Shown on the Account row the same way Auto-renewal shows an extraction note. */
+  accountNotice?: LabelValue['notice']
 }
 
 const MULTIPLE_MATCH_OPTIONS = ACCOUNT_CUSTOMER_OPTIONS.map((option) => option.name)
@@ -85,6 +98,20 @@ export function getAccountPickerV2Seed(scenario: AccountPickerV2Scenario): Accou
         contactName: 'Alex Nguyen',
         email: 'alex.nguyen@pioneersystems.com',
       }
+    case 'no-customer-data':
+      return {
+        accountName: '',
+        options: MULTIPLE_MATCH_OPTIONS,
+        createdCustomerName: null,
+        customerTitleConfirmed: true,
+        contactName: '',
+        email: '',
+        phone: '',
+        accountNotice: {
+          tone: 'info',
+          message: 'Customer not found in contract.',
+        },
+      }
   }
 }
 
@@ -94,10 +121,16 @@ export function applyAccountPickerV2Seed(
 ): LabelValue[] {
   return items.map((item) => {
     if (item.label === 'Account') {
-      return { ...item, value: seed.accountName, options: seed.options }
+      return {
+        ...item,
+        value: seed.accountName,
+        options: seed.options,
+        notice: seed.accountNotice,
+      }
     }
     if (item.label === 'Contact name') return { ...item, value: seed.contactName }
     if (item.label === 'Email') return { ...item, value: seed.email }
+    if (item.label === 'Phone' && seed.phone !== undefined) return { ...item, value: seed.phone }
     return { ...item }
   })
 }

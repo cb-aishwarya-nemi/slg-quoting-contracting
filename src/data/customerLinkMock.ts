@@ -48,7 +48,11 @@ export interface CreateCustomerDefaults {
 /**
  * Use Case Variant Types for Customer Link Modal
  */
-export type CustomerLinkVariant = 'perfect-match' | 'closest-matches' | 'no-match'
+export type CustomerLinkVariant =
+  | 'perfect-match'
+  | 'closest-matches'
+  | 'no-match'
+  | 'unidentified'
 
 export const extractedCustomer: ExtractedCustomer = {
   companyName: 'Pioneer Systems',
@@ -153,6 +157,8 @@ export function getCustomerMatchesByVariant(variant: CustomerLinkVariant): Custo
       return closestMatchCustomers
     case 'no-match':
       return noMatchCustomers
+    case 'unidentified':
+      return allCustomers
     default:
       return closestMatchCustomers
   }

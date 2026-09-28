@@ -1248,3 +1248,7 @@ body {
 [data-theme="dark"] .v0-layout .text-violet-700 {
   color: #a78bfa;
 }
+
+body[data-customer-link-modal-open="true"] .file-drop-overlay {
+  display: none !important;
+}

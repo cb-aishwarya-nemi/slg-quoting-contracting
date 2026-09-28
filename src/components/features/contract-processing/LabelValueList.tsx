@@ -24,6 +24,7 @@ import {
   getAccountPickerV2Scenario,
   isAccountPickerV2Variant,
 } from './AccountCustomerPickerV2'
+import { CustomerScenarioName } from './CustomerScenarioName'
 import { GradientSparkle } from './GradientSparkle'
 
 const FLAG_SLOT = 'mr-1.5 flex w-3 shrink-0 items-center justify-start'
@@ -219,6 +220,13 @@ function LabelValueRow({
   }, [isOpen, item.label])
 
   const handleRowClick = () => {
+    if (
+      item.label === 'Account' &&
+      accountPickerVariant === 'v2' &&
+      (activeVariant === 'customer-scenarios' || activeVariant === 'no-customer-data')
+    ) {
+      return
+    }
     if (isEditing || isOpen || dateActive) return
     if (isSelect) setIsOpen(true)
     else if (isDateField) setDateActive(true)
@@ -478,6 +486,9 @@ function LabelValueRow({
 
   /** V2 owns its trigger too — the field itself is the combobox input. */
   const isAccountComboboxV2 = isAccountSelect && accountPickerVariant === 'v2'
+  const isCustomerScenarioAccount =
+    isAccountComboboxV2 &&
+    (activeVariant === 'customer-scenarios' || activeVariant === 'no-customer-data')
   const selectDropdown =
     isAccountSelect && options ? (
       <AccountCustomerPicker
@@ -554,8 +565,18 @@ function LabelValueRow({
       </div>
 
       <div className="flex min-w-0 flex-1 items-center gap-2">
-        {/* Notice rows use a fixed value width so every inline message starts at the same x. */}
-        <div className={cn('min-w-0 text-left', notice ? 'w-[132px] shrink-0' : 'flex-1')}>
+        {/* Notice rows use a fixed value width so every inline message starts at the same x.
+            The customer-name pill is wider than that slot, so its note follows the pill. */}
+        <div
+          className={cn(
+            'min-w-0 text-left',
+            notice
+              ? isCustomerScenarioAccount
+                ? 'w-auto shrink-0'
+                : 'w-[132px] shrink-0'
+              : 'flex-1'
+          )}
+        >
         {isUnresolvedActive && isSelect ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
             <button
@@ -607,6 +628,17 @@ function LabelValueRow({
             onActiveChange={setDateActive}
             ariaLabel={item.label}
             onChange={(next) => commitValue(next)}
+          />
+        ) : isAccountComboboxV2 &&
+          (activeVariant === 'customer-scenarios' || activeVariant === 'no-customer-data') ? (
+          <CustomerScenarioName
+            name={item.value}
+            size="row"
+            showBestMatch={isBestMatch}
+            isNewCustomer={!!createdCustomerName && createdCustomerName === item.value}
+            options={options ?? []}
+            onSelect={commitValue}
+            onCreate={(createdName) => onCreateAsNewCustomer?.(createdName)}
           />
         ) : isAccountComboboxV2 && options ? (
           <div className="relative w-full" onClick={(e) => e.stopPropagation()}>

@@ -17,6 +17,8 @@ export interface UseCaseVariant {
   description?: string
   /** Section heading in the switcher; consecutive variants with the same group share one header. */
   group?: string
+  /** Adds a visual divider before this variant within its group. */
+  separatorBefore?: boolean
 }
 
 /**
@@ -77,6 +79,19 @@ export const USE_CASE_REGISTRY: UseCasePage[] = [
         label: 'No match',
         group: 'Account picker',
         description: 'No catalog match; a new customer has already been created',
+      },
+      {
+        id: 'customer-scenarios',
+        label: 'Customer scenarios',
+        group: 'Account picker',
+        separatorBefore: true,
+        description: 'Match status sits beside the customer name in the header',
+      },
+      {
+        id: 'no-customer-data',
+        label: 'No customer data',
+        group: 'Account picker',
+        description: 'Nothing was extracted for the customer; name and account details are empty',
       },
     ],
   },

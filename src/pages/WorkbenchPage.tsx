@@ -6,6 +6,7 @@ import { cn, formatStartUrgency } from "@/lib/utils";
 import { useFileDrop, type ProcessingFile, type WorkbenchItem } from "@/context/FileDropContext";
 import { useUseCase } from "@/context/UseCaseContext";
 import { useNavigation } from "@/context/NavigationContext";
+import { CustomerLinkModal } from "@/components/features/customer-link/CustomerLinkModal";
 
 const PIONEER_CUSTOMER_ID = "pioneer-systems";
 const WORKBENCH_TABS: TabItem[] = [
@@ -94,6 +95,7 @@ export function WorkbenchPage() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
+  const [customerLinkTask, setCustomerLinkTask] = useState<WorkbenchItem | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -224,15 +226,19 @@ export function WorkbenchPage() {
     }
   }, [isSearchOpen]);
 
-  // After single-file processing, go straight to Customer Tasks
+  // Open the customer-linking flow after single-file processing or via the use-case toggle.
   useEffect(() => {
     if (shouldOpenModal) {
-      setShouldOpenModal(false);
-      openCustomerTasks();
+      const task =
+        workbenchItems.find((item) => item.customer === 'Pioneer Systems') ??
+        workbenchItems[0];
+      setCustomerLinkTask(task ?? null);
+    } else {
+      setCustomerLinkTask(null);
     }
-  }, [shouldOpenModal, setShouldOpenModal, goToCustomer360]);
+  }, [shouldOpenModal, workbenchItems]);
 
-  // Deep-link from use case switcher — open Customer Tasks instead of the link modal
+  // Deep-link from the use case switcher — show the customer-linking flow.
   useEffect(() => {
     const checkUrlParam = () => {
       const params = new URLSearchParams(window.location.search);
@@ -240,7 +246,7 @@ export function WorkbenchPage() {
         params.delete('openModal');
         const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
         window.history.replaceState({}, '', newUrl);
-        openCustomerTasks();
+        setShouldOpenModal(true);
       }
     };
     
@@ -248,7 +254,7 @@ export function WorkbenchPage() {
     
     window.addEventListener('openModalParam', checkUrlParam);
     return () => window.removeEventListener('openModalParam', checkUrlParam);
-  }, [goToCustomer360]);
+  }, [setShouldOpenModal]);
 
   // Dynamic stats based on ingestion tasks only
   const totalTCV = ingestionTasks.reduce((sum, task) => {
@@ -588,6 +594,15 @@ export function WorkbenchPage() {
           )}
         </div>
       </div>
+      {customerLinkTask && (
+        <CustomerLinkModal
+          task={customerLinkTask}
+          onClose={() => {
+            setCustomerLinkTask(null);
+            setShouldOpenModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }

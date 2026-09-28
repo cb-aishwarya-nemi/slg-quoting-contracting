@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { type WorkbenchItem } from '@/context/FileDropContext'
@@ -65,8 +65,10 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
+    document.body.dataset.customerLinkModalOpen = 'true'
     return () => {
       document.body.style.overflow = ''
+      delete document.body.dataset.customerLinkModalOpen
     }
   }, [])
 
@@ -74,12 +76,12 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
     setSelectedCustomer(customer)
   }
 
-  const handleModeChange = (newMode: Mode) => {
+  const handleModeChange = useCallback((newMode: Mode) => {
     setMode(newMode)
     if (newMode === 'create') {
       setSelectedCustomer(null)
     }
-  }
+  }, [])
 
   const canProcess = selectedCustomer !== null || mode === 'create'
 
@@ -95,6 +97,8 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
       return 'Perfect match found'
     } else if (variant === 'no-match') {
       return 'No match found'
+    } else if (variant === 'unidentified') {
+      return 'Customer details not identified'
     } else {
       // closest-matches
       const count = matches.length
@@ -108,6 +112,8 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
       return "Let's proceed to process the contract."
     } else if (variant === 'no-match') {
       return 'Create a new customer with the extracted details from the contract.'
+    } else if (variant === 'unidentified') {
+      return 'Choose from all customers or create a new customer.'
     } else {
       // closest-matches
       return 'Proceed by choosing a customer from the list.'
@@ -142,7 +148,7 @@ export function CustomerLinkModal({ task: _task, onClose }: CustomerLinkModalPro
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-hidden pl-8 pr-6">
-              <ContractPreview />
+              <ContractPreview highlightCustomer={variant !== 'unidentified'} />
             </div>
           </div>
           

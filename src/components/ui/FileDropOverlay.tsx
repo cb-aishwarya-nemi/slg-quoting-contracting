@@ -6,13 +6,22 @@ import { useUseCase } from '../../context/UseCaseContext'
 import { cn } from '../../lib/utils'
 
 export function FileDropOverlay() {
-  const { isDragging, setIsDragging, addProcessingFile, processingFiles } = useFileDrop()
+  const {
+    isDragging,
+    setIsDragging,
+    addProcessingFile,
+    processingFiles,
+    shouldOpenModal,
+  } = useFileDrop()
   const { goToWorkbench } = useNavigation()
   const { activePage } = useUseCase()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [hasEverDragged, setHasEverDragged] = useState(false)
   const hideOverlay =
-    activePage === 'customer360' || activePage === 'sales-order-details'
+    activePage === 'customer360' ||
+    activePage === 'sales-order-details' ||
+    activePage === 'customer-link-modal' ||
+    shouldOpenModal
 
   const [batchIds, setBatchIds] = useState<string[]>([])
 
@@ -158,7 +167,7 @@ export function FileDropOverlay() {
       {/* Backdrop overlay — only when dragging */}
       <div
         className={cn(
-          'fixed inset-0 z-40 transition-opacity duration-300',
+          'file-drop-overlay fixed inset-0 z-40 transition-opacity duration-300',
           isDragging ? 'opacity-100' : 'opacity-0 pointer-events-none',
         )}
         style={{ backgroundColor: 'rgba(255, 255, 255, 0.3)' }}
@@ -167,7 +176,7 @@ export function FileDropOverlay() {
       {/* Unified pill/drop-zone container */}
       <div
         className={cn(
-          'fixed z-50 flex justify-center pointer-events-none',
+          'file-drop-overlay fixed z-50 flex justify-center pointer-events-none',
           'transition-all duration-300 ease-out',
           isDragging
             ? 'inset-x-0 bottom-0 pb-16 pl-12'

@@ -34,6 +34,7 @@ import {
 import { DEFAULT_ACCOUNT_NAME } from '@/components/features/contract-processing/AccountCustomerPicker'
 import { cn } from '@/lib/utils'
 import { SubscriptionRecord } from '@/components/features/sales-order/SubscriptionRecord'
+import { CustomerScenarioName } from '@/components/features/contract-processing/CustomerScenarioName'
 
 export interface SectionOffset {
   top: number
@@ -179,6 +180,8 @@ export function Customer360Page() {
       | 'account-picker-v2'
       | 'account-picker-v2-single'
       | 'account-picker-v2-no-match'
+      | 'customer-scenarios'
+      | 'no-customer-data'
       | undefined
   const isAccountPickerV2 = isAccountPickerV2Variant(activeCustomer360Variant)
   const accountPickerV2Scenario = getAccountPickerV2Scenario(activeCustomer360Variant)
@@ -495,12 +498,23 @@ export function Customer360Page() {
       : 'New deal: Contract Ingestion'
 
   const taskId = activeTask?.taskId ?? 'TSK-2026-0153'
+  const isNoCustomerData = activeCustomer360Variant === 'no-customer-data'
+  const isCustomerScenarios =
+    activeCustomer360Variant === 'customer-scenarios' || isNoCustomerData
+  const visibleTabs = isNoCustomerData
+    ? C360_TABS.filter((tab) => tab.id === 'tasks')
+    : C360_TABS
 
   return (
     <div className="flex h-full flex-col">
       {/* Primary nav */}
-      <div className="relative h-[60px] shrink-0">
-        <div className="absolute left-6 bottom-1 flex flex-col justify-end">
+      <div className={cn('relative shrink-0', isCustomerScenarios ? 'h-[88px]' : 'h-[60px]')}>
+        <div
+          className={cn(
+            'absolute left-6 flex flex-col justify-end',
+            isCustomerScenarios ? 'top-2' : 'bottom-1'
+          )}
+        >
           <button
             type="button"
             onClick={handleBack}
@@ -512,21 +526,36 @@ export function Customer360Page() {
             </span>
           </button>
           <div className="flex items-center gap-3">
-            <h1
-              className={cn(
-                'font-heading text-[16px] font-semibold',
-                customerTitleConfirmed ? 'text-brand-navy' : 'ai-gradient-text'
-              )}
-              style={{ letterSpacing: '-0.5px' }}
-            >
-              {customerName}
-            </h1>
+            {isCustomerScenarios ? (
+              <CustomerScenarioName
+                name={customerName}
+                size="header"
+                showBestMatch={!customerTitleConfirmed}
+                isNewCustomer={!!createdAccountCustomer && createdAccountCustomer === customerName}
+                showNewCustomerNote
+                options={
+                  accountItems.find((item) => item.label === 'Account')?.options ?? []
+                }
+                onSelect={(name) => handleAccountItemChange('Account', name)}
+                onCreate={(createdName) => handleCreateAccountCustomer(createdName)}
+              />
+            ) : (
+              <h1
+                className={cn(
+                  'font-heading text-[16px] font-semibold',
+                  customerTitleConfirmed ? 'text-brand-navy' : 'ai-gradient-text'
+                )}
+                style={{ letterSpacing: '-0.5px' }}
+              >
+                {customerName}
+              </h1>
+            )}
           </div>
         </div>
 
         <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
           <TrapezoidalTabs
-            tabs={C360_TABS}
+            tabs={visibleTabs}
             activeTab={activeTab}
             onTabChange={setActiveTab}
             compact

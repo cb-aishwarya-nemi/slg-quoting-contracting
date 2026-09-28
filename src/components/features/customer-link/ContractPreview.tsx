@@ -14,7 +14,7 @@ function truncateFileName(name: string, maxLength: number = 15): string {
   return name.slice(0, maxLength) + '...'
 }
 
-export function ContractPreview() {
+export function ContractPreview({ highlightCustomer = true }: { highlightCustomer?: boolean }) {
   const [selectedPdf, setSelectedPdf] = useState(PDF_FILES[0])
   const [showDropdown, setShowDropdown] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -113,11 +113,18 @@ export function ContractPreview() {
                 <p className="text-[11px] text-brand-fog">Walnut, CA 91789</p>
               </div>
               <div className="flex-1">
-                <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider ai-gradient-text">
+                <p
+                  className={cn(
+                    'mb-1 text-[10px] uppercase tracking-wider',
+                    highlightCustomer
+                      ? 'font-semibold ai-gradient-text'
+                      : 'text-brand-fog'
+                  )}
+                >
                   Customer
                 </p>
-                <div className="rounded-md p-[1.5px] ai-gradient">
-                  <div className="rounded-[4.5px] bg-white p-3">
+                <div className={cn(highlightCustomer && 'rounded-md p-[1.5px] ai-gradient')}>
+                  <div className={cn(highlightCustomer && 'rounded-[4.5px] bg-white p-3')}>
                     <p className="text-[12px] font-semibold text-brand-navy">Pioneer Systems Corp.</p>
                     <p className="text-[11px] font-medium text-brand-navy">Pioneer Systems</p>
                     <p className="mt-1 text-[11px] text-brand-fog">Contact: Alex Nguyen</p>

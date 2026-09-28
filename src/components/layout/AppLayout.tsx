@@ -7,6 +7,7 @@ import { FileDropProvider, useFileDrop } from '../../context/FileDropContext'
 import { useVersion } from '../../context/VersionContext'
 import { V0ContractProvider, useV0Contract } from '../../context/V0ContractContext'
 import { FileDropOverlay } from '../ui/FileDropOverlay'
+import { UseCaseSwitcher } from '../ui/UseCaseSwitcher'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -133,6 +134,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <FileDropProvider>
       <AppLayoutInner>{children}</AppLayoutInner>
+      <UseCaseSwitcher />
     </FileDropProvider>
   )
 }
