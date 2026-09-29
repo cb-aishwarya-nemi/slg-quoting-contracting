@@ -206,18 +206,28 @@ export function Customer360Page() {
   const { addNotification } = useNotifications()
   const { workbenchItems } = useFileDrop()
   const data = contractProcessing
+  const openingSeed = accountPickerV2Scenario
+    ? getAccountPickerV2Seed(accountPickerV2Scenario)
+    : null
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   /** One panel for the whole page — any section's bubble toggles all of it. */
   const [areCommentsVisible, setAreCommentsVisible] = useState(false)
-  const [accountItems, setAccountItems] = useState<LabelValue[]>(() =>
-    data.account.map((item) => ({ ...item }))
+  const [accountItems, setAccountItems] = useState<LabelValue[]>(() => {
+    const base = data.account.map((item) => ({ ...item }))
+    return openingSeed ? applyAccountPickerV2Seed(base, openingSeed) : base
+  })
+  const [customerName, setCustomerName] = useState(
+    () => openingSeed?.accountName ?? data.customerName
   )
-  const [customerName, setCustomerName] = useState(data.customerName)
 
-  const [createdAccountCustomer, setCreatedAccountCustomer] = useState<string | null>(null)
-  const [customerTitleConfirmed, setCustomerTitleConfirmed] = useState(false)
+  const [createdAccountCustomer, setCreatedAccountCustomer] = useState<string | null>(
+    () => openingSeed?.createdCustomerName ?? null
+  )
+  const [customerTitleConfirmed, setCustomerTitleConfirmed] = useState(
+    () => openingSeed?.customerTitleConfirmed ?? false
+  )
   const [invoiceLevelDiscount, setInvoiceLevelDiscount] = useState<{
     value: string
     unit: '%' | 'USD'
