@@ -367,11 +367,15 @@ export function Customer360Page() {
     setActivePage('customer360')
   }, [setActivePage])
 
-  // Workbench rows open Customer scenarios. Other entry points keep Multiple matches.
-  // Switching use cases afterwards stays on the chosen variant.
+  // Workbench rows open Customer scenarios, except the unidentified-customer row.
+  // Other entry points keep Multiple matches. Switching use cases afterwards stays put.
   useEffect(() => {
     if (view.name !== 'customer360') return
-    setVariant(view.returnTo ? 'account-picker-v2' : 'customer-scenarios')
+    if (view.returnTo) {
+      setVariant('account-picker-v2')
+      return
+    }
+    setVariant(view.entryVariant ?? 'customer-scenarios')
   }, [setVariant, view])
 
   useEffect(() => {

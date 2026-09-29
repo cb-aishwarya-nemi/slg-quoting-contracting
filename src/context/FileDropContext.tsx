@@ -18,6 +18,8 @@ export interface WorkbenchItem {
   /** Short task name, e.g. "New deal", "Early renewal" */
   taskName?: string
   customer: string
+  /** Customer column shows “Not identified” and the row opens No customer data. */
+  unidentifiedCustomer?: boolean
   subject: string
   severity: string
   detail: string
@@ -105,6 +107,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     taskType: "Contract Ingestion",
     taskName: "New deal",
     customer: "Zenith Analytics Inc.",
+    unidentifiedCustomer: true,
     subject: "ZenithAnalytics_NewBusiness_Contract_2026.pdf — Platform license + Implementation",
     severity: "High",
     detail: "New Business · PDF Upload",

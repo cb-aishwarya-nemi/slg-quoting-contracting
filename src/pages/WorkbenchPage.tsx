@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, ChevronRight } from "lucide-react";
+import { Search, Sparkles, ArrowRight, ChevronRight, Info } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
@@ -104,10 +104,10 @@ export function WorkbenchPage() {
   const { setActivePage, setVariant } = useUseCase();
   const { goToCustomer360 } = useNavigation();
 
-  const openCustomerTasks = () => {
+  const openCustomerTasks = (entryVariant: "customer-scenarios" | "no-customer-data" = "customer-scenarios") => {
     setActivePage("customer360");
-    setVariant("customer-scenarios");
-    goToCustomer360(PIONEER_CUSTOMER_ID, { tab: "tasks" });
+    setVariant(entryVariant);
+    goToCustomer360(PIONEER_CUSTOMER_ID, { tab: "tasks", entryVariant });
   };
 
   // Multi-file rows appear only after upload finishes — never while Uploading
@@ -169,7 +169,7 @@ export function WorkbenchPage() {
       case 'taskName':
         return task.taskName || '';
       case 'customer':
-        return task.customer;
+        return task.unidentifiedCustomer ? 'Not identified' : task.customer;
       case 'subject':
         return task.subject;
       case 'status':
@@ -194,7 +194,7 @@ export function WorkbenchPage() {
     if (!searchQuery.trim()) return true;
     const query = searchQuery.toLowerCase();
     return (
-      task.customer.toLowerCase().includes(query) ||
+      (task.unidentifiedCustomer ? 'not identified' : task.customer).toLowerCase().includes(query) ||
       task.taskType.toLowerCase().includes(query) ||
       task.taskId?.toLowerCase().includes(query) ||
       task.taskName?.toLowerCase().includes(query) ||
@@ -508,7 +508,7 @@ export function WorkbenchPage() {
                             if (task.isNew) {
                               clearItemNewFlag(task.id);
                             }
-                            openCustomerTasks();
+                            openCustomerTasks(task.unidentifiedCustomer ? "no-customer-data" : "customer-scenarios");
                           }}
                           className={cn(
                             "group row-hover-trail border-b border-neutral-100 hover:bg-brand-navy cursor-pointer",
@@ -523,12 +523,23 @@ export function WorkbenchPage() {
                               </span>
                             )}
                             <div className="flex items-center gap-2 relative z-10">
-                              {isNew && (
-                                <Sparkles size={14} className="shrink-0 text-violet-500 animate-pulse group-hover:text-white/70" />
+                              {task.unidentifiedCustomer ? (
+                                <>
+                                  <Info size={14} strokeWidth={2} className="shrink-0 text-[#eab308] group-hover:text-[#fde68a]" />
+                                  <span className="text-[13px] font-medium whitespace-nowrap text-[#7c4a1e] group-hover:text-[#fde68a]">
+                                    Not identified
+                                  </span>
+                                </>
+                              ) : (
+                                <>
+                                  {isNew && (
+                                    <Sparkles size={14} className="shrink-0 text-violet-500 animate-pulse group-hover:text-white/70" />
+                                  )}
+                                  <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
+                                    {task.customer}
+                                  </span>
+                                </>
                               )}
-                              <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
-                                {task.customer}
-                              </span>
                             </div>
                           </td>
 
