@@ -52,7 +52,7 @@ function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
   return (
     <tr className="border-b border-neutral-100">
       {/* Customer — skeleton */}
-      <td className="py-2.5 pl-4 pr-4">
+      <td className="py-2.5 pl-[38px] pr-4">
         <SkeletonBar className="w-[96px]" />
       </td>
 
@@ -452,7 +452,7 @@ export function WorkbenchPage() {
                   style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
                   <tr className="bg-white">
-                    <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-[38px] pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Customer
                     </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 220, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
@@ -523,22 +523,21 @@ export function WorkbenchPage() {
                               </span>
                             )}
                             <div className="flex items-center gap-2 relative z-10">
+                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
+                                {task.unidentifiedCustomer ? (
+                                  <Info size={14} strokeWidth={2} className="text-amber-500 group-hover:text-[var(--color-amber-200)]" />
+                                ) : isNew ? (
+                                  <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
+                                ) : null}
+                              </span>
                               {task.unidentifiedCustomer ? (
-                                <>
-                                  <Info size={14} strokeWidth={2} className="shrink-0 text-[#eab308] group-hover:text-[#fde68a]" />
-                                  <span className="text-[13px] font-medium whitespace-nowrap text-[#7c4a1e] group-hover:text-[#fde68a]">
-                                    Not identified
-                                  </span>
-                                </>
+                                <span className="text-[13px] font-medium whitespace-nowrap text-amber-800 group-hover:text-[var(--color-amber-200)]">
+                                  Not identified
+                                </span>
                               ) : (
-                                <>
-                                  {isNew && (
-                                    <Sparkles size={14} className="shrink-0 text-violet-500 animate-pulse group-hover:text-white/70" />
-                                  )}
-                                  <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
-                                    {task.customer}
-                                  </span>
-                                </>
+                                <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
+                                  {task.customer}
+                                </span>
                               )}
                             </div>
                           </td>
