@@ -4,6 +4,8 @@ import { dateToTimelinePercent } from '@/data/salesOrderTimelineMock'
 
 const TERM_START = '2026-05-01'
 const TERM_END = '2029-04-30'
+/** Contract value on the start date, before any amendment or ramp. */
+const STARTING_TCV = 492_000
 /** Prototype "today" — everything before it reads as consumed. */
 const TODAY = '2027-08-01'
 
@@ -27,7 +29,7 @@ const EVENTS: LifecycleEvent[] = [
     date: '2026-11-01',
     amount: '+35k USD',
     exactAmount: 34850,
-    summary: 'Added 15 Growth seats for the rest of Year 1.',
+    summary: 'Added 15 Growth seats for the rest of Year 1',
   },
   {
     id: 'amend-2',
@@ -35,7 +37,7 @@ const EVENTS: LifecycleEvent[] = [
     date: '2027-02-01',
     amount: '−35k USD',
     exactAmount: -35012,
-    summary: 'Removed the 15 Growth seats added in November.',
+    summary: 'Removed the 15 Growth seats added in November',
   },
   {
     id: 'ramp-1',
@@ -43,7 +45,7 @@ const EVENTS: LifecycleEvent[] = [
     date: '2027-05-01',
     amount: '+110k USD',
     exactAmount: 110400,
-    summary: 'Year 2 ramp — Growth seats 50 to 75, with a 7% price increase.',
+    summary: 'Year 2 ramp — Growth seats 50 to 75, with a 7% price increase',
   },
   {
     id: 'amend-3',
@@ -51,7 +53,7 @@ const EVENTS: LifecycleEvent[] = [
     date: '2027-11-01',
     amount: '−35k USD',
     exactAmount: -34960,
-    summary: 'Reduced Growth seats by 15 for the rest of Year 2.',
+    summary: 'Reduced Growth seats by 15 for the rest of Year 2',
   },
   {
     id: 'ramp-2',
@@ -59,24 +61,16 @@ const EVENTS: LifecycleEvent[] = [
     date: '2028-05-01',
     amount: '+110k USD',
     exactAmount: 109875,
-    summary: 'Year 3 ramp — platform price up 7%, plus one sandbox.',
+    summary: 'Year 3 ramp — platform price up 7%, plus one sandbox',
   },
 ]
 
-const KIND_STYLES: Record<LifecycleKind, { label: string; title: string; tone: string; hover: string }> = {
-  amend: {
-    label: 'Amend',
-    title: 'Amendment',
-    tone: 'text-[#d97706]',
-    hover: 'hover:bg-[#fdf4e8]',
-  },
-  ramp: {
-    label: 'Ramp',
-    title: 'Ramp',
-    tone: 'text-[#418442]',
-    hover: 'hover:bg-[#eef5ee]',
-  },
+const KIND_STYLES: Record<LifecycleKind, { label: string; title: string; tone: string }> = {
+  amend: { label: 'Amend', title: 'Amendment', tone: 'text-[#d97706]' },
+  ramp: { label: 'Ramp', title: 'Ramp', tone: 'text-[#418442]' },
 }
+
+const ICON_FILL = 'transition-[fill] duration-150 group-hover/event:fill-current'
 
 /** Marker padding plus the flagpole inside the 20px icon. The line meets the poles and stops there. */
 const LINE_START = 8 + (5 / 24) * 20
@@ -104,18 +98,32 @@ function FlagPennant({ className }: { className?: string }) {
       aria-hidden
     >
       <path d="M5 22V3" />
-      <path d="M5 3l15 6.5L5 16" />
+      <path d="M5 3l15 6.5L5 16" className={ICON_FILL} />
     </svg>
   )
 }
 
 function RampArrow() {
   return (
-    <svg width={20} height={20} viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M5 19 13.5 10.5" stroke="currentColor" strokeWidth={3} strokeLinecap="round" />
+    <svg
+      width={18}
+      height={18}
+      viewBox="4 4 12.9 12.9"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={0.95}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M6.9 13.98 15.66 5.22M8.2 5.22h7.46v7.46" />
       <path
-        d="M8 4.5h10.5a1 1 0 0 1 1 1V16a1 1 0 0 1-1.7.7L7.3 6.2A1 1 0 0 1 8 4.5z"
-        fill="currentColor"
+        d="M4.75 16.13 6.9 13.98"
+        className="stroke-transparent transition-[stroke] duration-150 group-hover/event:stroke-current"
+      />
+      <path
+        d="M16.3129 5.22043V13.7037C16.313 13.8329 16.2747 13.9591 16.203 14.0665C16.1313 14.1739 16.0294 14.2577 15.9101 14.3071C15.7908 14.3565 15.6595 14.3694 15.5328 14.3442C15.4062 14.319 15.2899 14.2568 15.1986 14.1654L6.71532 5.68212C6.62396 5.59085 6.56173 5.47453 6.5365 5.34788C6.51128 5.22123 6.52421 5.08994 6.57364 4.97064C6.62307 4.85133 6.70679 4.74938 6.8142 4.67768C6.92161 4.60599 7.04787 4.56777 7.17701 4.56787H15.6603C15.8334 4.56787 15.9993 4.63662 16.1217 4.759C16.2441 4.88138 16.3129 5.04736 16.3129 5.22043Z"
+        className="stroke-transparent transition-[fill,stroke] duration-150 group-hover/event:fill-current group-hover/event:stroke-current"
       />
     </svg>
   )
@@ -136,10 +144,24 @@ function AmendPen() {
       aria-hidden
     >
       <g transform="translate(0 24) scale(1 -1)">
-        <path d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z" />
-        <path d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18" />
-        <path d="m2.3 2.3 7.286 7.286" />
-        <circle cx="11" cy="11" r="2" />
+        <path
+          d="m18 13-1.375-6.874a1 1 0 0 0-.746-.776L3.235 2.028a1 1 0 0 0-1.207 1.207L5.35 15.879a1 1 0 0 0 .776.746L13 18"
+          className={ICON_FILL}
+        />
+        <path
+          d="M15.707 21.293a1 1 0 0 1-1.414 0l-1.586-1.586a1 1 0 0 1 0-1.414l5.586-5.586a1 1 0 0 1 1.414 0l1.586 1.586a1 1 0 0 1 0 1.414z"
+          className="transition-[fill] duration-150 group-hover/event:fill-white"
+        />
+        <path
+          d="m2.3 2.3 7.286 7.286"
+          className="transition-[stroke] duration-150 group-hover/event:stroke-white"
+        />
+        <circle
+          cx="11"
+          cy="11"
+          r="2"
+          className="transition-[fill,stroke] duration-150 group-hover/event:fill-current group-hover/event:stroke-white"
+        />
       </g>
     </svg>
   )
@@ -195,6 +217,17 @@ function formatExactAmount(value: number) {
   return `${value < 0 ? '-' : '+'}${formatted}`
 }
 
+function formatTcv(value: number) {
+  return value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+}
+
+/** Contract value after each event, starting from the value on the start date. */
+const TCV_AFTER_EVENT = EVENTS.reduce<Record<string, number>>((totals, event) => {
+  const previous = Object.values(totals).at(-1) ?? STARTING_TCV
+  totals[event.id] = previous + event.exactAmount
+  return totals
+}, {})
+
 const TOOLTIP =
   'pointer-events-none absolute top-full z-30 mt-1 hidden w-[280px] flex-col rounded-lg border border-neutral-200 bg-white text-left shadow-[0_8px_24px_rgba(28,27,46,0.12)] group-hover/event:flex'
 
@@ -221,7 +254,7 @@ function EdgeMarker({
       <div
         data-dock-content
         className={cn(
-          'flex transform-gpu flex-col rounded-lg px-2 py-1 transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover/event:bg-neutral-100',
+          'flex transform-gpu flex-col rounded-lg px-2 py-1 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
           align === 'start' ? 'origin-bottom-left items-start' : 'origin-bottom-right items-end',
         )}
         style={{ transform: 'scale(var(--dock-scale, 1))' }}
@@ -229,7 +262,7 @@ function EdgeMarker({
         <span className={LABEL}>{label}</span>
         <span
           className={cn(
-            'relative mt-0.5 flex h-5 items-center bg-white transition-colors duration-150 group-hover/event:bg-transparent',
+            'relative mt-0.5 flex h-5 items-center bg-white',
             align === 'start' ? 'pr-1.5' : 'pl-1.5',
           )}
         >
@@ -305,7 +338,7 @@ export function ContractLifecycleTimeline() {
       />
 
       {EVENTS.map((event, index) => {
-        const { label, title, tone, hover } = KIND_STYLES[event.kind]
+        const { label, title, tone } = KIND_STYLES[event.kind]
         const ordinal = EVENTS.slice(0, index + 1).filter((e) => e.kind === event.kind).length
         return (
           <div
@@ -319,14 +352,11 @@ export function ContractLifecycleTimeline() {
           >
             <div
               data-dock-content
-              className={cn(
-                'flex origin-bottom transform-gpu flex-col items-center rounded-lg px-2 py-1 transition-[transform,background-color] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]',
-                hover,
-              )}
+              className="flex origin-bottom transform-gpu flex-col items-center px-2 py-1 transition-transform duration-200 ease-[cubic-bezier(0.22,1,0.36,1)]"
               style={{ transform: 'scale(var(--dock-scale, 1))' }}
             >
               <span className={LABEL}>{label}</span>
-              <span className="relative mt-0.5 flex h-5 items-center bg-white px-1.5 transition-colors duration-150 group-hover/event:bg-transparent">
+              <span className="relative mt-0.5 flex h-5 items-center bg-white px-1.5">
                 {event.kind === 'amend' ? <AmendPen /> : <RampArrow />}
               </span>
               <span className={cn(SUB, 'mt-0.5 whitespace-nowrap')}>{event.amount}</span>
@@ -344,7 +374,7 @@ export function ContractLifecycleTimeline() {
                   </span>
                 </span>
                 <span className="px-3 py-2.5 text-[12px] leading-[1.45] text-brand-navy">
-                  {event.summary}
+                  {event.summary}, making the TCV {formatTcv(TCV_AFTER_EVENT[event.id])}.
                 </span>
                 <span className="flex items-center justify-between gap-3 border-t border-neutral-100 px-3 py-2">
                   <span className="shrink-0 text-[12px] font-semibold text-brand-navy">
