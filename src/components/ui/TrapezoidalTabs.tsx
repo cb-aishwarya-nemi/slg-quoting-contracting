@@ -374,16 +374,16 @@ function reconcileTabs(previous: ShownTab[], next: TabItem[]): ShownTab[] {
     order.splice(insertAt, 0, id);
   });
 
-  return order.flatMap((id) => {
+  return order.flatMap((id): ShownTab[] => {
     const fresh = nextById.get(id);
     const prior = previousById.get(id);
     if (!fresh) {
-      return prior ? [{ ...prior, phase: "leave" as const }] : [];
+      return prior ? [{ ...prior, phase: "leave" }] : [];
     }
     if (!prior || prior.phase === "leave") {
-      return [{ ...fresh, phase: "enter" as const }];
+      return [{ ...fresh, phase: "enter" }];
     }
-    return [{ ...fresh, phase: prior.phase === "enter" ? ("enter" as const) : ("idle" as const) }];
+    return [{ ...fresh, phase: prior.phase === "enter" ? "enter" : "idle" }];
   });
 }
 
@@ -452,7 +452,9 @@ export function TrapezoidalTabs({
     });
   };
 
-  const rendered = animatePresence ? shown : tabs.map((tab) => ({ ...tab, phase: "idle" as const }));
+  const rendered: ShownTab[] = animatePresence
+    ? shown
+    : tabs.map((tab) => ({ ...tab, phase: "idle", delay: 0 }));
   const firstVisibleIndex = rendered.findIndex((tab) => tab.phase !== "leave");
 
   return (
