@@ -1,14 +1,17 @@
-import { useState, useRef, useEffect, Fragment } from 'react'
-import { GitBranch, Check } from 'lucide-react'
+import { useState, useRef, useEffect } from 'react'
+import { GitBranch, Check, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUseCase, type UseCaseVariant } from '@/context/UseCaseContext'
 import { useNavigation } from '@/context/NavigationContext'
 import { useFileDrop } from '@/context/FileDropContext'
 
 const PRODUCTS_PRICING_PAGE_ID = 'customer360'
+const FOCUSED_VARIANT_IDS = ['customer-scenarios', 'no-customer-data']
+const DEPRIORITIZED_GROUPS = ['Products and pricing', 'Account picker']
 
 export function UseCaseSwitcher() {
   const [isOpen, setIsOpen] = useState(false)
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
@@ -19,6 +22,13 @@ export function UseCaseSwitcher() {
   const page = getPage(PRODUCTS_PRICING_PAGE_ID)
   const variants = page?.variants ?? []
   const currentVariant = activeVariant ?? page?.defaultVariant ?? null
+  const focusedVariants = variants.filter((variant) => FOCUSED_VARIANT_IDS.includes(variant.id))
+  const groupedVariants = DEPRIORITIZED_GROUPS.map((group) => ({
+    group,
+    variants: variants.filter(
+      (variant) => variant.group === group && !FOCUSED_VARIANT_IDS.includes(variant.id)
+    ),
+  }))
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -114,54 +124,38 @@ export function UseCaseSwitcher() {
           {/* Variants List */}
           <div className="p-2">
             <div className="space-y-1">
-              {variants.map((variant, index) => {
+              <div className="px-3 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wider text-brand-mist">
+                Focus
+              </div>
+              {focusedVariants.map((variant) => {
                 const isActive = currentVariant === variant.id
-                const showGroupHeader =
-                  !!variant.group && variant.group !== variants[index - 1]?.group
                 return (
-                  <Fragment key={variant.id}>
-                    {showGroupHeader ? (
-                      <div
-                        className={cn(
-                          'px-3 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wider text-brand-fog',
-                          index > 0 && 'mt-1 border-t border-neutral-100'
-                        )}
-                      >
-                        {variant.group}
-                      </div>
-                    ) : null}
-                    {variant.separatorBefore ? (
-                      <div className="mx-3 my-1 border-t border-neutral-200" aria-hidden="true" />
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => handleSelectVariant(variant)}
+                  <button
+                    key={variant.id}
+                    type="button"
+                    onClick={() => handleSelectVariant(variant)}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
+                      isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                    )}
+                  >
+                    <div
                       className={cn(
-                        'flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left transition-colors',
-                        isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                        'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
+                        isActive
+                          ? 'border-brand-navy bg-brand-navy'
+                          : 'border-neutral-300 bg-white'
                       )}
                     >
-                      <div
-                        className={cn(
-                          'flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors',
-                          isActive
-                            ? 'border-brand-navy bg-brand-navy'
-                            : 'border-neutral-300 bg-white'
-                        )}
-                      >
-                        {isActive && <Check size={10} className="text-white" />}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="block text-[13px] font-medium text-brand-navy">
-                          {variant.label}
-                        </span>
-                      </div>
-                    </button>
-                  </Fragment>
+                      {isActive && <Check size={10} className="text-white" />}
+                    </div>
+                    <span className="block min-w-0 flex-1 text-[13px] font-medium text-brand-navy">
+                      {variant.label}
+                    </span>
+                  </button>
                 )
               })}
-            </div>
-            <div className="mt-2 border-t border-neutral-100 pt-2">
+
               <button
                 type="button"
                 role="switch"
@@ -186,6 +180,76 @@ export function UseCaseSwitcher() {
                   />
                 </span>
               </button>
+
+              <div className="mx-3 my-2 border-t border-neutral-100" aria-hidden="true" />
+
+              {groupedVariants.map(({ group, variants: groupVariants }) => {
+                const isExpanded = expandedGroup === group
+                const hasActiveVariant = groupVariants.some(
+                  (variant) => variant.id === currentVariant
+                )
+
+                return (
+                  <div key={group}>
+                    <button
+                      type="button"
+                      aria-expanded={isExpanded}
+                      onClick={() => setExpandedGroup(isExpanded ? null : group)}
+                      className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-brand-fog transition-colors hover:bg-neutral-50 hover:text-brand-navy"
+                    >
+                      <ChevronRight
+                        size={14}
+                        className={cn(
+                          'shrink-0 transition-transform duration-200',
+                          isExpanded && 'rotate-90'
+                        )}
+                      />
+                      <span className="flex-1 text-[12px] font-semibold">{group}</span>
+                      {hasActiveVariant ? (
+                        <span className="h-1.5 w-1.5 rounded-full bg-brand-navy" />
+                      ) : null}
+                    </button>
+
+                    <div
+                      className={cn(
+                        'grid transition-[grid-template-rows,opacity] duration-200 ease-out',
+                        isExpanded
+                          ? 'grid-rows-[1fr] opacity-100'
+                          : 'grid-rows-[0fr] opacity-0'
+                      )}
+                    >
+                      <div className="overflow-hidden">
+                        <div className="ml-3 border-l border-neutral-200 pl-2 pt-1">
+                          {groupVariants.map((variant) => {
+                            const isActive = currentVariant === variant.id
+                            return (
+                              <button
+                                key={variant.id}
+                                type="button"
+                                onClick={() => handleSelectVariant(variant)}
+                                className={cn(
+                                  'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition-colors',
+                                  isActive ? 'bg-neutral-100' : 'hover:bg-neutral-50'
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    'h-1.5 w-1.5 shrink-0 rounded-full',
+                                    isActive ? 'bg-brand-navy' : 'bg-neutral-300'
+                                  )}
+                                />
+                                <span className="text-[12px] font-medium text-brand-navy">
+                                  {variant.label}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>

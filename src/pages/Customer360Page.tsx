@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2 } from 'lucide-react'
+import { ChevronLeft, Maximize2, Plus } from 'lucide-react'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -54,6 +54,18 @@ const C360_TABS: TabItem[] = [
   { id: 'collections', label: 'Collections' },
   { id: 'revrec', label: 'Revrec' },
 ]
+
+/** Existing customers in the scenario use cases don't all carry the same surfaces. */
+const EXISTING_CUSTOMER_TAB_IDS: Record<string, string[]> = {
+  'Pioneer Systems': C360_TABS.map((tab) => tab.id),
+  'Pioneer systems': ['overview', 'tasks', 'threads', 'quotes', 'sales-order', 'invoices', 'collections'],
+  'Pioneer System': ['overview', 'tasks', 'threads', 'quotes', 'sales-order', 'invoices'],
+  'Pioneers Systems': ['overview', 'tasks', 'threads', 'quotes', 'sales-order', 'invoices', 'revrec'],
+  'Pinoeer Systems': ['overview', 'tasks', 'invoices'],
+  'Atlas BioSystems': ['overview', 'tasks', 'quotes', 'sales-order', 'invoices', 'collections'],
+  'Cascade Networks': ['overview', 'tasks', 'threads', 'quotes', 'sales-order', 'invoices', 'revrec'],
+  'Horizon Analytics': ['overview', 'tasks', 'threads', 'sales-order', 'invoices', 'collections'],
+}
 
 const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'summary', label: 'New deal summary', status: 'ai' },
@@ -151,9 +163,10 @@ function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="flex cursor-pointer items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 font-heading text-[14px] font-semibold text-white transition-colors hover:bg-orange-600"
+      className="flex h-[30px] cursor-pointer items-center gap-2 rounded-none bg-[#1b38de] px-3 font-['Inter'] text-[13px] font-medium text-white transition-colors hover:bg-[#162ec0]"
     >
-      Create Subscription
+      <Plus size={16} strokeWidth={2.5} />
+      Create subscription
     </button>
   )
 }
@@ -167,7 +180,7 @@ function TabPlaceholder({ label }: { label: string }) {
 }
 
 export function Customer360Page() {
-  const { view, goToCustomers, goToSalesOrders } = useNavigation()
+  const { view, goToCustomers, goToSalesOrders, goToWorkbench } = useNavigation()
   const { activePage, activeVariant, setActivePage, setVariant, getPage } = useUseCase()
   const productsPricingPage = getPage('customer360')
   const activeCustomer360Variant =
@@ -269,8 +282,19 @@ export function Customer360Page() {
   }, [data.customerName])
   const cameFromSalesOrders =
     view.name === 'customer360' && view.returnTo === 'salesOrders'
-  const handleBack = cameFromSalesOrders ? goToSalesOrders : goToCustomers
-  const backLabel = cameFromSalesOrders ? 'Back to sales orders' : 'Back to customers'
+  const isScenarioVariant =
+    activeCustomer360Variant === 'customer-scenarios' ||
+    activeCustomer360Variant === 'no-customer-data'
+  const handleBack = cameFromSalesOrders
+    ? goToSalesOrders
+    : isScenarioVariant
+      ? goToWorkbench
+      : goToCustomers
+  const backLabel = cameFromSalesOrders
+    ? 'Back to sales orders'
+    : isScenarioVariant
+      ? 'Back to workbench'
+      : 'Back to customers'
 
   const navSections = BASE_NAV_SECTIONS
 
@@ -343,12 +367,12 @@ export function Customer360Page() {
     setActivePage('customer360')
   }, [setActivePage])
 
-  // Entering the ingestion tab always starts from Multiple matches, whatever
-  // use case was last left in the URL.
+  // Workbench rows open Customer scenarios. Other entry points keep Multiple matches.
+  // Switching use cases afterwards stays on the chosen variant.
   useEffect(() => {
-    if (activeTab !== 'tasks') return
-    setVariant('account-picker-v2')
-  }, [activeTab, setVariant])
+    if (view.name !== 'customer360') return
+    setVariant(view.returnTo ? 'account-picker-v2' : 'customer-scenarios')
+  }, [setVariant, view])
 
   useEffect(() => {
     if (view.name !== 'customer360') return
@@ -497,13 +521,53 @@ export function Customer360Page() {
       ? `${activeTask.taskName}: ${activeTask.taskType}`
       : 'New deal: Contract Ingestion'
 
-  const taskId = activeTask?.taskId ?? 'TSK-2026-0153'
   const isNoCustomerData = activeCustomer360Variant === 'no-customer-data'
   const isCustomerScenarios =
     activeCustomer360Variant === 'customer-scenarios' || isNoCustomerData
-  const visibleTabs = isNoCustomerData
-    ? C360_TABS.filter((tab) => tab.id === 'tasks')
-    : C360_TABS
+  const isNewCustomer = !!createdAccountCustomer && createdAccountCustomer === customerName
+  const hasExistingCustomer = isCustomerScenarios && !!customerName && !isNewCustomer
+  const scenarioTabIds = hasExistingCustomer
+    ? EXISTING_CUSTOMER_TAB_IDS[customerName] ?? C360_TABS.map((tab) => tab.id)
+    : ['tasks']
+  const visibleTabs = (
+    isCustomerScenarios ? C360_TABS.filter((tab) => scenarioTabIds.includes(tab.id)) : C360_TABS
+  ).map((tab) =>
+    isCustomerScenarios && tab.id === 'tasks'
+      ? { ...tab, label: 'Tasks', tone: 'yellow' as const }
+      : tab
+  )
+
+  const scenarioTabKey = scenarioTabIds.join('|')
+
+  useEffect(() => {
+    if (isCustomerScenarios && !scenarioTabKey.split('|').includes(activeTab)) {
+      setActiveTab('tasks')
+    }
+  }, [isCustomerScenarios, activeTab, scenarioTabKey])
+
+  // Customer scenarios span the full header-line width (left-6 / right-4) instead of the centered content column.
+  const secondaryNav = (
+    <div
+      data-c360-secondary-nav
+      className={cn(
+        'flex shrink-0 items-center border-b border-[#cbcbd2]',
+        isCustomerScenarios ? 'ml-6 mr-4 px-5 py-2' : 'pb-2 pt-3'
+      )}
+    >
+      <SecondaryNavSwitcher
+        items={taskSwitcherItems}
+        activeId="100"
+        onSelect={() => {}}
+        triggerLabel="New deal: ingestion (TCV $492,000)"
+      />
+
+      <div className="flex-1" />
+
+      <div className="flex items-center gap-5">
+        <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
+      </div>
+    </div>
+  )
 
   return (
     <div className="flex h-full flex-col">
@@ -531,6 +595,9 @@ export function Customer360Page() {
                 name={customerName}
                 size="header"
                 showBestMatch={!customerTitleConfirmed}
+                showMatchPills={
+                  activeCustomer360Variant === 'customer-scenarios' && hasExistingCustomer
+                }
                 isNewCustomer={!!createdAccountCustomer && createdAccountCustomer === customerName}
                 showNewCustomerNote
                 options={
@@ -559,6 +626,7 @@ export function Customer360Page() {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             compact
+            animatePresence={isCustomerScenarios}
           />
         </div>
 
@@ -569,29 +637,9 @@ export function Customer360Page() {
       {activeTab === 'tasks' && (
         <FieldEditHistoryProvider onFieldEdit={handleFieldEditComment}>
         <EnsurePanelsOnViewEdits onNeedPanels={() => setAreCommentsVisible(true)} />
+        {isCustomerScenarios && secondaryNav}
         <div className="mx-auto flex min-h-0 w-full max-w-[1560px] flex-1 flex-col px-12">
-          {/* Secondary nav */}
-          <div data-c360-secondary-nav className="flex shrink-0 items-center py-3">
-            <div className="flex shrink-0 items-center gap-2">
-              <SecondaryNavSwitcher
-                items={taskSwitcherItems}
-                activeId="100"
-                onSelect={() => {}}
-              />
-              <div className="flex flex-col gap-0.5">
-                <span className="text-[13px] font-bold tracking-[-0.25px] text-brand-navy">
-                  {taskTitle}
-                </span>
-                <span className="text-[11px] text-brand-fog">{taskId}</span>
-              </div>
-            </div>
-
-            <div className="flex-1" />
-
-            <div className="flex items-center gap-5">
-              <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
-            </div>
-          </div>
+          {!isCustomerScenarios && secondaryNav}
 
           {/* Body: left nav + merged content+comments column */}
           {/* No left indent — the nav rail lines up with the switcher icon above it. */}

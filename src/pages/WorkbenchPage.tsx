@@ -101,10 +101,12 @@ export function WorkbenchPage() {
   const contentRef = useRef<HTMLDivElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
   const { workbenchItems, clearItemNewFlag, shouldOpenModal, setShouldOpenModal, processingFiles } = useFileDrop();
-  const { setActivePage } = useUseCase();
+  const { setActivePage, setVariant } = useUseCase();
   const { goToCustomer360 } = useNavigation();
 
   const openCustomerTasks = () => {
+    setActivePage("customer360");
+    setVariant("customer-scenarios");
     goToCustomer360(PIONEER_CUSTOMER_ID, { tab: "tasks" });
   };
 

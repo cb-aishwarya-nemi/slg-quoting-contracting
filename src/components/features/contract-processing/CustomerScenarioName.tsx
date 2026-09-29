@@ -1,7 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil, Search, User, UserPlus, X } from 'lucide-react'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
+import { TAB_LOADING_MS } from '@/components/ui/TrapezoidalTabs'
 import { cn } from '@/lib/utils'
 import {
   ACCOUNT_STATUS_STYLES,
@@ -13,11 +14,76 @@ import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 import { GradientSparkle } from './GradientSparkle'
 
 type CustomerScenarioNameSize = 'header' | 'row'
+type MatchPillTone = 'overdue' | 'dunning' | 'more'
+
+interface MatchPill {
+  label: string
+  tone: MatchPillTone
+}
+
+const PILL_TONE_CLASS: Record<MatchPillTone, string> = {
+  overdue: 'bg-[#faf3f2] text-[#b34045]',
+  dunning: 'bg-[#f2f6fe] text-[#2237d5]',
+  more: 'text-[#2237d5]',
+}
+
+/** Billing signals differ by existing customer, the same way their tabs do. */
+const CUSTOMER_HEADER_PILLS: Record<string, MatchPill[]> = {
+  'Pioneer Systems': [
+    { label: 'Overdue: $364,000.00', tone: 'overdue' },
+    { label: 'Dunning in 3 days', tone: 'dunning' },
+    { label: '+4 more', tone: 'more' },
+  ],
+  'Pioneer systems': [
+    { label: 'Overdue: $48,200.00', tone: 'overdue' },
+    { label: '+2 more', tone: 'more' },
+  ],
+  'Pioneer System': [
+    { label: 'Dunning in 12 days', tone: 'dunning' },
+    { label: '+1 more', tone: 'more' },
+  ],
+  'Pioneers Systems': [
+    { label: 'Overdue: $92,000.00', tone: 'overdue' },
+    { label: 'Dunning in 1 day', tone: 'dunning' },
+  ],
+  'Pinoeer Systems': [{ label: 'Overdue: $6,400.00', tone: 'overdue' }],
+  'Atlas BioSystems': [
+    { label: 'Dunning in 5 days', tone: 'dunning' },
+    { label: '+3 more', tone: 'more' },
+  ],
+  'Cascade Networks': [
+    { label: 'Overdue: $210,000.00', tone: 'overdue' },
+    { label: '+6 more', tone: 'more' },
+  ],
+  'Horizon Analytics': [{ label: 'Dunning in 8 days', tone: 'dunning' }],
+}
+
+const NAME_SWITCH_MS = 720
+const NAME_SWITCH_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+const NAME_SWITCH_STYLES = `
+.c360-name-in { animation: c360-name-in ${NAME_SWITCH_MS}ms ${NAME_SWITCH_EASE} both; }
+.c360-name-out { animation: c360-name-out ${NAME_SWITCH_MS}ms ${NAME_SWITCH_EASE} both; }
+@keyframes c360-name-in {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes c360-name-out {
+  from { transform: none; opacity: 1; }
+  to { transform: translateY(-4px); opacity: 0; }
+}
+`
+
+function pillsForCustomer(name: string): MatchPill[] {
+  return CUSTOMER_HEADER_PILLS[name] ?? CUSTOMER_HEADER_PILLS['Pioneer Systems']
+}
 
 interface CustomerScenarioNameProps {
   name: string
   size: CustomerScenarioNameSize
   showBestMatch?: boolean
+  /** Header-only signals for an existing matched customer in Customer scenarios. */
+  showMatchPills?: boolean
   isNewCustomer?: boolean
   showNewCustomerNote?: boolean
   options: string[]
@@ -34,6 +100,7 @@ export function CustomerScenarioName({
   name,
   size,
   showBestMatch = false,
+  showMatchPills = false,
   isNewCustomer = false,
   showNewCustomerNote = false,
   options,
@@ -64,6 +131,75 @@ export function CustomerScenarioName({
     )
   })
   const canChoose = !!pendingName && options.includes(pendingName)
+  const [shownPills, setShownPills] = useState<MatchPill[]>(() =>
+    showMatchPills ? pillsForCustomer(name) : []
+  )
+  const [pillsLoading, setPillsLoading] = useState(false)
+  const previousCustomerRef = useRef({ name, showMatchPills })
+
+  useEffect(() => {
+    const previous = previousCustomerRef.current
+    previousCustomerRef.current = { name, showMatchPills }
+    if (!showMatchPills) {
+      setShownPills([])
+      setPillsLoading(false)
+      return
+    }
+    const nextPills = pillsForCustomer(name)
+    if (previous.showMatchPills && previous.name !== name) {
+      setPillsLoading(true)
+      const timer = window.setTimeout(() => {
+        setShownPills(nextPills)
+        setPillsLoading(false)
+      }, TAB_LOADING_MS)
+      return () => window.clearTimeout(timer)
+    }
+    setShownPills(nextPills)
+    setPillsLoading(false)
+  }, [name, showMatchPills])
+
+  const nameBoxRef = useRef<HTMLSpanElement>(null)
+  const nameTextRef = useRef<HTMLSpanElement>(null)
+  const lastNameWidthRef = useRef<number | null>(null)
+  const animatedSwitchRef = useRef(0)
+  const [renderedName, setRenderedName] = useState(name)
+  const [switchFrom, setSwitchFrom] = useState<string | null>(null)
+  const [switchKey, setSwitchKey] = useState(0)
+
+  if (renderedName !== name) {
+    setRenderedName(name)
+    if (isHeader && renderedName && name) {
+      setSwitchFrom(renderedName)
+      setSwitchKey((key) => key + 1)
+    }
+  }
+
+  useEffect(() => {
+    if (!switchKey) return
+    const timer = window.setTimeout(() => setSwitchFrom(null), NAME_SWITCH_MS)
+    return () => window.clearTimeout(timer)
+  }, [switchKey])
+
+  useLayoutEffect(() => {
+    const box = nameBoxRef.current
+    const text = nameTextRef.current
+    if (!box || !text) return
+    const to = text.offsetWidth
+    const from = lastNameWidthRef.current
+    lastNameWidthRef.current = to
+    if (animatedSwitchRef.current === switchKey || from === null || from === to) return
+    animatedSwitchRef.current = switchKey
+    box.style.transition = 'none'
+    box.style.width = `${from}px`
+    box.getBoundingClientRect()
+    box.style.transition = `width ${NAME_SWITCH_MS}ms ${NAME_SWITCH_EASE}`
+    box.style.width = `${to}px`
+    const timer = window.setTimeout(() => {
+      box.style.transition = ''
+      box.style.width = ''
+    }, NAME_SWITCH_MS)
+    return () => window.clearTimeout(timer)
+  }, [name, switchKey])
 
   const closeMenu = () => setMenuOpen(false)
   const toggleMenu = () => setMenuOpen((open) => !open)
@@ -118,6 +254,7 @@ export function CustomerScenarioName({
       className={cn('flex items-center', isHeader ? 'gap-2' : 'gap-1.5')}
       onClick={(event) => event.stopPropagation()}
     >
+      {switchFrom ? <style>{NAME_SWITCH_STYLES}</style> : null}
       {creating ? (
         <label
           className={cn(
@@ -176,16 +313,34 @@ export function CustomerScenarioName({
           ) : (
             <User size={isHeader ? 15 : 13} className="shrink-0" />
           )}
-          <span
-            className={cn(
-              isHeader
-                ? 'font-heading text-[16px] font-semibold leading-6'
-                : 'text-[14px] font-medium leading-5'
-            )}
-            style={isHeader ? { letterSpacing: '-0.5px' } : undefined}
-          >
-            {name || 'Name this business'}
-          </span>
+          {isHeader ? (
+            <span
+              ref={nameBoxRef}
+              className="relative inline-block overflow-hidden whitespace-nowrap align-top font-heading text-[16px] font-semibold leading-6"
+              style={{ letterSpacing: '-0.5px' }}
+            >
+              <span
+                key={`in-${switchKey}`}
+                ref={nameTextRef}
+                className={cn('inline-block', switchFrom && 'c360-name-in')}
+              >
+                {name || 'Name this business'}
+              </span>
+              {switchFrom ? (
+                <span
+                  key={`out-${switchKey}`}
+                  aria-hidden="true"
+                  className="c360-name-out absolute left-0 top-0"
+                >
+                  {switchFrom}
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-[14px] font-medium leading-5">
+              {name || 'Name this business'}
+            </span>
+          )}
           {isHeader && name ? <Pencil size={13} className="shrink-0" /> : null}
         </button>
       )}
@@ -199,6 +354,40 @@ export function CustomerScenarioName({
         >
           <GradientSparkle size={isHeader ? 12 : 11} />
           Best match
+        </span>
+      ) : null}
+
+      {isHeader && shownPills.length > 0 && !creating ? (
+        <span className="inline-flex items-center gap-2" aria-busy={pillsLoading || undefined}>
+          {pillsLoading ? (
+            <style>{`
+              .c360-tab-skeleton {
+                background: linear-gradient(90deg, rgba(28,27,46,0.08) 0%, rgba(28,27,46,0.18) 50%, rgba(28,27,46,0.08) 100%);
+                background-size: 200% 100%;
+                animation: c360-tab-shimmer 1.2s ease-in-out infinite;
+              }
+            `}</style>
+          ) : null}
+          {shownPills.map((pill) => (
+            <span
+              key={pill.label}
+              className={cn(
+                'relative inline-flex items-center px-2 py-1 text-[13px] font-medium leading-none',
+                PILL_TONE_CLASS[pill.tone]
+              )}
+            >
+              <span className={cn('transition-opacity duration-300', pillsLoading && 'opacity-0')}>
+                {pill.label}
+              </span>
+              <span
+                aria-hidden="true"
+                className={cn(
+                  'c360-tab-skeleton pointer-events-none absolute left-2 right-2 top-1/2 h-2 -translate-y-1/2 rounded-full transition-opacity duration-300',
+                  pillsLoading ? 'opacity-100' : 'opacity-0'
+                )}
+              />
+            </span>
+          ))}
         </span>
       ) : null}
 

@@ -31,6 +31,8 @@ interface SecondaryNavSwitcherProps {
   onViewMore?: () => void
   /** how many items to show before the "View More" link (default 8) */
   maxVisible?: number
+  /** Replaces the icon button with a labeled select trigger. */
+  triggerLabel?: string
 }
 
 /**
@@ -44,6 +46,7 @@ export function SecondaryNavSwitcher({
   onSelect,
   onViewMore,
   maxVisible = 8,
+  triggerLabel,
 }: SecondaryNavSwitcherProps) {
   const [isOpen, setIsOpen] = useState(false)
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -57,10 +60,21 @@ export function SecondaryNavSwitcher({
         ref={triggerRef}
         type="button"
         onClick={() => setIsOpen((prev) => !prev)}
-        className="flex h-5 w-5 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50"
+        className={
+          triggerLabel
+            ? "flex h-6 cursor-pointer items-center gap-1.5 rounded-none bg-[#f2f6ff] px-2 font-['Inter'] text-[13px] font-medium leading-none text-[#1b38de] transition-colors hover:bg-[#e7eeff]"
+            : 'flex h-5 w-5 cursor-pointer items-center justify-center rounded text-blue-700 transition-colors hover:bg-blue-50'
+        }
         title="Switch"
       >
-        <ChevronsUpDown size={15} />
+        {triggerLabel ? (
+          <>
+            <span className="whitespace-nowrap">{triggerLabel}</span>
+            <ChevronsUpDown size={14} strokeWidth={2} />
+          </>
+        ) : (
+          <ChevronsUpDown size={15} />
+        )}
       </button>
 
       <AnchoredMenu
