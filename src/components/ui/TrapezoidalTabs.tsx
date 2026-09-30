@@ -37,6 +37,8 @@ const COLORS = {
   hoverBg: "#e8e8f0",
   /** Highlight fill used for the Tasks tab in customer scenarios. */
   taskYellow: "#f4d562",
+  /** Pale blue fill for the icon-only edit tab. */
+  editBlue: "#f1f6ff",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -79,7 +81,7 @@ interface TabSVGProps {
   height: number;
   active: boolean;
   hovered?: boolean;
-  tone?: "default" | "yellow";
+  tone?: "default" | "yellow" | "blue";
 }
 
 function TabSVG({ width, height, active, hovered, tone = "default" }: TabSVGProps) {
@@ -90,13 +92,15 @@ function TabSVG({ width, height, active, hovered, tone = "default" }: TabSVGProp
 
   const fill = highlighted
     ? COLORS.taskYellow
-    : active
-      ? COLORS.brandNavy
-      : hovered
-        ? COLORS.hoverBg
-        : COLORS.neutral100;
+    : tone === "blue"
+      ? COLORS.editBlue
+      : active
+        ? COLORS.brandNavy
+        : hovered
+          ? COLORS.hoverBg
+          : COLORS.neutral100;
 
-  const stroke = COLORS.brandNavy;
+  const stroke = tone === "blue" ? COLORS.editBlue : COLORS.brandNavy;
 
   return (
     <svg
@@ -142,17 +146,19 @@ interface TabPresence {
 
 interface TabButtonProps {
   label: string;
+  icon?: ReactNode;
   active: boolean;
   first: boolean;
   zIndex: number;
   compact?: boolean;
-  tone?: "default" | "yellow";
+  tone?: "default" | "yellow" | "blue";
   presence?: TabPresence;
   onClick: () => void;
 }
 
 function TabButton({
   label,
+  icon,
   active,
   first,
   zIndex,
@@ -266,13 +272,14 @@ function TabButton({
         onKeyDown={(e) => {
           if (e.key === "Enter" || e.key === " ") onClick();
         }}
+        aria-label={label || "Edit"}
         className={cn(
           "relative inline-flex items-center justify-center cursor-pointer transition-[height] duration-300 ease-out",
           `min-w-[${TAB_MIN_WIDTH}px]`,
         )}
         style={{
           height: tabHeight,
-          minWidth: TAB_MIN_WIDTH,
+          minWidth: icon && !label ? 52 : TAB_MIN_WIDTH,
         }}
       >
         <TabSVG
@@ -283,22 +290,28 @@ function TabButton({
           tone={tone}
         />
 
-        <span
-          className={cn(
-            "relative z-[2] px-6 whitespace-nowrap uppercase",
-            hasPresence ? "transition-opacity duration-300" : "transition-all duration-200",
-            "text-[12px] tracking-[-0.5px]",
-            loading && "opacity-0",
-            active && tone === "yellow"
-              ? "font-bold text-brand-navy"
-              : active
-                ? "font-bold text-white"
-                : "font-medium text-brand-navy group-hover/tab:text-brand-navy"
-          )}
-          style={{ fontFamily: "'Inter', sans-serif" }}
-        >
-          {label}
-        </span>
+        {icon && !label ? (
+          <span className="relative z-[2] text-[#2a3cac]" aria-hidden="true">
+            {icon}
+          </span>
+        ) : (
+          <span
+            className={cn(
+              "relative z-[2] px-6 whitespace-nowrap uppercase",
+              hasPresence ? "transition-opacity duration-300" : "transition-all duration-200",
+              "text-[12px] tracking-[-0.5px]",
+              loading && "opacity-0",
+              active && tone === "yellow"
+                ? "font-bold text-brand-navy"
+                : active
+                  ? "font-bold text-white"
+                  : "font-medium text-brand-navy group-hover/tab:text-brand-navy"
+            )}
+            style={{ fontFamily: "'Inter', sans-serif" }}
+          >
+            {label}
+          </span>
+        )}
 
         {hasPresence ? (
           <span
@@ -322,8 +335,10 @@ function TabButton({
 export interface TabItem {
   id: string;
   label: string;
-  /** Yellow stays filled with navy text whether or not the tab is selected. */
-  tone?: "default" | "yellow";
+  /** Shown instead of the label when the label is empty. */
+  icon?: ReactNode;
+  /** Yellow and blue stay filled whether or not the tab is selected. */
+  tone?: "default" | "yellow" | "blue";
 }
 
 interface TrapezoidalTabsProps {
@@ -334,6 +349,8 @@ interface TrapezoidalTabsProps {
   className?: string;
   /** Folds tabs in and out when the set changes. Off for every other caller. */
   animatePresence?: boolean;
+  /** When this changes, the next tab set swaps in immediately with no skeleton. */
+  instantKey?: string;
   children?: ReactNode;
 }
 
@@ -389,6 +406,7 @@ function reconcileTabs(previous: ShownTab[], next: TabItem[]): ShownTab[] {
 
 /** How long surviving tabs show the skeleton before the new set swaps in. */
 export const TAB_LOADING_MS = 2000;
+const INSTANT_WINDOW_MS = 300;
 
 const TAB_PRESENCE_STYLES = `
 .c360-tab-skeleton {
@@ -409,6 +427,7 @@ export function TrapezoidalTabs({
   compact = false,
   className,
   animatePresence = false,
+  instantKey,
 }: TrapezoidalTabsProps) {
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
@@ -419,18 +438,30 @@ export function TrapezoidalTabs({
   );
   const [loading, setLoading] = useState(false);
   const lastSignatureRef = useRef(signature);
+  const lastInstantKeyRef = useRef(instantKey);
+  const instantUntilRef = useRef(0);
 
   useEffect(() => {
-    if (!animatePresence) return;
-    if (signature === lastSignatureRef.current) return;
+    const keyChanged = instantKey !== lastInstantKeyRef.current;
+    lastInstantKeyRef.current = instantKey;
+    // The page reseeds its tabs a render after the key flips, so keep a short window open.
+    if (keyChanged) instantUntilRef.current = Date.now() + INSTANT_WINDOW_MS;
+    const instant =
+      !animatePresence || keyChanged || Date.now() < instantUntilRef.current;
+    if (signature === lastSignatureRef.current && !keyChanged) return;
     lastSignatureRef.current = signature;
+    if (instant) {
+      setLoading(false);
+      setShown(tabsRef.current.map((tab) => ({ ...tab, phase: "idle", delay: 0 })));
+      return;
+    }
     setLoading(true);
     const timer = window.setTimeout(() => {
       setLoading(false);
       setShown((previous) => staggerTabs(reconcileTabs(previous, tabsRef.current)));
     }, TAB_LOADING_MS);
     return () => window.clearTimeout(timer);
-  }, [animatePresence, signature]);
+  }, [animatePresence, signature, instantKey]);
 
   useEffect(() => {
     if (!animatePresence) return;
@@ -470,6 +501,7 @@ export function TrapezoidalTabs({
           <TabButton
             key={tab.id}
             label={tab.label}
+            icon={tab.icon}
             active={activeTab === tab.id}
             tone={tab.tone}
             first={animatePresence ? index === firstVisibleIndex || index === 0 : index === 0}

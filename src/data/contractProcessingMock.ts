@@ -187,7 +187,7 @@ export const contractProcessing = {
   summary: {
     contractValue: '$492,000.00',
     termMonths: 24,
-    effectiveDate: 'Aug 27, 2026',
+    effectiveDate: 'Nov 1, 2026',
     lineItemsSummary:
       'covering 5 line items — Growth services (50 seats), Onboarding & Training, and more',
   },

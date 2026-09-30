@@ -1,6 +1,5 @@
 export { LeftNav } from './LeftNav'
 export { MinimalLeftNav } from './MinimalLeftNav'
-export { TopNav } from './TopNav'
 export { TopNavV0 } from './TopNavV0'
 export { AppLayout } from './AppLayout'
 export { NotificationPanel } from './NotificationPanel'

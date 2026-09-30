@@ -1,7 +1,6 @@
 import { type ReactNode, useEffect, useRef } from 'react'
 import { LeftNav } from './LeftNav'
 import { MinimalLeftNav } from './MinimalLeftNav'
-import { TopNav } from './TopNav'
 import { TopNavV0 } from './TopNavV0'
 import { FileDropProvider, useFileDrop } from '../../context/FileDropContext'
 import { useVersion } from '../../context/VersionContext'
@@ -106,8 +105,7 @@ function V1Layout({ children }: { children: ReactNode }) {
   return (
     <>
       <LeftNav />
-      <TopNav />
-      <main className="ml-12 mt-10 h-[calc(100vh-40px)] bg-white">
+      <main className="ml-12 h-screen bg-white pt-6">
         {children}
       </main>
       {/* File drop overlay - only for V1.0 */}

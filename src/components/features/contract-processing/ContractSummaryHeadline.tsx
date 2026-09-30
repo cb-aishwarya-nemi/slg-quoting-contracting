@@ -27,8 +27,13 @@ export function ContractSummaryHeadline({
         className
       )}
     >
-      A <span className="font-bold">{contractValue}</span>, {termMonths} month contract with{' '}
-      <span className="whitespace-nowrap">{customerName}</span>
+      A <span className="font-bold">{contractValue}</span>, {termMonths} month contract
+      {customerName ? (
+        <>
+          {' '}
+          with <span className="whitespace-nowrap">{customerName}</span>
+        </>
+      ) : null}
       {startingPhrase ? ` starting ${startingPhrase}` : ''}
       {lineItemsSummary ? ` ${lineItemsSummary}` : ''}.
     </h2>

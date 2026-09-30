@@ -9,6 +9,7 @@ import {
   ReceiptText,
   WalletCards,
   BarChart3,
+  Globe,
   ChevronsUpDown,
   type LucideIcon,
 } from 'lucide-react'
@@ -187,7 +188,15 @@ export function LeftNav() {
           />
 
           {/* Nav items — single DOM structure, text visibility controlled via CSS */}
-          <div className="flex flex-col gap-0.5 px-1.5 pt-2 pb-2">
+          <div className="flex flex-col gap-0.5 px-1.5 pb-2">
+            <button
+              type="button"
+              title="Switch site"
+              aria-label="Switch site"
+              className="mb-4 flex h-8 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg text-brand-navy hover:bg-neutral-100"
+            >
+              <Globe size={18} strokeWidth={1.75} />
+            </button>
             {navItems.map((item, idx) => {
               const Icon = item.icon
               const isActive = getIsActive(item)

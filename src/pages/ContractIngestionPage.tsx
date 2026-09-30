@@ -963,7 +963,7 @@ export function ContractIngestionPage({ activeContractId, onContractProcessed }:
   
   const contractsReadyForReview = useMemo(() => {
     return workbenchItems.filter(
-      (item) => item.contractId && (item.status === 'Ready for review' || item.status === 'In review' || item.status === 'Pending approval')
+      (item) => item.contractId && (item.status === 'Ready for review' || item.status === 'Open' || item.status === 'Pending approval')
     )
   }, [workbenchItems])
   

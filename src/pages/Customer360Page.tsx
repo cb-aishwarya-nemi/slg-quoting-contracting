@@ -641,6 +641,7 @@ export function Customer360Page() {
             onTabChange={setActiveTab}
             compact
             animatePresence={isCustomerScenarios}
+            instantKey={activeCustomer360Variant}
           />
         </div>
 
@@ -694,7 +695,7 @@ export function Customer360Page() {
                     contractValue={data.summary.contractValue}
                     termMonths={data.summary.termMonths}
                     effectiveDate={data.summary.effectiveDate}
-                    customerName={data.customerName}
+                    customerName={isNoCustomerData ? customerName : data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
                   <div className="mt-4 flex flex-wrap items-end gap-2">

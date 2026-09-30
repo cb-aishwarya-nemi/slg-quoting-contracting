@@ -18,7 +18,7 @@ export interface WorkbenchItem {
   /** Short task name, e.g. "New deal", "Early renewal" */
   taskName?: string
   customer: string
-  /** Customer column shows “Not identified” and the row opens No customer data. */
+  /** Row opens No customer data. */
   unidentifiedCustomer?: boolean
   subject: string
   severity: string
@@ -31,6 +31,8 @@ export interface WorkbenchItem {
   tcv?: string
   status?: string
   owner?: string
+  /** Person the task is currently waiting on, when set */
+  waitingOn?: string
 }
 
 interface FileDropContextValue {
@@ -89,8 +91,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     contractId: "CT-2026-0154",
     startDate: daysAgo(1),
     tcv: "$240,000",
-    status: "In review",
+    status: "Open",
     owner: "Marcus Webb",
+    waitingOn: "Elena Rodriguez",
   },
   {
     id: 2,
@@ -117,6 +120,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     tcv: "$85,000",
     status: "Blocked",
     owner: "Priya Malhotra",
+    waitingOn: "Maya Chen",
   },
   {
     id: 4,
@@ -239,8 +243,9 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     contractId: "CT-2026-0155",
     startDate: daysAgo(1),
     tcv: "$420,000",
-    status: "Pending approval",
+    status: "Blocked",
     owner: "You",
+    waitingOn: "Adrian Brody",
   },
   {
     id: 17,
@@ -273,7 +278,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     contractId: "CT-2026-0150",
     startDate: daysAgo(5),
     tcv: "$180,000",
-    status: "In review",
+    status: "Open",
     owner: "Marcus Webb",
   },
   {

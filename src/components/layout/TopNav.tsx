@@ -1,6 +1,5 @@
 import {
   ChevronsUpDown,
-  Search,
   X,
   Sun,
   Moon,
@@ -147,14 +146,6 @@ export function TopNav({ environmentName = 'Echocorp.test.chargebee.com', isLive
           >
             <ChevronsUpDown size={14} />
           </button>
-        </div>
-
-        {/* Center section - Search */}
-        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-          <div className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-1 text-xs text-brand-navy transition-colors hover:bg-neutral-100">
-            <Search size={14} />
-            <span>Search for quotes, customers or invoices...</span>
-          </div>
         </div>
 
         {/* Right section - Actions */}

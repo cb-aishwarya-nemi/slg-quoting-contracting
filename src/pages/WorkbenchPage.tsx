@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Search, Sparkles, ArrowRight, ChevronRight, Info } from "lucide-react";
+import { ListFilter, Pencil, Search, Sparkles, ArrowRight, Check, User } from "lucide-react";
 import { TrapezoidalTabs, type TabItem } from "@/components/ui/TrapezoidalTabs";
 import { FilterUnit, type Filter } from "@/components/ui/FilterUnit";
 import { cn, formatStartUrgency } from "@/lib/utils";
@@ -10,17 +10,30 @@ import { CustomerLinkModal } from "@/components/features/customer-link/CustomerL
 
 const PIONEER_CUSTOMER_ID = "pioneer-systems";
 const WORKBENCH_TABS: TabItem[] = [
-  { id: "your-tasks", label: "Contract queue" },
+  { id: "your-tasks", label: "All Tasks" },
+  { id: "approvals", label: "Approvals" },
+  { id: "edit", label: "", tone: "blue", icon: <Pencil size={15} strokeWidth={2} /> },
 ];
 
 const TAB_TITLES: Record<string, string> = {
-  "your-tasks": "Contract queue",
+  "your-tasks": "All Tasks",
+  approvals: "Approvals",
+  edit: "Edit",
 };
+
+type QuickFilterId = "owner-you" | "waiting-on-me" | "high-priority" | "pending-approval";
+
+const QUICK_FILTERS: Array<{ id: QuickFilterId; label: string }> = [
+  { id: "owner-you", label: "Owner is you" },
+  { id: "waiting-on-me", label: "Waiting on me" },
+  { id: "high-priority", label: "High priority" },
+  { id: "pending-approval", label: "Pending approval" },
+];
 
 // Status styles for contract ingestion
 const STATUS_STYLES: Record<string, { text: string; bg: string }> = {
   "Ready for review": { text: "text-brand-navy", bg: "bg-neutral-100" },
-  "In review": { text: "text-green-700", bg: "bg-green-50" },
+  Open: { text: "text-green-700", bg: "bg-green-50" },
   "Pending approval": { text: "text-violet-700", bg: "bg-violet-50" },
   Blocked: { text: "text-red-700", bg: "bg-red-50" },
 };
@@ -43,39 +56,44 @@ function SkeletonBar({ className }: { className?: string }) {
   )
 }
 
-function contractTypeLabel(task: WorkbenchItem): string {
-  if (task.taskName) return task.taskName
-  return task.taskType.replace(/\s*Contract Ingestion$/i, '').replace(/:\s*$/, '').trim() || task.taskType
-}
-
 function ProcessingTaskRow({ file }: { file: ProcessingFile }) {
   return (
     <tr className="border-b border-neutral-100">
-      {/* Customer — skeleton */}
-      <td className="py-2.5 pl-[38px] pr-4">
-        <SkeletonBar className="w-[96px]" />
-      </td>
-
-      {/* Contract type — skeleton */}
-      <td className="py-2.5 pr-4">
-        <SkeletonBar className="w-[140px]" />
-      </td>
-
       {/* Subject — PDF name */}
-      <td className="py-2.5 pr-4 max-w-0">
+      <td className="py-2.5 pl-4 pr-4">
         <span className="block truncate text-[13px] font-medium text-brand-navy">
           {file.name}
         </span>
       </td>
 
+      {/* For — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="ml-[22px] w-[96px]" />
+      </td>
+
+      {/* Task type — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="w-[140px]" />
+      </td>
+
       {/* Status — Extracting data (shown only after upload completes) */}
       <td className="py-2 pl-1 pr-4">
-        <div className="flex min-w-[132px] items-center gap-1.5 min-w-0">
+        <div className="flex w-fit items-center gap-1.5">
           <Sparkles size={12} className="shrink-0 animate-pulse text-violet-500" />
           <span className="text-gradient-shine text-[13px] font-medium whitespace-nowrap">
             Extracting data
           </span>
         </div>
+      </td>
+
+      {/* Tags — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="w-[96px]" />
+      </td>
+
+      {/* Owner — skeleton */}
+      <td className="py-2.5 pr-4">
+        <SkeletonBar className="w-[80px]" />
       </td>
 
       {/* Created on — skeleton */}
@@ -94,6 +112,7 @@ export function WorkbenchPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [filters, setFilters] = useState<Filter[]>([]);
+  const [quickFilters, setQuickFilters] = useState<QuickFilterId[]>([]);
   const [isFilterExpanded, setIsFilterExpanded] = useState(false);
   const [customerLinkTask, setCustomerLinkTask] = useState<WorkbenchItem | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -169,7 +188,7 @@ export function WorkbenchPage() {
       case 'taskName':
         return task.taskName || '';
       case 'customer':
-        return task.unidentifiedCustomer ? 'Not identified' : task.customer;
+        return task.customer;
       case 'subject':
         return task.subject;
       case 'status':
@@ -190,19 +209,32 @@ export function WorkbenchPage() {
   };
 
   // Filter tasks based on search query and filters
-  const filteredTasks = applyFilters(ingestionTasks).filter(task => {
-    if (!searchQuery.trim()) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      (task.unidentifiedCustomer ? 'not identified' : task.customer).toLowerCase().includes(query) ||
-      task.taskType.toLowerCase().includes(query) ||
-      task.taskId?.toLowerCase().includes(query) ||
-      task.taskName?.toLowerCase().includes(query) ||
-      task.subject.toLowerCase().includes(query) ||
-      task.status?.toLowerCase().includes(query) ||
-      task.owner?.toLowerCase().includes(query)
-    );
-  });
+  const filteredTasks = applyFilters(ingestionTasks)
+    .filter((task) =>
+      quickFilters.every((filter) => {
+        if (filter === "owner-you") return task.owner === "You";
+        if (filter === "waiting-on-me") {
+          return task.waitingOn === "You" || task.status === "Ready for review";
+        }
+        if (filter === "high-priority") {
+          return task.severity === "High" || task.severity === "Critical";
+        }
+        return task.status === "Pending approval";
+      })
+    )
+    .filter(task => {
+      if (!searchQuery.trim()) return true;
+      const query = searchQuery.toLowerCase();
+      return (
+        task.customer.toLowerCase().includes(query) ||
+        task.taskType.toLowerCase().includes(query) ||
+        task.taskId?.toLowerCase().includes(query) ||
+        task.taskName?.toLowerCase().includes(query) ||
+        task.subject.toLowerCase().includes(query) ||
+        task.status?.toLowerCase().includes(query) ||
+        task.owner?.toLowerCase().includes(query)
+      );
+    });
 
   // Focus search input when opened
   useEffect(() => {
@@ -301,15 +333,11 @@ export function WorkbenchPage() {
       <div className="relative h-[60px] shrink-0">
         {/* Breadcrumb + Title and task counts on the left - absolutely positioned */}
         <div className="absolute left-6 bottom-1 flex flex-col justify-end">
-          <div className="flex items-center gap-0.5 mb-0">
-            <span className="text-[10px] font-medium uppercase tracking-[0] text-brand-fog">Workbench</span>
-            <ChevronRight size={10} className="text-brand-fog" />
-          </div>
           <h1
             className="font-heading text-[24px] font-semibold text-brand-navy"
             style={{ letterSpacing: "-0.5px" }}
           >
-            {TAB_TITLES[activeTab] ?? "Contract queue"}
+            {TAB_TITLES[activeTab] ?? "All Tasks"}
           </h1>
         </div>
 
@@ -323,82 +351,61 @@ export function WorkbenchPage() {
           />
         </div>
 
-        {/* Search/Filter/Sort on the right */}
-        <div className="absolute right-4 bottom-1.5 flex items-center gap-2.5">
-          {/* Inline search box - fixed width container to prevent jumping */}
-          <div 
-            ref={searchContainerRef}
-            className="relative flex items-center gap-1.5 bg-white transition-all duration-300 ease-in-out overflow-hidden"
-            style={{ 
-              width: isSearchOpen ? '240px' : '14px',
-              paddingLeft: isSearchOpen ? '8px' : '0px',
-              paddingRight: isSearchOpen ? '8px' : '0px',
-            }}
-          >
-            <button
-              onClick={() => !isSearchOpen && setIsSearchOpen(true)}
-              className={cn(
-                "shrink-0 transition-colors",
-                isSearchOpen ? "text-brand-navy cursor-default" : "text-brand-navy hover:text-brand-fog cursor-pointer"
-              )}
-            >
-              <Search size={14} />
-            </button>
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') {
-                  setSearchQuery("");
-                  setIsSearchOpen(false);
-                }
-              }}
-              placeholder="Search tasks..."
-              className={cn(
-                "bg-transparent py-1.5 text-[13px] text-brand-navy placeholder:text-brand-navy outline-none transition-all duration-300 ease-in-out",
-                isSearchOpen ? "opacity-100" : "opacity-0"
-              )}
-              style={{ 
-                fontSize: '12px',
-                width: isSearchOpen ? 'calc(100% - 30px)' : '0px',
-              }}
-            />
-          </div>
-          <button 
-            onClick={() => {
-              const willExpand = !isFilterExpanded;
-              setIsFilterExpanded(willExpand);
-            }}
-            className={cn(
-              "relative inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-lg px-2 text-[13px] transition-colors",
-              filters.length > 0 && isFilterExpanded
-                ? "bg-brand-navy text-white hover:bg-brand-soft" 
-                : "text-brand-navy hover:bg-neutral-100"
-            )}
-          >
-            <svg className={cn("h-3 w-3", filters.length > 0 && isFilterExpanded ? "text-white" : "text-brand-mist")} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span className="font-medium">Filter</span>
-            {/* Red dot indicator when collapsed with filters */}
-            {filters.length > 0 && !isFilterExpanded && (
-              <span className="absolute right-0 top-0 h-1.5 w-1.5 rounded-full bg-red-500" />
-            )}
-          </button>
-          <button className="inline-flex h-6 cursor-pointer items-center gap-1.5 rounded-md px-2 text-[13px] text-brand-navy transition-colors hover:bg-neutral-100">
-            <span className="text-brand-fog">Sort:</span>
-            <span className="font-medium">Severity</span>
-            <svg className="h-3 w-3 text-brand-mist" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
-        </div>
-
         {/* Horizontal line - aligned with title on left, avatar on right */}
         <div className="absolute bottom-0 left-6 right-4 h-[1px] bg-brand-navy" />
       </div>
+
+      {activeTab === "your-tasks" && (
+        <div className="flex items-center py-2 pl-6 pr-4">
+          <button
+            type="button"
+            className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-[14px] font-medium text-[#2a3cac] hover:bg-[#f2f6ff]"
+          >
+            <ListFilter size={16} strokeWidth={2} />
+            Add filter
+          </button>
+          <div className="ml-2 flex items-center gap-1.5">
+            {QUICK_FILTERS.map((filter) => {
+              const isActive = quickFilters.includes(filter.id);
+              return (
+                <button
+                  key={filter.id}
+                  type="button"
+                  aria-pressed={isActive}
+                  onClick={() =>
+                    setQuickFilters((current) =>
+                      current.includes(filter.id)
+                        ? current.filter((id) => id !== filter.id)
+                        : [...current, filter.id]
+                    )
+                  }
+                  className={cn(
+                    "inline-flex h-7 cursor-pointer items-center rounded-full px-2.5 text-[12px] font-medium transition-colors",
+                    isActive
+                      ? "bg-[#2a3cac] text-white"
+                      : "bg-[#f2f6ff] text-[#2a3cac] hover:bg-[#e7eeff]"
+                  )}
+                >
+                  {filter.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <button
+              type="button"
+              className="inline-flex h-7 cursor-pointer items-center gap-1.5 rounded-md px-1.5 text-[14px] font-medium text-[#2a3cac] hover:bg-[#f2f6ff]"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                <path d="M1.25 3.75h6.5M1.25 7.75h4.25M1.25 11.75h3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <circle cx="11" cy="9.25" r="2.35" stroke="currentColor" strokeWidth="1.5" />
+                <path d="M12.7 11.05 14.35 12.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+              Search
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Filter Unit */}
       <FilterUnit 
@@ -416,10 +423,10 @@ export function WorkbenchPage() {
       {/* Content Area */}
       <div
         ref={contentRef}
-        className="flex-1 overflow-y-auto bg-white px-6 pt-4 pb-8"
+        className="flex-1 overflow-y-auto bg-white pl-6 pr-4 pt-4 pb-8"
       >
         {/* Tab Content - max width 1560px centered */}
-        <div className="mx-auto max-w-[1560px] px-8">
+        <div className="mx-auto max-w-[1560px]">
           {activeTab === "your-tasks" && (
             <div>
               {/* Stats Section - spread across width with vertical separators */}
@@ -445,29 +452,35 @@ export function WorkbenchPage() {
               </div>
 
               {/* Tasks Table */}
-              <table ref={tableRef} className="w-full">
+              <table ref={tableRef} className="w-full table-fixed">
                 {/* Table Header - Sticky with shadow on scroll */}
                 <thead
                   className="sticky -top-4 z-20 bg-white"
                   style={!isHeaderSticky ? { boxShadow: '0 -1px 0 0 #1c1b2e', backgroundColor: '#ffffff' } : { backgroundColor: '#ffffff' }}
                 >
                   <tr className="bg-white">
-                    <th className="py-2 pl-[38px] pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 170, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Customer
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 220, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Contract type
-                    </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white whitespace-nowrap relative z-20" style={{ width: 400, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Subject
                     </th>
-                    <th className="py-2 pl-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 150, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pl-[22px] pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      For
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Task type
+                    </th>
+                    <th className="py-2 pl-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 132, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Status
                     </th>
-                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 130, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Labels
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 132, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
+                      Owner
+                    </th>
+                    <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 112, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Created on
                     </th>
-                    <th className="py-2 w-10 pr-4 bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }} />
+                    <th className="py-2 pr-4 bg-white relative z-20" style={{ width: 40, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }} />
                   </tr>
                 </thead>
 
@@ -478,7 +491,7 @@ export function WorkbenchPage() {
                     ))}
                     {filteredTasks.length === 0 && inFlightFiles.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center">
+                        <td colSpan={8} className="py-8 text-center">
                           <div className="flex flex-col items-center gap-2">
                             <Search size={24} className="text-brand-mist" />
                             <p className="text-[14px] text-brand-fog">
@@ -515,43 +528,14 @@ export function WorkbenchPage() {
                             isNew && "animate-highlight-row"
                           )}
                         >
-                          {/* Customer */}
-                          <td className="py-1.5 pl-4 pr-4 relative">
+                          {/* Subject */}
+                          <td className="py-1.5 pl-4 pr-4 text-[13px] text-brand-fog group-hover:text-white/70 relative z-10">
                             {isNew && (
                               <span className="row-sweep-overlay-table" aria-hidden="true">
                                 <span className="row-sweep-band" />
                               </span>
                             )}
-                            <div className="flex items-center gap-2 relative z-10">
-                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
-                                {task.unidentifiedCustomer ? (
-                                  <Info size={14} strokeWidth={2} className="text-amber-500 group-hover:text-[var(--color-amber-200)]" />
-                                ) : isNew ? (
-                                  <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
-                                ) : null}
-                              </span>
-                              {task.unidentifiedCustomer ? (
-                                <span className="text-[13px] font-medium whitespace-nowrap text-amber-800 group-hover:text-[var(--color-amber-200)]">
-                                  Not identified
-                                </span>
-                              ) : (
-                                <span className="text-[13px] font-medium text-brand-navy whitespace-nowrap group-hover:text-white">
-                                  {task.customer}
-                                </span>
-                              )}
-                            </div>
-                          </td>
-
-                          {/* Contract type */}
-                          <td className="py-1.5 pr-4 relative z-10">
-                            <div className="inline-block px-2 py-1 text-[13px] font-medium whitespace-nowrap bg-neutral-100 text-brand-navy group-hover:bg-white/20 group-hover:text-white">
-                              {contractTypeLabel(task)}
-                            </div>
-                          </td>
-
-                          {/* Subject */}
-                          <td className="py-1.5 pr-4 text-[13px] text-brand-fog group-hover:text-white/70 relative z-10 max-w-0">
-                            <span className="block truncate">
+                            <span className="relative z-10 block truncate">
                               {task.startDate && (
                                 <span className="font-medium text-brand-navy group-hover:text-white">
                                   {formatStartUrgency(task.startDate)}
@@ -562,21 +546,72 @@ export function WorkbenchPage() {
                             </span>
                           </td>
 
+                          {/* For */}
+                          <td className="py-1.5 pr-4 relative z-10">
+                            <div className="flex items-center gap-2">
+                              <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center" aria-hidden="true">
+                                {isNew ? (
+                                  <Sparkles size={14} className="text-violet-500 animate-pulse group-hover:text-white/70" />
+                                ) : null}
+                              </span>
+                              <span className="min-w-0 truncate text-[13px] font-medium text-brand-navy group-hover:text-white" title={task.customer}>
+                                {task.customer}
+                              </span>
+                            </div>
+                          </td>
+
+                          {/* Task type */}
+                          <td className="py-1.5 pr-4 relative z-10">
+                            <div
+                              className="relative z-10 inline-block max-w-full truncate px-2 py-1 align-middle text-[13px] font-medium bg-neutral-100 text-brand-navy group-hover:bg-white/20 group-hover:text-white"
+                              title={task.taskName ? `${task.taskName}: ${task.taskType}` : task.taskType}
+                            >
+                              {task.taskName ? `${task.taskName}: ${task.taskType}` : task.taskType}
+                            </div>
+                          </td>
+
                           {/* Status */}
-                          <td className="py-0 pl-1 pr-4 relative z-10">
-                            {task.status && (
-                              <div
+                          <td className="py-1.5 pl-1 pr-4 relative z-10">
+                            {task.status ? (
+                              <span
                                 className={cn(
-                                  "px-2 py-1 text-[13px] font-medium whitespace-nowrap",
+                                  "inline-flex w-fit px-2 py-1 text-[13px] font-medium whitespace-nowrap",
                                   statusStyle.text,
                                   statusStyle.bg,
                                   "group-hover:text-white group-hover:bg-white/20"
                                 )}
                               >
                                 {task.status}
-                              </div>
+                              </span>
+                            ) : (
+                              "—"
                             )}
-                            {!task.status && "—"}
+                          </td>
+
+                          {/* Tags */}
+                          <td className="py-1.5 pr-4 relative z-10">
+                            {task.status === "Blocked" && task.waitingOn ? (
+                              <span
+                                className="inline-block max-w-full truncate bg-neutral-100 px-2 py-1 align-middle text-[13px] font-medium text-brand-navy group-hover:bg-white/20 group-hover:text-white"
+                                title={`Waiting on ${task.waitingOn}`}
+                              >
+                                Waiting on {task.waitingOn}
+                              </span>
+                            ) : null}
+                          </td>
+
+                          {/* Owner */}
+                          <td className="py-1.5 pr-4 text-[13px] text-brand-navy whitespace-nowrap group-hover:text-white relative z-10">
+                            <span className="flex items-center gap-1.5">
+                              <span className="flex h-4 w-4 shrink-0 items-center justify-center">
+                                {task.owner === "You" && (
+                                  <User size={14} strokeWidth={2} className="text-brand-navy group-hover:text-white" />
+                                )}
+                              </span>
+                              <span className={cn("min-w-0 truncate", task.owner === "You" && "font-medium")}>
+                                {task.owner || "—"}
+                              </span>
+                            </span>
                           </td>
 
                           {/* Created on */}
@@ -602,6 +637,20 @@ export function WorkbenchPage() {
                     )}
                   </tbody>
               </table>
+            </div>
+          )}
+
+          {activeTab === "approvals" && (
+            <div className="flex flex-col items-center justify-center gap-2 py-24">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+                <Check size={22} className="text-brand-fog" />
+              </div>
+              <p className="mt-2 text-[15px] font-semibold text-brand-navy">
+                No pending approvals
+              </p>
+              <p className="max-w-sm text-center text-[13px] text-brand-fog">
+                Contracts sent for approval and items awaiting your sign-off will appear here.
+              </p>
             </div>
           )}
         </div>
