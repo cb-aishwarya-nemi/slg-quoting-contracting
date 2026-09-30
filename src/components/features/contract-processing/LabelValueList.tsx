@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { AlertTriangle, ChevronDown, FileText, Info, Pencil, X, CirclePlus, Check, Search } from 'lucide-react'
 import { type LabelValue } from '@/data/contractProcessingMock'
+import { ExcelCommentMark } from './ExcelCommentMark'
 import { cn } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { useOptionalFieldEditHistory } from '@/context/FieldEditHistoryContext'
@@ -144,6 +145,8 @@ interface LabelValueRowProps {
   /** Keeps a notice-sized slot before every label, so labels line up down the section. */
   reserveNoticeSlot?: boolean
   hideAttentionFlags?: boolean
+  /** Excel-style corner note. Replaces this row's info icon and message. */
+  excelComment?: string
 }
 
 function LabelValueRow({
@@ -160,6 +163,7 @@ function LabelValueRow({
   onOpenSource,
   reserveNoticeSlot,
   hideAttentionFlags = false,
+  excelComment,
 }: LabelValueRowProps) {
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
@@ -518,6 +522,7 @@ function LabelValueRow({
             : 'border-neutral-200',
         isEdited && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
         !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy',
+        excelComment && 'relative',
         // Error / info rows keep their stroke on hover; only neutral rows take the navy edge.
         !isEditing &&
           !isOpen &&
@@ -779,6 +784,7 @@ function LabelValueRow({
           )}
         </div>
       </div>
+      {excelComment ? <ExcelCommentMark message={excelComment} /> : null}
     </div>
   )
 }
@@ -888,6 +894,8 @@ interface LabelValueListProps {
   onOpenSource?: () => void
   /** Hide extraction-failed flags on rows. */
   hideAttentionFlags?: boolean
+  /** Excel-style corner notes, keyed by field label. */
+  excelComments?: Record<string, string>
 }
 
 export function LabelValueList({
@@ -904,6 +912,7 @@ export function LabelValueList({
   accountPickerVariant = 'current',
   onOpenSource,
   hideAttentionFlags = false,
+  excelComments,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -993,6 +1002,7 @@ export function LabelValueList({
           onOpenSource={onOpenSource}
           reserveNoticeSlot={reserveNoticeSlot}
           hideAttentionFlags={hideAttentionFlags}
+          excelComment={excelComments?.[item.label]}
         />
       ))}
       {customFields.map((field) => (

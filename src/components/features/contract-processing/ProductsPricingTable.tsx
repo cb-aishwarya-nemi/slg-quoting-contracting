@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { PackagePlus, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, MoreVertical, CirclePlus, Search, X, Calendar, TrendingUp, TrendingDown, Pencil, Trash, Tag, Minimize2, AlertTriangle, Info } from 'lucide-react'
+import { ExcelCommentMark } from './ExcelCommentMark'
 import { cn, withRelativeAnnotation } from '@/lib/utils'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import {
@@ -2692,6 +2693,11 @@ interface ProductsPricingTableProps {
   contractEndDate?: string
   /** Controls the cadence of the upcoming billing-date choices. */
   billingFrequency?: string
+  /**
+   * Customer scenarios / No customer data: drop the amber info icon and message,
+   * and mark the Onboarding & Training unit price with an Excel comment triangle.
+   */
+  excelComments?: boolean
 }
 
 export function ProductsPricingTable({
@@ -2705,6 +2711,7 @@ export function ProductsPricingTable({
   onInvoiceLevelDiscountChange,
   contractEndDate,
   billingFrequency = 'Quarterly',
+  excelComments = false,
 }: ProductsPricingTableProps) {
   const isExpandedVariant = variant === 'expanded-state' || variant === 'item-pinned'
   const isItemPinnedVariant = variant === 'item-pinned'
@@ -3864,6 +3871,8 @@ export function ProductsPricingTable({
     showAlert = false,
     showInfo = false
   ) => {
+    const showInfoNote = showInfo && !excelComments
+    const showUnitPriceComment = showInfo && excelComments
     if (item.isOverallDiscount) {
       return renderExpandedOverallDiscountRow(item, updateItems, periodItems)
     }
@@ -3919,7 +3928,7 @@ export function ProductsPricingTable({
               hangIcon={false}
               highlightSelected={variant === 'item-pinned'}
               showAlert={showAlert}
-              showInfo={showInfo}
+              showInfo={showInfoNote}
               openRequestId={lineItemEditRequest[item.id]}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
@@ -4030,12 +4039,12 @@ export function ProductsPricingTable({
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
             {/* Info rows hug the value so the tooltip anchors to the price, not the column. */}
-            <UnitPriceInfoAnchor enabled={showInfo}>
+            <UnitPriceInfoAnchor enabled={showInfoNote}>
             <PriceField
               value={item.unitPrice}
               ariaLabel={`Unit price for ${item.name}`}
-              info={showInfo}
-              className={showInfo ? 'w-auto' : undefined}
+              info={showInfoNote}
+              className={showInfoNote ? 'w-auto' : undefined}
               onCommit={(nextPrice) => {
                 recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
                 updateItems((prev) =>
@@ -4053,6 +4062,9 @@ export function ProductsPricingTable({
             />
             </UnitPriceInfoAnchor>
           </div>
+          {showUnitPriceComment ? (
+            <ExcelCommentMark message={UNIT_PRICE_INFO_MESSAGE} cornerOffset={SEPARATOR_GUTTER_PX} />
+          ) : null}
         </div>
 
         <Separator fillStart={isUnitPriceEdited} fillEnd={isDiscountEdited} />
@@ -4193,6 +4205,8 @@ export function ProductsPricingTable({
     showAlert = false,
     showInfo = false
   ) => {
+    const showInfoNote = showInfo && !excelComments
+    const showUnitPriceComment = showInfo && excelComments
     if (item.isOverallDiscount) {
       const hasDiscountValue = parseFloat(item.discount ?? '') > 0
 
@@ -4337,7 +4351,7 @@ export function ProductsPricingTable({
               openRequestId={lineItemEditRequest[item.id]}
               asField={showFieldPills}
               showAlert={showAlert}
-              showInfo={showInfo}
+              showInfo={showInfoNote}
               onOpenChange={(isOpen) => {
                 setActiveRowId(isOpen ? item.id : null)
                 if (isOpen) enterEditMode()
@@ -4478,13 +4492,13 @@ export function ProductsPricingTable({
               <RampPriceChangeBadge change={item.rampPriceChange} />
             )}
             {/* Info rows hug the value so the tooltip anchors to the price, not the column. */}
-            <UnitPriceInfoAnchor enabled={showInfo}>
+            <UnitPriceInfoAnchor enabled={showInfoNote}>
             {isEditMode ? (
               <PriceField
                 value={item.unitPrice}
                 ariaLabel={`Unit price for ${item.name}`}
-                info={showInfo}
-                className={showInfo ? 'w-auto' : undefined}
+                info={showInfoNote}
+                className={showInfoNote ? 'w-auto' : undefined}
                 onCommit={(nextPrice) => {
                   recordProductEdit(editHistory, item.id, 'Unit price', item.unitPrice, nextPrice)
                   updateItems((prev) =>
@@ -4504,7 +4518,7 @@ export function ProductsPricingTable({
               <span
                 className={cn(
                   'text-right text-[14px] font-medium transition-colors',
-                  showInfo
+                  showInfoNote
                     ? cn(
                         'whitespace-nowrap font-normal text-amber-800 group-hover:text-[var(--color-amber-200)]',
                         WAVY_UNDERLINE_INFO
@@ -4519,6 +4533,9 @@ export function ProductsPricingTable({
             )}
             </UnitPriceInfoAnchor>
           </div>
+          {showUnitPriceComment ? (
+            <ExcelCommentMark message={UNIT_PRICE_INFO_MESSAGE} cornerOffset={SEPARATOR_GUTTER_PX} />
+          ) : null}
         </div>
         {isEditMode ? (
           <div className={cellBoxPad(isDiscountEdited, 'min-w-0')}>

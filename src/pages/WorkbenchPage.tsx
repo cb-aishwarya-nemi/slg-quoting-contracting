@@ -460,7 +460,7 @@ export function WorkbenchPage() {
                 >
                   <tr className="bg-white">
                     <th className="py-2 pl-4 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white whitespace-nowrap relative z-20" style={{ width: 400, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Subject
+                      Title
                     </th>
                     <th className="py-2 pl-[22px] pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       For

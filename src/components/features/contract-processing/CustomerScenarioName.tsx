@@ -2,7 +2,6 @@ import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Pencil, Search, User, UserPlus, X } from 'lucide-react'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
-import { TAB_LOADING_MS } from '@/components/ui/TrapezoidalTabs'
 import { cn } from '@/lib/utils'
 import {
   ACCOUNT_STATUS_STYLES,
@@ -14,49 +13,6 @@ import { ACTIVE_FIELD_STYLE } from './fieldStyles'
 import { GradientSparkle } from './GradientSparkle'
 
 type CustomerScenarioNameSize = 'header' | 'row'
-type MatchPillTone = 'overdue' | 'dunning' | 'more'
-
-interface MatchPill {
-  label: string
-  tone: MatchPillTone
-}
-
-const PILL_TONE_CLASS: Record<MatchPillTone, string> = {
-  overdue: 'bg-[#faf3f2] text-[#b34045]',
-  dunning: 'bg-[#f2f6fe] text-[#2237d5]',
-  more: 'text-[#2237d5]',
-}
-
-/** Billing signals differ by existing customer, the same way their tabs do. */
-const CUSTOMER_HEADER_PILLS: Record<string, MatchPill[]> = {
-  'Pioneer Systems': [
-    { label: 'Overdue: $364,000.00', tone: 'overdue' },
-    { label: 'Dunning in 3 days', tone: 'dunning' },
-    { label: '+4 more', tone: 'more' },
-  ],
-  'Pioneer systems': [
-    { label: 'Overdue: $48,200.00', tone: 'overdue' },
-    { label: '+2 more', tone: 'more' },
-  ],
-  'Pioneer System': [
-    { label: 'Dunning in 12 days', tone: 'dunning' },
-    { label: '+1 more', tone: 'more' },
-  ],
-  'Pioneers Systems': [
-    { label: 'Overdue: $92,000.00', tone: 'overdue' },
-    { label: 'Dunning in 1 day', tone: 'dunning' },
-  ],
-  'Pinoeer Systems': [{ label: 'Overdue: $6,400.00', tone: 'overdue' }],
-  'Atlas BioSystems': [
-    { label: 'Dunning in 5 days', tone: 'dunning' },
-    { label: '+3 more', tone: 'more' },
-  ],
-  'Cascade Networks': [
-    { label: 'Overdue: $210,000.00', tone: 'overdue' },
-    { label: '+6 more', tone: 'more' },
-  ],
-  'Horizon Analytics': [{ label: 'Dunning in 8 days', tone: 'dunning' }],
-}
 
 const NAME_SWITCH_MS = 720
 const NAME_SWITCH_EASE = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
@@ -74,16 +30,10 @@ const NAME_SWITCH_STYLES = `
 }
 `
 
-function pillsForCustomer(name: string): MatchPill[] {
-  return CUSTOMER_HEADER_PILLS[name] ?? CUSTOMER_HEADER_PILLS['Pioneer Systems']
-}
-
 interface CustomerScenarioNameProps {
   name: string
   size: CustomerScenarioNameSize
   showBestMatch?: boolean
-  /** Header-only signals for an existing matched customer in Customer scenarios. */
-  showMatchPills?: boolean
   isNewCustomer?: boolean
   showNewCustomerNote?: boolean
   options: string[]
@@ -100,7 +50,6 @@ export function CustomerScenarioName({
   name,
   size,
   showBestMatch = false,
-  showMatchPills = false,
   isNewCustomer = false,
   showNewCustomerNote = false,
   options,
@@ -131,32 +80,6 @@ export function CustomerScenarioName({
     )
   })
   const canChoose = !!pendingName && options.includes(pendingName)
-  const [shownPills, setShownPills] = useState<MatchPill[]>(() =>
-    showMatchPills ? pillsForCustomer(name) : []
-  )
-  const [pillsLoading, setPillsLoading] = useState(false)
-  const previousCustomerRef = useRef({ name, showMatchPills })
-
-  useEffect(() => {
-    const previous = previousCustomerRef.current
-    previousCustomerRef.current = { name, showMatchPills }
-    if (!showMatchPills) {
-      setShownPills([])
-      setPillsLoading(false)
-      return
-    }
-    const nextPills = pillsForCustomer(name)
-    if (previous.showMatchPills && previous.name !== name) {
-      setPillsLoading(true)
-      const timer = window.setTimeout(() => {
-        setShownPills(nextPills)
-        setPillsLoading(false)
-      }, TAB_LOADING_MS)
-      return () => window.clearTimeout(timer)
-    }
-    setShownPills(nextPills)
-    setPillsLoading(false)
-  }, [name, showMatchPills])
 
   const nameBoxRef = useRef<HTMLSpanElement>(null)
   const nameTextRef = useRef<HTMLSpanElement>(null)
@@ -354,40 +277,6 @@ export function CustomerScenarioName({
         >
           <GradientSparkle size={isHeader ? 12 : 11} />
           Best match
-        </span>
-      ) : null}
-
-      {isHeader && shownPills.length > 0 && !creating ? (
-        <span className="inline-flex items-center gap-2" aria-busy={pillsLoading || undefined}>
-          {pillsLoading ? (
-            <style>{`
-              .c360-tab-skeleton {
-                background: linear-gradient(90deg, rgba(28,27,46,0.08) 0%, rgba(28,27,46,0.18) 50%, rgba(28,27,46,0.08) 100%);
-                background-size: 200% 100%;
-                animation: c360-tab-shimmer 1.2s ease-in-out infinite;
-              }
-            `}</style>
-          ) : null}
-          {shownPills.map((pill) => (
-            <span
-              key={pill.label}
-              className={cn(
-                'relative inline-flex items-center px-2 py-1 text-[13px] font-medium leading-none',
-                PILL_TONE_CLASS[pill.tone]
-              )}
-            >
-              <span className={cn('transition-opacity duration-300', pillsLoading && 'opacity-0')}>
-                {pill.label}
-              </span>
-              <span
-                aria-hidden="true"
-                className={cn(
-                  'c360-tab-skeleton pointer-events-none absolute left-2 right-2 top-1/2 h-2 -translate-y-1/2 rounded-full transition-opacity duration-300',
-                  pillsLoading ? 'opacity-100' : 'opacity-0'
-                )}
-              />
-            </span>
-          ))}
         </span>
       ) : null}
 

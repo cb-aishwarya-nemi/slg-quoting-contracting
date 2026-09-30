@@ -1,5 +1,6 @@
-import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { ChevronLeft, Maximize2, Plus } from 'lucide-react'
+import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
+import { Archive, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleCheck, Grip, Maximize2, Plus } from 'lucide-react'
+import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
 import { useNavigation } from '@/context/NavigationContext'
@@ -158,6 +159,356 @@ function ContractSectionRow({
   )
 }
 
+function withoutInfoNotices(items: LabelValue[]): LabelValue[] {
+  return items.map((item) =>
+    item.notice?.tone === 'info' ? { ...item, notice: undefined } : item
+  )
+}
+
+const TASK_STATUSES = ['Open', 'Ready for review', 'Blocked', 'Resolved'] as const
+type TaskStatus = (typeof TASK_STATUSES)[number]
+
+const TASK_STATUS_STYLES: Record<TaskStatus, string> = {
+  Open: 'bg-green-50 text-green-700',
+  'Ready for review': 'bg-neutral-100 text-brand-navy',
+  Blocked: 'bg-red-50 text-red-700',
+  Resolved: 'bg-blue-50 text-blue-700',
+}
+
+function TaskStatusPill({
+  status,
+  onChange,
+}: {
+  status: TaskStatus
+  onChange: (status: TaskStatus) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        className={cn(
+          'flex h-6 cursor-pointer items-center gap-1 px-2 text-[13px] font-medium leading-none transition-opacity hover:opacity-80',
+          TASK_STATUS_STYLES[status]
+        )}
+      >
+        {status}
+        <ChevronDown size={14} strokeWidth={2} />
+      </button>
+      <AnchoredMenu
+        isOpen={isOpen}
+        anchorRef={triggerRef}
+        onClose={() => setIsOpen(false)}
+        align="end"
+        offset={6}
+        className="w-[180px] overflow-hidden rounded-lg border border-neutral-200 bg-white py-1 shadow-lg"
+      >
+        {TASK_STATUSES.map((option) => (
+          <button
+            key={option}
+            type="button"
+            role="menuitemradio"
+            aria-checked={option === status}
+            onClick={() => {
+              onChange(option)
+              setIsOpen(false)
+            }}
+            className="flex w-full cursor-pointer items-center justify-between px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+          >
+            <span className={cn('px-2 py-0.5 font-medium', TASK_STATUS_STYLES[option])}>{option}</span>
+            {option === status ? <Check size={14} className="text-brand-navy" /> : null}
+          </button>
+        ))}
+      </AnchoredMenu>
+    </>
+  )
+}
+
+const RESCHEDULE_WEEKDAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'] as const
+
+function formatRescheduleDate(date: Date): string {
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  })
+}
+
+function RescheduleCalendar({
+  onSelect,
+  onBack,
+  label = 'Reschedule task',
+}: {
+  onSelect: (date: string) => void
+  onBack?: () => void
+  label?: string
+}) {
+  const today = new Date()
+  const todayKey = `${today.getFullYear()}-${today.getMonth()}-${today.getDate()}`
+  const [viewMonth, setViewMonth] = useState(
+    () => new Date(today.getFullYear(), today.getMonth(), 1)
+  )
+
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate()
+  const firstWeekday = new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay()
+  const cells: Array<Date | null> = [
+    ...Array.from({ length: firstWeekday }, () => null),
+    ...Array.from(
+      { length: daysInMonth },
+      (_, i) => new Date(viewMonth.getFullYear(), viewMonth.getMonth(), i + 1)
+    ),
+  ]
+  while (cells.length % 7 !== 0) cells.push(null)
+
+  const monthLabel = viewMonth.toLocaleDateString('en-US', {
+    month: 'long',
+    year: 'numeric',
+  })
+
+  return (
+    <div role="dialog" aria-label={label}>
+      {onBack ? (
+        <div className="mb-2 flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onBack}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-brand-navy transition-colors hover:bg-neutral-100"
+            aria-label="Back to task actions"
+          >
+            <ChevronLeft size={16} />
+          </button>
+          <span className="text-[13px] font-medium text-brand-navy">Reschedule</span>
+        </div>
+      ) : null}
+      <div className="mb-3 flex items-center justify-between gap-1">
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() =>
+              setViewMonth(new Date(viewMonth.getFullYear() - 1, viewMonth.getMonth(), 1))
+            }
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+            aria-label="Previous year"
+          >
+            <ChevronsLeft size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() - 1, 1))
+            }
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+            aria-label="Previous month"
+          >
+            <ChevronLeft size={16} />
+          </button>
+        </div>
+        <span className="text-[13px] font-semibold tracking-[-0.25px] text-brand-navy">
+          {monthLabel}
+        </span>
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() =>
+              setViewMonth(new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 1))
+            }
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+            aria-label="Next month"
+          >
+            <ChevronRight size={16} />
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              setViewMonth(new Date(viewMonth.getFullYear() + 1, viewMonth.getMonth(), 1))
+            }
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-md text-blue-700 transition-colors hover:bg-blue-50"
+            aria-label="Next year"
+          >
+            <ChevronsRight size={16} />
+          </button>
+        </div>
+      </div>
+      <div className="mb-1 grid grid-cols-7 gap-0.5">
+        {RESCHEDULE_WEEKDAYS.map((day) => (
+          <div
+            key={day}
+            className="flex h-7 items-center justify-center text-[10px] font-medium uppercase tracking-[-0.25px] text-brand-fog"
+          >
+            {day}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7 gap-0.5">
+        {cells.map((date, idx) => {
+          if (!date) return <div key={`empty-${idx}`} className="h-8" />
+          const key = `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`
+          const isToday = key === todayKey
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => onSelect(formatRescheduleDate(date))}
+              className={cn(
+                'flex h-8 w-full cursor-pointer items-center justify-center rounded-md text-[12px] transition-colors',
+                isToday
+                  ? 'font-semibold text-blue-700 hover:bg-blue-50'
+                  : 'text-brand-navy hover:bg-neutral-100'
+              )}
+            >
+              {date.getDate()}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function SetupDueDate({
+  dueDate,
+  onChange,
+}: {
+  dueDate: string | null
+  onChange: (date: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={dueDate ? `Due on ${dueDate}` : 'Setup due date'}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((open) => !open)}
+        className={cn(
+          "flex h-6 cursor-pointer items-center gap-1.5 px-2 font-['Inter'] text-[13px] font-medium leading-none text-[#1b38de] transition-colors hover:bg-[#f2f6ff]",
+          isOpen && 'bg-[#f2f6ff]'
+        )}
+      >
+        <Calendar size={14} strokeWidth={2} />
+        {dueDate ? `Due on ${dueDate}` : 'Setup due date'}
+      </button>
+      <AnchoredMenu
+        isOpen={isOpen}
+        anchorRef={triggerRef}
+        onClose={() => setIsOpen(false)}
+        offset={6}
+        className="w-[280px] overflow-hidden rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
+      >
+        <RescheduleCalendar
+          label="Setup due date"
+          onSelect={(date) => {
+            onChange(date)
+            setIsOpen(false)
+          }}
+        />
+      </AnchoredMenu>
+    </>
+  )
+}
+
+function TaskActionsMenu({
+  onResolve,
+  onArchive,
+  onReschedule,
+}: {
+  onResolve: () => void
+  onArchive: () => void
+  onReschedule: (date: string) => void
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [pickingDate, setPickingDate] = useState(false)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const closeMenu = () => {
+    setIsOpen(false)
+    setPickingDate(false)
+  }
+  const runAction = (action: () => void) => {
+    action()
+    closeMenu()
+  }
+
+  return (
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="Task actions"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        onClick={() => {
+          setIsOpen((open) => !open)
+          setPickingDate(false)
+        }}
+        className={cn(
+          'flex h-6 w-6 cursor-pointer items-center justify-center text-brand-navy transition-colors hover:bg-neutral-100',
+          isOpen && 'bg-neutral-100'
+        )}
+      >
+        <Grip size={16} strokeWidth={2} />
+      </button>
+      <AnchoredMenu
+        isOpen={isOpen}
+        anchorRef={triggerRef}
+        onClose={closeMenu}
+        align="end"
+        offset={6}
+        className={cn(
+          'overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg',
+          pickingDate ? 'w-[280px] p-3' : 'w-[180px] py-1'
+        )}
+      >
+        {pickingDate ? (
+          <RescheduleCalendar
+            onBack={() => setPickingDate(false)}
+            onSelect={(date) => runAction(() => onReschedule(date))}
+          />
+        ) : (
+          <>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAction(onResolve)}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+            >
+              <CircleCheck size={14} strokeWidth={2} />
+              Mark as resolved
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setPickingDate(true)}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+            >
+              <Calendar size={14} strokeWidth={2} />
+              Reschedule
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => runAction(onArchive)}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+            >
+              <Archive size={14} strokeWidth={2} />
+              Archive
+            </button>
+          </>
+        )}
+      </AnchoredMenu>
+    </>
+  )
+}
+
 function CreateSalesOrderButton({ onClick }: { onClick: () => void }) {
   return (
     <button
@@ -204,7 +555,7 @@ export function Customer360Page() {
   const isItemPinnedVariant = productsPricingVariant === 'item-pinned'
   const [isProductsLifted, setIsProductsLifted] = useState(false)
   const { addNotification } = useNotifications()
-  const { workbenchItems } = useFileDrop()
+  const { workbenchItems, updateItemStatus } = useFileDrop()
   const data = contractProcessing
   const openingSeed = accountPickerV2Scenario
     ? getAccountPickerV2Seed(accountPickerV2Scenario)
@@ -529,15 +880,38 @@ export function Customer360Page() {
     () => workbenchItems.find((item) => item.id === ACTIVE_TASK_ID),
     [workbenchItems]
   )
+  const taskStatus: TaskStatus = (TASK_STATUSES as readonly string[]).includes(activeTask?.status ?? '')
+    ? (activeTask?.status as TaskStatus)
+    : 'Open'
+  const openedTaskRef = useRef(false)
 
   const taskTitle =
     activeTask?.taskName && activeTask?.taskType
       ? `${activeTask.taskName}: ${activeTask.taskType}`
       : 'New deal: Contract Ingestion'
+  const [dueDate, setDueDate] = useState<string | null>(null)
 
   const isNoCustomerData = activeCustomer360Variant === 'no-customer-data'
   const isCustomerScenarios =
     activeCustomer360Variant === 'customer-scenarios' || isNoCustomerData
+
+  // Opening the task is itself the review, so Ready for review becomes Open
+  // before the first paint.
+  useLayoutEffect(() => {
+    if (!isCustomerScenarios || openedTaskRef.current) return
+    openedTaskRef.current = true
+    if (activeTask?.status === 'Ready for review') {
+      updateItemStatus(ACTIVE_TASK_ID, 'Open')
+    }
+  }, [isCustomerScenarios, activeTask?.status, updateItemStatus])
+  const shownAccountItems = useMemo(
+    () => (isCustomerScenarios ? withoutInfoNotices(accountItems) : accountItems),
+    [isCustomerScenarios, accountItems]
+  )
+  const shownTermsAndBilling = useMemo(
+    () => (isCustomerScenarios ? withoutInfoNotices(data.termsAndBilling) : data.termsAndBilling),
+    [isCustomerScenarios, data.termsAndBilling]
+  )
   const isNewCustomer = !!createdAccountCustomer && createdAccountCustomer === customerName
   const hasExistingCustomer = isCustomerScenarios && !!customerName && !isNewCustomer
   const scenarioTabIds = hasExistingCustomer
@@ -568,18 +942,62 @@ export function Customer360Page() {
         isCustomerScenarios ? 'ml-6 mr-4 px-5 py-2' : 'pb-2 pt-3'
       )}
     >
-      <SecondaryNavSwitcher
-        items={taskSwitcherItems}
-        activeId="100"
-        onSelect={() => {}}
-        triggerLabel="New deal: ingestion (TCV $492,000)"
-      />
+      <div className="flex items-center gap-2">
+        <SecondaryNavSwitcher
+          items={taskSwitcherItems}
+          activeId="100"
+          onSelect={() => {}}
+          triggerLabel="New deal: ingestion (TCV $492,000)"
+        />
+        <SetupDueDate
+          dueDate={dueDate}
+          onChange={(date) => {
+            setDueDate(date)
+            addNotification({
+              title: 'Due date set',
+              message: `${taskTitle} for ${customerName || 'this customer'} is due ${date}.`,
+            })
+          }}
+        />
+      </div>
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-5">
-        <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
-      </div>
+      {isCustomerScenarios ? (
+        <div className="flex items-center gap-2">
+          <TaskStatusPill
+            status={taskStatus}
+            onChange={(status) => updateItemStatus(ACTIVE_TASK_ID, status)}
+          />
+          <TaskActionsMenu
+            onResolve={() => {
+              updateItemStatus(ACTIVE_TASK_ID, 'Resolved')
+              addNotification({
+                title: 'Task resolved',
+                message: `${taskTitle} for ${customerName || 'this customer'} is marked as resolved.`,
+              })
+            }}
+            onReschedule={(date) => {
+              setDueDate(date)
+              addNotification({
+                title: 'Task rescheduled',
+                message: `${taskTitle} for ${customerName || 'this customer'} is rescheduled to ${date}.`,
+              })
+            }}
+            onArchive={() => {
+              addNotification({
+                title: 'Task archived',
+                message: `${taskTitle} for ${customerName || 'this customer'} has been archived.`,
+              })
+              goToWorkbench()
+            }}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center gap-5">
+          <CreateSalesOrderButton onClick={handleCreateSalesOrder} />
+        </div>
+      )}
     </div>
   )
 
@@ -609,9 +1027,6 @@ export function Customer360Page() {
                 name={customerName}
                 size="header"
                 showBestMatch={!customerTitleConfirmed}
-                showMatchPills={
-                  activeCustomer360Variant === 'customer-scenarios' && hasExistingCustomer
-                }
                 isNewCustomer={!!createdAccountCustomer && createdAccountCustomer === customerName}
                 showNewCustomerNote
                 options={
@@ -688,7 +1103,7 @@ export function Customer360Page() {
                   <div className="mb-3 flex items-center gap-1.5">
                     <GradientSparkle size={16} />
                     <span className="text-[13px] font-semibold uppercase tracking-[-0.25px] ai-gradient-text">
-                      New deal summary
+                      2-year new deal, $492K TCV
                     </span>
                   </div>
                   <ContractSummaryHeadline
@@ -698,14 +1113,18 @@ export function Customer360Page() {
                     customerName={isNoCustomerData ? customerName : data.customerName}
                     lineItemsSummary={data.summary.lineItemsSummary}
                   />
-                  <div className="mt-4 flex flex-wrap items-end gap-2">
+                  <div className="mt-4 flex flex-wrap items-start gap-4">
                     {summarySources.map((source, index) => (
-                      <PdfThumbnail
-                        key={source.id}
-                        docName={source.docName}
-                        highlightId={source.highlightId}
-                        onClick={() => setPreview({ sectionId: 'summary', index })}
-                      />
+                      <div key={source.id} className="flex w-[72px] flex-col gap-1.5">
+                        <PdfThumbnail
+                          docName={source.docName}
+                          highlightId={source.highlightId}
+                          onClick={() => setPreview({ sectionId: 'summary', index })}
+                        />
+                        <span className="truncate text-[12px] leading-[1.35] text-brand-fog" title={source.docName}>
+                          {source.docName}
+                        </span>
+                      </div>
                     ))}
                   </div>
                 </section>
@@ -737,7 +1156,7 @@ export function Customer360Page() {
                     />
                     <div className="mt-4">
                       <LabelValueList
-                        items={accountItems}
+                        items={shownAccountItems}
                         sectionId="account"
                         sectionLabel="Account"
                         showAddField
@@ -823,7 +1242,16 @@ export function Customer360Page() {
                     />
                     <div className="mt-4">
                       <LabelValueList
-                        items={data.termsAndBilling}
+                        items={shownTermsAndBilling}
+                        excelComments={
+                          isCustomerScenarios
+                            ? {
+                                'Auto-renewal':
+                                  data.termsAndBilling.find((term) => term.label === 'Auto-renewal')
+                                    ?.notice?.message ?? '',
+                              }
+                            : undefined
+                        }
                         sectionId="terms"
                         sectionLabel="Terms and billing"
                         onOpenSource={
@@ -864,6 +1292,7 @@ export function Customer360Page() {
                         )?.value
                       }
                       variant={productsPricingVariant}
+                      excelComments={isCustomerScenarios}
                       lifted={isProductsLifted}
                       onLiftedChange={setIsProductsLifted}
                       onInvoiceLevelDiscountChange={setInvoiceLevelDiscount}

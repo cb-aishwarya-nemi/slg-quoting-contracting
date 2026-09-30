@@ -42,6 +42,7 @@ interface FileDropContextValue {
   addProcessingFile: (file: File, options?: { batchSize?: number }) => void
   removeProcessingFile: (fileId: string) => void
   workbenchItems: WorkbenchItem[]
+  updateItemStatus: (itemId: number, status: string) => void
   hasNewItem: boolean
   clearNewItemFlag: () => void
   clearItemNewFlag: (itemId: number) => void
@@ -67,7 +68,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     taskType: "Contract Ingestion",
     taskName: "New deal",
     customer: "Pioneer Systems",
-    subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
+    subject: "PioneerSystems_NewBusiness_Platform_2026.docx — 2-year new deal, $492K TCV",
     severity: "High",
     detail: "New Business · Contract Upload",
     createdAt: new Date(),
@@ -371,7 +372,7 @@ const createPioneerSystemsItem = (): WorkbenchItem => ({
   taskType: "Contract Ingestion",
   taskName: "New deal",
   customer: "Pioneer Systems",
-  subject: "PioneerSystems_NewBusiness_Platform_2026.docx — Growth tier, 50 seats",
+  subject: "PioneerSystems_NewBusiness_Platform_2026.docx — 2-year new deal, $492K TCV",
   severity: "High",
   detail: "New Business · Contract Upload",
   createdAt: new Date(),
@@ -505,6 +506,12 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
     [enqueueExtraction]
   )
 
+  const updateItemStatus = useCallback((itemId: number, status: string) => {
+    setWorkbenchItems((prev) =>
+      prev.map((item) => (item.id === itemId ? { ...item, status } : item))
+    )
+  }, [])
+
   const clearNewItemFlag = useCallback(() => {
     setHasNewItem(false)
     setWorkbenchItems((prev) => prev.map((item) => ({ ...item, isNew: false })))
@@ -539,6 +546,7 @@ export function FileDropProvider({ children }: { children: ReactNode }) {
         addProcessingFile,
         removeProcessingFile,
         workbenchItems,
+        updateItemStatus,
         hasNewItem,
         clearNewItemFlag,
         clearItemNewFlag,

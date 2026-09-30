@@ -7,6 +7,7 @@ import { useVersion } from '../../context/VersionContext'
 import { V0ContractProvider, useV0Contract } from '../../context/V0ContractContext'
 import { FileDropOverlay } from '../ui/FileDropOverlay'
 import { UseCaseSwitcher } from '../ui/UseCaseSwitcher'
+import { NotificationPanel } from './NotificationPanel'
 
 interface AppLayoutProps {
   children: ReactNode
@@ -110,6 +111,7 @@ function V1Layout({ children }: { children: ReactNode }) {
       </main>
       {/* File drop overlay - only for V1.0 */}
       <FileDropOverlay />
+      <NotificationPanel />
     </>
   )
 }
