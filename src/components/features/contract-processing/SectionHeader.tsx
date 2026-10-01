@@ -26,6 +26,8 @@ interface SectionHeaderProps {
   onToggleComments?: () => void
   /** Optional note shown next to the title, e.g. a create-customer hint. */
   helper?: string
+  /** Parent section that contains subsections — larger, bolder title. */
+  prominent?: boolean
 }
 
 /**
@@ -45,6 +47,7 @@ export function SectionHeader({
   commentsVisible = true,
   onToggleComments,
   helper,
+  prominent = false,
 }: SectionHeaderProps) {
   const hasComments = commentCount !== undefined && commentCount > 0
   const commentLabel = hasComments
@@ -61,7 +64,12 @@ export function SectionHeader({
       )}
 
       <div className="flex shrink-0 items-center gap-1.5">
-        <span className="text-[12px] font-semibold uppercase tracking-[-0.25px] text-brand-navy">
+        <span
+          className={cn(
+            'uppercase tracking-[-0.25px] text-brand-navy',
+            prominent ? 'text-[16px] font-bold leading-none' : 'text-[12px] font-semibold'
+          )}
+        >
           {title}
         </span>
 

@@ -147,6 +147,10 @@ interface LabelValueRowProps {
   hideAttentionFlags?: boolean
   /** Excel-style corner note. Replaces this row's info icon and message. */
   excelComment?: string
+  /** Parent section is in edit mode — plain text fields stay open as inputs. */
+  sectionEditing?: boolean
+  /** Filled values stay as plain text until the section is edited. */
+  readOnly?: boolean
 }
 
 function LabelValueRow({
@@ -164,7 +168,10 @@ function LabelValueRow({
   reserveNoticeSlot,
   hideAttentionFlags = false,
   excelComment,
+  sectionEditing = false,
+  readOnly: readOnlyProp = false,
 }: LabelValueRowProps) {
+  const readOnly = readOnlyProp && item.label !== 'Account'
   const editHistory = useOptionalFieldEditHistory()
   const { activePage, activeVariant } = useUseCase()
   const selectedOptionBlue =
@@ -224,6 +231,7 @@ function LabelValueRow({
   }, [isOpen, item.label])
 
   const handleRowClick = () => {
+    if (readOnly) return
     if (
       item.label === 'Account' &&
       accountPickerVariant === 'v2' &&
@@ -272,6 +280,9 @@ function LabelValueRow({
   }
 
   const isUnresolvedActive = isUnresolved && (isEditing || isOpen)
+  const sectionTextEditing =
+    sectionEditing && !isSelect && !isDateField && !isUnresolved
+  const showTextInput = isEditing || sectionTextEditing
   const isAccountSelect = isSelect && item.label === 'Account'
   const isBestMatch =
     isAccountSelect &&
@@ -520,11 +531,12 @@ function LabelValueRow({
           : isInfoRow
             ? 'border-[var(--color-amber-500)]'
             : 'border-neutral-200',
-        isEdited && !isEditing && !isOpen && !dateActive && 'bg-amber-50',
-        !isEditing && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy',
+        isEdited && !showTextInput && !isOpen && !dateActive && 'bg-amber-50',
+        !readOnly && !showTextInput && !isOpen && !dateActive && 'cursor-pointer hover:bg-brand-navy',
         excelComment && 'relative',
         // Error / info rows keep their stroke on hover; only neutral rows take the navy edge.
-        !isEditing &&
+        !readOnly &&
+          !showTextInput &&
           !isOpen &&
           !dateActive &&
           !isErrorRow &&
@@ -539,7 +551,8 @@ function LabelValueRow({
           // Colored labels keep their hue on hover, lightened for the navy fill.
           !isErrorRow &&
             !isInfoRow &&
-            !isEditing &&
+            !readOnly &&
+            !showTextInput &&
             !isOpen &&
             !dateActive &&
             'group-hover:[&_.label-text]:text-white'
@@ -673,6 +686,9 @@ function LabelValueRow({
           </div>
         ) : isSelect ? (
           <div className="relative inline-flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+            {readOnly && !isPlaceholderSelect ? (
+              <span className="text-[14px] font-medium text-brand-navy">{item.value}</span>
+            ) : (
             <button
               ref={triggerRef}
               type="button"
@@ -692,6 +708,7 @@ function LabelValueRow({
                 isOpen ? 'text-brand-mist' : 'text-brand-mist group-hover:text-white/70'
               )} />
             </button>
+            )}
             {isBestMatch ? (
               <span className="inline-flex items-center gap-1 text-[11px] font-medium ai-gradient-text group-hover:text-white">
                 <GradientSparkle size={12} />
@@ -700,13 +717,19 @@ function LabelValueRow({
             ) : null}
             {selectDropdown}
           </div>
-        ) : isEditing ? (
+        ) : showTextInput ? (
           <input
             ref={inputRef}
             type="text"
             value={editValue}
             onChange={(e) => setEditValue(e.target.value)}
-            onBlur={handleBlur}
+            onBlur={() => {
+              if (sectionTextEditing && !isEditing) {
+                commitValue(editValue)
+                return
+              }
+              handleBlur()
+            }}
             onKeyDown={handleKeyDown}
             onClick={(e) => e.stopPropagation()}
             className={ACTIVE_FIELD_STYLE}
@@ -715,7 +738,9 @@ function LabelValueRow({
           <span className={cn(
             'text-[14px] font-medium transition-colors',
             item.value
-              ? 'text-blue-700 group-hover:text-white'
+              ? readOnly
+                ? 'text-brand-navy'
+                : 'text-blue-700 group-hover:text-white'
               : 'text-brand-mist group-hover:text-white/60'
           )}>
             {item.value || 'Click to add value'}
@@ -741,7 +766,7 @@ function LabelValueRow({
         ) : null}
 
         <div className="ml-auto flex shrink-0 items-center gap-0.5">
-          {!isEditing && !isOpen && !dateActive && (
+          {!readOnly && !showTextInput && !isOpen && !dateActive && (
             <>
               {onOpenSource && (
                 <button
@@ -896,6 +921,10 @@ interface LabelValueListProps {
   hideAttentionFlags?: boolean
   /** Excel-style corner notes, keyed by field label. */
   excelComments?: Record<string, string>
+  /** Opens plain text fields in this list as inputs. */
+  sectionEditing?: boolean
+  /** Filled values stay as plain text until the section is edited. */
+  readOnly?: boolean
 }
 
 export function LabelValueList({
@@ -913,6 +942,8 @@ export function LabelValueList({
   onOpenSource,
   hideAttentionFlags = false,
   excelComments,
+  sectionEditing = false,
+  readOnly = false,
 }: LabelValueListProps) {
   const isControlled = controlled || !!onItemsChange
   const [uncontrolledItems, setUncontrolledItems] = useState<LabelValue[]>(items)
@@ -1003,6 +1034,8 @@ export function LabelValueList({
           reserveNoticeSlot={reserveNoticeSlot}
           hideAttentionFlags={hideAttentionFlags}
           excelComment={excelComments?.[item.label]}
+          sectionEditing={sectionEditing}
+          readOnly={readOnly}
         />
       ))}
       {customFields.map((field) => (
@@ -1014,6 +1047,7 @@ export function LabelValueList({
           onItemChange={handleCustomFieldChange}
           onRemove={() => handleRemove(field.label)}
           reserveNoticeSlot={reserveNoticeSlot}
+          sectionEditing={sectionEditing}
         />
       ))}
       {showAddField && (

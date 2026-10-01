@@ -15,7 +15,8 @@ export interface SwitcherItem {
 
 const STATUS_BADGE_STYLES: Record<string, string> = {
   'Ready for review': 'bg-neutral-100 text-brand-navy',
-  Open: 'bg-green-50 text-green-700',
+  Open: 'bg-blue-50 text-blue-700',
+  Resolved: 'bg-green-50 text-green-700',
   'Pending approval': 'bg-violet-50 text-violet-700',
   Blocked: 'bg-red-50 text-red-700',
   // Sales-order deal tags

@@ -78,6 +78,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     tcv: "$48,000",
     status: "Ready for review",
     owner: "You",
+    waitingOn: "You",
   },
   {
     id: 1,
@@ -279,7 +280,7 @@ const INITIAL_TASKS: WorkbenchItem[] = [
     contractId: "CT-2026-0150",
     startDate: daysAgo(5),
     tcv: "$180,000",
-    status: "Open",
+    status: "Resolved",
     owner: "Marcus Webb",
   },
   {

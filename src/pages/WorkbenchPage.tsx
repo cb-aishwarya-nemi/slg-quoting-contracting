@@ -24,7 +24,7 @@ const TAB_TITLES: Record<string, string> = {
 type QuickFilterId = "owner-you" | "waiting-on-me" | "high-priority" | "pending-approval";
 
 const QUICK_FILTERS: Array<{ id: QuickFilterId; label: string }> = [
-  { id: "owner-you", label: "Owner is you" },
+  { id: "owner-you", label: "Owned by you" },
   { id: "waiting-on-me", label: "Waiting on You" },
   { id: "high-priority", label: "High priority" },
   { id: "pending-approval", label: "Pending approval" },
@@ -33,7 +33,8 @@ const QUICK_FILTERS: Array<{ id: QuickFilterId; label: string }> = [
 // Status styles for contract ingestion
 const STATUS_STYLES: Record<string, { text: string; bg: string }> = {
   "Ready for review": { text: "text-brand-navy", bg: "bg-neutral-100" },
-  Open: { text: "text-green-700", bg: "bg-green-50" },
+  Open: { text: "text-blue-700", bg: "bg-blue-50" },
+  Resolved: { text: "text-green-700", bg: "bg-green-50" },
   "Pending approval": { text: "text-violet-700", bg: "bg-violet-50" },
   Blocked: { text: "text-red-700", bg: "bg-red-50" },
 };
@@ -380,10 +381,10 @@ export function WorkbenchPage() {
                     )
                   }
                   className={cn(
-                    "inline-flex h-7 cursor-pointer items-center rounded-none border border-dotted border-current px-2.5 text-[12px] font-medium transition-colors",
+                    "inline-flex h-7 cursor-pointer items-center rounded-none border px-2.5 text-[12px] font-medium transition-colors",
                     isActive
-                      ? "bg-[#2a3cac] text-white"
-                      : "bg-[#f2f6ff] text-[#2a3cac] hover:bg-[#e7eeff]"
+                      ? "border-solid border-[#2a3cac] bg-[#2a3cac] text-white"
+                      : "border-dashed border-current bg-[#f2f6ff] text-[#2a3cac] hover:bg-[#e7eeff]"
                   )}
                 >
                   {filter.label}

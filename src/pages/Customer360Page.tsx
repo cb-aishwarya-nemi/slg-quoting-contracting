@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useLayoutEffect, useCallback, useMemo } from 'react'
-import { Archive, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleCheck, Grip, Maximize2, Plus } from 'lucide-react'
+import { Archive, Bell, Calendar, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CircleCheck, Grip, Maximize2, Pencil, Plus } from 'lucide-react'
 import { AnchoredMenu } from '@/components/ui/AnchoredMenu'
 import { TrapezoidalTabs, type TabItem } from '@/components/ui/TrapezoidalTabs'
 import { SecondaryNavSwitcher, type SwitcherItem } from '@/components/ui/SecondaryNavSwitcher'
@@ -77,6 +77,11 @@ const BASE_NAV_SECTIONS: NavSection[] = [
   { id: 'allocation', label: 'Entitlements', status: 'neutral' },
   { id: 'schedule', label: 'Billing schedule', status: 'neutral' },
   { id: 'invoice', label: 'Invoice preview', status: 'neutral' },
+]
+
+const SCENARIO_NAV_SECTIONS: NavSection[] = [
+  { id: 'customer', label: 'Customer', status: 'ready' },
+  { id: 'subscription', label: 'Subscription', status: 'attention' },
 ]
 
 const CONTENT_COL_WIDTH = 680
@@ -169,10 +174,10 @@ const TASK_STATUSES = ['Open', 'Ready for review', 'Blocked', 'Resolved'] as con
 type TaskStatus = (typeof TASK_STATUSES)[number]
 
 const TASK_STATUS_STYLES: Record<TaskStatus, string> = {
-  Open: 'bg-green-50 text-green-700',
+  Open: 'bg-blue-50 text-blue-700',
   'Ready for review': 'bg-neutral-100 text-brand-navy',
   Blocked: 'bg-red-50 text-red-700',
-  Resolved: 'bg-blue-50 text-blue-700',
+  Resolved: 'bg-green-50 text-green-700',
 }
 
 function TaskStatusPill({
@@ -283,7 +288,7 @@ function RescheduleCalendar({
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="text-[13px] font-medium text-brand-navy">Reschedule</span>
+          <span className="text-[13px] font-medium text-brand-navy">{label}</span>
         </div>
       ) : null}
       <div className="mb-3 flex items-center justify-between gap-1">
@@ -371,67 +376,25 @@ function RescheduleCalendar({
   )
 }
 
-function SetupDueDate({
-  dueDate,
-  onChange,
-}: {
-  dueDate: string | null
-  onChange: (date: string) => void
-}) {
-  const [isOpen, setIsOpen] = useState(false)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-
-  return (
-    <>
-      <button
-        ref={triggerRef}
-        type="button"
-        aria-label={dueDate ? `Due on ${dueDate}` : 'Setup due date'}
-        aria-haspopup="dialog"
-        aria-expanded={isOpen}
-        onClick={() => setIsOpen((open) => !open)}
-        className={cn(
-          "flex h-6 cursor-pointer items-center gap-1.5 px-2 font-['Inter'] text-[13px] font-medium leading-none text-[#1b38de] transition-colors hover:bg-[#f2f6ff]",
-          isOpen && 'bg-[#f2f6ff]'
-        )}
-      >
-        <Calendar size={14} strokeWidth={2} />
-        {dueDate ? `Due on ${dueDate}` : 'Setup due date'}
-      </button>
-      <AnchoredMenu
-        isOpen={isOpen}
-        anchorRef={triggerRef}
-        onClose={() => setIsOpen(false)}
-        offset={6}
-        className="w-[280px] overflow-hidden rounded-lg border border-neutral-200 bg-white p-3 shadow-lg"
-      >
-        <RescheduleCalendar
-          label="Setup due date"
-          onSelect={(date) => {
-            onChange(date)
-            setIsOpen(false)
-          }}
-        />
-      </AnchoredMenu>
-    </>
-  )
-}
-
 function TaskActionsMenu({
+  dueDate,
   onResolve,
   onArchive,
   onReschedule,
+  onSetDueDate,
 }: {
+  dueDate: string | null
   onResolve: () => void
   onArchive: () => void
   onReschedule: (date: string) => void
+  onSetDueDate: (date: string) => void
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [pickingDate, setPickingDate] = useState(false)
+  const [calendar, setCalendar] = useState<'reschedule' | 'due' | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const closeMenu = () => {
     setIsOpen(false)
-    setPickingDate(false)
+    setCalendar(null)
   }
   const runAction = (action: () => void) => {
     action()
@@ -448,7 +411,7 @@ function TaskActionsMenu({
         aria-expanded={isOpen}
         onClick={() => {
           setIsOpen((open) => !open)
-          setPickingDate(false)
+          setCalendar(null)
         }}
         className={cn(
           'flex h-6 w-6 cursor-pointer items-center justify-center text-brand-navy transition-colors hover:bg-neutral-100',
@@ -465,13 +428,16 @@ function TaskActionsMenu({
         offset={6}
         className={cn(
           'overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg',
-          pickingDate ? 'w-[280px] p-3' : 'w-[180px] py-1'
+          calendar ? 'w-[280px] p-3' : 'w-[200px] py-1'
         )}
       >
-        {pickingDate ? (
+        {calendar ? (
           <RescheduleCalendar
-            onBack={() => setPickingDate(false)}
-            onSelect={(date) => runAction(() => onReschedule(date))}
+            label={calendar === 'due' ? 'Setup due date' : 'Reschedule'}
+            onBack={() => setCalendar(null)}
+            onSelect={(date) =>
+              runAction(() => (calendar === 'due' ? onSetDueDate(date) : onReschedule(date)))
+            }
           />
         ) : (
           <>
@@ -487,7 +453,16 @@ function TaskActionsMenu({
             <button
               type="button"
               role="menuitem"
-              onClick={() => setPickingDate(true)}
+              onClick={() => setCalendar('due')}
+              className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
+            >
+              <Calendar size={14} strokeWidth={2} />
+              {dueDate ? `Due on ${dueDate}` : 'Setup due date'}
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => setCalendar('reschedule')}
               className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-[13px] text-brand-navy hover:bg-neutral-50"
             >
               <Calendar size={14} strokeWidth={2} />
@@ -506,6 +481,64 @@ function TaskActionsMenu({
         )}
       </AnchoredMenu>
     </>
+  )
+}
+
+interface AttentionItem {
+  id: string
+  sectionId: string
+  tone: 'error' | 'confirm'
+  message: string
+  action: string
+}
+
+function AttentionPanel({
+  items,
+  onNavigate,
+}: {
+  items: AttentionItem[]
+  onNavigate: (sectionId: string) => void
+}) {
+  if (items.length === 0) return null
+  return (
+    <section
+      aria-label="Needs attention"
+      className="w-full bg-brand-navy px-5 py-4 text-white"
+    >
+      <div className="mb-3 flex items-center gap-2">
+        <Bell size={16} strokeWidth={2} className="shrink-0 text-[#ff3300]" aria-hidden />
+        <span className="text-[13px] font-medium text-[#ff3300]">
+          {items.length} {items.length === 1 ? 'item needs' : 'items need'} your attention
+        </span>
+      </div>
+      <ul className="flex flex-col items-start gap-2">
+        {items.map((item) => (
+          <li key={item.id}>
+            <button
+              type="button"
+              aria-label={`${item.message}. ${item.action}`}
+              onClick={() => onNavigate(item.sectionId)}
+              className="group/attention inline-flex h-7 cursor-pointer items-center gap-2 rounded-full bg-white px-2.5 text-left text-[13px] leading-none text-brand-navy shadow-[0_1px_2px_rgba(0,0,0,0.18)] transition-colors hover:bg-[#f4f5fb]"
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  'h-1.5 w-1.5 shrink-0 rounded-full',
+                  item.tone === 'error' ? 'bg-[#ff3300]' : 'bg-amber-500'
+                )}
+              />
+              <span className="font-medium">{item.message}</span>
+              <ChevronRight
+                size={14}
+                strokeWidth={2.25}
+                className="shrink-0 text-brand-mist transition-colors group-hover/attention:text-brand-navy"
+                aria-hidden
+              />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
   )
 }
 
@@ -562,6 +595,7 @@ export function Customer360Page() {
     : null
   const [activeTab, setActiveTab] = useState('tasks')
   const [activeSection, setActiveSection] = useState('summary')
+  const [isCustomerEditing, setIsCustomerEditing] = useState(false)
   const [preview, setPreview] = useState<{ sectionId: string; index: number } | null>(null)
   /** One panel for the whole page — any section's bubble toggles all of it. */
   const [areCommentsVisible, setAreCommentsVisible] = useState(false)
@@ -657,7 +691,7 @@ export function Customer360Page() {
       ? 'Back to workbench'
       : 'Back to customers'
 
-  const navSections = BASE_NAV_SECTIONS
+  const navSections = isScenarioVariant ? SCENARIO_NAV_SECTIONS : BASE_NAV_SECTIONS
 
   // Comment state lifted to page so all stacks share the same source of truth
   const [localComments, setLocalComments] = useState<Array<Comment & { status?: CommentStatus }>>(
@@ -904,14 +938,55 @@ export function Customer360Page() {
       updateItemStatus(ACTIVE_TASK_ID, 'Open')
     }
   }, [isCustomerScenarios, activeTask?.status, updateItemStatus])
-  const shownAccountItems = useMemo(
-    () => (isCustomerScenarios ? withoutInfoNotices(accountItems) : accountItems),
-    [isCustomerScenarios, accountItems]
-  )
+  const shownAccountItems = useMemo(() => {
+    const items = isCustomerScenarios ? withoutInfoNotices(accountItems) : accountItems
+    if (!isCustomerScenarios) return items
+    return items.filter((item) => {
+      const value = item.value.trim()
+      return value.length > 0 && value.toLowerCase() !== 'select'
+    })
+  }, [isCustomerScenarios, accountItems])
   const shownTermsAndBilling = useMemo(
     () => (isCustomerScenarios ? withoutInfoNotices(data.termsAndBilling) : data.termsAndBilling),
     [isCustomerScenarios, data.termsAndBilling]
   )
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    const items: AttentionItem[] = []
+    if (isNoCustomerData && !customerTitleConfirmed) {
+      items.push({
+        id: 'customer-unidentified',
+        sectionId: isCustomerScenarios ? 'customer' : 'account',
+        tone: 'confirm',
+        message: 'Agent couldn’t identify the customer',
+        action: 'Name this business',
+      })
+    } else if (!customerTitleConfirmed && !createdAccountCustomer) {
+      items.push({
+        id: 'customer-matches',
+        sectionId: isCustomerScenarios ? 'customer' : 'account',
+        tone: 'confirm',
+        message: '2 customer matches found. Confirm one.',
+        action: 'Confirm one',
+      })
+    }
+    items.push(
+      {
+        id: 'products-unmatched',
+        sectionId: isCustomerScenarios ? 'subscription' : 'products',
+        tone: 'confirm',
+        message: '3 products could not be found, 2 matches found for a product.',
+        action: 'Review products',
+      },
+      {
+        id: 'errors-to-fix',
+        sectionId: isCustomerScenarios ? 'subscription' : 'terms',
+        tone: 'error',
+        message: '2 errors to be fixed',
+        action: 'Fix errors',
+      }
+    )
+    return items
+  }, [isCustomerScenarios, isNoCustomerData, customerTitleConfirmed, createdAccountCustomer])
   const isNewCustomer = !!createdAccountCustomer && createdAccountCustomer === customerName
   const hasExistingCustomer = isCustomerScenarios && !!customerName && !isNewCustomer
   const scenarioTabIds = hasExistingCustomer
@@ -949,16 +1024,6 @@ export function Customer360Page() {
           onSelect={() => {}}
           triggerLabel="New deal: ingestion (TCV $492,000)"
         />
-        <SetupDueDate
-          dueDate={dueDate}
-          onChange={(date) => {
-            setDueDate(date)
-            addNotification({
-              title: 'Due date set',
-              message: `${taskTitle} for ${customerName || 'this customer'} is due ${date}.`,
-            })
-          }}
-        />
       </div>
 
       <div className="flex-1" />
@@ -969,7 +1034,20 @@ export function Customer360Page() {
             status={taskStatus}
             onChange={(status) => updateItemStatus(ACTIVE_TASK_ID, status)}
           />
+          {activeTask?.waitingOn ? (
+            <span className="flex h-6 items-center bg-neutral-100 px-2 text-[13px] font-medium leading-none text-brand-navy">
+              Waiting on {activeTask.waitingOn}
+            </span>
+          ) : null}
           <TaskActionsMenu
+            dueDate={dueDate}
+            onSetDueDate={(date) => {
+              setDueDate(date)
+              addNotification({
+                title: 'Due date set',
+                message: `${taskTitle} for ${customerName || 'this customer'} is due ${date}.`,
+              })
+            }}
             onResolve={() => {
               updateItemStatus(ACTIVE_TASK_ID, 'Resolved')
               addNotification({
@@ -1129,6 +1207,182 @@ export function Customer360Page() {
                   </div>
                 </section>
 
+                <div className="flex items-start gap-8">
+                  <div className="min-w-0 flex-1" style={{ maxWidth: CONTENT_COL_WIDTH }}>
+                    <AttentionPanel items={attentionItems} onNavigate={scrollToSection} />
+                  </div>
+                  <div aria-hidden className="shrink-0" style={{ width: COMMENTS_COL_WIDTH }} />
+                </div>
+
+                {isCustomerScenarios ? (
+                  <>
+                    <section ref={setSectionRef('customer')} className="group/section">
+                      <ContractSectionRow
+                        sectionId="customer"
+                        sectionLabel="Customer"
+                        areCommentsVisible={arePageCommentsVisible}
+                        comments={commentsBySection['account'] ?? []}
+                        onAddNote={(text, status) => handleAddComment('account', 'Account', text, status)}
+                        onDelete={handleDeleteComment}
+                        onResolve={handleResolveComment}
+                        showAddNote={addNoteSectionId === 'account'}
+                        onShowAddNoteChange={setSectionAddNote('account')}
+                      >
+                        <SectionHeader
+                          title="Customer"
+                          prominent
+                          helper={
+                            createdAccountCustomer ? 'New customer will be created' : undefined
+                          }
+                          isFlashing={false}
+                          commentCount={commentCountsBySection['account']}
+                          commentsVisible={arePageCommentsVisible}
+                          onToggleComments={
+                            isItemPinnedVariant ? () => handleSectionCommentIcon('account') : undefined
+                          }
+                          trailing={
+                            <button
+                              type="button"
+                              onClick={() => setIsCustomerEditing((editing) => !editing)}
+                              aria-label={isCustomerEditing ? 'Done editing customer' : 'Edit customer'}
+                              aria-pressed={isCustomerEditing}
+                              title={isCustomerEditing ? 'Done' : 'Edit'}
+                              className={cn(
+                                'flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg text-blue-700 transition-colors hover:bg-blue-50',
+                                isCustomerEditing && 'bg-blue-50'
+                              )}
+                            >
+                              {isCustomerEditing ? (
+                                <Check size={16} strokeWidth={2} />
+                              ) : (
+                                <Pencil size={16} strokeWidth={2} />
+                              )}
+                            </button>
+                          }
+                        />
+                        <div className="mt-4" style={{ maxWidth: CONTENT_COL_WIDTH }}>
+                          <LabelValueList
+                            items={shownAccountItems}
+                            sectionId="account"
+                            sectionLabel="Account"
+                            controlled
+                            onItemChange={handleAccountItemChange}
+                            onCreateAsNewCustomer={handleCreateAccountCustomer}
+                            onDeleteCreatedCustomer={handleDeleteAccountCustomer}
+                            createdCustomerName={createdAccountCustomer}
+                            accountPickerVariant={isAccountPickerV2 ? 'v2' : 'current'}
+                            hideAttentionFlags
+                            sectionEditing={isCustomerEditing}
+                            readOnly={!isCustomerEditing}
+                            onOpenSource={
+                              sectionSources.account?.length
+                                ? () => setPreview({ sectionId: 'account', index: 0 })
+                                : undefined
+                            }
+                          />
+                          <div className="mt-10">
+                            <LabelValueList
+                              items={data.addresses}
+                              sectionId="addresses"
+                              sectionLabel="Billing address"
+                              sectionEditing={isCustomerEditing}
+                              readOnly={!isCustomerEditing}
+                              onOpenSource={
+                                sectionSources.addresses?.length
+                                  ? () => setPreview({ sectionId: 'addresses', index: 0 })
+                                  : undefined
+                              }
+                            />
+                          </div>
+                        </div>
+                      </ContractSectionRow>
+                    </section>
+
+                    <section ref={setSectionRef('subscription')} className="group/section">
+                      <ContractSectionRow
+                        sectionId="subscription"
+                        sectionLabel="Subscription"
+                        areCommentsVisible={arePageCommentsVisible}
+                        expandIntoCommentsWhenHidden={isItemPinnedVariant}
+                        expandedPaddingRight={24}
+                        comments={commentsBySection['products'] ?? []}
+                        onAddNote={(text, status) =>
+                          handleAddComment('products', 'Products and pricing', text, status)
+                        }
+                        onDelete={handleDeleteComment}
+                        onResolve={handleResolveComment}
+                        showAddNote={addNoteSectionId === 'products'}
+                        onShowAddNoteChange={setSectionAddNote('products')}
+                      >
+                        <SectionHeader title="Subscription" isFlashing={false} />
+                        <div className="mt-8">
+                          <ProductsPricingTable
+                            key="products-pricing-discount-period-v2"
+                            items={data.products}
+                            periods={data.rampPeriods}
+                            contractEndDate={
+                              data.termsAndBilling.find((term) => term.label === 'End date')?.value
+                            }
+                            billingFrequency={
+                              data.termsAndBilling.find(
+                                (term) => term.label === 'Billing frequency'
+                              )?.value
+                            }
+                            variant={productsPricingVariant}
+                            excelComments={isCustomerScenarios}
+                            lifted={isProductsLifted}
+                            onLiftedChange={setIsProductsLifted}
+                            onInvoiceLevelDiscountChange={setInvoiceLevelDiscount}
+                            fullPageTitle={
+                              productsPricingVariant === 'expanded-state' ||
+                              productsPricingVariant === 'item-pinned'
+                                ? `${customerName} – ${taskTitle}`
+                                : undefined
+                            }
+                            header={
+                              <SectionHeader
+                                title="Products and pricing"
+                                isFlashing={false}
+                                commentCount={
+                                  isProductsLifted
+                                    ? undefined
+                                    : commentCountsBySection['products']
+                                }
+                                commentsVisible={arePageCommentsVisible}
+                                onToggleComments={
+                                  isItemPinnedVariant
+                                    ? () => handleSectionCommentIcon('products')
+                                    : undefined
+                                }
+                                trailing={
+                                  !isItemPinnedVariant && !isProductsLifted ? (
+                                    <button
+                                      type="button"
+                                      data-products-pricing-expand=""
+                                      onClick={() => setIsProductsLifted(true)}
+                                      className="flex h-6 w-6 cursor-pointer items-center justify-center rounded text-brand-navy transition-colors hover:bg-neutral-100"
+                                      aria-label="Expand products and pricing"
+                                      title="Expand"
+                                    >
+                                      <Maximize2 size={14} strokeWidth={2} />
+                                    </button>
+                                  ) : undefined
+                                }
+                              />
+                            }
+                          />
+                        </div>
+                        <div className="mt-16">
+                          <SectionHeader title="Entitlements" isFlashing={false} />
+                          <div className="mt-6">
+                            <AllocationTable items={data.allocations} periods={data.rampPeriods} />
+                          </div>
+                        </div>
+                      </ContractSectionRow>
+                    </section>
+                  </>
+                ) : (
+                <>
                 {/* Account */}
                 <section ref={setSectionRef('account')} className="group/section">
                   <ContractSectionRow
@@ -1441,6 +1695,8 @@ export function Customer360Page() {
                     </ContractSectionRow>
                   )}
                 </section>
+                </>
+                )}
               </div>
             </div>
           </div>

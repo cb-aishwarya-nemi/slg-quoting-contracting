@@ -64,7 +64,7 @@ const ATTRIBUTE_TYPES: Record<string, string> = {
 }
 
 const VALUE_OPTIONS: Record<string, string[]> = {
-  status: ['Ready for review', 'Open', 'Pending approval', 'Blocked'],
+  status: ['Ready for review', 'Open', 'Pending approval', 'Blocked', 'Resolved'],
   severity: ['Critical', 'High', 'Medium', 'Low'],
   taskType: ['Contract Ingestion'],
   taskName: ['New deal', 'Early renewal'],
