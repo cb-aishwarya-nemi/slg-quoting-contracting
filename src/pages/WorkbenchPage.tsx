@@ -25,7 +25,7 @@ type QuickFilterId = "owner-you" | "waiting-on-me" | "high-priority" | "pending-
 
 const QUICK_FILTERS: Array<{ id: QuickFilterId; label: string }> = [
   { id: "owner-you", label: "Owner is you" },
-  { id: "waiting-on-me", label: "Waiting on me" },
+  { id: "waiting-on-me", label: "Waiting on You" },
   { id: "high-priority", label: "High priority" },
   { id: "pending-approval", label: "Pending approval" },
 ];
@@ -380,7 +380,7 @@ export function WorkbenchPage() {
                     )
                   }
                   className={cn(
-                    "inline-flex h-7 cursor-pointer items-center rounded-full px-2.5 text-[12px] font-medium transition-colors",
+                    "inline-flex h-7 cursor-pointer items-center rounded-none border border-dotted border-current px-2.5 text-[12px] font-medium transition-colors",
                     isActive
                       ? "bg-[#2a3cac] text-white"
                       : "bg-[#f2f6ff] text-[#2a3cac] hover:bg-[#e7eeff]"
@@ -472,7 +472,7 @@ export function WorkbenchPage() {
                       Status
                     </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
-                      Labels
+                      Tags
                     </th>
                     <th className="py-2 pr-4 text-left text-[11px] font-medium uppercase tracking-normal text-brand-navy bg-white relative z-20" style={{ width: 132, boxShadow: 'inset 0 -1px 0 #1c1b2e', backgroundColor: '#ffffff' }}>
                       Owner
